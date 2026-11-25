@@ -205,6 +205,20 @@ def _served_engines():
     yield from (Path(path) for path in served if windows.official_engine(path)[0])
 
 
+def _package_engines():
+    """v0.6.26 final (live acceptance R2b): the official engines in the folders of the Codex app's package installed
+    for this account (codex/pairing.py package_engines, official_engine), whether or not the app runs - the one the
+    watcher took up from the app (#58) is still the one it drives after the app closes. A generator, as
+    `_served_engines` is, so that a signature is read only where the candidates searched before did not answer, and of
+    nothing but the engine a report could name; nothing where the package manager cannot answer."""
+    from .. import windows
+    try:
+        found = list(windows.package_engines())
+    except Exception:
+        return
+    yield from (Path(path) for path in found if windows.official_engine(path)[0])
+
+
 def discover(codex_home, explicit=None):
     """Discovery as the watcher does it, recording every candidate's checks. For per-call
     readers that have no watcher backend to ask. Returns (backend or None, discovery).
