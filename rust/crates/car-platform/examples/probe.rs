@@ -529,7 +529,7 @@ fn handle(request: &Json) -> Result<Json, String> {
             Path::new(text(request, "home")),
             request["silent"].as_bool().unwrap_or(false)
         )),
-        "display_name" => json!(addremove::display_name(Path::new(text(request, "path")))),
+        "display_name" => json!(display_name_line(request)?),
         "registry" => registry_scenario(request),
         "hive_policy" => hive_policy(request)?,
         "shortcut" => shortcut_scenario(request),
@@ -915,6 +915,16 @@ fn hold(request: &Json) -> Result<Json, String> {
     })
 }
 
+/// `json.dumps(addremove.display_name(path))`.
+fn display_name_line(request: &Json) -> Result<String, String> {
+    let name = addremove::display_name(Path::new(text(request, "path")));
+    car_machine::json::to_string(
+        &car_machine::json::Value::Str(name),
+        &car_machine::json::Options::new(),
+    )
+    .map_err(|e| format!("{e:?}"))
+}
+
 /// The policy values of a private hive (a scratch file, RegLoadAppKey; never HKCU or HKLM) read by the real reader
 /// (`WinRegistry` over the hive for both roots): each value as `query` gives it, and `policy_places` - what
 /// `policykeys.read()` hands `managed.parse`.
@@ -957,6 +967,18 @@ fn main() {
     for line in stdin.lock().lines() {
         let Ok(line) = line else { break };
         if line.trim().is_empty() {
+            continue;
+        }
+        // display_name answers a Python str, which may hold a lone surrogate serde cannot carry: its line is written
+        // by car-machine's writer (json.dumps) as it is.
+        if let Ok(request) = serde_json::from_str::<Json>(&line)
+            && request.get("op").and_then(Json::as_str) == Some("display_name")
+        {
+            let _ = match display_name_line(&request) {
+                Ok(written) => writeln!(out, "{{\"ok\": {written}}}"),
+                Err(error) => writeln!(out, "{}", json!({"error": error})),
+            };
+            let _ = out.flush();
             continue;
         }
         let reply = match serde_json::from_str::<Json>(&line) {

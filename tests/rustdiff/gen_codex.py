@@ -1,11 +1,13 @@
-"""Generate the one Unicode table car-codex reads, from the reference Python's own `str.isprintable`.
+"""Generate the Unicode table car-codex and car-platform read, from the reference Python's own `str.isprintable`.
 
     python -X utf8 tests/rustdiff/gen_codex.py --write | --check
 
 `labels._label` keeps only the characters Python calls printable (every code point but those of the general
 categories Cc, Cf, Cs, Co, Cn, Zl, Zp and Zs, a plain space excepted): Rust's `char` has no such question, and
 the interpreter's Unicode version decides it. The table is made from `sys.executable` (the Python that runs the
-reference) and `diffs_codex_readers.py` asks both sides about every one of the 1,114,112 code points.
+reference) and `diffs_codex_readers.py` asks both sides about every one of the 1,114,112 code points. car-platform
+reads the same table for `repr()` (addremove.display_name's `str()` of a list or a dict, review 4 note 5): the two
+files are one table, written and checked together.
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import unicodedata
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / "rust" / "crates" / "car-codex" / "src" / "printable_gen.rs"
+TARGETS = (TARGET, ROOT / "rust" / "crates" / "car-platform" / "src" / "printable_gen.rs")
 
 
 def ranges(points):
@@ -50,16 +53,19 @@ def main(argv=None) -> int:
     group.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     text = render()
-    if args.write:
-        TARGET.write_text(text, encoding="utf-8", newline="\n")
-        print("wrote", TARGET.relative_to(ROOT).as_posix())
-        return 0
-    current = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""
-    if current != text:
-        print("stale: %s (run gen_codex.py --write)" % TARGET.relative_to(ROOT).as_posix())
-        return 1
-    print("current:", TARGET.relative_to(ROOT).as_posix())
-    return 0
+    stale = 0
+    for target in TARGETS:
+        if args.write:
+            target.write_text(text, encoding="utf-8", newline="\n")
+            print("wrote", target.relative_to(ROOT).as_posix())
+            continue
+        current = target.read_text(encoding="utf-8") if target.exists() else ""
+        if current != text:
+            print("stale: %s (run gen_codex.py --write)" % target.relative_to(ROOT).as_posix())
+            stale = 1
+        else:
+            print("current:", target.relative_to(ROOT).as_posix())
+    return stale
 
 
 if __name__ == "__main__":
