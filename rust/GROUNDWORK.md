@@ -678,3 +678,43 @@ the old words bound read as 8193 (MigrationDiff, v0.6.11-alpha's file); a profil
 picture (ImagesDiff, op 2); WATCH_LIMIT 96 (ChoicesDiff.test_watch_limit). Each failed; all pass restored.
 
 The harness runs on a 256 MiB stack: values nest as deep as `json.loads` takes them (about 3,000 levels) and Value's clone and drop recurse; the entry points must give the threads that read profiles a stack with that room.
+
+## The advanced edition's registry, arming, statements, vocabulary and policy (seat S7.1b, branch `car-v0627-advpolicy`, 2026-11-25)
+
+Ported into `advanced/rust/crates/car-adv` (one crate, D19), from v0.6.26-beta.2 (none of the seven modules moved on dev since):
+
+| Python (`advanced/src/codex_auto_resume_advanced/`) | car-adv | How |
+|---|---|---|
+| `vocabulary.py` | `vocabulary.rs`, `vocabulary_gen.rs` | typed enums (`as_str`, `parse`, `ALL`, `ClosedWord`), `ENUMS`, `parse_member`, TRIPWIRES, KEPT_NOTICES, NOTE_FOR_PASS/FAIL: generated |
+| `standards.py` | `standards.rs`, `standards_gen.rs` | FAMILIES generated; STANDARDS, DEPARTABLE, DECLARABLE made as the tag makes them |
+| `measured.py` | `measured.rs`, `measured_gen.rs` | the build-time table, generated; `Table` is the shape arming reads |
+| `policy.py` | `policy.rs` | by hand: `read(reader)`, `Policy`, `windows_reader` over car-platform's `Registry` (KEY_READ only; REG_MULTI_SZ decoded from the bytes the platform returns) |
+| `registry.py` | `registry.rs`, `registry_gen.rs` | the definitions, WAITING, INSTALLED_ONLY and SHOWN_ORDER generated as data; `problems`, `Registry` (refusals, requires, required_by, at), `offered`, `shown` by hand. `make` (the factory of a capability's code) is not here: it is the plug's, S7.2 |
+| `statement.py` | `statement.rs`, `statement_gen.rs` | `Catalogs` over a directory read at run time (the package's own `locales/`), `words`, `text`, `badge`, `missing`, `complete_in`, `statement`; the key lists generated |
+| `arming.py` | `arming.rs` | the pure decisions (`standing`, `warnings_for`, `compat_warning`, `departs`, `held_word`, ...) and `Arming` with every method of the tag, over the seams below |
+| `autocheck.py`'s `settled` and `grade` | `seam_autocheck.rs`, `seam_autocheck_gen.rs` | the pure half arming reads, with the reach column of `CHECKS` generated; S7.2's autocheck port replaces it |
+
+`tests/rustdiff/gen_advpolicy.py --write | --check [--ref TAG]` writes the six `*_gen.rs` files from the tag's own package (`advref.run`). The `_gen` modules are `#[rustfmt::skip]`.
+
+**Seams** (`seam.rs`; what later seats and the integration seat replace):
+
+* `StatePort` - every call `Arming` makes of `AdvancedState` (about 35), with `StateFault` (`State`, `Stale`, `Refused(Refusal)`; the tag's `StaleGeneration` and `Refused` are subclasses of `StateError`). S7.1a's state implements it. Rows come as `ArmRow`; the opaque ones (rules, samples, rule ids) as car-machine `Value`s. `spends_since` and `payers` return `Vec`s so the state's order is kept.
+* `Edges` - what `arming.py` imports inside a function: the default view and live check (`_view_of`), `compatdata.table_for`, `autocheck.results_for`, `runtime.SENDING`'s points, the Stop hook's declaration, core's power tasks, `account.forget`, `usage.touched/order_problem/previews`, `wrapwords.check_custom/MAX_CUSTOM_LENGTH/PLACEHOLDERS`.
+* `CoreView` (in `arming.rs`) - core's records `sweep` is told of.
+* The host gives `Setup`: the policy reader (`policy::read(&|hive, name| policy::windows_reader(&registry, hive, name))`), the view and live closures, the clock, and `Catalogs::new(<app>/src/codex_auto_resume_advanced/locales, current-locale)`.
+
+The wire-typed arguments of `arm`, `set_keep_on`, `disarm`, `set_option`, ... are car-machine `Value`s, checked as the tag checks them (`type(x) is int`, a word that is no member), so a request of the wrong type is refused alike. Answers are `Value`s with the tag's key order.
+
+**Proofs** (`run.py` loads them: `python -X utf8 tests/rustdiff/run.py -k Advpolicy`; alone: `PYTHONPATH="src;tests" python -X utf8 -m unittest rustdiff.diffs_advpolicy_words rustdiff.diffs_advpolicy_pure rustdiff.diffs_advpolicy_arming`). They go through car-adv's example `advprobe` (`advanced/rust/crates/car-adv/examples/advprobe`, built on demand by `advref.ensure()` with `cargo build --release --locked --example advprobe`; `CODEX_AR_ADV_PROBE_EXE` names another build), not through car-harness, which belongs to the standard workspace and may not name car-adv. The reference is the tag's own advanced edition (`advref.py`: `src` and `advanced/src` taken out of git, CODEX_AR_EDITION=advanced).
+
+| Module | Holds equal to the tag |
+|---|---|
+| `diffs_advpolicy_words.py` | all enums and `Enum(text)`, the standards, the measurement table; `policy.read` over generated registry contents and the real reader through a registry stand-in on both sides; the definitions, WAITING, INSTALLED_ONLY, `problems()` over every definition and about 75 mutants of each, options, codes, shapes, registries made of definitions (every refusal, requires, required_by, at, shown), `offered` and the registry for 300 tables; every catalog of the tag, `words`, `text`, `badge`, `missing`, `complete_in` and `statement()` for every definition, on the tag's directory and nine damaged copies |
+| `diffs_advpolicy_pure.py` | the pure functions, `standing` included, and autocheck's `settled` and `grade` |
+| `diffs_advpolicy_arming.py` + `arming_scenarios.py` | scenarios run by the tag's `Arming` over a Python stand-in for the state and stubs for the edges, and by car-adv's over a Rust one with the same semantics: each step's answer, every call made of the state and the edges in order with its arguments, and the state left. The stand-ins' semantics are written twice and are small on purpose: what is under test is `Arming`, not the state (S7.1a's) |
+
+**For later seats.** S7.1a: implement `StatePort` on the ported state (the stand-in's semantics in `ops_arming.rs` say what each call must do for arming), and `crate::vocabulary` is the one source of the closed words (`JournalCode`, `OptionKey`, `RuleState`, ...): do not generate another. S7.2: a `make` per capability id; `usage::{touched, order_problem, previews}`, `wrapwords::check_custom`, `hookplugin::follow`, `powertasks::follow`, `account::forget`, `autocheck::results_for`, `compatdata::table_for` and `runtime::SENDING` fill `Edges` (usage and inuse come from the final tag). S7.3: `surfaces` calls `Arming` with `Value`s from the wire; `listing`, `statement` and the answers are the tag's JSON. The integration seat: `advanced/rust/Cargo.lock` was not changed by this seat (no new dependency: car-adv already reached car-machine, car-words, car-policy and car-platform); `lib.rs` gained `arming, jsonx, measured, policy, registry, seam, seam_autocheck, standards, statement, vocabulary` and the `_gen` modules, and `Cargo.toml` is unchanged; `tests/rustdiff/advref.py` extracts `advanced/src` as well as `src`, which S7.1a's diffs will want too.
+
+**The final re-diff, one command:** `python -X utf8 tests/rustdiff/rediff_advpolicy.py --reference v0.6.26` lists which files the port reads changed since beta.2, checks the generated tables against the tag, and runs the three diff modules with the tag as the reference.
+
+**Kept oddity.** A statement catalog that is not UTF-8 raises `UnicodeDecodeError` in the tag (nothing catches it) and does so in car-adv (`statement::Undecodable`, through `Catalogs::{catalog, text, badge, words, missing, complete_in, statement}` and `Arming::{arm, statement}`, which therefore return `Result`); AUDIT-v0628.md carries the line ("kept: ...").
