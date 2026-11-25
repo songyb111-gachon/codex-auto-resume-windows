@@ -1362,7 +1362,7 @@ A hotfix final for [#67](https://github.com/songyb111-gachon/codex-auto-resume-w
 
 ---
 
-## v0.6.26 — The third round: every audit once more over the finished code 🚧
+## v0.6.26 — The third round: every audit once more over the finished code ✅
 
 On 2026-11-12 the owner made the third round of audits part of v0.6.24, a round that checks everything again over the finished code of both editions; on 2026-11-18 they released v0.6.24 as the line that gave both editions their window's own look and made the third round, with the review below, a release of its own, v0.6.25; on 2026-11-21 they made v0.6.25 a hotfix final for #67 and moved the third round on to v0.6.26. It is the last Python release: what it settles is the Python reference implementation the Rust core reproduces.
 
@@ -1722,7 +1722,7 @@ The second pre-release: the fourth round's fixes and the fifth check, so that th
 
         ↓
 
-v0.6.26  🚧 In development
+v0.6.26  ✅ Released
 The third round: every audit once more over the finished code, the optical audit included, then cleanup, fixes and refactoring; the review of what moves from the advanced edition to the standard one; the switch to Python 3.15 if 3.15.3 is out
 → freeze Python reference behavior
 
@@ -1746,7 +1746,7 @@ Maintenance
 This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
 the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
 v0.6.20, and the four pre-releases of v0.6.20, v0.6.20-beta to v0.6.20-beta.4, are out and the final v0.6.20, which carries all of them and what
-reached dev after them, is out. The hotfix final v0.6.21 and the final v0.6.22, after v0.6.22-beta and -beta.2, are out; so are the final v0.6.23, after v0.6.23-beta and -beta.2, the final v0.6.24, after v0.6.24-beta and -beta.2, and the hotfix final v0.6.25, and v0.6.26-beta and -beta.2, the two pre-releases of v0.6.26. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+reached dev after them, is out. The hotfix final v0.6.21 and the final v0.6.22, after v0.6.22-beta and -beta.2, are out; so are the final v0.6.23, after v0.6.23-beta and -beta.2, the final v0.6.24, after v0.6.24-beta and -beta.2, and the hotfix final v0.6.25, and v0.6.26-beta and -beta.2, the two pre-releases of v0.6.26, and the final v0.6.26, the last Python release. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
