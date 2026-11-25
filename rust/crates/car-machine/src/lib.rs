@@ -4,6 +4,7 @@
 //! Each module says which Python module it replaces, and `tests/rustdiff/diffs_leaves_machine.py` holds it to the
 //! reference tag's own answers.
 
+pub mod caught;
 pub mod compat;
 pub mod domain;
 pub mod hash;

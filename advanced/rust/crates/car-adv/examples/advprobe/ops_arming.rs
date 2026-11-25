@@ -1773,9 +1773,7 @@ fn scenario(sc: &Map) -> Out {
             _ => "",
         };
         let args: Vec<Value> = parts[1..].iter().map(|part| run.resolve(part)).collect();
-        let done = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            step(&engine, &run, &registry, &log, name, &args)
-        }));
+        let done = car_machine::caught::catch(|| step(&engine, &run, &registry, &log, name, &args));
         results.push(match done {
             Ok(Ok(value)) => obj(vec![("ok", value)]),
             Ok(Err(failure)) => obj(vec![("error", text(&failure.class))]),

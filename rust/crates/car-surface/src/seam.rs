@@ -44,26 +44,11 @@ impl Raised {
 /// catch every exception a seam raised (`perform`, `activate`, `deliver`'s probe, `told`'s store), a panic is the
 /// exception the port's seams cannot carry in a `Result`, so it answers as one. The class is the payload's where it
 /// is a [`Raised`] or a text of the form `ClassName: ...` (a Python exception's name ending in `Error` or
-/// `Exception`), else `Exception`. The integration seat shares one such helper across the crates (GROUNDWORK S6.0).
+/// `Exception`), else `Exception`: car-machine's one catcher (`caught::class_of`), shared since Integration 7.
 pub fn caught<T>(body: impl FnOnce() -> Result<T, Raised>) -> Result<T, Raised> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)).unwrap_or_else(|payload| {
-        if let Some(raised) = payload.downcast_ref::<Raised>() {
-            return Err(raised.clone());
-        }
-        let text = payload
-            .downcast_ref::<&str>()
-            .map(|text| (*text).to_owned())
-            .or_else(|| payload.downcast_ref::<String>().cloned());
-        let class = text
-            .as_deref()
-            .and_then(|text| text.split_once(':'))
-            .map(|(name, _)| name)
-            .filter(|name| {
-                (name.ends_with("Error") || name.ends_with("Exception"))
-                    && name.chars().all(|c| c.is_ascii_alphanumeric())
-            })
-            .unwrap_or("Exception");
-        Err(Raised::new(class))
+    car_machine::caught::caught(body, |payload| match payload.downcast_ref::<Raised>() {
+        Some(raised) => raised.clone(),
+        None => Raised::new(&car_machine::caught::class_of(&*payload)),
     })
 }
 

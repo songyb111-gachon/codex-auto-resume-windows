@@ -4,8 +4,8 @@
 //! is `{"outcome": "unknown"}`, a record's look that fails costs that record alone. Generated from the seam traits
 //! (`seam.rs`, car-scheduler's `Store`/`Source`); `Engine::new` wraps what it is handed.
 
+use car_machine::caught::catch;
 use std::collections::BTreeSet;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use car_machine::json::{Map, Str, Value};
 use car_machine::pyval::Py;
@@ -261,7 +261,7 @@ impl Source for Caught<dyn Source> {
     }
     fn set_kinds(&mut self, kinds: &BTreeSet<String>, widened: &BTreeSet<String>) {
         let inner = &mut self.0;
-        let _ = catch_unwind(AssertUnwindSafe(|| inner.set_kinds(kinds, widened)));
+        let _ = catch(|| inner.set_kinds(kinds, widened));
     }
 }
 
@@ -282,23 +282,22 @@ impl Backend for Caught<dyn Backend> {
         car_scheduler::caught(|| self.0.delete_queue(thread_id, queue_id))
     }
     fn app_look(&self) -> Value {
-        catch_unwind(AssertUnwindSafe(|| self.0.app_look())).unwrap_or(Value::Null)
+        catch(|| self.0.app_look()).unwrap_or(Value::Null)
     }
     fn app_unmatched_reason(&self) -> Value {
-        catch_unwind(AssertUnwindSafe(|| self.0.app_unmatched_reason())).unwrap_or(Value::Null)
+        catch(|| self.0.app_unmatched_reason()).unwrap_or(Value::Null)
     }
     fn protocol_results(&self) -> Value {
-        catch_unwind(AssertUnwindSafe(|| self.0.protocol_results())).unwrap_or(Value::Null)
+        catch(|| self.0.protocol_results()).unwrap_or(Value::Null)
     }
     fn session_holder(&self) -> Value {
-        catch_unwind(AssertUnwindSafe(|| self.0.session_holder())).unwrap_or(Value::Null)
+        catch(|| self.0.session_holder()).unwrap_or(Value::Null)
     }
     fn engine_version(&self) -> Value {
-        catch_unwind(AssertUnwindSafe(|| self.0.engine_version())).unwrap_or(Value::Null)
+        catch(|| self.0.engine_version()).unwrap_or(Value::Null)
     }
     fn holder(&self, _thread_id: &str) -> Option<Py<Value>> {
-        catch_unwind(AssertUnwindSafe(|| self.0.holder(_thread_id)))
-            .unwrap_or(Some(Err("Exception")))
+        catch(|| self.0.holder(_thread_id)).unwrap_or(Some(Err("Exception")))
     }
 }
 

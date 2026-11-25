@@ -54,7 +54,7 @@ fn main() {
         };
         let op = op.as_str().unwrap_or("");
         // D15: a panic is caught at the boundary; a case that panics is an error of its own class, never a dead probe.
-        let done = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(op, args)));
+        let done = car_machine::caught::catch(|| dispatch(op, args));
         results.push(match done {
             Ok(Ok(value)) => object([("ok", value)]),
             Ok(Err(failure)) => object([("error", failure.class.into())]),

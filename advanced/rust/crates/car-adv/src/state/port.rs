@@ -27,21 +27,14 @@ use crate::vocabulary::{
     PromptReason, Refusal, RuleReason, RuleState, SteerReason, WordingKey, parse,
 };
 
-/// What the state raised that is not a `StateError`: the exception's class and its text, carried by a panic.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Raised {
-    pub class: &'static str,
-    pub message: String,
-}
-
-/// D15's boundary for every host of `Arming` (the probes today; S7.3's surfaces and the watcher later): a host calls
-/// `Arming` inside `std::panic::catch_unwind` and reads the payload with this - a [`Raised`] is the exception the
+/// What the state raised that is not a `StateError` (the exception's class and its text, carried by a panic), and D15's
+/// boundary for every host of `Arming` (the probes today; S7.3's surfaces and the watcher later): a host calls `Arming`
+/// inside car-machine's `caught::catch` and reads the payload with [`raised`] - a [`Raised`] is the exception the
 /// reference raises out of `arming.py` (its class and text, to be answered as that host answers that exception),
 /// anything else a panic of the port's own. The panics come after the state's call returned, outside any
-/// transaction, so the state is left as the reference leaves it.
-pub fn raised(payload: &(dyn std::any::Any + Send)) -> Option<&Raised> {
-    payload.downcast_ref::<Raised>()
-}
+/// transaction, so the state is left as the reference leaves it. Both are car-machine's (`caught`), shared since
+/// Integration 7.
+pub use car_machine::caught::{Raised, raised};
 
 /// An error of the state as `arming.py` meets it.
 fn fault(error: Error) -> StateFault {
