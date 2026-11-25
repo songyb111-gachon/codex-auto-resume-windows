@@ -553,7 +553,7 @@ fn open_reports(github: &GhSession<'_>, login: &str) -> Gh<Vec<(String, String)>
 }
 
 /// `PULL.search(text)` or `PULL.fullmatch(text)`: `PROJECT_PAGE/pull/` and one to nine digits (any script's).
-fn pull_in(text: &str, whole: bool) -> Option<String> {
+pub fn pull_in(text: &str, whole: bool) -> Option<String> {
     let prefix = format!("{PROJECT_PAGE}/pull/");
     let starts: Vec<usize> = text.match_indices(&prefix).map(|(at, _)| at).collect();
     for start in starts {

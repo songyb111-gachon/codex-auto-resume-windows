@@ -164,7 +164,7 @@ class ReportDiff(unittest.TestCase):
     def rust(self, folder: Path, cases: list, *, chunk: int = 400) -> list:
         """car-adv's answers to `cases`, `advreport` run on the scratch environment of the folder's profile."""
         actual = []
-        environment = advref.reference.scratch_environment(folder / "profile")
+        environment = advref.environment(folder / "profile")
         for start in range(0, len(cases), chunk):
             request = json.dumps({"cases": cases[start:start + chunk]}, ensure_ascii=False).encode("utf-8")
             ran = subprocess.run([str(binary())], input=request, capture_output=True, env=environment,
