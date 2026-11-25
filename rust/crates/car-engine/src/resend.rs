@@ -84,7 +84,7 @@ impl Engine {
             if now - looked > self.options.conservative_poll_seconds {
                 continue;
             }
-            if self.resend(&key, now).is_err() {
+            if car_scheduler::caught(|| self.resend(&key, now)).is_err() {
                 self.log(None, "eligibility_check_failed_no_submission", Value::Null);
             }
         }

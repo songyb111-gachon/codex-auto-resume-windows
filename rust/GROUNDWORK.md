@@ -648,3 +648,18 @@ all three, so the proxy really runs car-engine.
 * The watcher (S6.1) builds its engines from car-store and car-codex directly; the proxy is the test lane's only.
 * `rediff_engine.py --reference v0.6.26` re-diffs the engine; the frozen modules themselves are held byte for byte by
   test_released_calls, so the proxy's proof is re-run as is against a new tag's engine (the two `--worker` runs above).
+
+## Review 6 in car-engine (seat S4.2, the same branch, 2026-11-26)
+
+`outputs/plans/v0627-rust/REVIEW-engine.md`; its traces are `tests/rustdiff/diffs_review6.py` (cherry-picked).
+
+* **S1 (D15)**: a panic costs what the reference's exception costs, never the tick. `car_scheduler::caught` is
+  `try/except Exception` for a panic too, at every per-record boundary the reference keeps (tick's attempt loop,
+  `observe_all`, the watch's rows, `resend_uncertain`, around the send) and tick's `finally` (`usage_checks_left` runs,
+  then the panic goes on); and `caught.rs` wraps every seam `Engine::new` is handed (`Store`, `Source`, `Backend`,
+  `OnceWords`), so a panic inside S3.3's transport, car-codex or car-store is the exception at that call and meets the
+  reference's own `except` there (observe's `seen = None` was the one the diffs found besides the review's list). The
+  watch budget is elapsed seconds against the budget, as the reference's monotonic deadline: 1e300, inf or NaN is no
+  deadline, a negative one ends the pass at once (`Duration::from_secs_f64` panicked). Proof: `diffs_engine_panics.py`
+  (EnginePanicDiff, 6 cases: the reference's seam raises where car-harness panics, through the scenario proxy; 5 failed
+  before the fix) and review 6's `r6_watch_budget_huge`.

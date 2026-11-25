@@ -1044,7 +1044,12 @@ fn sync(engine: &mut Engine, given: &Map) {
         value.clone_into(&mut engine.home_key);
     }
     if let Some(value) = given.get("once_words") {
-        engine.once_words = truthy(value).then(|| Box::new(AskOnceWords) as Box<dyn OnceWords>);
+        // As `Engine::new` holds what it is handed: a panic inside is the exception at that call (caught.rs).
+        engine.once_words = truthy(value).then(|| {
+            Box::new(car_engine::caught::Caught(
+                Box::new(AskOnceWords) as Box<dyn OnceWords>
+            )) as Box<dyn OnceWords>
+        });
     }
 }
 

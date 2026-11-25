@@ -20,6 +20,13 @@ use car_machine::pyval::Py;
 
 pub use watch::{Reason, SETTLED, Undetermined, settled};
 
+/// `try: body() except Exception: ...` for a panic as well as an error (D15): where the reference catches every
+/// exception - one record's look, one send - a panic is caught too and answers as the exception the reference meets
+/// there would (`Err("Exception")`), so it costs that record alone and never the tick.
+pub fn caught<T>(body: impl FnOnce() -> Py<T>) -> Py<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)).unwrap_or(Err("Exception"))
+}
+
 /// A record or a row: a `dict` of Python values.
 pub type Row = Map;
 

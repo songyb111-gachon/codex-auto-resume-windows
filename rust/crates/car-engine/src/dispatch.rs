@@ -643,12 +643,13 @@ impl Engine {
                 key: key.clone(),
             };
             let words = Str::from(words.as_str());
-            let sent = match &sender {
+            // `try: response = sender.send(...) except Exception: response = {"outcome": "unknown"}`: a panic too.
+            let sent = car_scheduler::caught(|| match &sender {
                 Sender::Backend => self.backend.send(&claimed_thread, &words, &guard),
                 Sender::Channel { channel, .. } => {
                     Ok(channel.send(&claimed_thread, &words, client.as_deref()))
                 }
-            };
+            });
             match sent {
                 Ok(Value::Object(response)) => response,
                 _ => py::row(vec![("outcome", Value::from("unknown"))]),
