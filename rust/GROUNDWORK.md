@@ -917,7 +917,13 @@ reference cannot index ends the command as its traceback does; `--out` naming a 
 `format_local` asked in UTC (`TZ=UTC0`), the reference's role dispatch for `bridge`/`mcp`, stand-in names apart from
 actworld's, a `face=None` page asking the host.
 
-MUTATIONS-PENDING
+Mutation checks (a rule broken, the harness rebuilt, the named diff run, the source put back; each one fails it): the batch's
+depth limit 995 -> 996 (`diffs_mcp.FramingDiff.test_streams`); one word of the generated settings schema's description
+(`GoldenMcpDiff.test_tool_list_and_protocol`, by tools-list.json); `pending` showing 15 characters of the interruption, not 16
+(`diffs_cli.CommandsDiff.test_records`); argparse's long options taken only whole, not by a prefix (`ParserDiff`, 6 lines);
+plugin_setup's EXIT_UNCONFIRMED 2 -> 1 (`SetupDiff`, 8 cases).
+
+`test_mcp` through the shim (`CODEX_AR_CORE=rust`, car-core-stub now running car-bin; Node 24 present): Ran 75, OK, no skip.
 
 ### The re-diff
 
