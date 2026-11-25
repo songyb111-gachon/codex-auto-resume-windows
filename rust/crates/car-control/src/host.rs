@@ -67,10 +67,9 @@ pub trait Host: Windows + Send + Sync {
     fn account_codex_home(&self) -> Option<String>;
     /// `homefind.app_homes()`: where the Codex app says it has run.
     fn app_homes(&self) -> Vec<String>;
-    /// `time.localtime` and `time.mktime`: the zone a reset time is written in.
-    fn local_clock(&self) -> Box<dyn car_policy::classify::clock::LocalClock> {
-        Box::new(crate::localclock::UtcClock)
-    }
+    /// `time.localtime` and `time.mktime`: the zone a reset time is written in (car-platform's `localclock::Crt` on
+    /// this machine; a stand-in's pinned zone, `localclock::UtcClock`, in the differential harness).
+    fn local_clock(&self) -> Box<dyn car_policy::classify::clock::LocalClock>;
     /// `os.path.islink`, the way the store and the settings ask it.
     fn is_symlink(&self, path: &Path) -> bool;
     /// `win.sync.Mutex(name, timeout)` entered: a guard that holds it until dropped, or why it could not be had.
@@ -259,6 +258,10 @@ impl Host for SystemHost {
 
     fn app_homes(&self) -> Vec<String> {
         crate::homefind::app_homes(std::env::var("LOCALAPPDATA").ok().as_deref())
+    }
+
+    fn local_clock(&self) -> Box<dyn car_policy::classify::clock::LocalClock> {
+        Box::new(car_platform::localclock::Crt)
     }
 
     fn is_symlink(&self, path: &Path) -> bool {

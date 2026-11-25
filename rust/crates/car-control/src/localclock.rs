@@ -1,9 +1,9 @@
-//! The local clock a continuation's `{reset_time}` is read on (`time.localtime`, `time.mktime`).
+//! The pinned zone a stand-in host reads a continuation's `{reset_time}` on (`time.localtime`, `time.mktime`).
 //!
-//! The reference asks Windows' own conversion through the C runtime; every Windows call is car-platform's (D3), and
-//! car-platform has no local-zone reader yet. `UtcClock` is the seam's stand-in: the zone with no offset, the one the
-//! reference's golden installation pins (`make_screenshots` patches `time.localtime` to `gmtime`). The entry points
-//! replace it with the account's zone when car-platform has one.
+//! The product's clock is car-platform's `localclock::Crt` (the C runtime's, as the reference's), which `SystemHost`
+//! answers. `UtcClock` is the zone with no offset, the one the reference's golden installation pins (`make_screenshots`
+//! and `tests/rustdiff/bridgeworld.py` patch `time.localtime` to `gmtime`): the differential harness's `WorldHost` hands
+//! it in so both sides answer for one machine.
 
 use car_machine::pyval::Py;
 use car_policy::classify::clock::{LocalClock, Tm};

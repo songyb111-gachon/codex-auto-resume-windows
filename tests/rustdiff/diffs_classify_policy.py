@@ -5,7 +5,7 @@ generated settings, records and times.
 Quiet hours and a postponement read the local clock; both sides are handed the same test zone (`ZONE`, below, and
 `car-harness`'s `Zone`): a fixed offset, and summer time between two days of the UTC year, so a window is walked
 across midnight and across both changes of the clock as the Python's own tests walk it. The zone `"local"` is the
-product's own clock: the reference's `time.localtime` and `time.mktime`, and car-policy's `Crt` (the same C runtime).
+product's own clock: the reference's `time.localtime` and `time.mktime`, and car-platform's `Crt` (the same C runtime).
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def yday(y, m, d):
 class Zone:
     def __init__(self, spec):
         if spec == "local":
-            # The product's clock: this interpreter's own, Windows' C runtime (car-policy's `Crt`).
+            # The product's clock: this interpreter's own, Windows' C runtime (car-platform's `Crt`).
             self.localtime = time.localtime
             self.mktime = lambda parts: time.mktime(tuple(parts[:6]) + (0, 0, -1))
             return

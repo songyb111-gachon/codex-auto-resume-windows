@@ -1,4 +1,4 @@
-"""The product's local clock (car-policy `classify::clock::Crt`) in zones with summer time, against the interpreter's own.
+"""The product's local clock (car-platform `localclock::Crt`) in zones with summer time, against the interpreter's own.
 
 Quiet hours, a postponement and a reset time read `time.localtime` and `time.mktime`, which on Windows are the C
 runtime's `_localtime64_s` and `_mktime64`; `Crt` calls the same two (REVIEW-int5 note 3). diffs_classify_policy.py

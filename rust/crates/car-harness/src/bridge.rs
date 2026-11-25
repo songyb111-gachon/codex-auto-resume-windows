@@ -256,6 +256,11 @@ impl Host for WorldHost {
         self.superseded
     }
 
+    fn local_clock(&self) -> Box<dyn car_policy::classify::clock::LocalClock> {
+        // The zone the reference's side pins (bridgeworld.py: `time.localtime` is `gmtime`).
+        Box::new(car_control::localclock::UtcClock)
+    }
+
     fn is_symlink(&self, path: &Path) -> bool {
         self.inner.is_symlink(path)
     }

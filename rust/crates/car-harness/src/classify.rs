@@ -4,12 +4,13 @@
 //! family script's reference side writes for the same case: a set as a sorted list, a tuple as a list, a refusal
 //! (`CustomMessageError`, `PromptError`) as `["refused", ...]`. Nothing here decides anything: every answer is
 //! car-policy's own function's. The clock is a test zone ([`Zone`]) that the reference side defines alike, or `"local"`,
-//! the product's own ([`Clock`], car-policy's `Crt`), which the reference answers with its own `time` module.
+//! the product's own ([`Clock`], car-platform's `Crt`), which the reference answers with its own `time` module.
 
 use car_machine::json::{Map, Value};
 use car_machine::pyval::Py;
 use car_machine::vocab;
-use car_policy::classify::clock::{Crt, LocalClock, Tm};
+use car_platform::localclock::Crt;
+use car_policy::classify::clock::{LocalClock, Tm};
 use car_policy::classify::continuation::{self, Environ, Settings};
 use car_policy::classify::gates::{self, Limits, Vector};
 use car_policy::classify::{
@@ -132,7 +133,7 @@ impl LocalClock for Zone {
     }
 }
 
-/// The clock a case names: a test zone, or `"local"`, the product's own (car-policy's `Crt`, the C runtime's
+/// The clock a case names: a test zone, or `"local"`, the product's own (car-platform's `Crt`, the C runtime's
 /// `localtime` and `mktime`), which the reference side answers with its interpreter's own `time` module.
 pub enum Clock {
     Zone(Zone),

@@ -364,7 +364,7 @@ car-store carries it, `{"\u0000bytes": hex}`.
 |---|---|
 | `diffs_leaves_floats.py` | the float's text, character for character: car-machine's JSON writer, `pytext::float_repr` and car-brand's `pyfmt::repr` against `json.dumps` and `repr` over 258,728 floats sent as their bits (every power of two and its neighbours, the subnormals, every decimal exponent's boundary, the non-finite, random) |
 | `diffs_store_values.py` | car-store on values no store writes: BLOB columns read by `watcher_status` and a legacy store (`bool(bytes)`, written back as a BLOB), sign-ins with a newline, no settings row, claims with non-finite caps |
-| `diffs_classify_clock.py` | the product's clock (car-policy `Crt`, the zone `"local"`) against the interpreter's own `time` under six `TZ` zones with summer time, half hours and UTC (161,874 cases); `diffs_classify_policy.py` holds it in this PC's zone at every edge |
+| `diffs_classify_clock.py` | the product's clock (car-platform `localclock::Crt`, the zone `"local"`) against the interpreter's own `time` under six `TZ` zones with summer time, half hours and UTC (161,874 cases); `diffs_classify_policy.py` holds it in this PC's zone at every edge |
 
 The re-enabled cases (`diffs_classify_policy.py`'s four `if False`), and NaN and the infinities added to the words, domain
 and brand families, are equal to v0.6.26-beta.2. The re-diff at the final: `python -X utf8 tests/rustdiff/rediff_review5.py

@@ -11,6 +11,7 @@
 //! | `registry`, `startup`, `addremove`, `registry_reads`, `shortcut` | the registry and shortcut writers, behind a stand-in |
 //! | `kernel`, `sync`, `homelock` | `win/kernel.py`, `win/sync.py`, `win/homelock.py`, `win/folderid.py` |
 //! | `links` | `Path.is_symlink()` on Windows: the one link probe (a junction is not a link) |
+//! | `localclock` | `time.localtime` and `time.mktime`: the C runtime's `_localtime64_s` and `_mktime64` |
 //! | `network`, `ownprocess`, `power`, `powerdown`, `acl`, `authenticode`, `inventory`, `typeface`, `handover` | the module of the same name in `win/` |
 //!
 //! Not ported: `win/dll.py` (a cache of ctypes handles and the window-class declarations the C# surfaces use: Rust
@@ -27,6 +28,7 @@ pub mod homelock;
 pub mod inventory;
 pub mod kernel;
 pub mod links;
+pub mod localclock;
 pub mod names;
 pub mod network;
 pub mod ownprocess;

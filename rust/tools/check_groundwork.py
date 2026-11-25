@@ -242,10 +242,38 @@ def check_locks() -> None:
 
 # D3 (the owner's): every Windows call lives in car-platform. Only it may declare an `extern "system"` function or depend
 # on the `windows` or `windows-sys` crate; a tiny binary where size and build time matter may take `windows-sys`, and is
-# named here when there is one (none yet).
+# named here when there is one (none yet). Integration 6: the C runtime is held the same way - its `localtime` and
+# `mktime` read Windows' zone - so only car-platform declares `extern "C"`, but for the C library's pure math named in
+# C_MATH (a file and the one function it declares, with no state of Windows behind it).
 WINDOWS_CALLERS = {"car-platform"}
 TINY_BINARIES: set[str] = set()
-EXTERN_SYSTEM = re.compile(r'extern\s+"system"')
+EXTERN_SYSTEM = re.compile(r'extern\s+"(system|C)"')
+# math.erfc: CPython calls the C library's, and so does car-brand's elevation colour (pyfmt.rs).
+C_MATH = {"rust/crates/car-brand/src/pyfmt.rs": {"erfc"}}
+LINK_NAME = re.compile(r'#\[link_name\s*=\s*"([^"]+)"\]')
+FUNCTION = re.compile(r'\bfn\s+([A-Za-z_][A-Za-z0-9_]*)')
+
+
+def c_math_only(source: Path, text: str, start: int) -> bool:
+    """Whether the `extern "C"` block opening on line `start` (1-based) of `source` links only C_MATH's functions:
+    each `fn` by its `#[link_name]` where it has one, else by its own name."""
+    allowed = C_MATH.get(source.relative_to(ROOT).as_posix())
+    if not allowed:
+        return False
+    linked, named = set(), None
+    for line in text.splitlines()[start:]:
+        if line.strip() == "}":
+            break
+        link = LINK_NAME.search(line)
+        if link:
+            named = link.group(1)
+        function = FUNCTION.search(line)
+        if function:
+            linked.add(named or function.group(1))
+            named = None
+    return bool(linked) and linked <= allowed
+
+
 WINDOWS_DEPENDENCY = re.compile(r'^\s*(windows|windows-sys)\s*[=.]', re.M)
 
 
@@ -266,10 +294,15 @@ def check_windows_calls_in_platform() -> None:
             for source in sorted(crate.rglob("*.rs")):
                 if "target" in source.parts:
                     continue
-                for number, line in enumerate(read(source).splitlines(), 1):
-                    if EXTERN_SYSTEM.search(line) and not line.lstrip().startswith("//"):
-                        fail('%s:%d declares extern "system": Windows calls live in car-platform (D3)'
-                             % (source.relative_to(ROOT).as_posix(), number))
+                text = read(source)
+                for number, line in enumerate(text.splitlines(), 1):
+                    found = EXTERN_SYSTEM.search(line)
+                    if not found or line.lstrip().startswith("//"):
+                        continue
+                    if found.group(1) == "C" and c_math_only(source, text, number):
+                        continue
+                    fail('%s:%d declares extern "%s": Windows calls live in car-platform (D3)'
+                         % (source.relative_to(ROOT).as_posix(), number, found.group(1)))
 
 
 def main() -> int:
