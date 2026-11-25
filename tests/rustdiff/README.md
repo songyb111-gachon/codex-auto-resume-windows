@@ -312,3 +312,22 @@ The diffs catch a broken rule (each broken alone, the harness rebuilt, its diff 
 a window exhausted past 100 instead of at 100 (usage), a first line allowed one byte more (rollout first lines: the line of
 `256 KiB + 1` bytes), `codex_work_desktop` no desktop originator (eligibility matrix), a rollback after the anchor no doubt
 (superseded and trigger).
+
+## The second review's fixes (seat fix5, REVIEW-int5)
+
+**Floats the channel cannot carry.** A NaN or an infinity crosses as `{"$float": "nan" | "inf" | "-inf"}`, both ways:
+`diffs.TAGGING` (`tagged`) is in `leaves.PRELUDE`'s `finish`, `codexdiff.SCRIPT`'s answers, `diffs.encode` and the store
+diffs' requests; car-harness untags a `leaves.batch` or `codex.script` request and the store calls' line before anything
+runs and tags the leaves and codex answers. Every finite value is written as before. `policy.batch` (settingsdiff.py) keeps
+its own loose reading of NaN. A dict whose only key is `$float` is the tag's. A BLOB in a store answer is written as
+car-store carries it, `{" bytes": hex}`.
+
+| Module | Proves |
+|---|---|
+| `diffs_leaves_floats.py` | the float's text, character for character: car-machine's JSON writer, `pytext::float_repr` and car-brand's `pyfmt::repr` against `json.dumps` and `repr` over 258,728 floats sent as their bits (every power of two and its neighbours, the subnormals, every decimal exponent's boundary, the non-finite, random) |
+| `diffs_store_values.py` | car-store on values no store writes: BLOB columns read by `watcher_status` and a legacy store (`bool(bytes)`, written back as a BLOB), sign-ins with a newline, no settings row, claims with non-finite caps |
+| `diffs_classify_clock.py` | the product's clock (car-policy `Crt`, the zone `"local"`) against the interpreter's own `time` under six `TZ` zones with summer time, half hours and UTC (161,874 cases); `diffs_classify_policy.py` holds it in this PC's zone at every edge |
+
+The re-enabled cases (`diffs_classify_policy.py`'s four `if False`), and NaN and the infinities added to the words, domain
+and brand families, are equal to v0.6.26-beta.2. The re-diff at the final: `python -X utf8 tests/rustdiff/rediff_review5.py
+--reference v0.6.26`.
