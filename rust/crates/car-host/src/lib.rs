@@ -5,7 +5,7 @@
 
 pub mod abi;
 
-// The standard edition's six exports (feature `exports`, on by default). car-adv-host turns the feature off and makes
-// the same six with the advanced plug, so the two never meet in one DLL.
+// The standard edition's six exports (feature `exports`, on by default). The other edition's host crate turns the
+// feature off and makes the same six over its own plug, so the two never meet in one DLL.
 #[cfg(feature = "exports")]
 export_core!(car_policy::plug::Guarded::null);

@@ -13,8 +13,8 @@ name = "car_core"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-# The standard edition's six exports, `export_core!(Guarded::null)` (src/lib.rs). car-adv-host depends on car-host
-# with `default-features = false` and exports the same six over the advanced plug (P6-DESIGN Q3, P7-DESIGN 2.4).
+# The standard edition's six exports, `export_core!(Guarded::null)` (src/lib.rs). The other edition's host crate
+# depends on car-host with `default-features = false` and exports the same six over its own plug (P6-DESIGN Q3).
 default = ["exports"]
 exports = []
 

@@ -249,6 +249,11 @@ def check_locks() -> None:
 # `mktime` read Windows' zone - so only car-platform declares `extern "C"`, but for the C library's pure math named in
 # C_MATH (a file and the one function it declares, with no state of Windows behind it).
 WINDOWS_CALLERS = {"car-platform"}
+# P6 step 0: car-host defines the six `extern "C" fn` exports of car_core.dll (abi.rs `export_core!`). A definition
+# is the DLL's own export, called by the C# host, not a call into Windows; an `extern "C" { ... }` block (an import)
+# stays car-platform's there as everywhere. The export table itself is held by car-host's tests/abi_exports.rs.
+EXPORTERS = {"car-host"}
+EXTERN_DEFINITION = re.compile(r'extern\s+"C"\s+fn\s')
 TINY_BINARIES: set[str] = set()
 EXTERN_SYSTEM = re.compile(r'extern\s+"(system|C)"')
 # math.erfc: CPython calls the C library's, and so does car-brand's elevation colour (pyfmt.rs).
@@ -303,6 +308,8 @@ def check_windows_calls_in_platform() -> None:
                     if not found or line.lstrip().startswith("//"):
                         continue
                     if found.group(1) == "C" and c_math_only(source, text, number):
+                        continue
+                    if name in EXPORTERS and EXTERN_DEFINITION.search(line):
                         continue
                     fail('%s:%d declares extern "%s": Windows calls live in car-platform (D3)'
                          % (source.relative_to(ROOT).as_posix(), number, found.group(1)))

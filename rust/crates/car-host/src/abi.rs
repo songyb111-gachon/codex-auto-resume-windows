@@ -41,8 +41,8 @@
 //!
 //! **One generic entry (Q3, P7-DESIGN 2.4).** One `CodexAutoResume.exe` serves both editions; what differs is in each
 //! edition's `car_core.dll`, and only in the [`Factory`] it hands [`export_core!`](crate::export_core): car-host's own
-//! build is `export_core!(Guarded::null)` (feature `exports`, on by default), and car-adv-host depends on car-host
-//! with `default-features = false` and is `car_host_lib::export_core!(<the advanced plug>)`.
+//! build is `export_core!(Guarded::null)` (feature `exports`, on by default), and the other edition's host crate
+//! depends on car-host with `default-features = false` and is the same call with its own plug.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -676,7 +676,7 @@ pub unsafe fn free(buffer: *mut u8, length: usize) {
 }
 
 /// The six exports of [`EXPORTS`] over one edition's [`Factory`]: the generic entry (Q3). car-host's own build is
-/// `export_core!(Guarded::null)`; car-adv-host's is the same call with the advanced plug.
+/// `export_core!(Guarded::null)`; the other edition's host crate makes the same call with its own plug.
 #[macro_export]
 macro_rules! export_core {
     ($factory:expr) => {
