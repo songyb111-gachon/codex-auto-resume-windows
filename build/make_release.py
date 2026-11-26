@@ -103,6 +103,9 @@ GUI_EXE = "CodexAutoResumeSettings.exe"
 # inside the plugin, so the launcher ships in the plugin payload and finds the bundled
 # interpreter itself. `.mcp.json` names it by that contained path.
 MCP_EXE = "codex-auto-resume-mcp.exe"
+# v0.6.27: the launcher is car-bin's Rust one (D18), built by cargo in the standard workspace with the core it starts,
+# where it was gui/McpLauncher.cs built by make_gui.ps1. One file in both editions, as before.
+RUST_BUILT = ROOT / "rust" / "target" / "release"
 # Every top-level document the shipped README links to, so the installed copy does not
 # promise a privacy policy that is not beside it. Asserted by tests/test_plugin.py.
 #
@@ -511,15 +514,16 @@ def check_built_for_this_tree(executable: Path, edition: str, kind: str) -> None
 
 
 def collect_gui(stage: Path, edition: str = "standard") -> int:
-    r"""Place the settings window beside the runtime it drives.
+    r"""Place the settings window beside the core it drives.
 
-    It resolves ``runtime\python.exe`` and ``app\src`` relative to its own directory,
+    It resolves ``app\bin\codex-auto-resume.exe`` (v0.6.27, gui/CoreExe.cs) relative to its own directory,
     so it must sit at the root of the installed home - which is where the installer
     copies the whole payload folder.
 
     Each edition has a window of its own: `make_gui.ps1 -Edition advanced` compiles the
     advanced one into build/advanced/, beside the standard one and never over it. The MCP
-    launcher is one file, the same in both editions.
+    launcher is one file, the same in both editions: car-bin's, from the standard Rust workspace's
+    release build (RUST_BUILT), which cargo makes reproducible and make_gui.ps1 no longer stamps.
     """
     built = BUILT / "advanced" if edition == "advanced" else BUILT
     source = built / GUI_EXE
@@ -537,10 +541,10 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
         raise SystemExit("missing assets/codex-auto-resume.ico - the payload root needs it")
     shutil.copyfile(icon, stage / "payload" / "codex-auto-resume.ico")
 
-    launcher = BUILT / MCP_EXE
+    launcher = RUST_BUILT / MCP_EXE
     if not launcher.is_file():
-        raise SystemExit("missing %s - run build/make_gui.ps1 first" % MCP_EXE)
-    check_built_for_this_tree(launcher, edition, "launcher")
+        raise SystemExit("missing %s - build the standard Rust workspace first "
+                         "(rust/: . tools/rustflags.sh release && cargo build --release --locked)" % launcher)
     destination = stage / "payload" / "app" / "mcp" / MCP_EXE
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(launcher, destination)

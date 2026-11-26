@@ -194,9 +194,10 @@ jobs:
           Write-Host "building v$declared"
 
       # Each edition has a settings window of its own - the advanced one is the standard sources
-      # and the overlay's, in build/advanced/ - and the MCP launcher is one file for both.
+      # and the overlay's, in build/advanced/. The MCP launcher is car-bin's Rust one since
+      # v0.6.27 (D18), from the standard Rust workspace's release build, not make_gui.ps1's.
       # make_gui.ps1 throws on any failure, so a first build that fails stops the step there.
-      - name: Build each edition's settings window and the MCP launcher
+      - name: Build each edition's settings window
         shell: pwsh
         run: |
           ./build/make_gui.ps1
@@ -207,8 +208,8 @@ jobs:
       # this is where that stops being a claim: if the two builds on one machine differ,
       # nothing a reader rebuilds will match either, and the release does not go out.
       #
-      # All three: the standard window and the launcher in build/, the advanced window in
-      # build/advanced/. The two windows share a file name, so each is known by its folder too.
+      # Both: the standard window in build/, the advanced window in build/advanced/. The two
+      # windows share a file name, so each is known by its folder too.
       - name: Check the executables are reproducible
         shell: pwsh
         run: |
@@ -219,8 +220,8 @@ jobs:
           foreach ($exe in Get-Built) {
             $first["$($exe.Directory.Name)/$($exe.Name)"] = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
           }
-          if ($first.Count -ne 3) {
-            throw "expected three executables, two in build/ and one in build/advanced/; found $($first.Count)"
+          if ($first.Count -ne 2) {
+            throw "expected two executables, one in build/ and one in build/advanced/; found $($first.Count)"
           }
           Start-Sleep -Seconds 2
           ./build/make_gui.ps1 | Out-Null
