@@ -2314,3 +2314,97 @@ The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72d.py --ref
   `turns::booted_of(state_dir)` for `Turns::running`; `tokens` for usage_analytics (the store's `token_files` rows are
   the `known` maps).
 * S7.3d: `wmi_escape::Chain` over car-platform job objects and the edition's own helper/heartbeat roles.
+
+## Integration 8 (branch `car-v0627-rust`, 2026-11-26)
+
+Five branches merged with `git merge --no-ff`, in this order, both sides of every conflict kept, each merge's own diffs run
+before the next; then the fold, the wiring and the three fixes, each its own commit.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `f49f4cc50` | car-v0627-fix9 `54553021a` | review 9's installer fixes (Undo-Migration, repair without a core, the way back, the double's own names, the release build refusing the test forward) |
+| `0ad2f4770` | car-v0627-unicode16 `a59bc6fbf` | the six Unicode tables under the bundled 3.14.10, car-store's DECIMAL_ZEROS 76, `productpy.py`, `diffs_unicode16.py` |
+| `ad5c7da71` | car-v0627-mcp `ec2a9aede` | S5.2: car-control `mcp/`, car-bin's roles, argparse, CLI, plugin_setup commands and the MCP launcher bin, car-harness `car-core-stub`/`car-core-world`, `diffs_mcp`/`diffs_cli`/`diffs_legacy` |
+| `af54ec665` | car-v0627-adv73c `b3abf63b2` | S7.3c: car-adv `report/` and `hook/`, `engine::hookclaims`, `control::hookplugin`, the `advreport`/`advhook` examples and their diffs |
+| `f54536e0d` | car-v0627-adv72d `c43f208d3` (holds adv72c `1540e2683`) | S7.2c and its remainder: `autocheck`, `codex::*`, `compatdata`, `pytime`, `win::{stopflag, waketimer}` |
+
+Conflicts: `rust/GROUNDWORK.md` in every merge (all sections kept, in merge order; fix9 rewrote S8.2's last P6 line, its
+version kept); merge 3: car-bin `lib.rs`/`main.rs`/`Cargo.toml` (below), car-config `paths.rs` (Integration 6's
+`pyfile::write_text`, CRLF on disk, kept; S5.2's `OWNER_TEXT_ON_DISK` stays as the bytes it names), car-harness
+`Cargo.toml`/`lib.rs`, both locks and check_groundwork's car-bin and car-harness edges (the union); merge 5: car-adv `lib.rs`
+(both seats' modules). S5.2's section named the Windows user name in a sentence; it says "the Windows user name" now.
+
+### Decided here
+
+* **`codex-auto-resume.exe` stays the stub core** (`car_bin::core_main`, the installer proofs' test forward with it), and
+  `car_bin::main_with(&[])` - S5.2's dispatcher - runs through car-harness's `car-core-stub` (the CODEX_AR_CORE=rust shim)
+  and `car-core-world`. The release's own proofs run the archive's core on scratch homes (`rust_legacy_bootstraps.check_entry`
+  hands it every published bootstrap line, setup included; the installer proofs hand it to the double), and `main_with`'s
+  `setup` writes the Run value, the AUMID and the link handler to HKCU through car-platform, which no scratch home redirects.
+  The switch is one line in `main.rs` once those proofs run the real core with car-platform's registry stand-in.
+* car-bin `setup.rs`: fix4's `addremove::display_name` answers a `Str`; the Outside's writer takes text (a lone surrogate,
+  never in the product's own manifest, becomes U+FFFD).
+
+### The fold (S7.3c's ownreport copy, `aae2a5c7c`)
+
+car-control `ownreport::{evidence, reading, document}` is the one port. evidence carries the advanced reader's widening
+(`Paid` and `another_route(row, paid)`, `by_route(rows, paid, reach)`, `ledger_reach`/`Reach`, `place`'s `elsewhere`, `body`'s
+progress counts); the Dashboard's `read_all` passes an empty ledger and every progress None, as `ownreport.write` does.
+reading's functions take `Paths`, the clock and the reader (`log_lines_with`; `WatcherView`, `LEDGER_*`, `VERSION_INVALID`);
+`read_all`/`watcher_view` keep the `Control` and hand it the Host's reader and clock. document's `check_parts`, shapes,
+`encode`, `Fault`, `Checked` and record keys are public; car-adv's document keeps only the envelope. car-adv
+`report/evidence.rs` and `report/reading.rs` re-export car-control's. Proof: `-k diffs_advreport -k diffs_advhook -k
+OwnReportDiff` 22 tests OK (the six report goldens byte-equal to `advanced/tests/golden/report/*.json`).
+
+### Fixed here
+
+* **Paths::ensure** (`af24da0ef`): `EnsureError::{Config, Os {class, message}}`; the mkdir's error is raised where it happens
+  (FileExistsError where `config` is a file, no `logs/` after it). `os_error_class` is car-machine `pyfile`'s (car-policy
+  re-exports it). Callers: the harness's `paths.mutate` (the case raises: the reference catches ConfigError alone),
+  `ConfigHome` (`ConfigFailure::Raised`), car-adv session (the class), `autocheck::write` (OSError), car-bin's CLI (the text:
+  the reference's uncaught OSError there prints a traceback, the CLI `error: <text>`; same code 1 - a seam for P5).
+  Diffs: `diffs_leaves_config` "config a file"; `diffs_advcodex_autocheck.test_write` "config is a file" back in.
+* **check_rebuild's profile scan** (`70c59c1d1`): `advanced/rust/tools/profile_scan.py`, one allowance - a needle inside the
+  literal publisher handle `songyb111-gachon` (UTF-8/UTF-16LE, ASCII case ignored) - and `--self-test` over 10 planted cases
+  before any build. A planted `C:\Users\<name>\.cargo` beside the handle is found (rc 1); the handle alone passes.
+* **released.package** (`8ba0ca8c7`): the cache keeps every file name the tag's archive put in the folder and checks them
+  before answering; a folder no longer whole is said on stderr, kept in `released.REBUILT` and extracted anew.
+* **The reference's boot** (`86db745d2`): the embeddable runtime's boot raises the recursion limit by its own frame, so a
+  recursion stops at the depth `-c` gives (the MCP batch depth: 995, 994 under the old boot).
+* **diffs_classify_vocab** (`76165f604`): the generated-files check runs `gen_policy.py --check` (under the bundled Python
+  whose Unicode tables it holds).
+
+### The 7 old-tag reds of Integration 7 (suspect)
+
+Nothing in tests/rustdiff removes a `released-*` folder (every rmtree there is of its own scratch). The suspect: an
+age-based cleaner of %TEMP% - Windows Storage Sense is on here (`StoragePolicy` 01=1, 04=1 "temporary files apps are not
+using", 2048=0 "when free space is low"), and the disk is full (2.5 GB free of 838 GB during this seat). `tarfile` gives
+each extracted file the tag's commit time, so v0.5.0/v0.6.10/v0.6.13 files look weeks old while the reference tag's do not:
+exactly the tags that failed. `released.package` now rebuilds what was taken; The full run's result is in the checks below.
+
+### The seams that stay (the other end is a later seat's)
+
+* car-bin `Outside`: `backend`, `app_paired`, `app_running_now`, `official_engine`, `doctor_live_view`, `resource_users`,
+  `history`, `run_watcher`, `announce_cancelled`, `open_dashboard`/`open_chat`, `power_stop` - P6's App and host, the
+  Restart Manager, car-surface's notifier; `engine_word` (car-codex `compat::cache::engine_word` is here, but it reads the
+  backend's engine path, which P6's App hands).
+* `codex-auto-resume.exe` = `main_with(&[])`: when the release proofs can run the real core (above). car-adv-bin's `main`
+  passes the advanced roles (the courier, the Stop hook's `hook`) to `main_with` then (S7.3d, S6.2a's launcher).
+* car-adv `report::reading::WatcherView` (S3.3's `compatio.reader_view` - SystemHost's `compat_view` is the model),
+  `report::document::Facts`, `report::seam::{Runtime, HomeMutex}` (S7.2a, S7.3d), `Edges::table_for`/`checked_for`/
+  `hook_follow`, `inuse::elsewhere` as `served_elsewhere`, `autocheck::tend` in the tick (S7.2a).
+
+### The wiring done (both ends here)
+
+* car-control `mcp::seam::mcp_view` -> car-codex `compat::report::mcp_view` (`453cb0c42`; `diffs_mcp` 12 OK).
+* `build/rust_release.py`: payload/app/mcp/codex-auto-resume-mcp.exe is car-bin's launcher from the standard workspace's
+  build unless `--mcp-launcher` names another (`453cb0c42`).
+* car-bin `uris` -> car-surface `notice_uris` and `codex_link` (`a4a354d3c`; car-bin names car-surface now, check_groundwork's edge).
+* `codex-auto-resume-setup.exe` is S8.2's `setup_main` (it came in with the merge); `core.build_rest` builds advreport and
+  advhook too, so `run.py --build` leaves no advanced example stale.
+* car-adv's report reads car-control's ownreport (the fold above).
+
+### Checks
+
+CHECKS-PENDING (the gates, check_groundwork, check_rebuild, the frozen modules and the two full runs follow in the next
+commit of this section).
