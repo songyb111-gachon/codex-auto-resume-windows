@@ -427,19 +427,19 @@ def steer_corpus() -> list:
     def add(number, words="Also check the tests.", client="0a1b2c3d-0004-4000-8000-%012d"):
         return ["steer_add", thread(number), words, client % number]
     return [
-        scenario("steer_each_refusal_and_one_write", [STEER],
-                 [arm(STEER), ["tick"]] + [add(number) for number in range(90, 100)] + [["tick"], ["run"], ["tick"]],
+        scenario("steer_each_refusal_and_one_write", [PROMPT, STEER],
+                 [arm(PROMPT), arm(STEER), ["tick"]] + [add(number) for number in range(90, 100)] + [["tick"], ["run"], ["tick"]],
                  enabled={thread(91): False},
                  seams={"steer": dict(seam, status=dict(seam["status"], **{thread(90): "inProgress"}),
                                       started=dict(seam["started"], **{thread(90): int(NOW) - 50}),
                                       holders=dict(seam["holders"], **{thread(90): 2}),
                                       held=dict(seam["held"], **{thread(90): True}))}),
-        scenario("steer_expired_and_turned_off", [STEER],
-                 [add(90), arm(STEER), ["clock", NOW + 121], ["tick"], ["run"], add(91),
+        scenario("steer_expired_and_turned_off", [PROMPT, STEER],
+                 [add(90), arm(PROMPT), arm(STEER), ["clock", NOW + 121], ["tick"], ["run"], add(91),
                   arm(STEER, "off"), ["tick"], ["run"]],
                  seams={"steer": {"status": {thread(91): "inProgress"}}}),
-        scenario("steer_pipe_words", [STEER],
-                 [arm(STEER)] + [step for word in ("unconfirmed", "held", "no_pipe", "no_client", "refused",
+        scenario("steer_pipe_words", [PROMPT, STEER],
+                 [arm(PROMPT), arm(STEER)] + [step for word in ("unconfirmed", "held", "no_pipe", "no_client", "refused",
                                                    "version_mismatch", "raise")
                                  for step in (["seam", "steer", {"write": word, "status": {thread(90): "inProgress"},
                                                                  "started": {thread(90): int(NOW) - 50},
@@ -449,9 +449,57 @@ def steer_corpus() -> list:
     ]
 
 
+PROMPT = "prompt_queue"
+
+
+def token(number) -> str:
+    """The record id the runtime's counted token_hex gives an occurrence: the `number`th asked for in the scenario."""
+    return ("%x" % number).rjust(64, "0")
+
+
+def prompt_corpus() -> list:
+    def add(number, words="Run the tests next.", trigger="after_turn", **when):
+        return ["prompt_add", thread(number), words, trigger, when]
+    later = int(NOW) + 600
+    return [
+        scenario("prompts_after_turn_in_order", [PROMPT],
+                 [add(1), arm(PROMPT), add(1, "Then the docs.", depends=True), add(2), add(3, "x" * 2001),
+                  add(4, "y" * 2001), ["records"], ["records"],
+                  ["moved", {"record_id": token(1)}, "delivered"], ["records"],
+                  ["moved", {"record_id": token(3)}, "superseded"], ["records"]],
+                 enabled={thread(2): False}),
+        # Longer messages on (long_reset_message armed) waits for S7.2d's reset_message code: its own P2 is asked too.
+        scenario("prompts_dependency_failed", [PROMPT],
+                 [arm(PROMPT), add(1), add(1, "Then this.", depends=True), ["records"],
+                  ["moved", {"record_id": token(1)}, "superseded"], ["records"], ["records"]]),
+        scenario("prompts_at_a_time_then_expired", [PROMPT],
+                 [arm(PROMPT), add(5, trigger="at_time", at=later), ["records"], ["clock", later], ["records"],
+                  ["clock", later + 86400], ["records"], ["records"]]),
+        scenario("prompts_recurring_caught_up_and_expired", [PROMPT],
+                 [arm(PROMPT), add(6, trigger="recurring", at=later, every="day", occurrences=5),
+                  add(7, trigger="recurring", at=later, every="week", occurrences=2),
+                  ["clock", later + 3 * 86400 + 100], ["records"], ["clock", later + 5 * 86400], ["records"],
+                  ["clock", later + 30 * 86400], ["records"], ["records"]]),
+        scenario("prompts_wait_while_a_turn_runs", [PROMPT],
+                 [arm(PROMPT)] + [add(number, trigger="at_time", at=later, while_running="wait")
+                                  for number in (8, 9, 10)]
+                 + [["clock", later], ["records"], ["seam", "running", {}], ["records"],
+                    ["clock", later + 2 * 86400], ["records"]],
+                 seams={"running": {thread(8): True, thread(9): None}}),
+        scenario("prompts_watched_say_what_would_go", [PROMPT],
+                 [arm(PROMPT, "shadow"), add(1), add(1, "Then this.", depends=True), add(2),
+                  add(8, trigger="at_time", at=later, while_running="wait"), ["records"],
+                  ["clock", later], ["records"]],
+                 seams={"running": {thread(8): True}}),
+        scenario("prompts_no_pictures_no_channel", [PROMPT],
+                 [arm(PROMPT), add(1), ["records"], ["ask", "sender", {"record_id": token(1)}],
+                  ["ask", "delivery", {"record_id": token(1)}], ["ask", "sender", {"record_id": 5}]]),
+    ]
+
+
 def corpus() -> list:
     return (empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
-            + for_open_corpus() + open_target_corpus() + steer_corpus())
+            + for_open_corpus() + open_target_corpus() + prompt_corpus() + steer_corpus())
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):

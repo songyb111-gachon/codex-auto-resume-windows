@@ -634,6 +634,22 @@ impl World {
             "queue_for_open" => engine::foropen::make_with(paths, self.goal_world().goal),
             "open_to_send" => engine::opentarget::make_with(paths, self.open_world()),
             "steer_send" => engine::steer::make_with(paths, self.steer_world()),
+            "prompt_queue" => {
+                let running = self.0.clone();
+                engine::promptqueue::make_with(
+                    paths,
+                    Arc::new(Mutex::new(self.opener())),
+                    Arc::new(move |thread: &Value| {
+                        running.note(vec![text("turns"), text("running"), thread.clone()]);
+                        match of_thread(&running.seam("running"), thread) {
+                            Some(Value::Bool(found)) => Some(found),
+                            Some(Value::Null) => None,
+                            None => Some(false),
+                            Some(_) => None,
+                        }
+                    }),
+                )
+            }
             "marker_free_continuation" => {
                 engine::markerfree::make_with(paths, Arc::new(Mutex::new(self.opener())))
             }
@@ -724,6 +740,30 @@ impl World {
                     .map(Value::from)
                     .map_err(|error| error.class().to_owned()),
             ),
+            "prompt_add" => {
+                let mut when = car_adv::state::prompts::When::default();
+                let given = arg(3);
+                for (name, slot) in [
+                    ("at", &mut when.at),
+                    ("every", &mut when.every),
+                    ("occurrences", &mut when.occurrences),
+                    ("until", &mut when.until),
+                    ("depends", &mut when.depends),
+                    ("while_running", &mut when.while_running),
+                ] {
+                    if let Value::Object(map) = &given
+                        && let Some(found) = map.get(name)
+                    {
+                        *slot = found.clone();
+                    }
+                }
+                Some(
+                    state
+                        .add_prompt(&arg(0), &arg(1), &arg(2), &when)
+                        .map(Value::from)
+                        .map_err(|error| error.class().to_owned()),
+                )
+            }
             "keep" => Some(
                 state
                     .set_keep_going(&arg(0), &arg(1), &Value::Null)

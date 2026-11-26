@@ -14,6 +14,9 @@ whether it pools), ["resume", record, thread, still_unloaded] (the route P16 nam
 true | false | "raise" | null). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused, "no"
 Codex's own refusal of that method (RefusedByCodex). A goal is a status or {goal_id, status}; for goal_continuation a list of
 them is read one after another (the last again).
+prompt_queue's (S7.2e1b): `running` {thread: bool | null} (a latest turn in progress; absent: false);
+["prompt_add", thread, words, trigger, {at, every, occurrences, until, depends, while_running}] writes one as the
+Dashboard does.
 steer_send's seam (S7.2e1b): `steer` {write: word | "raise", status/started/holders/held: {thread: ...}};
 ["steer_add", thread, words, client_id] asks for one as the Dashboard does.
 open_to_send's PC (S7.2e1b): `pc` {idle: seconds | null, handler: bool, running: bool | null, link: bool | "raise",
@@ -180,7 +183,7 @@ class World:
         "compact_continue": "compact", "model_fallback": "fallback", "codex_retry_settings": "retries",
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
         "marker_free_continuation": "markerfree", "goal_continuation": "goal", "queue_for_open": "foropen",
-        "open_to_send": "opentarget", "steer_send": "steer",
+        "open_to_send": "opentarget", "steer_send": "steer", "prompt_queue": "promptqueue",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -242,6 +245,15 @@ class World:
                 return module.GoalContinuation(paths, session=lambda: self.open(capability), home="fake-codex-home",
                                                view=lambda: globals()["view"], measured=lambda: globals()["measured"],
                                                clock=lambda: self.clock[0])
+            if capability == "prompt_queue":
+                world = self
+
+                def running(paths, thread):
+                    world.note("turns", "running", thread)
+                    found = world.seams.get("running", {}).get(thread, False)
+                    return found if isinstance(found, bool) else None
+                module.turn_in_progress = running
+                return module.PromptQueue(paths, session=lambda: self.open(capability))
             if capability == "steer_send":
                 world = self
 
@@ -362,6 +374,8 @@ class World:
             return norm(channel.send(args[1], args[2], client_id=args[3]))
         if op == "override":
             return runtime.state.add_override(args[0], args[1], args[2])
+        if op == "prompt_add":
+            return runtime.state.add_prompt(args[0], args[1], args[2], **(args[3] if len(args) > 3 else {}))
         if op == "steer_add":
             return runtime.state.add_steer(args[0], args[1], args[2])
         if op == "keep":

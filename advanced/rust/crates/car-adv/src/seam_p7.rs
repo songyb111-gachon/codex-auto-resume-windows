@@ -237,33 +237,9 @@ pub fn reset_message_handed(rule: &Value) -> Option<Value> {
     None
 }
 
-/// `engine/promptqueue.handed(row)` (S7.2e1): what core is handed of one prompt's occurrence, or None.
-pub fn prompt_handed(row: &Value) -> Option<Value> {
-    let key = get(row, "record_id")?;
-    if null(Some(key)) || !is(get(row, "state"), "ready") {
-        return None;
-    }
-    let own = [
-        ("record_id", key.clone()),
-        ("thread_id", or_null(get(row, "thread_id"))),
-        ("marker", marker(key)),
-        ("purpose", word("message")),
-        ("ordinal", Value::Null),
-    ];
-    if is(get(row, "record_state"), "in_flight") {
-        let sent_at = either(row, "sent_at", "launching_at");
-        return Some(in_flight(
-            &own,
-            sent_at,
-            or_null(get(row, "queue_id")),
-            truthy(get(row, "withdraw")),
-        ));
-    }
-    if is(get(row, "record_state"), "waiting") && truthy(get(row, "words")) {
-        return Some(waiting(&own, or_null(get(row, "words"))));
-    }
-    None
-}
+/// `engine/promptqueue.handed(row)`: what core is handed of one prompt's occurrence, or None (moved into its module by
+/// S7.2e1b; the runtime's name kept).
+pub use crate::engine::promptqueue::handed as prompt_handed;
 
 /// `engine/chat.handed(row)` (S7.2e1): one message as core is handed it, marked `pause_keeps` (v0.6.23).
 pub fn chat_handed(row: &Value) -> Option<Value> {
