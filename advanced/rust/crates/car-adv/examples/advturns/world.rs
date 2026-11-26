@@ -436,6 +436,7 @@ impl World {
             "headless_run" => engine::headless::make_with(paths, self.run_world()),
             "empty_response" => engine::emptyreply::make_with(paths, self.look_world()),
             "keep_going" => engine::keepgoing::make_with(paths, self.look_world()),
+            "subagent_parent" => engine::subagent::make_with(paths, self.look_world()),
             "compact_continue" => engine::compact::make_with(paths, self.run_world()),
             "model_fallback" => engine::fallback::make_with(paths, self.run_world()),
             "codex_retry_settings" => {

@@ -158,8 +158,62 @@ def keep_corpus() -> list:
     ]
 
 
+def child(number, status="failed", category="usage_limit", turn_id="c1", thread_id=None) -> dict:
+    return {"thread_id": thread(100 + number) if thread_id is None else thread_id, "turn_id": turn_id,
+            "status": status, "category": category}
+
+
+CHILDREN = [child(1), child(2, category="network_transient"), child(3, status="interrupted", category=None),
+            child(4, category="terminal_auth"), child(5, status="completed", category=None),
+            child(6, turn_id=None), child(7, thread_id="not-a-uuid"), child(8, thread_id=thread(108).upper())]
+
+
+def subagent_corpus() -> list:
+    from rustdiff.advturns import KEY, OTHER_KEY, record
+    core = record(KEY, THREAD, category="usage_limit")
+    text = ["ask", "text", core, "Core words."]
+    return [
+        scenario("subagent_lines_in_core_words", [SUBAGENT],
+                 [text, arm(SUBAGENT), text, text, ["moved", core, "submitting"], text,
+                  ["ask", "text", record(OTHER_KEY, T2), "Core words."],
+                  ["ask", "text", record("short", THREAD), "Core words."],
+                  ["ask", "text", record(OTHER_KEY, "not-a-thread"), "Core words."],
+                  ["ask", "text", record(OTHER_KEY, T3), 7],
+                  ["ask", "text", record(OTHER_KEY, T3), "Core words."],
+                  ["moved", record(OTHER_KEY, T3), "submitting"], ["records"]],
+                 seams={"children": {THREAD: CHILDREN, T2: [], T3: "raise"}}),
+        scenario("subagent_lines_past_the_limit", [SUBAGENT],
+                 [arm(SUBAGENT), ["ask", "text", core, "x" * 1800], ["ask", "text", core, "é" * 1700],
+                  ["ask", "text", core, "y" * 1500]],
+                 seams={"children": {THREAD: CHILDREN}}),
+        scenario("subagent_five_lines_at_most", [SUBAGENT],
+                 [arm(SUBAGENT), text, ["moved", core, "submitting"], text],
+                 seams={"children": {THREAD: [child(number) for number in range(1, 8)]}}),
+        scenario("subagent_watched_core_words_alone", [SUBAGENT],
+                 [arm(SUBAGENT, "shadow"), text, ["moved", core, "submitting"], ["tick"]],
+                 measured={"ms": ["pass", "0.155.0"]},
+                 seams={"children": {THREAD: CHILDREN}}),
+        scenario("subagent_followed_up_once_ms_passed", [SUBAGENT],
+                 [arm(SUBAGENT)] + looks(2) + [["records"], text],
+                 measured={"ms": ["pass", "0.155.0"]},
+                 seams={"recent": [THREAD, T2, T3, T4, T5, T6], "children": {THREAD: CHILDREN, T3: "raise", T4: CHILDREN,
+                                                                         T5: CHILDREN, T6: CHILDREN},
+                        "turns": {THREAD: turn(kinds=PROGRESS), T2: turn(), T3: turn(), T4: turn(status="failed"),
+                                  T5: turn(errored=True), T6: "raise"}}),
+        scenario("subagent_waits_for_ms", [SUBAGENT],
+                 [arm(SUBAGENT)] + looks(1) + [["records"]],
+                 seams={"recent": [THREAD], "children": {THREAD: CHILDREN}, "turns": {THREAD: turn()}}),
+        scenario("subagent_withdrawn_when_not_taken", [SUBAGENT, EVERY],
+                 [arm(SUBAGENT), arm(EVERY)] + looks(1) + [["records"], ["seam", "own", {THREAD: False}],
+                                                            ["seam", "recent", []]]
+                 + looks(1, NOW + 61) + [["records"]],
+                 measured={"ms": ["pass", "0.155.0"]},
+                 seams={"recent": [THREAD], "children": {THREAD: CHILDREN}, "turns": {THREAD: turn()}}),
+    ]
+
+
 def corpus() -> list:
-    return empty_corpus() + keep_corpus()
+    return empty_corpus() + keep_corpus() + subagent_corpus()
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):
