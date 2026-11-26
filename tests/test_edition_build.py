@@ -84,11 +84,14 @@ def stand_in(builder, work: Path, root: Path = ROOT) -> None:
     (built / "advanced").mkdir(parents=True, exist_ok=True)
     (built / builder.GUI_EXE).write_bytes(STANDARD_WINDOW)
     (built / "advanced" / builder.GUI_EXE).write_bytes(ADVANCED_WINDOW)
-    (built / builder.MCP_EXE).write_bytes(LAUNCHER)
+    # v0.6.27: the MCP launcher is car-bin's, from the standard Rust workspace's build (D18), not make_gui.ps1's.
+    rust = work / "rust-release"
+    rust.mkdir(parents=True, exist_ok=True)
+    (rust / builder.MCP_EXE).write_bytes(LAUNCHER)
+    builder.RUST_BUILT = rust
     # make_gui.ps1 stamps what it builds, and the build refuses an executable without its tree's stamp:
     # the stand-ins are stamped for `root`, as a build of it would have left them.
     gui_stamp.write(built / builder.GUI_EXE, root, "standard", "window")
-    gui_stamp.write(built / builder.MCP_EXE, root, "standard", "launcher")
     if (root / "advanced" / "gui" / "window.sources").is_file():
         gui_stamp.write(built / "advanced" / builder.GUI_EXE, root, "advanced", "window")
     builder.ROOT = root
@@ -299,11 +302,10 @@ class WindowBuildScriptTests(unittest.TestCase):
         ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         self.assertIn("build/advanced/", ignored)
 
-    def test_only_the_standard_run_builds_the_shared_launcher(self):
-        launcher = self.script.index("-Name 'codex-auto-resume-mcp.exe'")
-        guard = self.script.rindex("if ($Edition -eq 'standard') {", 0, launcher)
-        self.assertNotIn("}", self.script[guard + len("if ($Edition -eq 'standard') {"):launcher])
-
+    def test_it_builds_no_launcher_since_the_rust_core(self):
+        """v0.6.27: the MCP launcher is car-bin's Rust one (D18), so make_gui.ps1 builds the window alone."""
+        self.assertNotIn("codex-auto-resume-mcp.exe", self.script)
+        self.assertEqual(self.script.count("\nBuild -Name "), 1)
 
 LIFT = r"""
 $ErrorActionPreference = 'Stop'

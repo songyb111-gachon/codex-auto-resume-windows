@@ -14,7 +14,7 @@
     build\advanced\ beside the standard one: the same sources, then the ones
     advanced\gui\window.sources lists. The standard build never reads that file.
 
-    v0.6.27: the MCP launcher this script also built (gui/McpLauncher.cs) is car-bin's Rust
+    v0.6.27: the C# MCP launcher this script also built is car-bin's Rust
     codex-auto-resume-mcp.exe now, built by cargo with the core it starts (D18), so this
     script builds the window and nothing else.
 #>

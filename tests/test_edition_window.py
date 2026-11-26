@@ -43,7 +43,9 @@ CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framewo
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 WINDOW = "CodexAutoResumeSettings.exe"
-LAUNCHER = "codex-auto-resume-mcp.exe"
+# v0.6.27: the MCP launcher is car-bin's Rust one (D18), which make_gui.ps1 no longer builds; the audit reads a
+# stand-in for it here, as tests/test_edition_audit.py does.
+LAUNCHER_BYTES = b"MZ car-bin's MCP launcher"
 # The points core declares, one per line and with no body, and each call a statement of its own. A point
 # a static method reaches - the command line's reading and writing - is a static one.
 DECLARATION = re.compile(r"^\s*(?:static\s+)?partial void (\w+)\(([^)]*)\)\s*;\s*$")
@@ -277,8 +279,6 @@ class WindowTests(unittest.TestCase):
         # called once.
         self.assertEqual(self.cut_lines, 22 + 24, "twenty-two declarations and twenty-four calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
-        self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
-                         (self.work / "without" / LAUNCHER).read_bytes())
 
     def test_the_advanced_window_carries_the_overlay_and_the_standard_one_does_not(self):
         for name in ("EditionProbe", "DashboardBuilt", "SnapshotApplied"):
@@ -295,34 +295,35 @@ class WindowTests(unittest.TestCase):
             [(ROOT / name).read_text(encoding="utf-8") for name in guiscan.tracked() if name.endswith(".cs")])
         self.assertIn("EditionProbe", tree.window)
         self.assertIn("the advanced window was built", tree.literals)
-        launcher = (self.work / "standard" / LAUNCHER).read_bytes()
-        executables = dict(zip(edition_audit.EXECUTABLES, (self.standard, launcher)))
+        executables = dict(zip(edition_audit.EXECUTABLES, (self.standard, LAUNCHER_BYTES)))
         self.assertEqual(edition_audit.check_executables(executables, tree), [])
         found = edition_audit.check_executables(dict(executables, **{edition_audit.WINDOW: self.advanced}), tree)
         self.assertIn("(d) %s holds EditionProbe" % edition_audit.WINDOW, found)
         self.assertIn("(d) %s holds the literal 'the advanced window was built'" % edition_audit.WINDOW, found)
 
     def test_the_advanced_run_builds_its_window_alone_in_its_own_folder(self):
-        """The launcher is one file in both editions, built once, by the standard run."""
+        """And the standard run its own, since v0.6.27: the launcher is car-bin's, built by cargo."""
         self.assertEqual(sorted(path.name for path in self.advanced_folder.iterdir()),
+                         [WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"])
+        self.assertEqual(sorted(path.name for path in (self.work / "standard").iterdir()),
                          [WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"])
 
     def test_both_windows_come_out_normalised(self):
         for data in (self.standard, self.advanced):
             self.assertEqual(normalize_pe.normalise(data), data)
 
-    def test_both_windows_are_windows_programs_and_the_launcher_a_console_one(self):
+    def test_both_windows_are_windows_programs(self):
         """The subsystem in each PE's optional header. The icon and WindowReopen start the
         settings window by name, so a window built /target:exe in either edition would open a
-        console beside it; the MCP launcher speaks over stdio and is a console program. Nothing
-        read this before, so an -Edition advanced build that slipped would have gone unseen."""
+        console beside it. (The MCP launcher, a console program over stdio, is car-bin's since
+        v0.6.27, held by rust_release's subsystem check.) Nothing read this before, so an
+        -Edition advanced build that slipped would have gone unseen."""
         def subsystem(data):
             header = int.from_bytes(data[0x3C:0x40], "little")
             self.assertEqual(data[header:header + 4], b"PE\x00\x00")
             return int.from_bytes(data[header + 24 + 68:header + 24 + 70], "little")
-        launcher = (self.work / "standard" / LAUNCHER).read_bytes()
-        self.assertEqual([subsystem(data) for data in (self.standard, self.advanced, launcher)],
-                         [2, 2, 3], "IMAGE_SUBSYSTEM_WINDOWS_GUI is 2, _WINDOWS_CUI 3")
+        self.assertEqual([subsystem(data) for data in (self.standard, self.advanced)],
+                         [2, 2], "IMAGE_SUBSYSTEM_WINDOWS_GUI is 2")
 
     def test_each_window_names_its_edition_in_its_version_resource(self):
         read = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READ_VERSION],

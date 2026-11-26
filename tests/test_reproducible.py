@@ -38,7 +38,7 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 READ_VERSION = r"""
 $ErrorActionPreference = 'Stop'
 $out = @{}
-foreach ($name in @('CodexAutoResumeSettings.exe', 'codex-auto-resume-mcp.exe')) {
+foreach ($name in @('CodexAutoResumeSettings.exe')) {
     $path = Join-Path $env:CAR_BUILD $name
     $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($path)
     $out[$name] = @{
@@ -216,29 +216,30 @@ class BuildScriptTests(unittest.TestCase):
                           "AssemblyInformationalVersion", "AssemblyCopyright"):
             self.assertIn(attribute, script)
         self.assertIn(r".codex-plugin\plugin.json", script)
-        # Both executables are described; the window by edition, since each edition has its own.
-        self.assertEqual(script.count("-Description "), 2, "both executables are described")
+        # The one executable is described, by edition, since each edition has its own (v0.6.27: the MCP launcher
+        # that was the second is car-bin's, built by cargo).
+        self.assertEqual(script.count("-Description "), 1, "the window is described")
         self.assertIn("-Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)')", script)
 
     def test_the_release_build_proves_it_twice(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("Check the executables are reproducible", workflow)
-        build = workflow.index("Build each edition's settings window and the MCP launcher")
+        build = workflow.index("Build each edition's settings window")
         check = workflow.index("Check the executables are reproducible")
         archive = workflow.index("Build the release archive")
         self.assertLess(build, check)
         self.assertLess(check, archive)
 
     def test_the_release_build_proves_both_editions_executables_twice(self):
-        """Each edition builds its own window, so each is built twice and compared: three
+        """Each edition builds its own window, so each is built twice and compared: two
         executables, known by folder as well as name, since the two windows share one."""
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-        start = workflow.index("- name: Build each edition's settings window and the MCP launcher")
+        start = workflow.index("- name: Build each edition's settings window")
         steps = workflow[start:workflow.index("- name: Build the release archive")]
         self.assertEqual(steps.count("./build/make_gui.ps1 -Edition advanced"), 2, "built once, then again")
         self.assertEqual(len(re.findall(r"\./build/make_gui\.ps1(?! -Edition)", steps)), 2)
         self.assertIn("Get-ChildItem build/advanced -Filter *.exe", steps)
-        self.assertIn("if ($first.Count -ne 3)", steps)
+        self.assertIn("if ($first.Count -ne 2)", steps)
         self.assertIn('"$($exe.Directory.Name)/$($exe.Name)"', steps)
 
 
@@ -290,8 +291,10 @@ class VersionResourceTests(unittest.TestCase):
         if not self.fields:
             self.fail("the version resource could not be read: " + getattr(self, "read", self.build).stderr[-2000:])
 
-    def test_both_executables_were_built(self):
-        self.assertEqual(sorted(self.fields), ["CodexAutoResumeSettings.exe", "codex-auto-resume-mcp.exe"])
+    def test_the_window_was_built_and_nothing_else(self):
+        """v0.6.27: the MCP launcher is car-bin's (D18); make_gui.ps1 builds the window alone."""
+        self.assertEqual(sorted(self.fields), ["CodexAutoResumeSettings.exe"])
+        self.assertFalse((self.folder / "codex-auto-resume-mcp.exe").exists())
 
     def test_every_field_a_person_reads_comes_from_the_manifest(self):
         for name, found in sorted(self.fields.items()):
@@ -308,21 +311,17 @@ class VersionResourceTests(unittest.TestCase):
                 self.assertIn("MIT", found["LegalCopyright"])
 
     def test_each_executable_describes_itself(self):
-        """Two files with one description is how a launcher ends up labelled as the window.
-
-        The window names its edition, as the Dashboard does beside the version (v0.6.11); the
-        launcher is one file in both editions and names none. tests/test_edition_window.py
-        reads the advanced window's."""
+        """The window names its edition, as the Dashboard does beside the version (v0.6.11).
+        tests/test_edition_window.py reads the advanced window's."""
         descriptions = {name: found["FileDescription"] for name, found in self.fields.items()}
         self.assertEqual(descriptions, {
             "CodexAutoResumeSettings.exe": "Codex Auto Resume settings (Standard edition)",
-            "codex-auto-resume-mcp.exe": "Codex Auto Resume MCP launcher",
         })
 
     def test_each_executable_is_stamped_for_this_tree(self):
         """What make_release.collect_gui asks of every executable it packs: a stamp beside it that
         build/gui_stamp.py gives this tree. Read from the real script's own output."""
-        for name, kind in (("CodexAutoResumeSettings.exe", "window"), ("codex-auto-resume-mcp.exe", "launcher")):
+        for name, kind in (("CodexAutoResumeSettings.exe", "window"),):
             with self.subTest(name):
                 self.assertTrue(gui_stamp.stamp_path(self.folder / name).is_file(), name + " has no stamp")
                 gui_stamp.check(self.folder / name, ROOT, "standard", kind)
