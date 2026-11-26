@@ -527,6 +527,7 @@ namespace CodexAutoResume
             var logged = new List<object>();
             int before = SurfaceGdip.GdipObjects;
             var steps = new List<object>();
+            var proofs = new List<object>();
             var calls = new List<string>();
             var known = new Dictionary<long, string>();
             SurfaceScreen.Probe = calls;
@@ -574,6 +575,11 @@ namespace CodexAutoResume
                         chosen.Clear();
                         left.Clear();
                         object returned = null;
+                        if (op == "proof")
+                        {
+                            proofs.Add(new List<object> { MenuProof(menu), MenuProof(menu.Child) });
+                            continue;
+                        }
                         if (op == "open")
                             returned = menu.Open((List<object>)step[2], strings, (string)task["locale"], Field(task, "letters") as string,
                                                  id => chosen.Add(id), step[1] == null ? null : Ints(step[1]), owner,
@@ -611,7 +617,29 @@ namespace CodexAutoResume
                 SurfaceTheme.SetTheme("system");
                 SurfaceTheme.SetDesign(null);
             }
-            return new Dictionary<string, object> { { "steps", steps }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before } };
+            return new Dictionary<string, object>
+            {
+                { "steps", steps }, { "proofs", proofs }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before },
+            };
+        }
+
+        /// The live-path proof for one drawn menu (or its submenu): the window's own picture (Render, as its push draws it)
+        /// against a fresh renderer's MenuLayout and DrawMenu of the same entries, scale, language, work area and item in
+        /// hand - the render mode's - byte for byte, and the two plans equal. Null when it has no picture.
+        private static object MenuProof(MenuWindow one)
+        {
+            if (one == null || one.Renderer == null || one.Plan == null) return null;
+            byte[] window = one.Render().Pixels();
+            using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+            {
+                renderer.Theme = one.Theme;
+                renderer.Design = one.Design;
+                renderer.Contrast = one.Contrast;
+                renderer.Letters = one.Letters;
+                SurfacePlan plan = renderer.MenuLayout(one.Entries, one.Plan.Scale, one.Locale, one.Work[2] - one.Work[0]);
+                byte[] render = renderer.DrawMenu(plan, one.Selected).Pixels();
+                return new List<object> { Digest(window), Digest(render), Json.Write(Dump(plan)) == Json.Write(Dump(one.Plan)) };
+            }
         }
 
         /// The probe mode for the notification cards together: a CardStack whose cards' windows are made and never shown
@@ -630,6 +658,8 @@ namespace CodexAutoResume
             var logged = new List<object>();
             int before = SurfaceGdip.GdipObjects;
             var steps = new List<object>();
+            var proofs = new List<object>();
+            var notices = new Dictionary<NoticeCard, Dictionary<string, object>>();
             var calls = new List<string>();
             var actions = new ProbeActions();
             SurfaceScreen.Probe = calls;
@@ -675,7 +705,24 @@ namespace CodexAutoResume
                         actions.Posts.Clear();
                         object returned = null;
                         string kind = (string)step[0];
-                        if (kind == "show") stack.Show((Dictionary<string, object>)step[1]);
+                        if (kind == "proof")
+                        {
+                            var proof = new List<object>();
+                            foreach (NoticeCard card in stack.Cards)
+                            {
+                                Dictionary<string, object> notice;
+                                proof.Add(notices.TryGetValue(card, out notice)
+                                          ? CardProof(card, notice, clock, stack.Locate(), stack.Appearance(), (double)task["hold"])
+                                          : null);
+                            }
+                            proofs.Add(proof);
+                            continue;
+                        }
+                        if (kind == "show")
+                        {
+                            NoticeCard shown = stack.Show((Dictionary<string, object>)step[1]);
+                            if (shown != null) notices[shown] = (Dictionary<string, object>)step[1];
+                        }
                         else if (kind == "clock") clock += (double)step[1];
                         else if (kind == "stack")
                         {
@@ -717,7 +764,43 @@ namespace CodexAutoResume
                 SurfaceFonts.Pinned = null;
                 SurfaceRenderer.SystemColours = null;
             }
-            return new Dictionary<string, object> { { "steps", steps }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before } };
+            return new Dictionary<string, object>
+            {
+                { "steps", steps }, { "proofs", proofs }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before },
+            };
+        }
+
+        /// The live-path proof for one notification card: its two windows' pictures as its own paint draws them for `now`
+        /// against the render mode's - a card made offscreen from the same notice, place and look, born when it was, with
+        /// its pointer marks and its light's last breath, redrawn and painted for the live card's frame - byte for byte,
+        /// and the two plans equal. Null when the card has no windows.
+        private static object CardProof(NoticeCard card, Dictionary<string, object> notice, double now, CardStack.CardScreen where,
+                                        Dictionary<string, object> drawn, double hold)
+        {
+            if (card.Body == null) return null;
+            card.Paint(now);
+            string window = Digest(Joined(card.Body.Pixels(), card.Shadow.Pixels()));
+            CardFrame frame = card.Motion.Frame(now);
+            using (var fresh = new NoticeCard(null, (Dictionary<string, object>)notice["view"], PopupWords.Str(Field(notice, "title")),
+                                              Equals(Field(notice, "stays"), true), hold, card.Born, where.Dpi, where.Work, drawn,
+                                              false, Field(notice, "letters") as string))
+            {
+                fresh.Hover = card.Hover;
+                fresh.Pressed = card.Pressed;
+                fresh.Breathed = card.Breathed;
+                fresh.Redraw();
+                fresh.PaintLayers(frame);
+                string render = Digest(Joined(fresh.Body.Pixels(), fresh.Shadow.Pixels()));
+                return new List<object> { window, render, Json.Write(Dump(fresh.Plan)) == Json.Write(Dump(card.Plan)) };
+            }
+        }
+
+        private static byte[] Joined(byte[] first, byte[] second)
+        {
+            var whole = new byte[first.Length + second.Length];
+            Buffer.BlockCopy(first, 0, whole, 0, first.Length);
+            Buffer.BlockCopy(second, 0, whole, first.Length, second.Length);
+            return whole;
         }
     }
 }
