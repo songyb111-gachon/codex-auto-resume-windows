@@ -51,6 +51,37 @@ pub fn spawn_deep<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) 
     }
 }
 
+/// [`spawn_deep`] for a thread with a name of its own that answers itself when no thread can be had: the deep one, else
+/// one of the ordinary size, else the error of that last try (car-watcher's launcher and notification threads).
+pub fn try_spawn_deep<T: Send + 'static>(
+    name: &str,
+    body: impl FnOnce() -> T + Send + 'static,
+) -> std::io::Result<JoinHandle<T>> {
+    let cell = Arc::new(Mutex::new(Some(body)));
+    let held = Arc::clone(&cell);
+    let run = move || {
+        let Some(body) = held.lock().ok().and_then(|mut found| found.take()) else {
+            std::process::abort()
+        };
+        body()
+    };
+    match std::thread::Builder::new()
+        .name(name.into())
+        .stack_size(DEEP_STACK_BYTES)
+        .spawn(run)
+    {
+        Ok(handle) => Ok(handle),
+        Err(_) => std::thread::Builder::new()
+            .name(name.into())
+            .spawn(move || {
+                let Some(body) = cell.lock().ok().and_then(|mut found| found.take()) else {
+                    std::process::abort()
+                };
+                body()
+            }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,5 +105,19 @@ mod tests {
         let caught = std::panic::catch_unwind(|| run_deep(|| -> u8 { panic!("inside") }));
         assert!(caught.is_err());
         assert_eq!(spawn_deep(|| 7).join().ok(), Some(7));
+    }
+
+    #[test]
+    fn a_named_deep_thread_holds_the_deepest_value_and_keeps_its_name() {
+        let handle = try_spawn_deep("named", || {
+            let lists =
+                "[".repeat(LOADS_LIST_LEVELS as usize) + &"]".repeat(LOADS_LIST_LEVELS as usize);
+            (
+                std::thread::current().name().map(str::to_owned),
+                loads(&lists).is_ok(),
+            )
+        });
+        let answer = handle.ok().and_then(|handle| handle.join().ok());
+        assert_eq!(answer, Some((Some("named".to_owned()), true)));
     }
 }

@@ -102,7 +102,7 @@ impl Machine {
     }
 
     pub fn control(&self, paths: Paths) -> Control {
-        Control::new(paths, Arc::clone(&self.host), Guarded::null())
+        Control::new(paths, Arc::clone(&self.host), Arc::new(Guarded::null()))
     }
 }
 

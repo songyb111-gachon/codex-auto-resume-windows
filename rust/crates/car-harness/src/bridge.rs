@@ -436,7 +436,7 @@ pub fn run(home: &Path, request: &Map) -> Value {
         Err(class) => return rejected(class, "request_failed"),
     };
     let acts = Arc::clone(&host.acts);
-    let control = car_control::Control::new(paths, host, Guarded::null());
+    let control = car_control::Control::new(paths, host, Arc::new(Guarded::null()));
     let input = match request.get("input") {
         Some(Value::Str(text)) => unhex(text.as_str().unwrap_or_default()),
         _ => Vec::new(),
@@ -518,7 +518,7 @@ pub fn call(home: &Path, request: &Map) -> Value {
         Err(class) => return rejected(class, "request_failed"),
     };
     let acts = Arc::clone(&host.acts);
-    let control = car_control::Control::new(paths, host, Guarded::null());
+    let control = car_control::Control::new(paths, host, Arc::new(Guarded::null()));
     let args: Vec<Value> = match request.get("args") {
         Some(Value::Array(items)) => items.clone(),
         _ => Vec::new(),

@@ -3,7 +3,9 @@
 //!
 //! `Control` is cheap to construct and opens the store per call. Everything outside the process - the clock,
 //! Windows, the policy keys, the Codex home - comes in through [`Host`](crate::host::Host), and the edition's plug
-//! is the one the binary was built with (`Guarded::null()` in the standard edition).
+//! is the one the binary was built with (`Guarded::null()` in the standard edition). The plug is shared: the reference
+//! hands every part of one process the same plug object (`edition.plug(paths)`, "the same object every time after"), so
+//! a `Control` holds an `Arc` of the one the watcher, its icon and its cards hold, and sees what that plug keeps.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,7 +35,7 @@ const UPGRADE_FAILED: &str = "UpgradeFailed";
 pub struct Control {
     pub paths: Paths,
     pub host: Arc<dyn Host>,
-    plug: Guarded,
+    plug: Arc<Guarded>,
     /// `_seen`: the failure-seen file's identity as last read, and what it said (`control/seen.py`).
     pub(crate) seen: std::cell::RefCell<Option<crate::seen::Remembered>>,
 }
@@ -45,7 +47,7 @@ pub enum State {
 }
 
 impl Control {
-    pub fn new(paths: Paths, host: Arc<dyn Host>, plug: Guarded) -> Control {
+    pub fn new(paths: Paths, host: Arc<dyn Host>, plug: Arc<Guarded>) -> Control {
         Control {
             paths,
             host,

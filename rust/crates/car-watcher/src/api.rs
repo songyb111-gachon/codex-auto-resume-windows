@@ -11,7 +11,7 @@
 //! * `bridge(line)`: one `bridge serve` request answered in process by car-control, the same bytes.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 use car_machine::json::{Map, Value};
@@ -21,8 +21,30 @@ use crate::app::{App, EngineMaker, NotJoined, Start};
 use crate::events::Events;
 use crate::launcher::{Child, LauncherWorld};
 
-/// An edition's plug, made as often as a part of the watcher needs one (the standard edition's: `Guarded::null`).
+/// How an edition's plug is made (the standard edition's: `Guarded::null`).
 pub type Factory = fn() -> Guarded;
+
+/// `edition.plug(paths)`: this process's plug, made the first time a part of the watcher asks for it and the same
+/// object every time after - the launcher's P13 questions, App (the engine's, the icon's and the cards' control
+/// layer), the icon's actions and the bridge all hold this one, so what a plug keeps is seen by every part.
+pub struct SharedPlug {
+    factory: Factory,
+    made: OnceLock<Arc<Guarded>>,
+}
+
+impl SharedPlug {
+    pub fn new(factory: Factory) -> SharedPlug {
+        SharedPlug {
+            factory,
+            made: OnceLock::new(),
+        }
+    }
+
+    /// The one plug, made now if no part asked before.
+    pub fn get(&self) -> Arc<Guarded> {
+        Arc::clone(self.made.get_or_init(|| Arc::new((self.factory)())))
+    }
+}
 
 /// What a request could not be started with (car-host answers it in its own words).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -37,7 +59,7 @@ pub struct Watcher {
     state: Arc<Mutex<Option<String>>>,
     home: Option<String>,
     project_root: String,
-    factory: Factory,
+    plug: Arc<SharedPlug>,
     thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
@@ -59,7 +81,7 @@ struct SystemLauncher {
     here: PathBuf,
     image: PathBuf,
     project_root: String,
-    factory: Factory,
+    plug: Arc<SharedPlug>,
     events: Arc<Events>,
     state: Arc<Mutex<Option<String>>>,
     maker: Option<Box<dyn FnOnce() -> Box<dyn EngineMaker> + Send>>,
@@ -133,16 +155,16 @@ impl LauncherWorld for SystemLauncher {
         }
     }
     fn supervise(&mut self, _home: &Path, facts: &Value) -> Option<String> {
-        match (self.factory)().supervise(facts) {
+        match self.plug.get().supervise(facts) {
             car_policy::plug::Answer::Is(word) => Some(word.as_str().to_owned()),
             car_policy::plug::Answer::Defer => None,
         }
     }
     fn plug_is_null(&mut self, _home: &Path) -> bool {
-        (self.factory)().is_null()
+        self.plug.get().is_null()
     }
     fn supervise_held(&mut self, _home: &Path) -> Value {
-        (self.factory)().supervise_held()
+        self.plug.get().supervise_held()
     }
     fn ended_cleanly(&mut self, home: &Path) -> Option<bool> {
         let paths = home_paths(home, &self.project_root)?;
@@ -188,7 +210,7 @@ impl LauncherWorld for SystemLauncher {
             paths,
             project_root: self.project_root.clone(),
             codex_home,
-            plug: (self.factory)(),
+            plug: self.plug.get(),
             host,
             events: Arc::clone(&self.events),
             maker,
@@ -278,32 +300,32 @@ impl Watcher {
         };
         let events = Arc::new(Events::new());
         let state = Arc::new(Mutex::new(None));
+        let plug = Arc::new(SharedPlug::new(factory));
         let mut world = SystemLauncher {
             here,
             image,
             project_root: project_root.to_owned(),
-            factory,
+            plug: Arc::clone(&plug),
             events: Arc::clone(&events),
             state: Arc::clone(&state),
             maker,
         };
         let ended = Arc::clone(&events);
-        let thread = std::thread::Builder::new()
-            .name("watcher".into())
-            .spawn(move || {
-                let code = car_machine::caught::catch(std::panic::AssertUnwindSafe(|| {
-                    crate::launcher::guarded(&mut world, &argv)
-                }))
-                .unwrap_or(crate::watchloop::EXIT_ERROR);
-                ended.end(code);
-            })
-            .map_err(|_| Refused::BadRequest)?;
+        // The watcher reads the state, the settings and Codex's lines: a deep stack (car-machine `stack`).
+        let thread = car_machine::stack::try_spawn_deep("watcher", move || {
+            let code = car_machine::caught::catch(std::panic::AssertUnwindSafe(|| {
+                crate::launcher::guarded(&mut world, &argv)
+            }))
+            .unwrap_or(crate::watchloop::EXIT_ERROR);
+            ended.end(code);
+        })
+        .map_err(|_| Refused::BadRequest)?;
         Ok(Watcher {
             events,
             state,
             home,
             project_root: project_root.to_owned(),
-            factory,
+            plug,
             thread: Mutex::new(Some(thread)),
         })
     }
@@ -396,7 +418,7 @@ impl Watcher {
         Some(car_control::Control::new(
             paths,
             Arc::new(car_control::host::SystemHost::new(&self.project_root)),
-            (self.factory)(),
+            self.plug.get(),
         ))
     }
 
@@ -416,7 +438,7 @@ impl Watcher {
         let control = car_control::Control::new(
             paths,
             Arc::new(car_control::host::SystemHost::new(&self.project_root)),
-            (self.factory)(),
+            self.plug.get(),
         );
         let mut input: &[u8] = line;
         let mut output = Vec::new();
@@ -439,5 +461,83 @@ impl Watcher {
         {
             let _ = thread.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use car_policy::plug::{HookFailed, Plug};
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    /// A plug with state of its own: each `supervise_held` answers how many times this one plug object was asked.
+    struct Counting(AtomicI64);
+
+    impl Plug for Counting {
+        fn supervise_held(&self) -> Result<Value, HookFailed> {
+            Ok(Value::Int(
+                (self.0.fetch_add(1, Ordering::SeqCst) + 1).into(),
+            ))
+        }
+    }
+
+    fn counting() -> Guarded {
+        Guarded::new(Box::new(Counting(AtomicI64::new(0))))
+    }
+
+    fn count(asked: i64) -> Value {
+        Value::Int(asked.into())
+    }
+
+    /// `edition.plug(paths)` is the same object every time after the first: the launcher's P13 question, each of
+    /// App's Controls (`Control(self.paths, plug=self.plug)`) and the icon's control layer ask one plug, so a plug's
+    /// state is seen by every Control. A fresh plug per Control would answer 1 each time.
+    #[test]
+    fn every_control_of_one_watcher_sees_the_one_plugs_state() {
+        let base =
+            std::env::temp_dir().join(format!("car-watcher-sharedplug-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let home = base.join("home");
+        std::fs::create_dir_all(&home).expect("scratch home");
+        let home_text = home.to_string_lossy().into_owned();
+        let project_root = base.join("app").to_string_lossy().into_owned();
+        let paths = crate::app::paths(Some(&home_text), &project_root).expect("paths");
+        let plug = Arc::new(SharedPlug::new(counting));
+        let events = Arc::new(Events::new());
+        let state = Arc::new(Mutex::new(Some(paths.state_dir.clone())));
+        let mut launcher = SystemLauncher {
+            here: home.clone(),
+            image: PathBuf::new(),
+            project_root: project_root.clone(),
+            plug: Arc::clone(&plug),
+            events: Arc::clone(&events),
+            state: Arc::clone(&state),
+            maker: None,
+        };
+        let watcher = Watcher {
+            events: Arc::clone(&events),
+            state,
+            home: Some(home_text.clone()),
+            project_root: project_root.clone(),
+            plug: Arc::clone(&plug),
+            thread: Mutex::new(None),
+        };
+        let app = App::new(Start {
+            paths,
+            project_root: project_root.clone(),
+            codex_home: base.join("codex").to_string_lossy().into_owned(),
+            plug: plug.get(),
+            host: Arc::new(car_control::host::SystemHost::new(&project_root)),
+            events,
+            maker: Box::new(NotJoined),
+        });
+        assert_eq!(launcher.supervise_held(&home), count(1));
+        assert_eq!(app.control().plug().supervise_held(), count(2));
+        assert_eq!(app.control().plug().supervise_held(), count(3));
+        let icon = watcher.control().expect("the watcher's home");
+        assert_eq!(icon.plug().supervise_held(), count(4));
+        assert_eq!(launcher.supervise_held(&home), count(5));
+        drop(app);
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

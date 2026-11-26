@@ -79,9 +79,8 @@ impl Toasts {
         if !queue.alive {
             queue.alive = true;
             let shared = Arc::clone(&self.shared);
-            let started = std::thread::Builder::new()
-                .name("toasts".into())
-                .spawn(move || run(&shared));
+            // A notice's detail is a document the engine made: the thread holds it on a deep stack (car-machine `stack`).
+            let started = car_machine::stack::try_spawn_deep("toasts", move || run(&shared));
             if started.is_err() {
                 // No thread could be had: the next notice tries again (Python's start() raising propagates to the
                 // engine's notify call, which counts a failed notifier).

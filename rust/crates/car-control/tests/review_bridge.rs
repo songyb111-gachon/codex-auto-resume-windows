@@ -151,7 +151,7 @@ fn control(folder: &Path, panic_once: bool) -> Control {
         codex: folder.join("codex").to_string_lossy().into_owned(),
         panic_once: AtomicBool::new(panic_once),
     };
-    Control::new(paths, Arc::new(host), Guarded::null())
+    Control::new(paths, Arc::new(host), Arc::new(Guarded::null()))
 }
 
 #[test]

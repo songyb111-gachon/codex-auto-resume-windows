@@ -141,7 +141,8 @@ pub struct Start {
     pub project_root: String,
     /// `codex_home`: the argument, else `config.codex_home()`.
     pub codex_home: String,
-    pub plug: car_policy::plug::Guarded,
+    /// The process's one plug (`api::SharedPlug`): App's Controls hand it on, as `Control(self.paths, plug=self.plug)`.
+    pub plug: Arc<car_policy::plug::Guarded>,
     pub host: Arc<dyn car_control::host::Host>,
     pub events: Arc<Events>,
     pub maker: Box<dyn EngineMaker>,
@@ -152,7 +153,7 @@ pub struct App {
     pub paths: Paths,
     project_root: String,
     codex_home: String,
-    plug: car_policy::plug::Guarded,
+    plug: Arc<car_policy::plug::Guarded>,
     host: Arc<dyn car_control::host::Host>,
     events: Arc<Events>,
     maker: Box<dyn EngineMaker>,
@@ -258,11 +259,11 @@ impl App {
         }
     }
 
-    fn control(&self) -> car_control::Control {
+    pub(crate) fn control(&self) -> car_control::Control {
         car_control::Control::new(
             self.paths.clone(),
             Arc::clone(&self.host),
-            car_policy::plug::Guarded::null(),
+            Arc::clone(&self.plug),
         )
     }
 
