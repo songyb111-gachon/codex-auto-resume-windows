@@ -144,7 +144,7 @@ impl Engine {
             self.flying()
                 .insert(Str::from(id.as_str()), Value::Object(record.clone()));
             self.watch_record(&record)
-        } else if Engine::worded(&record)? {
+        } else if Engine::worded(&record) {
             self.try_record(record)
         } else {
             Ok(())
@@ -152,22 +152,21 @@ impl Engine {
     }
 
     /// `_worded(record)`: whether a waiting record's words are a person's own that may be sent, checked here again.
-    fn worded(record: &Map) -> Py<bool> {
-        let checked = (|| -> Py<()> {
-            let words = field(record, "words")?;
-            if purpose_is(record, RecordPurpose::Continuation)?
-                || purpose_is(record, RecordPurpose::WrapUp)?
-            {
-                continuation::validate_continuation(words)?;
-            } else {
-                continuation::validate_prompt(words)?;
-            }
-            Ok(())
-        })();
-        match checked {
-            Ok(()) => Ok(true),
-            Err("PromptError" | "TypeError" | "KeyError") => Ok(false),
-            Err(other) => Err(other),
+    /// Every refusal of `validate_prompt`/`validate_continuation` is a PromptError (its code is what car-policy
+    /// answers), and a record with no words or purpose a KeyError: each is no, as the reference catches them.
+    fn worded(record: &Map) -> bool {
+        let Ok(words) = field(record, "words") else {
+            return false;
+        };
+        let continued = purpose_is(record, RecordPurpose::Continuation).unwrap_or(false)
+            || purpose_is(record, RecordPurpose::WrapUp).unwrap_or(false);
+        if field(record, "purpose").is_err() {
+            return false;
+        }
+        if continued {
+            continuation::validate_continuation(words).is_ok()
+        } else {
+            continuation::validate_prompt(words).is_ok()
         }
     }
 

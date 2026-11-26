@@ -129,6 +129,34 @@ impl Plug for Scripted {
         self.kinds("eligibility")
     }
 
+    fn records(&self, _view: &dyn car_policy::plug::View) -> Hook<Vec<Value>> {
+        // P2 (seat S7.2a2): the records the script hands over, each carried out by core.
+        Ok(match self.call("records", Vec::new())? {
+            Value::Array(found) => Answer::Is(found),
+            _ => Answer::Defer,
+        })
+    }
+
+    fn claim_ledger(
+        &self,
+        _connection: &mut dyn car_policy::plug::Ledger,
+        record: &Value,
+        now: f64,
+        carried: &[Point],
+    ) -> Hook<Alternative> {
+        // P11 (seat S7.2a2): HOLD, a raise or DEFER, the points carried as sorted words.
+        let mut words: Vec<&str> = carried.iter().map(|point| point.as_str()).collect();
+        words.sort_unstable();
+        self.word(
+            "claim_ledger",
+            vec![
+                record.clone(),
+                Value::Float(now),
+                Value::Array(words.into_iter().map(Value::from).collect()),
+            ],
+        )
+    }
+
     fn notice(&self, facts: &Value) -> Hook<()> {
         self.call("notice", vec![facts.clone()])?;
         Ok(Answer::Defer)

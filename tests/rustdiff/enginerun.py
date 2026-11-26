@@ -337,6 +337,12 @@ def scripted_plug(script):
             script.answer("notice", [facts])
             return DEFER
 
+        def records(self, view):                    # P2 (seat S7.2a2): handed over by the script
+            return said(script.answer("records", []))
+
+        def claim_ledger(self, connection, record, now, carried):     # P11 (seat S7.2a2)
+            return said(script.answer("claim_ledger", [record, now, carried]))
+
         def wants(self, point):
             return script.wants(point)
 

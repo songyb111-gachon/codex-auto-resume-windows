@@ -23,10 +23,15 @@ PORTED = ([ADVANCED + name for name in ("plug.py", "runtime.py", "credentials.py
                                         "engine/foropen.py")]
           + ["src/codex_auto_resume/domain/plug.py", "src/codex_auto_resume/domain/plughands.py",
              "src/codex_auto_resume/engine/storeview.py", "src/codex_auto_resume/engine/__init__.py",
-             "src/codex_auto_resume/store/plugclaims.py", "src/codex_auto_resume/store/ledger.py"])
+             "src/codex_auto_resume/store/plugclaims.py", "src/codex_auto_resume/store/ledger.py",
+             # seat S7.2a2: P2's flow, the marker-free channel, P12's pool, P11 inside the claim
+             "src/codex_auto_resume/engine/plugrecords.py", "src/codex_auto_resume/engine/recordchannel.py",
+             "src/codex_auto_resume/engine/launches.py", "src/codex_auto_resume/engine/dispatch.py",
+             "src/codex_auto_resume/engine/delivery.py", "src/codex_auto_resume/engine/routes.py",
+             "src/codex_auto_resume/store/claims.py"])
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-FAMILIES = ("AdvPlugDiff", "EnginePlugDiff", "EngineTraceDiff")
+FAMILIES = ("AdvPlugDiff", "EnginePlugDiff", "EngineTraceDiff", "EngineRecordsDiff")
 
 
 def main(argv=None) -> int:
