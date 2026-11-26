@@ -15,6 +15,7 @@
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -28,9 +29,23 @@ pub const JOIN: Duration = Duration::from_millis(2000);
 /// The core's role this launcher starts.
 pub const ROLE: &str = "hook";
 
-/// `InstallHome()`: the configured installation, else the account's default.
+/// `InstallHome()`: `CODEX_AUTO_RESUME_PLUGIN_HOME`, else `CODEX_AUTO_RESUME_HOME`, else `<profile>\.codex-auto-resume`
+/// where the profile is `USERPROFILE`, else the account's profile folder as Windows gives it (the C# launcher's
+/// `Environment.GetFolderPath(SpecialFolder.UserProfile)`; std's `home_dir` asks the same `GetUserProfileDirectoryW`).
 pub fn install_home(env: &dyn Fn(&str) -> Option<String>) -> String {
-    car_bin::launcher::install_home(env)
+    for name in ["CODEX_AUTO_RESUME_PLUGIN_HOME", "CODEX_AUTO_RESUME_HOME"] {
+        if let Some(found) = env(name).filter(|each| !each.is_empty()) {
+            return found;
+        }
+    }
+    let profile = env("USERPROFILE")
+        .filter(|each| !each.is_empty())
+        .or_else(|| std::env::home_dir().map(|found| found.to_string_lossy().into_owned()))
+        .unwrap_or_default();
+    PathBuf::from(profile)
+        .join(".codex-auto-resume")
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// The command line the core is started with: `<core> hook --home <home>`.
@@ -75,36 +90,47 @@ fn pump(from: &mut dyn Read, to: &mut dyn Write) {
     }
 }
 
-fn join_within(handle: JoinHandle<Vec<u8>>, wait: Duration) -> Option<Vec<u8>> {
+/// `Thread.Join(wait)`: waits for the thread to end, or for `wait`, whichever is first; never more.
+fn join_within(handle: JoinHandle<()>, wait: Duration) {
     let deadline = Instant::now() + wait;
     while !handle.is_finished() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(10));
     }
-    if handle.is_finished() {
-        handle.join().ok()
-    } else {
-        None
+}
+
+/// The output read so far (the C# launcher's `MemoryStream answer`), written by the relay as it reads.
+#[derive(Clone, Default)]
+struct Kept(Arc<Mutex<Vec<u8>>>);
+
+impl Write for Kept {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
 /// One run of `spawn`: `input` handed to its standard input, then closed; its standard output kept, its standard
-/// error dropped. The answer to relay: `Some(bytes)` only for a child that ended 0 within `bound` and whose output
-/// was read to its end; `None` for every doubt (it could not start, it was ended at the bound, it ended otherwise).
+/// error dropped. The answer to relay: `Some(bytes)` only for a child that ended 0 within `bound`; `None` for every
+/// doubt (it could not start, it was ended at the bound, it ended otherwise). The bytes are what the relay had read
+/// once it ended or [`JOIN`] passed - the C# launcher's `output.Join(2000)` then `answer.ToArray()`, kept as it was:
+/// a child that ended 0 while something it started still held the pipe open is relayed as far as it was read.
 pub fn answer(spawn: &Spawn, input: Box<dyn Read + Send>, bound: Duration) -> Option<Vec<u8>> {
     let mut child = SystemStarter.start(spawn).ok()?;
+    let kept = Kept::default();
     let output = child.stdout.take().map(|mut from| {
-        std::thread::spawn(move || {
-            let mut kept = Vec::new();
-            pump(&mut from, &mut kept);
-            kept
-        })
+        let mut to = kept.clone();
+        std::thread::spawn(move || pump(&mut from, &mut to))
     });
-    let errors = child.stderr.take().map(|mut from| {
-        std::thread::spawn(move || {
-            pump(&mut from, &mut std::io::sink());
-            Vec::new()
-        })
-    });
+    let errors = child
+        .stderr
+        .take()
+        .map(|mut from| std::thread::spawn(move || pump(&mut from, &mut std::io::sink())));
     if let Some(mut to) = child.stdin.take() {
         let mut input = input;
         // A thread of its own, never joined: an input that never ends must not keep the launcher past its bound.
@@ -125,16 +151,20 @@ pub fn answer(spawn: &Spawn, input: Box<dyn Read + Send>, bound: Duration) -> Op
             }
         }
     };
-    let kept = output.and_then(|handle| join_within(handle, JOIN));
-    if let Some(handle) = errors {
-        let _ = join_within(handle, JOIN);
+    for handle in [output, errors].into_iter().flatten() {
+        join_within(handle, JOIN);
     }
-    // Only a handler that finished is relayed, and only whole: a decision cut short is no decision, and an exit other
+    // Only a handler that finished is relayed: a decision cut short at the bound is no decision, and an exit other
     // than 0 is a doubt, which passes.
     if status.code() != Some(0) {
         return None;
     }
-    kept
+    let bytes = kept
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    Some(bytes)
 }
 
 /// `HookLauncher.Main`: always 0; the handler's answer on standard output where there is one.
@@ -145,11 +175,11 @@ pub fn run() -> i32 {
         return 0;
     }
     let spawn = spawn_for(arguments(&home), &home);
-    if let Some(bytes) = answer(&spawn, Box::new(std::io::stdin()), BOUND) {
-        if !bytes.is_empty() {
-            let mut stdout = std::io::stdout();
-            let _ = stdout.write_all(&bytes).and_then(|_| stdout.flush());
-        }
+    if let Some(bytes) = answer(&spawn, Box::new(std::io::stdin()), BOUND)
+        && !bytes.is_empty()
+    {
+        let mut stdout = std::io::stdout();
+        let _ = stdout.write_all(&bytes).and_then(|_| stdout.flush());
     }
     0
 }
@@ -179,9 +209,19 @@ mod tests {
         };
         assert_eq!(install_home(&env), r"D:\Home");
         let env = |name: &str| (name == "USERPROFILE").then(|| r"C:\Users\ExampleUser".to_owned());
-        assert_eq!(install_home(&env), r"C:\Users\ExampleUser\.codex-auto-resume");
-        let env = |name: &str| (name == "CODEX_AUTO_RESUME_PLUGIN_HOME").then(|| r"E:\Plugin".to_owned());
+        assert_eq!(
+            install_home(&env),
+            r"C:\Users\ExampleUser\.codex-auto-resume"
+        );
+        let env =
+            |name: &str| (name == "CODEX_AUTO_RESUME_PLUGIN_HOME").then(|| r"E:\Plugin".to_owned());
         assert_eq!(install_home(&env), r"E:\Plugin");
+        // No USERPROFILE: the profile folder Windows gives the account, as GetFolderPath(UserProfile) did.
+        let env = |_: &str| None;
+        let expected = std::env::home_dir()
+            .expect("an account has a profile folder")
+            .join(".codex-auto-resume");
+        assert_eq!(install_home(&env), expected.to_string_lossy());
     }
 
     #[test]
@@ -234,7 +274,11 @@ mod tests {
 
     #[test]
     fn a_child_that_failed_passes() {
-        let got = answer(&cmd(&["echo", "block", "&", "exit", "/b", "1"]), given(b""), BOUND);
+        let got = answer(
+            &cmd(&["echo", "block", "&", "exit", "/b", "1"]),
+            given(b""),
+            BOUND,
+        );
         assert_eq!(got, None);
     }
 
@@ -247,7 +291,11 @@ mod tests {
             Duration::from_millis(500),
         );
         assert_eq!(got, None);
-        assert!(started.elapsed() < Duration::from_secs(4), "{:?}", started.elapsed());
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "{:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
@@ -265,7 +313,41 @@ mod tests {
             String::from_utf8(got.expect("relayed")).unwrap().trim_end(),
             "go on"
         );
-        assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn a_child_that_ended_while_its_own_child_held_the_pipe_is_relayed_as_far_as_it_was_read() {
+        // `start /b` leaves a process holding the inherited output open after cmd itself has ended 0: what was read by
+        // then is relayed, after the 2 s join, as the C# launcher's MemoryStream was.
+        let started = Instant::now();
+        let got = answer(
+            &cmd(&[
+                "echo",
+                "first",
+                "&",
+                "start",
+                "/b",
+                "ping",
+                "-n",
+                "5",
+                "127.0.0.1",
+            ]),
+            given(b""),
+            BOUND,
+        );
+        let text = String::from_utf8(got.expect("relayed")).unwrap();
+        assert!(text.starts_with("first"), "{text:?}");
+        // The two relays are given their 2 s each, one after the other, as the C# launcher's two Joins were.
+        assert!(
+            started.elapsed() < Duration::from_secs(6),
+            "{:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
