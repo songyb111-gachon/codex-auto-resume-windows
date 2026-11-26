@@ -54,7 +54,8 @@ STANDARD = {
     # the entry points sit above control and watcher (C5)
     # S8.2: the stub core's test-double forward and the setup program start their child through car-platform's starter
     "car-bin": {"car-control", "car-platform", "car-watcher"},
-    "car-host": {"car-control", "car-watcher"},
+    # P6 step 0: the host contracts write their replies with car-machine's JSON and take an edition's plug (car-policy Guarded)
+    "car-host": {"car-control", "car-machine", "car-policy", "car-watcher"},
     "car-legacy": {"car-platform"},
     # dev only: it writes its replies through car-machine's Python-compatible JSON writer (S0.2) instead of an inline copy;
     # S1.1: it calls the leaf crates it holds to the reference (src/leaves/), car-brand's edge added with car-brand's calls;
