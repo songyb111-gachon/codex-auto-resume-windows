@@ -515,14 +515,14 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Request {
         let Some(number) = parsed else {
             return Request::Error {
                 status: 400,
-                version_0_9: true,
+                version_0_9: false,
                 head: false,
             };
         };
         if number >= (2, 0) {
             return Request::Error {
                 status: 505,
-                version_0_9: true,
+                version_0_9: false,
                 head: false,
             };
         }
@@ -531,15 +531,19 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Request {
     if !(2..=3).contains(&words.len()) {
         return Request::Error {
             status: 400,
-            version_0_9,
+            version_0_9: false,
             head: false,
         };
     }
     let (command, mut path) = (words[0].to_owned(), words[1].to_owned());
-    if words.len() == 2 && command != "GET" {
+    if words.len() == 2 && command == "GET" {
+        // HTTP/0.9: the tag's http.server (3.14) reads it and writes nothing back.
+        return Request::Nothing;
+    }
+    if words.len() == 2 {
         return Request::Error {
             status: 400,
-            version_0_9,
+            version_0_9: false,
             head: false,
         };
     }
@@ -555,7 +559,7 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Request {
         if line.len() > 65536 {
             return Request::Error {
                 status: 431,
-                version_0_9,
+                version_0_9: false,
                 head: command == "HEAD",
             };
         }
@@ -565,7 +569,7 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Request {
         if count > 100 {
             return Request::Error {
                 status: 431,
-                version_0_9,
+                version_0_9: false,
                 head: command == "HEAD",
             };
         }

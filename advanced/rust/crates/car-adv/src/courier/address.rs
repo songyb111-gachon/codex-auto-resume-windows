@@ -302,12 +302,7 @@ pub fn split(url: &str) -> Result<Split, ()> {
             return Err(());
         }
         if open && close {
-            // netloc.partition('[')[2].partition(']')[0]
-            let after_open = netloc.split_once('[').map_or("", |(_, after)| after);
-            let bracketed = after_open
-                .split_once(']')
-                .map_or(after_open, |(host, _)| host);
-            check_bracketed(bracketed)?;
+            check_bracketed_netloc(&netloc)?;
         }
     }
     let (rest, fragment) = match rest.split_once('#') {
@@ -334,6 +329,27 @@ pub fn split(url: &str) -> Result<Split, ()> {
         query,
         fragment,
     })
+}
+
+/// `_check_bracketed_netloc(netloc)` (3.14): nothing before the bracket, nothing after it but a port.
+fn check_bracketed_netloc(netloc: &str) -> Result<(), ()> {
+    let host_and_port = netloc.rsplit_once('@').map_or(netloc, |(_, after)| after);
+    let hostname = match host_and_port.split_once('[') {
+        Some((before, bracketed)) => {
+            if !before.is_empty() {
+                return Err(());
+            }
+            let (hostname, port) = bracketed.split_once(']').unwrap_or((bracketed, ""));
+            if !port.is_empty() && !port.starts_with(':') {
+                return Err(());
+            }
+            hostname
+        }
+        None => host_and_port
+            .split_once(':')
+            .map_or(host_and_port, |(host, _)| host),
+    };
+    check_bracketed(hostname)
 }
 
 /// `_check_bracketed_host(hostname)`.

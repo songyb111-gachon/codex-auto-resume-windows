@@ -7,7 +7,7 @@
 //! what the service answered. No redirect is followed: a 3xx is a refusal.
 //!
 //! [`Opener`] is urllib's opener as the reference's seam has it (`opener.open(request, timeout=)`): it is handed the
-//! request exactly as urllib's `Request` holds it before it is sent - the address without its fragment, the method, the
+//! request exactly as urllib's `Request` holds it before it is sent - the address, the method, the
 //! headers capitalised as `Request.add_header` keeps them, the body and the timeout - and answers what the reply was
 //! (its status and the bytes read, or how it failed, and whether the request's time in all ran out). The production
 //! opener is WinHTTP's ([`SystemOpener`], car-platform `winhttp`: the system's TLS, the certificate store, TLS 1.2 or
@@ -28,7 +28,7 @@ pub const USER_AGENT: &str = "codex-auto-resume-advanced-courier";
 /// One request as urllib's `Request` holds it when the opener is handed it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
-    /// `full_url`: the address, its fragment (after the last `#`) taken off.
+    /// `full_url`: the address as given (urllib keeps its fragment there; the system's opener never sends one).
     pub url: String,
     pub method: String,
     /// `header_items()`: each name capitalised (`"Content-type"`), in the order they were first given.
@@ -198,9 +198,8 @@ pub fn made(
             capital.push((name, value));
         }
     }
-    let full = url.rsplit_once('#').map_or(url, |(before, _)| before);
     Request {
-        url: full.to_owned(),
+        url: url.to_owned(),
         method: method.to_owned(),
         headers: capital,
         body: body.map(<[u8]>::to_vec),
@@ -299,8 +298,13 @@ impl Opener for SystemOpener {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
+        // `Request.selector` and the host: the fragment, after the last `#`, is never sent.
+        let url = request
+            .url
+            .rsplit_once('#')
+            .map_or(request.url.as_str(), |(before, _)| before);
         let asked = winhttp::Asked {
-            url: &request.url,
+            url,
             method: &request.method,
             headers: &headers,
             body: request.body.as_deref(),

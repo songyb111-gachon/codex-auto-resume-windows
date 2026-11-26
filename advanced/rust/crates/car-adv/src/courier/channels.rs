@@ -97,6 +97,14 @@ pub fn lines(
         .filter(|part| !part.is_empty())
         .collect();
     if is_number(at) {
+        // time.localtime: NaN is a ValueError, an infinity an OverflowError, before the C runtime is asked.
+        let seconds = number(at);
+        if seconds.is_nan() {
+            return Err(Failure::raised("ValueError"));
+        }
+        if seconds.is_infinite() {
+            return Err(Failure::raised("OverflowError"));
+        }
         let tm = words.local.localtime(number(at)).map_err(Failure::raised)?;
         detail.push(format!("{:02}:{:02}", tm.hour, tm.min));
     }

@@ -62,6 +62,16 @@ pub trait Layer {
     fn watcher_running(&self) -> Option<bool>;
 }
 
+/// `row[key]`: KeyError where the row has no such key.
+fn item<'a>(row: &'a Value, key: &str) -> Result<&'a Value, Failed> {
+    match row {
+        Value::Object(map) => map
+            .get(key)
+            .ok_or_else(|| Failed::Raised("KeyError".into())),
+        _ => Err(Failed::Raised("TypeError".into())),
+    }
+}
+
 fn field<'a>(row: &'a Value, key: &str) -> &'a Value {
     match row {
         Value::Object(map) => map.get(key).unwrap_or(&Value::Null),
@@ -260,7 +270,7 @@ pub fn pause(layer: &dyn Layer) -> Result<Value, Failed> {
 /// `cancel(layer, alias, listed)`.
 pub fn cancel(layer: &dyn Layer, alias: &Value, listed: &Value) -> Result<Value, Failed> {
     let record = resolve(layer, alias, listed)?;
-    let found = layer.cancel_interruption(field(&record, "interruption_id"), ACTOR)?;
+    let found = layer.cancel_interruption(item(&record, "interruption_id")?, ACTOR)?;
     let changed = car_machine::pyval::truthy(field(&found, "changed"));
     Ok(object([
         ("done", Value::Bool(true)),
@@ -273,8 +283,8 @@ pub fn cancel(layer: &dyn Layer, alias: &Value, listed: &Value) -> Result<Value,
 pub fn release(layer: &dyn Layer, alias: &Value, listed: &Value) -> Result<Value, Failed> {
     let record = resolve(layer, alias, listed)?;
     layer.release_hold(
-        field(&record, "interruption_id"),
-        field(&record, "thread_id"),
+        item(&record, "interruption_id")?,
+        item(&record, "thread_id")?,
         ACTOR,
     )?;
     Ok(object([
