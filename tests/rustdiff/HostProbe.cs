@@ -99,6 +99,11 @@ namespace CodexAutoResume
             {
                 case "tray_words":
                     return TrayWords_(call);
+                case "icon_state":
+                    // tray.icon_state: a failure reported is "failed"; else the popup's word for the snapshot, as the icon's state
+                    return call["failed"] is bool && (bool)call["failed"] ? "failed"
+                        : TrayMotion.ForLight(TipCard.SnapshotActivity(SurfaceRender.Field(call, "snapshot") as Dictionary<string, object>,
+                                                                        (double)call["now"], call["attention"] is bool && (bool)call["attention"]));
                 case "menu_items":
                     return Plain(TrayIcon.MenuItems(SurfaceRender.Field(call, "snapshot") as Dictionary<string, object>,
                                                     SurfaceRender.Field(call, "strings") as Dictionary<string, object>,

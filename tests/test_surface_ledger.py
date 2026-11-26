@@ -25,7 +25,7 @@ UI = tuple(PACKAGE + "." + name for name in SHORT)       # built, so this file's
 KINDS = ("pure", "drawn", "window", "scan")
 STATUSES = ("host", "pending", "python-only")
 # The ceiling for rows that are not yet on the host. Lower it when a row moves to `host`; never raise it.
-PENDING_CEILING = 84
+PENDING_CEILING = 66
 
 
 def imports_the_ui(path: Path) -> bool:
@@ -47,8 +47,13 @@ def imports_the_ui(path: Path) -> bool:
     return False
 
 
+# The files that are the host's side of the ledger and read the Python UI only to hold the host to it (they name a Python
+# module to compare a constant or a rule with it): they are the twins the rows name, not rows.
+HOST_SIDE = ("test_host_shape.py", "test_host_tray_place.py")
+
+
 def test_files() -> set[str]:
-    return {path.name for path in TESTS.glob("test_*.py") if imports_the_ui(path)}
+    return {path.name for path in TESTS.glob("test_*.py") if path.name not in HOST_SIDE and imports_the_ui(path)}
 
 
 def test_names(path: Path) -> set[tuple[str, str]]:

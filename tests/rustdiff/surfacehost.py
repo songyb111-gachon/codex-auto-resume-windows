@@ -73,6 +73,7 @@ def executable() -> Path:
 def _start(environment: dict):
     environment = dict(os.environ, **environment)
     environment.pop("CODEX_AR_CORE", None)
+    environment["CODEX_AUTO_RESUME_CODEX_EXE"] = os.path.join(tempfile.gettempdir(), "car-no-codex", "codex.exe")
     return subprocess.run([str(executable())], env=environment, capture_output=True, timeout=300, creationflags=NO_WINDOW)
 
 
@@ -117,7 +118,8 @@ class Serve:
         import atexit
         CALLS[name] = CALLS.get(name, 0) + 1
         if self.process is None:
-            environment = dict(os.environ, CODEX_AR_HOST_SERVE="1")
+            environment = dict(os.environ, CODEX_AR_HOST_SERVE="1",
+                               CODEX_AUTO_RESUME_CODEX_EXE=os.path.join(tempfile.gettempdir(), "car-no-codex", "codex.exe"))
             environment.pop("CODEX_AR_CORE", None)
             self.process = subprocess.Popen([str(executable())], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                             env=environment, creationflags=NO_WINDOW)

@@ -2362,3 +2362,83 @@ every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`); `gui/
 `build/make_gui.ps1` have no diff from the base. `rediff_host_surface.py` now also watches `ui/tray/icon.py`, `menu.py`,
 `animation.py`, `clicks.py`, `cards.py`, `win32.py`, `__init__.py` and `ui/popup/access.py`: exact against v0.6.26 (29
 tests; only `ui/popup/model.py` differs from the tag, as before).
+
+## P6 seat S6.4: the Python UI tests on the C# host (branch `car-v0627-s64`, 2026-11-27)
+
+Writes only `tests/` and this section (Q5 (a)). Nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window was shown, nothing was
+captured or drawn on a screen, nothing was pushed. Base `8753199c7` (S6.3 complete).
+
+### What is done
+
+| What | Where | State |
+|---|---|---|
+| **The ledger**: the 84 test files that import the Python UI (`codex_auto_resume.ui`, `notice_window`, `tray_place`; found by AST, as P6-DESIGN 3.4 counts), one row each: kind (pure 16, drawn 28, window 29, scan 11), its classes by kind, how many of its 1,976 tests touch the UI (985; the rest are `unaffected`), status, and for a row not on the host `why` and `needs` | `tests/rustdiff/surface_ledger.json` | held by `tests/test_surface_ledger.py` (the row set equals the AST set both ways; every class, test and twin a row names is there; the pending count is held to a ceiling that only ever goes down: 66) |
+| **Pure, through the shim**: `CODEX_AR_CORE=rust` puts car-surface behind the popup's words (`say`, `one_line`, `kept`, `locale_of`) and view model (`activity`, `light_for`, `icon_attention`, `watcher_known_running`, `snapshot_activity`, `urgency`, `is_waiting`, `_blocked`, `task_item`, `row_menu`, `view_model`, `busy_key`, `select_action`), car-words behind `ui/words.py` (`countdown`, `age`, `clock_time`, `window_name`, `share`, `left`, `usage_windows`, `usage_line`: the `say` it is handed is matched to the catalog it speaks) and car-surface's `snapshot_from` over the store the test hands in; the icon's words (`tooltip_parts`, `tooltip`, `tooltip_joined`, `meter_line`), its menu (`menu_items`) and its state (`icon_state`) are answered by the host's own C# (TrayWords, TrayMenu, TrayMotion) in a probe process | `tests/rustdiff/surfaceproxy.py`, `tests/rustdiff/shim.py` (the names), `tests/rustdiff/surfacehost.py` and `tests/rustdiff/HostProbe.cs` (the test-owned C# entry, compiled with `[contract]`, `[surface]`, `[generated]`; never shown, never loads the DLL) | **102 tests run on it and pass**, and pass on the Python product unchanged |
+| **Window behaviour, through the host's probe**: `IconPlacement` (where Windows keeps the icon: the registry, the clock, every read counted) and `OverflowOpen` (is the flyout open) in the host's own code, each test its Python original's body | `tests/test_host_tray_place.py` (16 tests) | twins of `test_tray_icon_motion.PlacementTests` and `test_tray_overflow_open.OverflowOpenTests` |
+| **Source scans, re-pointed to `gui/host.sources`**: the popup's and the tip card's shape rules (`HostListTests`, `AskWindowsNothingTests`, `OneDefinitionTests`, `TipCardTests`), the menu's fallbacks (`MenuFallbackTests`), what the surfaces may send, drive and use (`ReachTests`) | `tests/test_host_shape.py` (14 tests) | twins of `test_popup_shape`, `test_tray_tip_shape`, `test_tray_menu_fallbacks` and `test_tray_popup.SafetyTests`; `no_twin` names the tests whose subject is Python's own packaging (re-exports, import order) |
+| S6.3's own comparison tests | `test_surface_parity` (21), `test_surface_windows` (8), `test_surface_render_retarget` (4) | rows with status `host`; run one at a time through `gui_lock.sh`: OK |
+| The re-diff for the final | `python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` | lists the UI files and ledgered tests that changed, the test files that import the UI at the tag and have no row, then runs every ledger test the shim runs, and the ledger and the twins, with the tag's package first on the path |
+
+Rows by status: **host 17** (S6.3's three, and 14 more: every UI test of the file is routed, twinned, or listed in `no_twin` with its
+reason), **python-only 1** (`test_srcscan`: it tests the Python scanner, the UI's modules are its sample data), **pending 66**
+(811 UI tests: drawn 447, window 271, scan 54, pure 39).
+
+**Mutation checks** (each broken alone, the harness rebuilt, the routed tests run on the shim, restored): `words::left`'s clamp 0 to 1
+(7 fail), `urgency`'s waiting flag swapped (1), `WEEK_MINUTES` named one more (25); on the host's C# (the twins): the chevron rule
+returning true, the flyout counted when cloaked, `LookAgainS` ignored, `NOACTIVATE` dropped from the tip's style, `Windows.Forms` used by
+a plan file, `TipGap` 8 to 9, a call the icon makes of the card added, `System.Diagnostics` used, a name `SubmitIt`, `Process.Start`, the
+menu's "Show what is waiting ({n})" fallback and "Don't sleep after recoveries" worded otherwise (each fails its test). **One test set did not
+fail**: `popup.one_line`'s cut (`limit - 1` to `limit`): no Python UI test asserts the cut (they call `one_line` only to flatten a name), so it is
+held by `diffs_surface_popup`'s `WordsDiff` and not here. `app_server_unmatched`'s word in `tray/model.rs` (caught by the final 102, not by an earlier
+list made before the icon's tests were routed), the icon state's `attention` mapped to idle (18 fail), `tray.idle`'s fallback (3), and the menu's
+"Stop the watcher" fallback (caught by `test_host_shape.MenuFallbackTests`, not by the routed set).
+
+### What is left, and how (every pending row has its `why` and `needs`)
+
+* **Drawn** (447 tests, 25 rows): `test_tray_popup` (layout, placement, motion, elevation, fonts), `test_notice_card` (card layout, stack,
+  shadow, motion), `test_tray_icon_motion` (frames, budget, glide), `test_tray_popup_v064`/`_depth`/`_designs`, `test_gui_v0623_days`,
+  `test_gui_v065_taskbar`, the motion pictures' tests. The route is the plan dump: a proxy for `ui.popup.layout.layout`, `menu_layout`,
+  `tip_layout`, `notice_card.layout` and the placement and motion functions that (1) runs the reference's own call once under
+  `tests/test_surface_parity.py`'s `StandIn` to record every measure question and its answer (the job's `tables`), (2) asks the render
+  mode for the case with those tables (`surfacehost.run`), exactly as comparison A does, and (3) hands the test the C# plan rebuilt as
+  the reference's plan object (items with tuple targets, `Plan` attributes), so the test's own assertions run on the C#. What is not
+  built: the dump-to-plan conversion for each surface, and `popup.motion`/`tray.motion` frames (the render mode has cases `popup_motion` and
+  `icon`; each test's call shapes have to be mapped to one).
+* **Window** (271 tests, 26 rows): `test_tray_menu_drawn`, `test_popup_row_menu_drawn`, `test_popup_access`, `test_tray_tipcard`,
+  `test_notice_card.WindowsTests`, `test_tray_tip_messages`, `test_tray_icon_motion` timers/observe/stored. The route is a probe call per
+  window class in `HostProbe.cs`, as `placement` and `overflow` are, or the scripts of `test_surface_windows` (`--probe <job>`): a
+  script of the Python test's own steps over a window made and never shown, the answer the state after each step. Each Python test's
+  stand-ins (a recorded user32) are the same ones `test_surface_windows` already gives the reference.
+* **Scan** (54 tests, 8 rows): rules over Python sources with no C# counterpart yet (`test_screenshots` digests, `test_gui_v0623_*`
+  wiring), or that move with the pictures' digest (the main session's, B and C).
+* **Pure** (39 tests, 7 rows): what takes an object the test hands in - `PopupModel`, `perform`, `Tray.snapshot` callers, the
+  Dashboard opener (`tray.dashboard`, car-control's) - needs the ask-back the engine proxy has (`engineproxy.py`'s pipe), which
+  `surface.batch`'s scripted cases (`popup.model`, `popup.perform`) stand in for by a case file and cannot give a live object.
+* The `ui.words` callables: the proxy matches a `say` to the catalog it speaks and refuses any other (`TypeError`), so a test that
+  hands a hand-made `say` is not routed and says so.
+
+### Seams and notes for the next seats
+
+* `surfacehost.py`/`HostProbe.cs` is the one place a test asks the host's C# a question: add a `case` to `HostProbe.Answer` (internal
+  members of the surfaces are reachable, it is compiled into the same assembly), a Python wrapper in `surfaceproxy.py` for the Python name
+  it stands in for, the module in `shim.SURFACE`. One process serves every call of a run (`CODEX_AR_HOST_SERVE=1`); `run()` is the render mode's
+  one-case job. The compiled probe is cached in `%TEMP%\car-surface-host\<digest of the sources and the driver>`.
+* The shim's proxies replace names where a module loads: `from ... import view_model` copies made before that (none today) would keep
+  Python's. `CAR_SURFACE_PROXY_REPORT=<file>` appends, at exit, how many calls of each op a process routed (a test is not "on the host" if
+  its count is zero).
+* The count of UI tests: P6-DESIGN 3.4 says 84 files and 2,018 tests; this tree has 84 files and 1,976 `def test_` in their classes (the
+  three S6.3 comparison files included), of which 985 touch a UI name or read its source.
+* A test file that imports the Python UI and is a host twin is named in `test_surface_ledger.HOST_SIDE`; any other new file that imports
+  it needs a row.
+
+### Checks
+
+```
+CODEX_AR_CORE=rust PYTHONPATH="src;tests" python -m unittest <the 102 ledger host_tests>     Ran 102, OK
+PYTHONPATH="src;tests" python -m unittest <the same>                                              Ran 102, OK
+test_surface_ledger test_host_shape test_host_tray_place                                          Ran 37, OK
+test_surface_parity, test_surface_windows, test_surface_render_retarget (gui_lock.sh, one each)  OK 21 + 8 + 4
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are unchanged from S6.3's; `python -X utf8
+rust/tools/check_groundwork.py`: OK. Every run set `CODEX_AUTO_RESUME_CODEX_EXE` to a path that does not exist (the main session's notice of
+2026-11-27), and the proxy's harness and the host probe set it themselves, so no test of this seat can start this PC's codex.exe.

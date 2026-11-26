@@ -33,7 +33,7 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 ROOT = Path(__file__).resolve().parents[2]
 FLOAT_TAG = "$float"
 MODULES = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model", "codex_auto_resume.ui.words",
-           "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu")
+           "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu", "codex_auto_resume.ui.tray.motion")
 HOMES = ("USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA", "CODEX_HOME", "TEMP", "TMP")
 
 BUILTINS = {"ValueError": ValueError, "TypeError": TypeError, "KeyError": KeyError, "AttributeError": AttributeError,
@@ -84,6 +84,8 @@ class Pipe:
         self.home = tempfile.mkdtemp(prefix="car-surface-proxy-")
         environment = {name: value for name, value in os.environ.items() if name not in ("CODEX_AR_CORE",)}
         environment.update({name: self.home for name in HOMES})
+        # Never this PC's Codex: an engine discovery under the proxy finds no codex.exe to start.
+        environment["CODEX_AUTO_RESUME_CODEX_EXE"] = str(Path(self.home) / "no-codex" / "codex.exe")
         self.process = subprocess.Popen([str(harness()), "serve"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.DEVNULL, env=environment, creationflags=NO_WINDOW)
         atexit.register(self.stop)
@@ -320,6 +322,21 @@ def _tray_menu(module):
     module.menu_items = menu_items
 
 
+def _tray_motion(module):
+    """The icon's state from a tick's snapshot (gui/TrayMotion.cs's states, gui/TipPlan.cs's activity word), as the probe answers it."""
+    original = module.icon_state
+
+    def icon_state(snapshot, *, attention=False, failed=False):
+        import time
+        return _host().SERVE.ask("icon_state", snapshot=snapshot, attention=bool(attention), failed=bool(failed),
+                                 now=time.time())
+
+    icon_state.rust_core = "host"
+    icon_state.__wrapped__ = original
+    icon_state.__doc__ = original.__doc__
+    module.icon_state = icon_state
+
+
 def _words(module):
     case = PIPE.case
 
@@ -427,4 +444,6 @@ def install(module) -> None:
         _tray_words(module)
     elif module.__name__.endswith("tray.menu"):
         _tray_menu(module)
+    elif module.__name__.endswith("tray.motion"):
+        _tray_motion(module)
     module._rust_surface = True

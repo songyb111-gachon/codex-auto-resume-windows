@@ -139,6 +139,30 @@ class TipCardTests(unittest.TestCase):
         self.assertNotIn("TipWidth", text)
 
 
+class MenuFallbackTests(unittest.TestCase):
+    """Twin of tests/test_tray_menu_fallbacks.py's "every fallback of the menu is the English sentence": a menu built with no
+    words says what the English catalog says, for every key it writes a literal for (gui/TrayMenu.cs `Say(strings, key,
+    fallback)` and `PowerOffWords`)."""
+
+    def test_every_fallback_of_the_menu_is_the_english_sentence(self):
+        from codex_auto_resume import l10n
+        english = l10n.catalog("en")
+        text = code(source("gui/TrayMenu.cs"))
+        literal = r'"((?:[^"\\\r\n]|\\.)*)"'
+        found = re.findall(r'Say\(strings,\s*"([\w.\-]+)"\s*,\s*%s\s*\)' % literal, text)
+        self.assertGreaterEqual(len(found), 6)
+        for key, said in found:
+            with self.subTest(key=key):
+                self.assertEqual(said, english[key])
+        words = re.search(r"PowerOffWords = new Dictionary<string, string> \{(.*?)\};", text, re.S)
+        self.assertIsNotNone(words)
+        pairs = re.findall(r'\{\s*"(\w+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}', words.group(1))
+        self.assertEqual({word for word, _ in pairs}, {"sleep", "hibernate", "shut_down"})
+        for word, said in pairs:
+            with self.subTest(power=word):
+                self.assertEqual(said, english["menu.power_off." + word])
+
+
 def written(name: str) -> str:
     """A source's code: no comment, no string - what its names and calls are."""
     return re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', code(source(name)))
