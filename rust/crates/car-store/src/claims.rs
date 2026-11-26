@@ -19,7 +19,7 @@ use car_machine::json::Value;
 use car_policy::classify::failures::{ADMISSIBLE, reset_verified};
 use car_policy::classify::gates::{FORCEABLE, SEND_NOW, own_budget_only};
 use car_policy::classify::ladder::{CAPACITY_MAX_SECONDS, EARLY_STATES};
-use car_policy::plug::Point;
+use car_policy::plug::{Guarded, Point};
 use rusqlite::Connection;
 
 use crate::errors::{Error, Result};
@@ -105,7 +105,11 @@ pub const FLAG_AFTER_USER_WORK: i64 = 1;
 pub const FLAG_USER_JOINED: i64 = 2;
 pub const FLAG_WITHDRAW_DELETED: i64 = 4;
 
-fn others_in_flight(connection: &Connection, thread_id: &Value, exclude: &str) -> Result<i64> {
+pub(crate) fn others_in_flight(
+    connection: &Connection,
+    thread_id: &Value,
+    exclude: &str,
+) -> Result<i64> {
     let mut count = 0;
     for row in tuples(
         connection,
@@ -362,6 +366,18 @@ impl Store {
         now: f64,
         options: &Claim,
     ) -> Result<Claimed> {
+        self.reserve_ledgered(interruption_id, now, options, None)
+    }
+
+    /// `reserve_detailed(..., ledger=plug)`: the claim with the plug's ledger asked last (P11, `_ledger_holds`) where
+    /// the claim is plugged and every check of core's granted it. With no `ledger` a plugged claim's ledger defers.
+    pub fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        options: &Claim,
+        ledger: Option<&Guarded>,
+    ) -> Result<Claimed> {
         check_now(now)?;
         if options.gates.is_some() && options.limits.is_none() {
             return Err(Error::store(
@@ -374,7 +390,7 @@ impl Store {
                 return Ok(refused("identity", "unknown_record"));
             };
             if let Some(window) = options.resend {
-                return self.resend_claim(connection, &settings, &row, now, options, window);
+                return self.resend_claim(connection, &settings, &row, now, options, window, ledger);
             }
             let mut vector = options.gates.clone().unwrap_or_default();
             vector.set("consent", consent(connection, &settings, &row)?);
@@ -412,6 +428,16 @@ impl Store {
             }
             if options.gates.is_some() && refusal.is_none() {
                 refusal = first_refusal(&vector).map(|(name, found)| (name.to_string(), found.1));
+            }
+            if refusal.is_none()
+                && options.plugged
+                && let Some(ledger) = ledger
+                && self.ledger_asked(connection, ledger, &row, now, options)?
+            {
+                // The edition counts a claim of its own on this conversation, and the record waits as behind one of
+                // core's.
+                vector.set("submission_safe", gate(WAIT, HELD));
+                refusal = Some(("submission_safe".into(), HELD.into()));
             }
             let encoded = options.gates.as_ref().map(|_| encode_gates(&vector));
             if let Some((name, reason)) = refusal {
@@ -461,6 +487,7 @@ impl Store {
         now: f64,
         options: &Claim,
         window: (f64, f64),
+        ledger: Option<&Guarded>,
     ) -> Result<Claimed> {
         let (Some(gates), Some(limits)) = (&options.gates, &options.limits) else {
             return Ok(refused("submission_safe", "possibly_sent"));
@@ -499,7 +526,14 @@ impl Store {
         if refusal.is_none() {
             refusal = relaxation_refused(connection, row, now, &mut vector, None, options)?;
         }
-        if refusal.is_none() && (!options.plugged || !options.carried.contains(&Point::Schedule)) {
+        if refusal.is_none()
+            && (!options.plugged
+                || !options.carried.contains(&Point::Schedule)
+                || match ledger {
+                    Some(ledger) => self.ledger_asked(connection, ledger, row, now, options)?,
+                    None => false,
+                })
+        {
             refusal = Some(("submission_safe".into(), HELD.into()));
         }
         if let Some((name, reason)) = refusal {
@@ -528,6 +562,26 @@ impl Store {
             },
         )?;
         Ok((true, None, None))
+    }
+
+    /// `_ledger_holds(connection, ledger, row, now, carried)` for a claim of core's own record.
+    fn ledger_asked(
+        &self,
+        connection: &Connection,
+        ledger: &Guarded,
+        row: &Row,
+        now: f64,
+        options: &Claim,
+    ) -> Result<bool> {
+        let carried: Vec<Point> = options.carried.iter().copied().collect();
+        crate::ledger::ledger_holds(
+            connection,
+            ledger,
+            self.links.as_ref(),
+            &Value::Object(row.clone()),
+            now,
+            &carried,
+        )
     }
 
     /// `record_gates(interruption_id, gates, now)`: a due, unclaimable record's vector, its last wait ended.

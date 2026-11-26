@@ -32,6 +32,7 @@ pub mod columns;
 pub mod downgrade;
 pub mod errors;
 pub mod journal;
+pub mod ledger;
 pub mod legacy;
 pub mod machine;
 pub mod migrations;

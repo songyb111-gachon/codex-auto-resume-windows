@@ -42,6 +42,11 @@ pub fn wall_clock() -> f64 {
 pub trait Links: Send + Sync {
     /// `Path(path).is_symlink()`.
     fn is_symlink(&self, path: &Path) -> bool;
+    /// `(os.stat(path).st_dev, os.stat(path).st_ino)`, as `os.path.samefile` compares two files (P11's ATTACH,
+    /// `store/ledger.py` `_same_file`): None where `stat` raises OSError, and so where nothing is wired in.
+    fn file_identity(&self, _path: &Path) -> Option<(u32, u64)> {
+        None
+    }
 }
 
 /// Open a connection as Python's `sqlite3.connect(path, timeout=10, isolation_level=None)` does.

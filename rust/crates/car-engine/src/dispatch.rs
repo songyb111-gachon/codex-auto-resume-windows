@@ -585,7 +585,8 @@ impl Engine {
                 self.caps(relaxed)
             },
         };
-        let (claimed, refusing, reason) = self.store.reserve_detailed(&key, at, &claim)?;
+        let (claimed, refusing, reason) =
+            self.store.reserve_ledgered(&key, at, &claim, &self.plug)?;
         if !claimed {
             if !resend {
                 // a resend refused stays as it was

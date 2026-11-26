@@ -101,6 +101,33 @@ impl Store for Caught<dyn Store> {
     fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
         car_scheduler::caught(|| self.0.reserve_detailed(interruption_id, now, claim))
     }
+    fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        ledger: &car_policy::plug::Guarded,
+    ) -> Py<Claimed> {
+        car_scheduler::caught(|| self.0.reserve_ledgered(interruption_id, now, claim, ledger))
+    }
+    fn reserve_record(
+        &self,
+        record: &Map,
+        now: f64,
+        ledger: &car_policy::plug::Guarded,
+        quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        car_scheduler::caught(|| self.0.reserve_record(record, now, ledger, quiet_until))
+    }
+    fn record_guard(
+        &self,
+        record: &Map,
+        ledger: &car_policy::plug::Guarded,
+        now: f64,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        car_scheduler::caught(|| self.0.record_guard(record, ledger, now, body))
+    }
     fn release_claim(
         &self,
         interruption_id: &str,

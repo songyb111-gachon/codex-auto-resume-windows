@@ -380,6 +380,9 @@ impl car_store::session::Links for Probe {
     fn is_symlink(&self, path: &Path) -> bool {
         car_platform::links::is_symlink(path)
     }
+    fn file_identity(&self, path: &Path) -> Option<(u32, u64)> {
+        car_platform::files::file_identity(path)
+    }
 }
 
 impl SystemHost {

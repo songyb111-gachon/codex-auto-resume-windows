@@ -126,6 +126,38 @@ pub trait Store: car_scheduler::Store {
     ) -> Py<Value> {
         Err("AttributeError")
     }
+    /// `reserve_detailed(..., ledger=plug)`: the claim with the plug's ledger asked last (P11). A store that cannot
+    /// ask it claims as with a ledger that defers.
+    fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        _ledger: &car_policy::plug::Guarded,
+    ) -> Py<Claimed> {
+        self.reserve_detailed(interruption_id, now, claim)
+    }
+    /// `reserve_record(record, now, ledger=plug, quiet_until=...)` (P2, store/plugclaims.py). AttributeError where the
+    /// store has none: the record costs itself (`plug_record_check_failed`).
+    fn reserve_record(
+        &self,
+        _record: &Map,
+        _now: f64,
+        _ledger: &car_policy::plug::Guarded,
+        _quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        Err("AttributeError")
+    }
+    /// `with store.record_guard(record, plug, now) as permitted:` - `body` runs inside the write lock.
+    fn record_guard(
+        &self,
+        _record: &Map,
+        _ledger: &car_policy::plug::Guarded,
+        _now: f64,
+        _body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        Err("AttributeError")
+    }
 }
 
 /// The engine's reader of Codex: `LocalSource`'s methods the engine calls, beyond the watch's.

@@ -150,6 +150,58 @@ impl car_scheduler::Store for EngineStore {
     }
 }
 
+impl EngineStore {
+    /// `reserve_detailed(...)`, noted for the traces, with the plug's ledger where the engine hands it.
+    fn claim_with(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        ledger: Option<&car_policy::plug::Guarded>,
+    ) -> Py<Claimed> {
+        if self.1 {
+            let number = |found: Option<f64>| found.map_or(Value::Null, Value::Float);
+            let pair = |found: Option<(f64, f64)>| {
+                found.map_or(Value::Null, |(a, b)| {
+                    Value::Array(vec![Value::Float(a), Value::Float(b)])
+                })
+            };
+            let _ = ask(
+                "note.claim",
+                vec![
+                    Value::Array(
+                        claim
+                            .carried
+                            .iter()
+                            .map(|point| Value::from(point.as_str()))
+                            .collect::<Vec<_>>(),
+                    ),
+                    claim.relaxed.as_deref().map_or(Value::Null, Value::from),
+                    pair(claim.resend),
+                    Value::Bool(claim.forced),
+                    pair(Some(claim.caps)),
+                    number(claim.quiet_until),
+                    Value::Bool(claim.plugged),
+                ],
+            );
+        }
+        let options = car_store::claims::Claim {
+            plugged: claim.plugged,
+            carried: claim.carried.clone(),
+            limits: Some(claim.limits.clone()),
+            gates: Some(claim.gates.clone()),
+            quiet_until: claim.quiet_until,
+            relaxed: claim.relaxed.clone(),
+            resend: claim.resend,
+            forced: claim.forced,
+            caps: Some(claim.caps),
+        };
+        py(self
+            .0
+            .reserve_ledgered(interruption_id, now, &options, ledger))
+    }
+}
+
 impl car_engine::Store for EngineStore {
     fn record_gates(&self, interruption_id: &str, gates: &Vector, now: f64) -> Py<()> {
         py(self.0.record_gates(interruption_id, gates, now))
@@ -189,44 +241,34 @@ impl car_engine::Store for EngineStore {
         py(self.0.others_in_flight(thread_id, exclude))
     }
     fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
-        if self.1 {
-            let number = |found: Option<f64>| found.map_or(Value::Null, Value::Float);
-            let pair = |found: Option<(f64, f64)>| {
-                found.map_or(Value::Null, |(a, b)| {
-                    Value::Array(vec![Value::Float(a), Value::Float(b)])
-                })
-            };
-            let _ = ask(
-                "note.claim",
-                vec![
-                    Value::Array(
-                        claim
-                            .carried
-                            .iter()
-                            .map(|point| Value::from(point.as_str()))
-                            .collect::<Vec<_>>(),
-                    ),
-                    claim.relaxed.as_deref().map_or(Value::Null, Value::from),
-                    pair(claim.resend),
-                    Value::Bool(claim.forced),
-                    pair(Some(claim.caps)),
-                    number(claim.quiet_until),
-                    Value::Bool(claim.plugged),
-                ],
-            );
-        }
-        let options = car_store::claims::Claim {
-            plugged: claim.plugged,
-            carried: claim.carried.clone(),
-            limits: Some(claim.limits.clone()),
-            gates: Some(claim.gates.clone()),
-            quiet_until: claim.quiet_until,
-            relaxed: claim.relaxed.clone(),
-            resend: claim.resend,
-            forced: claim.forced,
-            caps: Some(claim.caps),
-        };
-        py(self.0.reserve_detailed(interruption_id, now, &options))
+        self.claim_with(interruption_id, now, claim, None)
+    }
+    fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        ledger: &car_policy::plug::Guarded,
+    ) -> Py<Claimed> {
+        self.claim_with(interruption_id, now, claim, Some(ledger))
+    }
+    fn reserve_record(
+        &self,
+        record: &Map,
+        now: f64,
+        ledger: &car_policy::plug::Guarded,
+        quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        py(self.0.reserve_record(record, now, ledger, quiet_until))
+    }
+    fn record_guard(
+        &self,
+        record: &Map,
+        ledger: &car_policy::plug::Guarded,
+        now: f64,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        py(self.0.record_guard(record, ledger, now, body))
     }
     fn release_claim(
         &self,

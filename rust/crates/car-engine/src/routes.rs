@@ -204,7 +204,8 @@ impl Engine {
             forced,
             caps: self.caps(relaxed),
         };
-        let (claimed, refusing, reason) = self.store.reserve_detailed(&key, at, &claim)?;
+        let (claimed, refusing, reason) =
+            self.store.reserve_ledgered(&key, at, &claim, &self.plug)?;
         if !claimed {
             return self.refused(current, refusing.as_deref(), reason.as_deref());
         }
