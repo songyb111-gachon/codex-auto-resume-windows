@@ -10,3 +10,4 @@ pub mod fail;
 pub mod plugnotices;
 pub mod toasts;
 pub mod health;
+pub mod waking;
