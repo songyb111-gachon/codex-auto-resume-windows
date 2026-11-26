@@ -7,6 +7,7 @@ test_advanced_usage*, ..._reset_credit, ..._reset_message, ..._matrix_stop_reset
 from __future__ import annotations
 
 import random
+import time
 
 from rustdiff.advusage import CLOCK, OTHER, THREAD, AdvUsageDiff
 
@@ -81,6 +82,12 @@ class CapacityDiff(AdvUsageDiff):
                     {"category": "server_5xx", "code": "serverOverloaded", "chain": {"chain_started_at": True}},
                     {"category": "server_5xx", "code": "serverOverloaded", "chain": 5},
                     {"category": "server_5xx", "code": "other"}, {"category": "usage_limit"}, {}, None, "x", [1]]
+        # Unbound, the code reads the wall clock and its own DEFAULT_HOURS (a bound one reads the option's registry
+        # default): a first failure 2.5 hours ago is past two hours and inside three, whatever minute this runs.
+        wall = int(time.time()) - 9000
+        ops += [hook("u", "admission", {"category": "server_5xx", "code": "serverOverloaded",
+                                        "chain": {"chain_started_at": wall}}),
+                hook("u", "gate", "known_failure", {"category": "server_5xx", "chain_started_at": wall}, {})]
         records = [{"category": "server_5xx", "chain_started_at": NOW - 10}, {"category": "server_5xx",
                    "chain_started_at": NOW - 7201}, {"category": "server_5xx"}, {"category": "x"}, None, 3]
         for at in (0, 3600, 7199, 7300):
@@ -305,7 +312,9 @@ class StopDiff(AdvUsageDiff):
 
     def test_carry_reset_message(self):
         """R2 / review V1: the stop's turn after the reset carries the person's reset message in its place."""
-        for start in (["started"], ["unconfirmed"], ["!no_client"], ["raise"]):
+        # A plain word is answered after the gate (the launch written); "!word" before it (nothing launched).
+        for start in (["started"], ["unconfirmed"], ["!no_client"], ["raise"], ["no_client"], ["refused"],
+                      ["broken"]):
             ops = read_meter() + [{"make": "usage_pause", "as": "s"}, {"switches": {"armed": {"reset_message": True}}},
                                   {"method": "add_reset_rule", "args": ["reset_message", "codex", 300, 1],
                                    "kwargs": {"thread_id": THREAD, "words": "My own words after the reset."}}]
