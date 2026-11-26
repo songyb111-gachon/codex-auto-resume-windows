@@ -247,6 +247,55 @@ class SurfaceJob:
                              {"surface": "popup", "vm": plain(vm), "scale": scale, "locale": locale,
                               "table": self.stand_in.name}, plan)
 
+    def menu(self):
+        from codex_auto_resume import interface
+        from codex_auto_resume.ui import popup
+        from codex_auto_resume.ui.popup import menuwindow, model as popup_model, renderer as renderer_module
+        from codex_auto_resume.ui.tray import menu as tray_menu
+        import make_screenshots
+        now = make_screenshots.POPUP_NOW
+        for scale in SCALES:
+            for locale in LOCALES:
+                strings = interface.STRINGS[locale]
+                _, vm = make_screenshots.popup_view(locale)
+                lists = [("icon", tray_menu.menu_items({"enabled": True, "waiting": 2, "running": 1, "next_at": now + 200},
+                                                       strings, now, pending=True, armed=sorted(tray_menu.POWER_OFF_WORDS)[0],
+                                                       popup=True), False, None),
+                         ("paused", tray_menu.menu_items({"enabled": False, "waiting": 0}, strings, now), False,
+                          int(300 * scale)),
+                         ("row", popup_model.row_menu(dict(vm["tasks"][0], postponed=True, once_words=True), strings,
+                                                      "automatic"), True, None)]
+                for name, raw, numbered, most in lists:
+                    entries = raw
+                    result = {}
+                    if numbered:
+                        entries, actions = popup.menu_numbered(raw)
+                        result["numbered"] = entries
+                        result["actions"] = [[number, action] for number, action in actions.items()]
+                    first = next(entry["text"] for entry in entries if entry and entry.get("enabled"))
+                    case = {"surface": "menu", "entries": plain(raw), "numbered": numbered, "scale": scale,
+                            "locale": locale, "max_width": most, "table": None,
+                            "places": [[[100, 100], [0, 0, 1920, 1080]], [[1900, 1070], [0, 0, 1920, 1040]],
+                                       [[-500, 20], [-1920, 0, 0, 1080]], [[10, 10], [0, 0, 100, 100]]],
+                            "besides": [[[100, 100, 300, 130], [0, 0, 1920, 1080]],
+                                        [[1700, 500, 1900, 530], [0, 0, 1920, 1080]], [[0, 0, 50, 20], [0, 0, 60, 60]]],
+                            "currents": [None, 0, 2, 5, 99], "selected": 2, "strings": strings,
+                            "letters": [[None, first[:1]], [2, first[:1].upper()], [None, " "], [None, "ß"],
+                                        [3, "Z"]]}
+                    renderer = renderer_for(menuwindow.MenuRenderer, self.stand_in, locale, scale)
+                    with standing_in(self.stand_in, renderer_module):
+                        plan = renderer.menu_layout(entries, scale, locale, most)
+                    case["table"] = self.stand_in.name
+                    result["plan"] = plan
+                    result["places"] = [popup.menu_place(plan, point, work) for point, work in case["places"]]
+                    result["besides"] = [popup.menu_beside(plan, box, work) for box, work in case["besides"]]
+                    result["steps"] = [[popup.menu_step(entries, current), popup.menu_step(entries, current, True)]
+                                       for current in case["currents"]]
+                    result["ends"] = [popup.menu_end(entries), popup.menu_end(entries, True)]
+                    result["letters"] = [list(popup.menu_letter(entries, current, char)) for current, char in case["letters"]]
+                    result["accessible"] = popup.menu_accessible_items(plan, 2, strings)
+                    self.add("menu/%s/%s/%r" % (name, locale, scale), case, result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -296,6 +345,7 @@ class SurfaceParityTests(unittest.TestCase):
             raise AssertionError("the surfaces do not compile:\n%s" % built.stdout.decode("utf-8", "replace"))
         job = SurfaceJob()
         job.popup()
+        job.menu()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -328,6 +378,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_popup_is_laid_out_as_the_reference_lays_it_out(self):
         self.compare("popup/")
+
+    def test_the_menu_is_laid_out_placed_and_keyed_as_the_reference_does_it(self):
+        self.compare("menu/")
 
 
 class SurfaceSourceTests(unittest.TestCase):

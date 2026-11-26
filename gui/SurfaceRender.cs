@@ -120,8 +120,73 @@ namespace CodexAutoResume
             {
                 case "popup":
                     return PopupLayout.Plan((Dictionary<string, object>)task["vm"], Number(task, "scale"), locale, measure);
+                case "menu":
+                    return Menu(task, locale, measure);
             }
             throw new NotSupportedException("no surface " + surface);
+        }
+
+        private static int? Index(object value)
+        {
+            return value == null ? (int?)null : (int)(double)value;
+        }
+
+        private static int[] Ints(object value)
+        {
+            var list = (List<object>)value;
+            var ints = new int[list.Count];
+            for (int i = 0; i < ints.Length; i++) ints[i] = (int)(double)list[i];
+            return ints;
+        }
+
+        /// The menu: numbered first when the entries are a row's (menu_numbered), laid out (and mirrored), placed at
+        /// each point and beside each box asked, and its keys and its screen reader's children.
+        private static Dictionary<string, object> Menu(Dictionary<string, object> task, string locale, SurfaceText measure)
+        {
+            var entries = (List<object>)task["entries"];
+            var result = new Dictionary<string, object>();
+            if (SurfaceMath.Truthy(Field(task, "numbered")))
+            {
+                var actions = new Dictionary<int, object>();
+                entries = MenuPlan.Numbered(entries, actions);
+                var listed = new List<object>();
+                foreach (KeyValuePair<int, object> pair in actions) listed.Add(new List<object> { pair.Key, pair.Value });
+                result["numbered"] = Dump(entries);
+                result["actions"] = Dump(listed);
+            }
+            object most = Field(task, "max_width");
+            SurfacePlan plan = MenuPlan.Plan(entries, Number(task, "scale"), locale, measure, Index(most));
+            result["plan"] = plan;
+            var places = new List<object>();
+            foreach (object entry in (List<object>)Field(task, "places") ?? new List<object>())
+            {
+                var pair = (List<object>)entry;
+                places.Add(MenuPlan.Place(plan, Ints(pair[0]), Ints(pair[1])));
+            }
+            result["places"] = places;
+            var besides = new List<object>();
+            foreach (object entry in (List<object>)Field(task, "besides") ?? new List<object>())
+            {
+                var pair = (List<object>)entry;
+                besides.Add(MenuPlan.Beside(plan, Ints(pair[0]), Ints(pair[1])));
+            }
+            result["besides"] = besides;
+            var steps = new List<object>();
+            foreach (object current in (List<object>)Field(task, "currents") ?? new List<object>())
+                steps.Add(new List<object> { MenuPlan.Step(entries, Index(current)), MenuPlan.Step(entries, Index(current), true) });
+            result["steps"] = steps;
+            result["ends"] = new List<object> { MenuPlan.End(entries), MenuPlan.End(entries, true) };
+            var letters = new List<object>();
+            foreach (object entry in (List<object>)Field(task, "letters") ?? new List<object>())
+            {
+                var pair = (List<object>)entry;
+                KeyValuePair<int?, bool> found = MenuPlan.Letter(entries, Index(pair[0]), pair[1] as string);
+                letters.Add(new List<object> { found.Key, found.Value });
+            }
+            result["letters"] = letters;
+            result["accessible"] = MenuPlan.AccessibleItems(plan, Index(Field(task, "selected")),
+                                                            Field(task, "strings") as Dictionary<string, object>);
+            return result;
         }
 
         // ----------------------------------------------------------------------------- the dump
@@ -135,6 +200,7 @@ namespace CodexAutoResume
             if (value is long) return (double)(long)value;
             if (value is uint) return (double)(uint)value;
             if (value is float) return (double)(float)value;
+            if (value is int?) return (double)((int?)value).Value;
             var target = value as SurfaceTarget;
             if (target != null) return Dump(target.ToList());
             var plan = value as SurfacePlan;

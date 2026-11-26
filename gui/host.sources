@@ -23,6 +23,7 @@ gui/SurfaceNative.cs
 gui/PopupWords.cs
 gui/SurfaceFonts.cs
 gui/PopupLayout.cs
+gui/MenuPlan.cs
 gui/SurfaceRender.cs
 
 [generated]
