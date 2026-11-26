@@ -21,6 +21,7 @@
 gui/SurfaceJson.cs
 gui/SurfaceNative.cs
 gui/PopupWords.cs
+gui/SurfaceFonts.cs
 
 [generated]
 gui/Brand.cs
