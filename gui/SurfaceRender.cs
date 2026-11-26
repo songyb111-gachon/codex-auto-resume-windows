@@ -138,6 +138,8 @@ namespace CodexAutoResume
                     return Icon(task);
                 case "paint":
                     return Paint(task, tables);
+                case "shape":
+                    return ShapeCase(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -531,6 +533,58 @@ namespace CodexAutoResume
             }
             SurfaceRenderer.SystemColours = null;
             return new Dictionary<string, object> { { "looks", looks } };
+        }
+
+        private static List<object> Segments(List<ShapeSegment> segments)
+        {
+            var listed = new List<object>();
+            foreach (ShapeSegment segment in segments)
+            {
+                if (segment.Kind == "arc")
+                    listed.Add(new List<object> { "arc", segment.Points[0], segment.Radius, segment.Start, segment.Sweep });
+                else
+                {
+                    var one = new List<object> { segment.Kind };
+                    foreach (double[] point in segment.Points) one.Add(point);
+                    listed.Add(one);
+                }
+            }
+            return listed;
+        }
+
+        /// brand/shape.py over the boxes asked: each outline, its flattened points, and the signed distance and
+        /// inside test at each point asked.
+        private static Dictionary<string, object> ShapeCase(Dictionary<string, object> task)
+        {
+            var outlines = new List<object>();
+            var flats = new List<object>();
+            var distances = new List<object>();
+            var insides = new List<object>();
+            foreach (object entry in (List<object>)task["boxes"])
+            {
+                var box = (List<object>)entry;
+                var rect = ((List<object>)box[0]).ConvertAll(value => (double)value).ToArray();
+                double radius = (double)box[1], smoothing = (double)box[2];
+                List<ShapeSegment> outline = SurfaceShape.Outline(rect, radius, smoothing);
+                outlines.Add(Segments(outline));
+                flats.Add(SurfaceShape.Flatten(outline, 8));
+                double halfWidth = (rect[2] - rect[0]) / 2.0, halfHeight = (rect[3] - rect[1]) / 2.0;
+                var distance = new List<object>();
+                var inside = new List<object>();
+                foreach (object point in (List<object>)task["points"])
+                {
+                    var xy = (List<object>)point;
+                    double x = (double)xy[0], y = (double)xy[1];
+                    distance.Add(SurfaceShape.Distance(x, y, halfWidth, halfHeight, radius, smoothing));
+                    inside.Add(SurfaceShape.Inside(x + rect[0] + halfWidth, y + rect[1] + halfHeight, rect, radius, smoothing));
+                }
+                distances.Add(distance);
+                insides.Add(inside);
+            }
+            var designs = new List<object>();
+            foreach (string design in SurfaceTheme.Designs) designs.Add(SurfaceShape.DesignSmoothing(design));
+            return new Dictionary<string, object> { { "outlines", outlines }, { "flats", flats }, { "distances", distances },
+                                                    { "insides", insides }, { "designs", designs } };
         }
 
         // ----------------------------------------------------------------------------- the dump

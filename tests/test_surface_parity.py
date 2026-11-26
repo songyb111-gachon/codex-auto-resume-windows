@@ -567,6 +567,25 @@ class SurfaceJob:
         finally:
             renderer_module.system_rgb = saved
 
+    def shape(self):
+        from codex_auto_resume.brand import shape
+        boxes = [[[0, 0, 100, 60], 16.0, 0.6], [[3.5, 4.5, 200.25, 40.75], 11.0, 0.6], [[0, 0, 40, 22], 11.0, 0.6],
+                 [[0, 0, 40, 22], 999.0, 0.6], [[10, 10, 30, 30], 7.0, 0.0], [[0, 0, 0.8, 0.8], 5.0, 0.6],
+                 [[0, 0, 688, 900], 32.0, 0.6], [[0, 0, 24, 24], 11.0, 0.6], [[0, 0, 50, 20], 9.5, 0.3]]
+        points = [[0.0, 0.0], [10.0, 5.0], [49.0, 29.0], [-49.5, -29.5], [45.0, 25.0], [48.0, 28.5], [60.0, 0.0],
+                  [11.0, 10.5], [-19.0, 9.0], [3.3, -2.2]]
+        result = {"outlines": [], "flats": [], "distances": [], "insides": [],
+                  "designs": [shape.design_smoothing(design) for design in ("soft", "classic", "plain")]}
+        for rect, radius, smoothing in boxes:
+            outline = shape.outline(rect, radius, smoothing)
+            result["outlines"].append(outline)
+            result["flats"].append(shape.flatten(outline, 8))
+            half_w, half_h = (rect[2] - rect[0]) / 2.0, (rect[3] - rect[1]) / 2.0
+            result["distances"].append([shape.distance(x, y, half_w, half_h, radius, smoothing) for x, y in points])
+            result["insides"].append([shape.inside(x + rect[0] + half_w, y + rect[1] + half_h, rect, radius, smoothing)
+                                      for x, y in points])
+        self.add("shape/all", {"surface": "shape", "boxes": boxes, "points": points}, result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -623,6 +642,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.card()
         job.icon()
         job.paint()
+        job.shape()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -682,6 +702,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_every_plan_is_painted_with_the_references_colours_and_corners_in_every_look(self):
         self.compare("paint/")
+
+    def test_the_corner_outline_and_its_tables_are_the_references(self):
+        self.compare("shape/")
 
 
 class SurfaceSourceTests(unittest.TestCase):
