@@ -18,3 +18,4 @@ pub mod watchloop;
 pub mod launcher;
 pub mod app;
 pub mod events;
+pub mod api;
