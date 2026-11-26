@@ -2086,8 +2086,26 @@ the glow's near stop alpha, `DT_RTLREADING` for a left-to-right name, the sweep'
 mirrored knob, the shadow cut's `== 0xFF`; days: `_drift`'s 24; bidi: the run search's `<=`. (`originY` for seollal
 from the top is an equivalent mutation: `bottom - 66 * unit` is `top`.)
 
-**Left, in this order (nothing of it started):** item 2 (the windows: `PopupWindow.cs`/`PopupMessages.cs` with layers'
-`PopupCard` half, `MenuWindow.cs` + `MenuRenderer.draw_menu`, `TipCard.cs` + `TipRenderer.draw_tip`, `TrayWords.cs`,
-`CardWindow.cs`/`CardStack.cs`, `TrayIcon.cs`, `TrayMenu.cs`, `TrayPlace.cs`, `SurfaceAccess.cs`, the probe mode, the
-`ISurfaces` class, the icon's day motif - `SurfaceDays.MarkColour` is ready for `IconFrames(look)`), items 3-5 as listed.
-The menu's, the tip's and the card's own drawing (their `draw_*`) add `pixels` steps the same way.
+**Then (the same seat, the same day)** - every surface's drawing is now in C#, each held byte for byte offscreen:
+
+| C# | Python | Held by |
+|---|---|---|
+| `SurfaceDrawn.cs` (partial `SurfaceRenderer`) | `MenuRenderer` (`menu_layout`, `draw_menu`, `_menu_words`) and `TipRenderer`'s drawing (`tip_layout`, `draw_tip`, `draw_tip_light`, `_opaque_words`, `tip_day`) | `drawn/menu/...` and `drawn/tip/...` (216 cases): the comparison-A menus and tips at 1.25/2.0 in en/ko/ar x 4 looks, the menu at four selections, the tip whole and two frames of its light; 0 objects left |
+| `CardWindow.cs` | `ui/card/card.py`'s `Card` (`NoticeCard`: `_draw_card`, `_draw_light`, `redraw`, `breathe`, `_paint_body` scaled, `_paint_shadow`, `_cut_under_body`, `paint`, `present`, `hit`, `close`; its windows made through `ICardHost`, the stack's class), `ui/card/surfaces.py` (`CardLayer`, `CardSurface`, `CardImage`; `_CardRenderer._halo` is the popup's own rule), `notice_card.corner_coverage`/`_round_corner`/`_squircle_corner`/`premultiply` (`CardCorner`) | `cards/...` (37 cases): `make_screenshots`' settled card offscreen (`windows=False`) at 144/192 dpi, a text size, a special day, en/ko/ar x 4 looks - the entrance part way (scaled body, shallower shadow), settled, a breath, a hover redrawn, a breath by the stack's rule, each layer by digest, the frame keys; the corner at 15 radius/smoothing pairs |
+| `TrayMotion.cs` | `IconFrames(look)`: the day's body, `_mark_cover`/`_marked` from `MOTIF_LEAST` | `icon/<look>` x 5 at 16/24/32/48 px |
+
+`SurfaceShadowImage.StampOn(graphics, ...)` is the stamp for any GDI+ graphics (the card's layers stamp through
+`CardSurface`). Mutations added (each fails): the menu's raised pill without its lift, `premultiply`'s `+127`, the
+squircle corner's `- 0.125`, the head-over-mark test. `tests/rustdiff/rediff_host_surface.py --reference v0.6.26` now
+also watches `ui/popup/light.py gdiplus.py elevation.py layers.py ui/card/surfaces.py`: exact (21 tests). `make_gui.ps1` on
+`git archive` trees of `b1761926b` and of this head, both editions: every `.exe` byte-identical (`ec1ae342...`,
+`101f257d...`, `382bbb9c...`, as in S6.0's record).
+
+**Left, in this order (nothing of it started):** the windows with a message loop - `PopupWindow.cs`/`PopupMessages.cs`
+(`window.py`, `messages.py`, `hidden.py`, layers' `PopupCard` half; `SurfaceLayers`' `CardLayers` and `Update` are ready),
+`MenuWindow.cs` (`menuwindow.Menu`; its drawing is `DrawMenu`), `TipCard.cs` (`tipcard.TipCard`, `tip_place`/`tip_screen`/
+`tip_away`; its drawing is `DrawTip`), `TrayWords.cs`, `CardStack.cs` (`ui/card/stack.py`, implementing `ICardHost`),
+`TrayIcon.cs`, `TrayMenu.cs`, `TrayPlace.cs`, `SurfaceAccess.cs` (MSAA); the probe mode (`--probe <job>`); the class
+implementing `ISurfaces`; then items 3-4 (the live-path proof, each window's own paint against the render mode's bytes;
+the retargets of `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions, which need the render
+mode to write each frame's BGRA, not only its digest - not started, not run). Item 5 is done (above).
