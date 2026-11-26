@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The standard binaries must not depend on whether the advanced folder exists (PLAN.md 1.1, the edition audit's check (e)).
 #
-#     bash advanced/rust/tools/check_rebuild.sh [REF]      # from inside the repository; REF defaults to HEAD
+#     bash advanced/rust/tools/check_rebuild.sh [--keep] [REF]      # from inside the repository; REF defaults to HEAD
 #
 # Builds the standard workspace's release binaries twice from REF, in two different folders of a scratch directory:
 # once from an archive that holds both workspaces (the advanced one is built there too), once from an archive that
@@ -9,12 +9,40 @@
 # user name, the scratch folders, the cargo and rustup homes; tools/profile_scan.py, whose one allowance is the publisher
 # handle `songyb111-gachon` and which proves its own rules on planted cases first). Exit 0 only if they are identical and
 # clean.
-# CAR_REBUILD_DIR names the scratch directory (default: a new temporary one); it is left in place for a scan.
+# CAR_REBUILD_DIR names the scratch directory (default: a new temporary one). What this script made goes when it exits,
+# passed, failed or stopped: the temporary folder it made, or under CAR_REBUILD_DIR only the with/ and without/ it made
+# (the named folder itself and anything else in it stay). --keep leaves them for a scan. Nothing else is ever removed.
 set -euo pipefail
-ref="${1:-HEAD}"
+keep=0
+ref=HEAD
+for argument in "$@"; do
+    case $argument in
+        --keep) keep=1 ;;
+        -*) echo "check_rebuild.sh: unknown option $argument" >&2; exit 2 ;;
+        *) ref=$argument ;;
+    esac
+done
 repo="$(git rev-parse --show-toplevel)"
 python "$repo/advanced/rust/tools/profile_scan.py" --self-test
-work="${CAR_REBUILD_DIR:-$(mktemp -d)}"
+made=""
+if [ -n "${CAR_REBUILD_DIR:-}" ]; then
+    work=$CAR_REBUILD_DIR
+else
+    work="$(mktemp -d)"
+    made=$work
+fi
+cleanup() {
+    if [ "$keep" = 1 ]; then
+        echo "scratch kept (--keep): $work"
+    elif [ -n "$made" ]; then
+        rm -rf -- "$made"
+    else
+        rm -rf -- "$work/with" "$work/without"
+    fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+echo "scratch: $work ($([ "$keep" = 1 ] && echo "kept: --keep" || echo "removed when this script exits"))"
 rm -rf "$work/with" "$work/without"
 mkdir -p "$work/with" "$work/without"
 git -C "$repo" archive "$ref" rust advanced | tar -x -C "$work/with"
@@ -36,5 +64,4 @@ for name in $names; do
     if [ "$a" = "$b" ]; then echo "same      $a  $name"; else echo "DIFFERENT $name: $a vs $b"; status=1; fi
 done
 python "$repo/advanced/rust/tools/profile_scan.py" "$work" "$(basename "${USERPROFILE:-$HOME}")" || status=1
-echo "scratch: $work"
 exit $status
