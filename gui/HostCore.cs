@@ -2,8 +2,8 @@
 //
 // CodexAutoResume.exe is the C# watcher host and car_core.dll the Rust core it loads, in one process. Between the two
 // there are exactly six exports, and this file is the host's whole view of them: each DllImport below matches
-// rust/crates/car-host/src/abi.rs (export_core!) name for name and type for type, and no other file of ours imports
-// car_core.dll (tests/test_host_contract.py holds both).
+// car-host's abi module (export_core!, rust/crates/car-host/src) name for name and type for type, and no other
+// file of ours imports car_core.dll (tests/test_host_contract.py holds both).
 //
 //   Rust (extern "C")                                              C#
 //   car_start(*const u8, usize, *mut usize) -> *mut u8             IntPtr car_start(byte[], UIntPtr, out UIntPtr)
@@ -35,7 +35,7 @@ namespace CodexAutoResume
         /// The core's file name, beside the host in app\bin.
         internal const string Dll = "car_core.dll";
 
-        /// The contract's version: car_start's reply carries it (abi.rs ABI).
+        /// The contract's version: car_start's reply carries it (car-host's abi::ABI).
         internal const int Abi = 1;
 
         /// UTF-8 without a byte order mark; what cannot be encoded becomes U+FFFD rather than an exception.

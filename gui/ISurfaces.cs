@@ -3,7 +3,7 @@
 // The surfaces are the icon, its popup and menu, the tip and the notification cards: drawn by C# (Q1: C# owns their
 // layout, motion, stack, shadow and corner), told what to show by the Rust core. ISurfaces is the interface S6.3's
 // designer implements; the host's pump (S6.2b) calls it. The names here are the closed tables of
-// rust/crates/car-host/src/abi.rs, word for word (tests/test_host_contract.py holds them):
+// car-host's abi module (rust/crates/car-host/src), word for word (tests/test_host_contract.py holds them):
 //
 //   * events, Rust to C# (HostEvents): each one is {"kind": ..., <fields>}, pulled by HostCore.NextEvent on the pump
 //     thread and handed to the UI thread with one posted message. Every kind but "ended" is one ISurfaces method;
@@ -19,7 +19,7 @@ using System.Collections.Generic;
 
 namespace CodexAutoResume
 {
-    /// The kinds car_next_event hands the host (abi.rs EventKind), in the table's order.
+    /// The kinds car_next_event hands the host (car-host's abi::EventKind), in the table's order.
     internal static class HostEvents
     {
         /// icon, strings, settings, edition, demo: build the surfaces, then post tray_started.
@@ -42,7 +42,7 @@ namespace CodexAutoResume
         internal static readonly string[] All = { Surfaces, Snapshot, Strings, Settings, Notice, Demo, Close, Ended };
     }
 
-    /// The actions car_post_action takes (abi.rs ActionKind), in the table's order, and the popup's calls.
+    /// The actions car_post_action takes (car-host's abi::ActionKind), in the table's order, and the popup's calls.
     internal static class HostActions
     {
         /// The surfaces are up (Tray.start's result).
@@ -78,7 +78,7 @@ namespace CodexAutoResume
             TrayStarted, Closed, CardsAttached, CardsDetached, Toggle, Stop, OpenDashboard, OpenChat, NoticeAction,
             NoticeComplete, Popup, DisarmPower, MarkSeen, FailureSeen };
 
-        /// The whole of what the popup may ask of the control layer (abi.rs POPUP_CALLS, CONTROL_CALLS today).
+        /// The whole of what the popup may ask of the control layer (car-host's abi::POPUP_CALLS, CONTROL_CALLS today).
         internal static readonly string[] PopupCalls = {
             "list_pending", "get_status", "set_enabled", "set_interruption_recovery", "postpone", "unpostpone",
             "release_hold", "set_thread_tier", "set_project_rule", "set_once_words" };
