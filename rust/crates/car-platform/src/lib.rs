@@ -14,6 +14,8 @@
 //! | `localclock` | `time.localtime` and `time.mktime`: the C runtime's `_localtime64_s` and `_mktime64` |
 //! | `ipc_pipe` | the advanced edition's `codex/ipc.py` pipe calls (a pipe of the caller's name; the Desktop's refused in tests) |
 //! | `wake` | the advanced edition's `win/waketimer.py` and `win/stopflag.py` calls, behind traits a test fills |
+//! | `dpapi`, `credman`, `random` | the advanced edition's `win/dpapi.py`, `credentials.py`'s Credential Manager, `secrets` (S7.2a) |
+//! | `restart`, `job`, `winhttp`, `tls` | the advanced edition's Restart Manager (S7.2b), the courier's job object, HTTPS and STARTTLS (S7.3b) |
 //! | `network`, `ownprocess`, `power`, `powerdown`, `acl`, `authenticode`, `inventory`, `typeface`, `handover` | the module of the same name in `win/` |
 //!
 //! Not ported: `win/dll.py` (a cache of ctypes handles and the window-class declarations the C# surfaces use: Rust
@@ -24,11 +26,14 @@ pub mod acl;
 pub mod addremove;
 pub mod authenticode;
 pub mod cmdline;
+pub mod credman;
+pub mod dpapi;
 pub mod files;
 pub mod handover;
 pub mod homelock;
 pub mod inventory;
 pub mod ipc_pipe;
+pub mod job;
 pub mod kernel;
 pub mod links;
 pub mod localclock;
@@ -41,12 +46,16 @@ pub mod powerdown;
 #[rustfmt::skip]
 mod printable_gen;
 pub mod pwsh;
+pub mod random;
 pub mod registry;
 pub mod registry_reads;
+pub mod restart;
 pub mod shortcut;
 pub mod spawn;
 pub mod startup;
 pub mod sync;
+pub mod tls;
 pub mod typeface;
 pub mod wake;
 pub mod widepath;
+pub mod winhttp;
