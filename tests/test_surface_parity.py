@@ -779,6 +779,69 @@ class SurfaceJob:
                   "look": [theme, design, contrast], "lone": lone, "pinned": pinned, "system": self.SYSTEM, "steps": plain(steps)},
                  {"plan": plan, "pixels": digests, "left": gdiplus.gdiplus_objects() - before})
 
+    def drawn(self):
+        """The icon's menu and its card drawn into memory by the reference's MenuRenderer and TipRenderer (its own fonts,
+        the face pinned) and by the C#: each step's pixels by digest, the plan, no GDI+ object left."""
+        import hashlib
+        import make_screenshots
+        from codex_auto_resume.ui import popup as tray_popup
+        from codex_auto_resume.ui.popup import fonts, gdiplus, light as light_module, menuwindow, renderer as renderer_module
+        from codex_auto_resume.ui.tray import tipcard
+        saved = renderer_module.system_rgb, light_module.system_rgb
+        renderer_module.system_rgb = light_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
+        menus = [case for case in self.cases if case["id"].startswith("menu/") and case["scale"] in (1.25, 2.0)
+                 and case["locale"] in ("en", "ko", "ar")]
+        tips = [case for case in self.cases if case["id"].startswith("tip/") and case["scale"] in (1.25, 2.0)
+                and case["locale"] in ("en", "ko", "ar")]
+        try:
+            with make_screenshots.pinned_face():
+                pinned = fonts._ui_face()
+                for case in menus:
+                    expected = self.expected[case["id"]]
+                    entries = expected.get("numbered", case["entries"])
+                    usable = [index for index, entry in enumerate(entries) if entry and entry.get("enabled")]
+                    for theme, design, contrast in self.PIXEL_LOOKS:
+                        before = gdiplus.gdiplus_objects()
+                        renderer = menuwindow.MenuRenderer()
+                        digests = []
+                        chosen = [None, usable[0], usable[-1], len(entries) + 3]
+                        try:
+                            renderer.theme, renderer.design, renderer.contrast = theme, design, contrast
+                            plan = renderer.menu_layout(entries, case["scale"], case["locale"], case["max_width"])
+                            for selected in chosen:
+                                digests.append(hashlib.sha256(renderer.draw_menu(plan, selected).pixels()).hexdigest())
+                        finally:
+                            renderer.close()
+                        self.add("drawn/%s/%s-%s-%s" % (case["id"], theme, design, contrast),
+                                 {"surface": "drawn", "what": "menu", "entries": plain(entries), "scale": case["scale"],
+                                  "locale": case["locale"], "max_width": case["max_width"], "selected": chosen,
+                                  "letters": fonts._letters(case["locale"]), "look": [theme, design, contrast],
+                                  "pinned": pinned, "system": self.SYSTEM},
+                                 {"plan": plan, "pixels": digests, "left": gdiplus.gdiplus_objects() - before})
+                for case in tips:
+                    for theme, design, contrast in self.PIXEL_LOOKS:
+                        before = gdiplus.gdiplus_objects()
+                        renderer = tipcard.TipRenderer()
+                        digests = []
+                        day = tipcard.tip_day(case["day"], contrast, design)
+                        frames = [tray_popup.halo(case["light"], moment, moment, design=design) for moment in (0, 1700, 2900)]
+                        try:
+                            renderer.theme, renderer.design, renderer.contrast = theme, design, contrast
+                            plan = renderer.tip_layout(case["parts"], case["light"], case["scale"], case["locale"], day)
+                            digests.append(hashlib.sha256(renderer.draw_tip(plan, frames[0]).pixels()).hexdigest())
+                            for frame in frames[1:]:
+                                digests.append(hashlib.sha256(renderer.draw_tip_light(plan, frame).pixels()).hexdigest())
+                        finally:
+                            renderer.close()
+                        self.add("drawn/%s/%s-%s-%s" % (case["id"], theme, design, contrast),
+                                 {"surface": "drawn", "what": "tip", "parts": case["parts"], "light": case["light"],
+                                  "scale": case["scale"], "locale": case["locale"], "day": case["day"], "frames": plain(frames),
+                                  "letters": fonts._letters(case["locale"]), "look": [theme, design, contrast],
+                                  "pinned": pinned, "system": self.SYSTEM},
+                                 {"plan": plan, "pixels": digests, "left": gdiplus.gdiplus_objects() - before})
+        finally:
+            renderer_module.system_rgb, light_module.system_rgb = saved
+
     def bidi(self):
         """l10n.first_strong over a code point of every 173 (no surrogate: the job is UTF-8), each after digits and
         spaces, and a few texts of the plans' own."""
@@ -849,6 +912,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.days()
         job.bidi()
         job.pixels()
+        job.drawn()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -922,6 +986,12 @@ class SurfaceParityTests(unittest.TestCase):
         self.compare("pixels/")
         for case_id, found in self.found.items():
             if case_id.startswith("pixels/") and "plan" in found:
+                self.assertEqual(found["plan"]["left"], 0, case_id)
+
+    def test_the_menu_and_the_icons_card_are_drawn_as_the_reference_draws_them_byte_for_byte(self):
+        self.compare("drawn/")
+        for case_id, found in self.found.items():
+            if case_id.startswith("drawn/") and "plan" in found:
                 self.assertEqual(found["plan"]["left"], 0, case_id)
 
     def test_the_first_strong_direction_is_the_references_over_the_whole_code_space(self):

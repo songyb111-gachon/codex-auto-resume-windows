@@ -148,6 +148,8 @@ namespace CodexAutoResume
                     return DaysCase(task);
                 case "pixels":
                     return PixelsCase(task);
+                case "drawn":
+                    return DrawnCase(task);
                 case "bidi":
                     return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
             }
@@ -820,6 +822,57 @@ namespace CodexAutoResume
                         }
                         SurfaceNative.GdiFlush();
                         digests.Add(new List<object> { Digest(renderer.Canvas.Pixels()), renderer.HaloRows });
+                    }
+                }
+            }
+            finally
+            {
+                SurfaceFonts.Pinned = null;
+                SurfaceRenderer.SystemColours = null;
+            }
+            return new Dictionary<string, object> { { "plan", plan }, { "pixels", digests }, { "left", SurfaceGdip.GdipObjects - before } };
+        }
+
+        /// The icon's menu (draw_menu at each selection asked) or its card (draw_tip, then draw_tip_light at each further
+        /// frame) drawn by the renderer's own fonts: the plan, each picture's digest, and the GDI+ objects left.
+        private static Dictionary<string, object> DrawnCase(Dictionary<string, object> task)
+        {
+            object system = Field(task, "system");
+            SurfaceRenderer.SystemColours = null;
+            if (system != null)
+            {
+                SurfaceRenderer.SystemColours = new Dictionary<string, int[]>();
+                foreach (KeyValuePair<string, object> pair in (Dictionary<string, object>)system)
+                    SurfaceRenderer.SystemColours[pair.Key] = Ints(pair.Value);
+            }
+            SurfaceFonts.Pinned = Field(task, "pinned") as string;
+            int before = SurfaceGdip.GdipObjects;
+            var digests = new List<object>();
+            SurfacePlan plan;
+            try
+            {
+                using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+                {
+                    var look = (List<object>)task["look"];
+                    renderer.Theme = (string)look[0];
+                    renderer.Design = (string)look[1];
+                    renderer.Contrast = (bool)look[2];
+                    renderer.Letters = Field(task, "letters") as string;
+                    string locale = (string)task["locale"];
+                    double scale = Number(task, "scale");
+                    if ((string)task["what"] == "menu")
+                    {
+                        plan = renderer.MenuLayout((List<object>)task["entries"], scale, locale, Index(Field(task, "max_width")));
+                        foreach (object selected in (List<object>)task["selected"])
+                            digests.Add(Digest(renderer.DrawMenu(plan, Index(selected)).Pixels()));
+                    }
+                    else
+                    {
+                        string day = SurfaceRenderer.TipDay(Field(task, "day") as string, renderer.Contrast, renderer.Design);
+                        plan = renderer.TipLayout((Dictionary<string, object>)task["parts"], Field(task, "light"), scale, locale, day);
+                        var frames = (List<object>)task["frames"];
+                        digests.Add(Digest(renderer.DrawTip(plan, FrameFrom(frames[0])).Pixels()));
+                        for (int i = 1; i < frames.Count; i++) digests.Add(Digest(renderer.DrawTipLight(plan, FrameFrom(frames[i])).Pixels()));
                     }
                 }
             }
