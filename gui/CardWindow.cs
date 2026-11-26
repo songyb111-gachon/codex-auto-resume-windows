@@ -193,24 +193,16 @@ namespace CodexAutoResume
         /// Put the DIB on screen at (x, y) with the whole window at `alpha` (0-1) (push).
         internal bool Push(int x, int y, double alpha)
         {
-            var blend = new SurfaceNative.BLENDFUNCTION { BlendOp = 0, BlendFlags = 0, AlphaFormat = 1,
-                                                          SourceConstantAlpha = (byte)Math.Max(0, Math.Min(255, SurfaceMath.Round(alpha * 255))) };
-            using (new SurfaceNative.PerMonitorDpi())
+            int opaque = Math.Max(0, Math.Min(255, SurfaceMath.Round(alpha * 255)));
+            bool ok = SurfaceScreen.UpdateLayered(Hwnd, new[] { x, y }, new[] { Width, Height }, Dc, opaque);
+            if (ok && !Shown)
             {
-                var point = new SurfaceNative.POINT { X = x, Y = y };
-                var size = new SurfaceNative.SIZE { Cx = Width, Cy = Height };
-                var source = new SurfaceNative.POINT { X = 0, Y = 0 };
-                bool ok = SurfaceNative.UpdateLayeredWindow(Hwnd, IntPtr.Zero, ref point, ref size, Dc, ref source, 0, ref blend,
-                                                            SurfaceNative.ULW_ALPHA);
-                if (ok && !Shown)
-                {
-                    SurfaceNative.SetWindowPos(Hwnd, SurfaceNative.HWND_TOPMOST, 0, 0, 0, 0,
-                                               SurfaceNative.SWP_NOACTIVATE | SurfaceLayers.SWP_NOMOVE_NOSIZE);
-                    SurfaceNative.ShowWindow(Hwnd, SurfaceNative.SW_SHOWNOACTIVATE);
-                    Shown = true;
-                }
-                return ok;
+                SurfaceScreen.SetWindowPos(Hwnd, SurfaceNative.HWND_TOPMOST, 0, 0, 0, 0,
+                                           SurfaceNative.SWP_NOACTIVATE | SurfaceLayers.SWP_NOMOVE_NOSIZE);
+                SurfaceScreen.ShowWindow(Hwnd, SurfaceNative.SW_SHOWNOACTIVATE);
+                Shown = true;
             }
+            return ok;
         }
 
         public void Dispose()

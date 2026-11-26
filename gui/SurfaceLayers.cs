@@ -214,8 +214,15 @@ namespace CodexAutoResume
         }
 
         /// One UpdateLayeredWindowIndirect: the window at `at` (screen px) at `alpha` (0-255), its picture `size` px of
-        /// `dc` from `source`; only the `dirty` rectangle of it (window px) uploaded when one is given (update).
+        /// `dc` from `source`; only the `dirty` rectangle of it (window px) uploaded when one is given (update). Through
+        /// SurfaceScreen, so the probe mode records it instead.
         internal static bool Update(IntPtr hwnd, double[] at, double alpha, IntPtr dc, int[] size, int[] source = null, int[] dirty = null)
+        {
+            return SurfaceScreen.Update(hwnd, at, alpha, dc, size, source ?? new[] { 0, 0 }, dirty);
+        }
+
+        /// The call itself (SurfaceScreen.Update on a live host).
+        internal static bool UpdateNow(IntPtr hwnd, double[] at, double alpha, IntPtr dc, int[] size, int[] source, int[] dirty)
         {
             source = source ?? new[] { 0, 0 };
             var made = new List<IntPtr>();
@@ -353,22 +360,21 @@ namespace CodexAutoResume
         /// The shadow window raised to the top of the topmost windows and shown (show).
         internal void Show()
         {
-            using (new SurfaceNative.PerMonitorDpi())
-                SurfaceNative.SetWindowPos(ShadowHwnd, SurfaceNative.HWND_TOPMOST, 0, 0, 0, 0,
-                                           SurfaceNative.SWP_NOACTIVATE | SurfaceLayers.SWP_NOMOVE_NOSIZE);
+            SurfaceScreen.SetWindowPos(ShadowHwnd, SurfaceNative.HWND_TOPMOST, 0, 0, 0, 0,
+                                       SurfaceNative.SWP_NOACTIVATE | SurfaceLayers.SWP_NOMOVE_NOSIZE);
             ShowShadow();
             Shown = true;
         }
 
         private void ShowShadow()
         {
-            SurfaceNative.ShowWindow(ShadowHwnd, Shadows.Count > 0 ? SurfaceNative.SW_SHOWNOACTIVATE : SurfaceNative.SW_HIDE);
+            SurfaceScreen.ShowWindow(ShadowHwnd, Shadows.Count > 0 ? SurfaceNative.SW_SHOWNOACTIVATE : SurfaceNative.SW_HIDE);
             shadowShown = Shadows.Count > 0;
         }
 
         internal void Hide()
         {
-            SurfaceNative.ShowWindow(ShadowHwnd, SurfaceNative.SW_HIDE);
+            SurfaceScreen.ShowWindow(ShadowHwnd, SurfaceNative.SW_HIDE);
             Shown = shadowShown = false;
         }
 

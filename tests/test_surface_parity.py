@@ -964,7 +964,8 @@ class SurfaceParityTests(unittest.TestCase):
         folder = Path(cls.folder.name)
         driver = folder / "SurfaceParityDriver.cs"
         driver.write_text(DRIVER, encoding="utf-8")
-        sources = [ROOT / name for name in guiscan.host_group("surface") + guiscan.host_group("generated")]
+        sources = [ROOT / name for name in guiscan.host_group("contract") + guiscan.host_group("surface")
+                                                 + guiscan.host_group("generated")]
         exe = folder / "surface-parity.exe"
         built = subprocess.run([str(CSC), "-nologo", "-target:exe", "-platform:x64", "-warnaserror", "-optimize+",
                                 "-out:%s" % exe, "-r:System.dll", "-r:System.Drawing.dll"]

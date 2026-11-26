@@ -6,6 +6,8 @@
 #   [host]       the host's Main, the DLL load, the pump and the contracts with the core (S6.2b writes it, above
 #                [surface]; until then gui/HostCore.cs and gui/ISurfaces.cs are compiled alone by
 #                tests/test_host_contract.py)
+#   [contract]   gui/ISurfaces.cs: the surfaces' side of the contract (the event and action tables, IHostActions, ISurfaces and
+#                the events' classes), which the surfaces post through and implement; HostCore.cs stays with [host]
 #   [surface]    the surfaces the host draws - the popup, the icon's menu, the tip card, the notification cards, the
 #                icon and their motion (S6.3, the one designer): src/codex_auto_resume/ui/popup, ui/tray, ui/card,
 #                tray_place.py and notice_card.py's drawing half, ported call for call (P6-DESIGN 2.3, Q1, Q8)
@@ -16,6 +18,9 @@
 #
 # The surfaces read and write their JSON with gui/SurfaceJson.cs: the window's `Json` (gui/WindowJson.cs), copied
 # byte for byte because the window's file needs Windows Forms (tests/test_surface_parity.py holds the two equal).
+
+[contract]
+gui/ISurfaces.cs
 
 [surface]
 gui/SurfaceJson.cs
@@ -43,6 +48,11 @@ gui/TrayMotion.cs
 gui/TrayWords.cs
 gui/TrayPlace.cs
 gui/TipCard.cs
+gui/SurfaceScreen.cs
+gui/PopupWindow.cs
+gui/PopupMessages.cs
+gui/MenuWindow.cs
+gui/CardStack.cs
 gui/SurfaceRender.cs
 gui/SurfaceRenderWindows.cs
 
