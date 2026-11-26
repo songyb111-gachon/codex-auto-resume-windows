@@ -842,6 +842,66 @@ class SurfaceJob:
         finally:
             renderer_module.system_rgb, light_module.system_rgb = saved
 
+    def cards(self):
+        """The notification card offscreen (no windows), as make_screenshots' settled card is made: the reference's Card
+        and the C#'s NoticeCard, its entrance part way (the body scaled, a shallower shadow), settled, a breath of its
+        light, a hover drawn again and a breath by the stack's rule - each layer's pixels by digest - and the corner's
+        coverage at a few radii; no GDI+ object left."""
+        import hashlib
+        import make_screenshots
+        from codex_auto_resume import notice_card
+        from codex_auto_resume.ui.card import card as card_module
+        from codex_auto_resume.ui.popup import fonts, gdiplus, light as light_module, renderer as renderer_module
+
+        def digest(data):
+            return hashlib.sha256(bytes(data)).hexdigest()
+
+        saved = renderer_module.system_rgb, light_module.system_rgb
+        renderer_module.system_rgb = light_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
+        corners = []
+        for radius in (8.0, 12.0, 16.5, 24.0, 32.0):
+            for smoothing in (0.6, 0.0, 0.3):
+                corners.append([radius, smoothing, digest(b"".join(notice_card.corner_coverage(radius, smoothing)))])
+        self.add("cards/corners", {"surface": "cards", "corners": [[r, s] for r, s, _ in corners]}, [c[2] for c in corners])
+        try:
+            with make_screenshots.pinned_face():
+                pinned = fonts._ui_face()
+                for locale in ("en", "ko", "ar"):
+                    notice = make_screenshots.card_notice(locale)
+                    vm = notice_card.view(notice)
+                    for dpi, work, text, day in ((144, (0, 0, 0, 0), None, None), (192, (0, 0, 2560, 1400), 1.5, None),
+                                                 (144, (0, 0, 1920, 1040), None, "christmas")):
+                        for theme, design, contrast in self.PIXEL_LOOKS:
+                            drawn = {"theme": theme, "design": design, "contrast": contrast, "reduced": False, "text": text, "day": day}
+                            where = {"dpi": dpi, "work": work, "monitor": (0, 0, 0, 0), "anchor": None}
+                            before = gdiplus.gdiplus_objects()
+                            card = card_module.Card(make_screenshots._NoStack(), notice, now_ms=0, where=where, drawn=drawn,
+                                                    windows=False)
+                            found = []
+                            try:
+                                for moment in (100, notice_card.ENTRANCE_MS):
+                                    painted = card.paint(moment)
+                                    found.append([digest(card.body.pixels()), digest(card.shadow.pixels()), list(painted["key"]),
+                                                  painted["margin"]])
+                                card._draw_light(card.born + 1700)
+                                found.append([digest(card.image._pixels), digest(card.body.pixels())])
+                                hover = card.plan["targets"][0][0] if card.plan["targets"] else None
+                                card.hover = hover
+                                card.redraw()
+                                card.paint(notice_card.ENTRANCE_MS + 50)
+                                found.append([digest(card.body.pixels()), card.breathe(2900), digest(card.body.pixels())])
+                            finally:
+                                card.close()
+                            self.add("cards/%s/%d-%r-%s/%s-%s-%s" % (locale, dpi, text, day, theme, design, contrast),
+                                     {"surface": "cards", "vm": plain(vm), "title": notice.title,
+                                      "stays": getattr(notice, "stays", False) is True, "hold": float(notice_card.HOLD_MS),
+                                      "dpi": float(dpi), "work": list(work), "drawn": plain(drawn), "hover": plain(hover),
+                                      "letters": fonts._letters(vm["locale"]), "pinned": pinned, "system": self.SYSTEM,
+                                      "entrance": float(notice_card.ENTRANCE_MS)},
+                                     {"steps": found, "left": gdiplus.gdiplus_objects() - before})
+        finally:
+            renderer_module.system_rgb, light_module.system_rgb = saved
+
     def bidi(self):
         """l10n.first_strong over a code point of every 173 (no surrogate: the job is UTF-8), each after digits and
         spaces, and a few texts of the plans' own."""
@@ -913,6 +973,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.bidi()
         job.pixels()
         job.drawn()
+        job.cards()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -992,6 +1053,12 @@ class SurfaceParityTests(unittest.TestCase):
         self.compare("drawn/")
         for case_id, found in self.found.items():
             if case_id.startswith("drawn/") and "plan" in found:
+                self.assertEqual(found["plan"]["left"], 0, case_id)
+
+    def test_the_notification_card_is_cut_shadowed_and_breathes_as_the_reference_does_it_byte_for_byte(self):
+        self.compare("cards/")
+        for case_id, found in self.found.items():
+            if case_id.startswith("cards/") and isinstance(found.get("plan"), dict):
                 self.assertEqual(found["plan"]["left"], 0, case_id)
 
     def test_the_first_strong_direction_is_the_references_over_the_whole_code_space(self):

@@ -497,6 +497,13 @@ namespace CodexAutoResume
         /// Into (left, top, width, height): the corners as they are, the middle row and column stretched (stamp).
         internal void Stamp(SurfacePainter paint, int left, int top, int width, int height, bool middle = true)
         {
+            StampOn(paint.Graphics, left, top, width, height, middle);
+        }
+
+        /// The same into any GDI+ graphics: the card's layers stamp through their own surface (_Surface), which the
+        /// Python's stamp reads only the graphics of.
+        internal void StampOn(IntPtr graphics, int left, int top, int width, int height, bool middle = true)
+        {
             int cx = Centre[0], cy = Centre[1];
             int right = Width - cx - 1, bottom = Height - cy - 1;
             int[][] columns = { new[] { left, cx, 0 }, new[] { left + cx, width - cx - right, cx }, new[] { left + width - right, right, cx + 1 } };
@@ -507,7 +514,7 @@ namespace CodexAutoResume
                     int x = columns[column][0], wide = columns[column][1], sourceX = columns[column][2];
                     int y = rows[row][0], tall = rows[row][1], sourceY = rows[row][2];
                     if (wide <= 0 || tall <= 0 || (row == 1 && column == 1 && !middle)) continue;
-                    SurfaceGdip.GdipDrawImageRectRectI(paint.Graphics, Bitmap, x, y, wide, tall, sourceX, sourceY,
+                    SurfaceGdip.GdipDrawImageRectRectI(graphics, Bitmap, x, y, wide, tall, sourceX, sourceY,
                                                        column == 1 ? 1 : wide, row == 1 ? 1 : tall, SurfaceNative.UNIT_PIXEL,
                                                        IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
                 }

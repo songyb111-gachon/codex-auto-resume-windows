@@ -150,6 +150,8 @@ namespace CodexAutoResume
                     return PixelsCase(task);
                 case "drawn":
                     return DrawnCase(task);
+                case "cards":
+                    return CardsCase(task);
                 case "bidi":
                     return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
             }
@@ -882,6 +884,67 @@ namespace CodexAutoResume
                 SurfaceRenderer.SystemColours = null;
             }
             return new Dictionary<string, object> { { "plan", plan }, { "pixels", digests }, { "left", SurfaceGdip.GdipObjects - before } };
+        }
+
+        /// The notification card offscreen: the corner's coverage at the radii asked, or one card's life step by step -
+        /// each layer's digest, the frame's key and margin, the light's breath, a hover drawn again.
+        private static object CardsCase(Dictionary<string, object> task)
+        {
+            object corners = Field(task, "corners");
+            if (corners != null)
+            {
+                var found = new List<object>();
+                foreach (object entry in (List<object>)corners)
+                {
+                    var pair = (List<object>)entry;
+                    byte[][] rows = CardCorner.Coverage((double)pair[0], (double)pair[1]);
+                    var whole = new List<byte>();
+                    foreach (byte[] row in rows) whole.AddRange(row);
+                    found.Add(Digest(whole.ToArray()));
+                }
+                return found;
+            }
+            object system = Field(task, "system");
+            SurfaceRenderer.SystemColours = null;
+            if (system != null)
+            {
+                SurfaceRenderer.SystemColours = new Dictionary<string, int[]>();
+                foreach (KeyValuePair<string, object> pair in (Dictionary<string, object>)system)
+                    SurfaceRenderer.SystemColours[pair.Key] = Ints(pair.Value);
+            }
+            SurfaceFonts.Pinned = Field(task, "pinned") as string;
+            int before = SurfaceGdip.GdipObjects;
+            var steps = new List<object>();
+            try
+            {
+                using (var card = new NoticeCard(null, (Dictionary<string, object>)task["vm"], (string)task["title"], (bool)task["stays"],
+                                                 (double)task["hold"], 0, (double)task["dpi"], Ints(task["work"]),
+                                                 (Dictionary<string, object>)task["drawn"], false, Field(task, "letters") as string))
+                {
+                    double entrance = (double)task["entrance"];
+                    foreach (double moment in new[] { 100.0, entrance })
+                    {
+                        Dictionary<string, object> painted = card.Paint(moment);
+                        var key = new List<object>();
+                        foreach (string part in ((string)painted["key"]).Split(',')) key.Add(double.Parse(part, System.Globalization.CultureInfo.InvariantCulture));
+                        steps.Add(new List<object> { Digest(card.Body.Pixels()), Digest(card.Shadow.Pixels()), key, painted["margin"] });
+                    }
+                    card.DrawLight(card.Born + 1700);
+                    steps.Add(new List<object> { Digest(card.Image.Pixels), Digest(card.Body.Pixels()) });
+                    card.Hover = TargetOf(Field(task, "hover"));
+                    card.Redraw();
+                    card.Paint(entrance + 50);
+                    string first = Digest(card.Body.Pixels());
+                    bool breathed = card.Breathe(2900);
+                    steps.Add(new List<object> { first, breathed, Digest(card.Body.Pixels()) });
+                }
+            }
+            finally
+            {
+                SurfaceFonts.Pinned = null;
+                SurfaceRenderer.SystemColours = null;
+            }
+            return new Dictionary<string, object> { { "steps", steps }, { "left", SurfaceGdip.GdipObjects - before } };
         }
 
         // ----------------------------------------------------------------------------- the dump

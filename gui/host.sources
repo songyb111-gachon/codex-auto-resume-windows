@@ -38,6 +38,7 @@ gui/PopupMotion.cs
 gui/MenuPlan.cs
 gui/TipPlan.cs
 gui/CardPlan.cs
+gui/CardWindow.cs
 gui/TrayMotion.cs
 gui/SurfaceRender.cs
 
