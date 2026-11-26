@@ -3,8 +3,8 @@
 //! three-second busy timeout; a link, a reparse point or a path out of the home is refused. A refusal is one closed
 //! code and nothing else.
 //!
-//! One port for both readers (Integration 8 folded S7.3c's copy in). The functions the advanced reader (car-adv
-//! `report::records`, which re-exports this module) imports take the home's `Paths` and what a `Control` would give -
+//! One port for both readers (Integration 8 folded S7.3c's copy in). The functions the other edition's in-app report
+//! (which re-exports this module; rust/GROUNDWORK.md, Integration 8) imports take the home's `Paths` and what a `Control` would give -
 //! the local clock, the watcher's report ([`WatcherView`], `compatio.reader_view`) and the reader of a file - as
 //! arguments; [`read_all`] and [`watcher_view`] (the Dashboard's every-version report) take the `Control` and hand
 //! them its Host's.

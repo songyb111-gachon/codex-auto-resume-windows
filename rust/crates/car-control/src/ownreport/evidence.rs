@@ -5,7 +5,7 @@
 //! hand over code points for that reason (car-machine's `decimal_value`, `is_space`), not with an ASCII regex.
 //!
 //! One port for both readers (Integration 8 folded S7.3c's copy in): the Dashboard's report (`reading::read_all`) and
-//! the advanced edition's in-app report (car-adv `report::records`, which re-exports this module). The advanced reader
+//! the other edition's in-app report, which re-exports this module (rust/GROUNDWORK.md, Integration 8). That reader
 //! asks what the Dashboard's never does - a spend ledger's `paid` times (`another_route`, `by_route`), `ledger_reach`,
 //! `place`'s count of records on another version and a record's progress counts (`body`); the Dashboard's report passes
 //! an empty ledger and every `progress` None, as `ownreport.write` does.

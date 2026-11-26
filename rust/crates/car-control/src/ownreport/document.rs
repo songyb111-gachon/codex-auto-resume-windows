@@ -5,7 +5,7 @@
 //! a count. A record set larger than the project takes is a refusal with a closed code; anything else that breaks
 //! the format would be a fault of this code (`DocumentError`).
 //!
-//! The advanced edition's report (car-adv `report::document`) imports the body's self-check [`check_parts`], the bytes
+//! The other edition's in-app report (rust/GROUNDWORK.md, Integration 8) imports the body's self-check [`check_parts`], the bytes
 //! a report is ([`encode`]), the closed refusals and the shapes of a time, a version and a Windows build from here
 //! (Integration 8 folded S7.3c's copy in), so those helpers are public.
 
