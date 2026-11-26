@@ -27,18 +27,41 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-_EXTRACTED: dict = {}
+_EXTRACTED: dict = {}   # tag -> (its src folder, every file the archive put beside it)
+# Each time a cached package was found no longer whole and taken out again: {tag, folder, at, ...}.
+REBUILT: list = []
+
+
+def _whole(folder: Path, names: tuple) -> bool:
+    """True while `folder` still holds every file the tag's archive put there (`names`, relative to it)."""
+    return all((folder / name).is_file() for name in names)
 
 
 def package(tag: str) -> Path:
     """The `src` folder holding `tag`'s `codex_auto_resume`, taken out of git once - with the plugin
-    manifest beside it, where the release reads its own version, so it knows which one it is."""
-    if tag in _EXTRACTED:
-        return _EXTRACTED[tag]
+    manifest beside it, where the release reads its own version, so it knows which one it is.
+
+    The folder is cached for the process's life, and checked whole before each answer: a cached folder that lost a
+    file since (a sweep of %TEMP%, a cleanup that reached it) is taken out of git again into a new folder, said once
+    on stderr and kept in REBUILT, so a long run never answers a path whose package is gone."""
+    cached = _EXTRACTED.get(tag)
+    if cached is not None:
+        source, names = cached
+        if _whole(source.parent, names):
+            return source
+        missing = [name for name in names if not (source.parent / name).is_file()]
+        REBUILT.append({"tag": tag, "folder": str(source.parent), "at": time.time(),
+                        "folder_exists": source.parent.is_dir(), "missing": len(missing), "files": len(names),
+                        "first_missing": missing[:3]})
+        print("released: %s's cached package %s is no longer whole (%d of %d files gone, folder %s); taken out of "
+              "git again" % (tag, source.parent, len(missing), len(names),
+                             "still there" if source.parent.is_dir() else "gone"), file=sys.stderr, flush=True)
+        del _EXTRACTED[tag]
     archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", tag, "src/codex_auto_resume",
                               ".codex-plugin/plugin.json"],
                              capture_output=True, creationflags=NO_WINDOW)
@@ -49,9 +72,12 @@ def package(tag: str) -> Path:
     folder = Path(tempfile.mkdtemp(prefix="released-%s-" % tag))
     atexit.register(shutil.rmtree, folder, True)
     with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        names = tuple(member.name for member in tar.getmembers() if member.isfile())
         tar.extractall(folder, filter="data")
-    _EXTRACTED[tag] = folder / "src"
-    return _EXTRACTED[tag]
+    if not names or not _whole(folder, names):
+        raise AssertionError("%s's package did not come out of git whole into %s" % (tag, folder))
+    _EXTRACTED[tag] = (folder / "src", names)
+    return folder / "src"
 
 
 def run(tag: str, script: str, *arguments):
