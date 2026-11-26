@@ -2881,3 +2881,26 @@ Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan  Ran 32,
   `abi::start` without the second-start refusal (`host_watcher`); `surface::icon_answers` not called in `update_tray`
   (`host_watcher`); `locale`/`letters` dropped from `start_surfaces` (`host_watcher`); `Load` by bare name with flags 0
   (the planted-DLL test); the `tick` trip moved outside `guarded` (`panic_feature`).
+
+### Left for the second part (main session's list of 2026-11-27; this seat stopped at a safe point, context exhausted)
+
+Nothing of the five steps below is started; the tree is clean at this commit.
+1. Engine join: move car-harness `engine.rs`'s `EngineStore` into car-watcher (a `join` module; the harness re-exports it);
+   car-engine `Given.plug`/`Engine.plug` -> `Arc<Guarded>` (every `Given { plug: Guarded::null() }` in car-harness
+   `proxy.rs`/`engine.rs` passes `Arc::new(..)`); `EngineMaker::engine(store, values, managed, plug: Arc<Guarded>)`;
+   a `Joined` maker: `App.backend()` (car-config `discover_codex_exe` with car-codex `Backend::_compatible` checks,
+   `app_engines`, the engine-word log line, `plug.codex(exe, home)`), `engine_moved` (file stamp, `_served_elsewhere`
+   with ELSEWHERE waits), `engine_state`, `_compatibility_tick` (car-codex `Evaluator::tick`, `layout::Watch`), a
+   `TickEngine` impl over `car_engine::Engine` (tick, watch_needed, watch, last_usage, detection_failed, handed_waits,
+   apply_policy, set_retiring, latest_failures, after_sleep, activity, follow_option), `Toasts(notifier)` and `EngineLog`,
+   `home_backend`/`home_engine` (NULL plug, `require_holder`); car-host `abi::start` -> `Watcher::start_with(.., maker)`.
+   Prove: `run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher` and the detection-check and
+   rescan goldens through car-control `Host::checkup`/`rescan_judge`.
+2. post_action `open_dashboard`/`open_chat` (ui/tray/dashboard.py, cut C6), `notice_action` (actor "toast",
+   car-surface `notifier::activate`), `notice_complete` (`notifier::complete`); the `notice` event as
+   `{id, key, title, stays, view, letters}` (car-surface `notice_card::view`); car-adv-host `export_core!(<advanced
+   factory>)` with S7.3d, then `abi_exports` with `CAR_CORE_DLL` on the advanced release DLL.
+3. `test_rust_release` and `test_rust_install` (both lanes) DETACHED via run_detached.sh + one background wait: both
+   timed out at ~580 s in foreground calls here and have no result.
+4. The five mutation checks listed above, and `tests/rustdiff/rediff_host.py --reference v0.6.26`.
+5. Gates in both workspaces, check_groundwork, check_rebuild; update this section.
