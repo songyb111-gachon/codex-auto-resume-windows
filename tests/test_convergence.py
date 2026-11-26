@@ -776,8 +776,8 @@ class HostPortabilityTests(unittest.TestCase):
     def test_the_mcp_launcher_honours_the_same_home_override(self):
         # Every other component resolves CODEX_AUTO_RESUME_PLUGIN_HOME first. The panel's
         # launcher read only the older, narrower CODEX_AUTO_RESUME_HOME, so moving the
-        # installation left the MCP server looking for it in the profile.
-        text = (ROOT / "gui" / "McpLauncher.cs").read_text(encoding="utf-8")
+        # installation left the MCP server looking for it in the profile. v0.6.27: the launcher is car-bin's (D18).
+        text = (ROOT / "rust" / "crates" / "car-bin" / "src" / "launcher.rs").read_text(encoding="utf-8")
         first = text.index("CODEX_AUTO_RESUME_PLUGIN_HOME")
         second = text.index('"CODEX_AUTO_RESUME_HOME"')
         self.assertLess(first, second, "the plugin home must be consulted first")

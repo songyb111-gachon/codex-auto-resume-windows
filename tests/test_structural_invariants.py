@@ -330,10 +330,9 @@ class EntryPointTests(unittest.TestCase):
         # (module, name, a file that calls it by that name, the text it calls it with)
         ("codex_auto_resume.cli", "main", "src/auto_resume.py", "from codex_auto_resume.cli import main"),
         ("codex_auto_resume.cli", "main", "scripts/plugin_setup.py", "from codex_auto_resume.cli import main"),
-        ("codex_auto_resume.controlcli", "main", "gui/SettingsApp.cs", "from codex_auto_resume.controlcli import main;"),
-        ("codex_auto_resume.controlcli", "main", "gui/Dashboard.cs", "from codex_auto_resume.controlcli import main;"),
-        ("codex_auto_resume.controlcli", "serve", "gui/Dashboard.cs", " serve\";"),
-        ("codex_auto_resume.mcpserver", "main", "gui/McpLauncher.cs", "from codex_auto_resume.mcpserver import main;"),
+        # v0.6.27 (P6 S6.2a): the window and the MCP launcher no longer start Python - they run the installation's core,
+        # `codex-auto-resume.exe bridge ...` and `mcp` (tests/test_window_core.py) - so controlcli's and mcpserver's rows,
+        # which named gui/SettingsApp.cs, gui/Dashboard.cs and gui/McpLauncher.cs as their callers, went with them.
         ("codex_auto_resume.app", "App", "scripts/plugin_setup.py", "from codex_auto_resume.app import App"),
         ("codex_auto_resume.config", "Paths", "scripts/plugin_setup.py", "config.Paths("),
         ("codex_auto_resume.control", "Control", "scripts/plugin_setup.py", "control.Control("),
@@ -400,9 +399,9 @@ class PinnedPathTests(unittest.TestCase):
 
     def test_files_other_programs_name_are_where_they_look(self):
         """The release and the bootstrap check the archive for mcpserver.py; the bootstrap asks
-        whether an installation exists by controlcli.py; the settings window keys its
-        strings cache on five files by name, and hashes "-" for one that is missing -
-        silently serving a stale language."""
+        whether an installation exists by controlcli.py. (The settings window keyed its strings
+        cache on five of the package's files by name until v0.6.27; it keys it on the core that
+        answers `strings` since then, tests/test_window_core.py.)"""
         names = {
             ".github/workflows/release.yml": ["payload/app/src/codex_auto_resume/mcpserver.py"],
             "scripts/bootstrap.ps1": ["payload/app/src/codex_auto_resume/mcpserver.py",
@@ -414,12 +413,8 @@ class PinnedPathTests(unittest.TestCase):
                 with self.subTest(consumer=consumer, name=name):
                     self.assertIn(name, text)
                     self.assertTrue((ROOT / "src" / name.replace("payload/app/src/", "").replace("\\", "/")).is_file())
-        stamp = re.search(r'foreach \(string name in new\[\] \{([^}]*)\}\)',
-                          guiscan.settings())
-        stamped = re.findall(r'"([^"]+)"', stamp.group(1))
-        self.assertEqual(stamped, ["interface.py", "l10n.py", "settings.py", "config.py", "controlcli.py"])
-        for name in stamped:
-            self.assertTrue((ROOT / "src" / "codex_auto_resume" / name).is_file(), name)
+        self.assertIsNone(re.search(r'foreach \(string name in new\[\] \{[^}]*\.py"', guiscan.settings()),
+                          "the window keys its cache on no .py file since v0.6.27")
 
 
 if __name__ == "__main__":

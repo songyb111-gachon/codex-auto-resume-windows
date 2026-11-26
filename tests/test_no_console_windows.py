@@ -574,9 +574,19 @@ class WindowStartTests(unittest.TestCase):
 
     def test_the_scan_finds_the_windows_starts(self):
         targets = {(name, target) for name, _, target, _ in self.starts()}
-        self.assertIn(("gui/McpLauncher.cs", "python"), targets)
-        self.assertIn(("gui/Dashboard.cs", "python"), targets)
+        # v0.6.27 (P6 S6.2a): the four starts of the installation's core (gui/CoreExe.cs), each a console program.
+        for start in (("gui/SettingsApp.cs", "core"), ("gui/Dashboard.cs", "once.Core"),
+                      ("gui/DashboardMaintenance.cs", "core"), ("gui/InstallerFlow.cs", "core")):
+            self.assertIn(start, targets)
         self.assertGreaterEqual(len(targets), 7)
+
+    def test_the_window_starts_no_interpreter_and_no_c_sharp_launcher_is_left(self):
+        """v0.6.27: the core is the one console program the window starts of the installation's; the MCP and Stop hook
+        launchers are Rust (car-bin, car-adv-bin). Fails with a python.exe start or a C# launcher put back."""
+        for name, variable, target, body in self.starts():
+            with self.subTest(name=name, target=target):
+                self.assertNotIn("python", (target or "").lower())
+        self.assertFalse(any(name.endswith(("McpLauncher.cs", "HookLauncher.cs")) for name in WINDOW_CS))
 
     def test_every_console_program_the_window_starts_gets_a_hidden_console(self):
         offenders, gui = [], set()
