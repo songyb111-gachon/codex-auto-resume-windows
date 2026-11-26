@@ -28,7 +28,9 @@ use car_watcher::watchloop::{Adapter, Fired, Loop, TickEngine, World, run};
 use crate::object;
 
 mod batch;
+mod launch;
 pub use batch::batch;
+pub use launch::run as launcher;
 
 fn field<'a>(map: &'a Map, key: &str) -> &'a Value {
     static NULL: Value = Value::Null;
