@@ -787,7 +787,8 @@ class WindowJob:
         keys and letters, the pointer, a submenu opened by key and by rest, a choice, the ways it closes - every call
         that would put it on the screen recorded by a stand-in and not made, and the C#'s MenuWindow over a window made
         and never shown, through the same script. After each step: shown, item in hand, fade, place, the submenu, the
-        picture by digest, the calls, what was chosen and who was told it closed."""
+        picture by digest, the calls, what was chosen and who was told it closed; and each open menu's own picture against
+        the render mode's (the live-path proof)."""
         import hashlib
         import make_screenshots
         from codex_auto_resume import interface
@@ -872,15 +873,18 @@ class WindowJob:
                     "pixels": hashlib.sha256(canvas.pixels()).hexdigest() if canvas else None}
 
         status = make_screenshots.popup_status()
+        # ["proof"]: the live-path proof (step 3) - each open menu's own picture against the render mode's.
         script = ([["open", [1000, 900]]] + [["clock", 0.03], ["timer", 2]] * 9
-                  + [["key", 0x28], ["key", 0x28], ["key", 0x26], ["key", 0x24], ["key", 0x23], ["char", "p"], ["char", "x"],
-                     ["over", 0], ["over", 1], ["timer", 1], ["key", "onward"], ["child", WM_KEYDOWN, 0x28, 0],
-                     ["child", WM_CHAR, 0x31, 0], ["key", "back"], ["over", "submenu"], ["timer", 1], ["child_over", 0],
+                  + [["proof"], ["key", 0x28], ["key", 0x28], ["proof"], ["key", 0x26], ["key", 0x24], ["key", 0x23],
+                     ["char", "p"], ["char", "x"], ["over", 0], ["over", 1], ["timer", 1], ["key", "onward"], ["proof"],
+                     ["child", WM_KEYDOWN, 0x28, 0], ["proof"],
+                     ["child", WM_CHAR, 0x31, 0], ["key", "back"], ["over", "submenu"], ["timer", 1], ["proof"], ["child_over", 0],
                      ["child_up", 0], ["clock", 0.05], ["timer", 2], ["clock", 0.2], ["timer", 2],
                      ["open", [40, 40]], ["message", WM_ACTIVATE, 0, OWNER], ["open", [1900, 1030]], ["clock", 0.3],
                      ["timer", 2], ["message", WM_ACTIVATE, 0, 0], ["clock", 0.3], ["timer", 2], ["open", None],
                      ["message", WM_SYSKEYDOWN, 0x12, 0], ["open", [500, 500]], ["message", WM_LBUTTONDOWN, 0, 0x7FFF7FFF],
-                     ["open", [500, 500]], ["message", WM_SETTINGCHANGE, 0, 0], ["over", 2], ["message", WM_MOUSELEAVE, 0, 0],
+                     ["open", [500, 500]], ["message", WM_SETTINGCHANGE, 0, 0], ["over", 2], ["proof"],
+                     ["message", WM_MOUSELEAVE, 0, 0],
                      ["key", 0x0D], ["grant", False], ["open", [500, 500]], ["grant", True], ["open", [600, 600]],
                      ["message", 0x0010, 0, 0]])
         runs = [("en", ["light", "soft", False], False, 1.0, 144), ("ko", ["dark", "plain", False], False, 1.0, 120),
@@ -916,13 +920,24 @@ class WindowJob:
                     work = [0, 0, 1920, 1040]
                     menu._screen_now = lambda at=None: {"cursor": tuple(at) if at else (960, 520), "dpi": dpi,
                                                         "work": tuple(work)}
-                    sharp, steps = [], []
+                    sharp, steps, proofs = [], [], []
                     try:
                         for step in script:
                             op, mapped, returned = step[0], list(step), None
                             state["calls"], state["left"] = [], []
                             del state["chosen"][:]                  # the list each opening hands its choices to
                             rtl = bool((menu._plan or {}).get("rtl"))
+                            if op == "proof":
+                                proof = []
+                                for one in (menu, menu._child):
+                                    if one is None or one._renderer is None or one._plan is None:
+                                        proof.append(None)
+                                    else:
+                                        digest = hashlib.sha256(one.render().pixels()).hexdigest()
+                                        proof.append([digest, digest, True])
+                                proofs.append(proof)
+                                sharp.append({"op": op, "do": ["proof"]})
+                                continue
                             if op == "open":
                                 returned = menu.open(entries, strings, state["chosen"].append, point=step[1], owner=OWNER,
                                                      on_leave=lambda: state["left"].append(True))
@@ -971,7 +986,7 @@ class WindowJob:
                               "letters": fonts._letters(popup_words.locale_of(strings)), "look": look, "reduced": reduced,
                               "text_scale": text, "dpi": dpi, "work": work, "owner": OWNER, "script": sharp,
                               "pinned": pinned, "system": self.SYSTEM},
-                             {"steps": steps, "log": logged, "left": gdiplus.gdiplus_objects() - before})
+                             {"steps": steps, "proofs": proofs, "log": logged, "left": gdiplus.gdiplus_objects() - before})
         finally:
             (renderer_module.system_rgb, light_module.system_rgb, menuwindow._dll, menuwindow.time, access.announce,
              access.answer, access.disconnect, access.tell, theme.high_contrast, theme.reduced_motion,
@@ -984,11 +999,13 @@ class WindowJob:
         over a card, a press and a click on its button, on its face, a right click, the focus asked again, the end - with
         every user32 call that would put a card on the screen recorded by a stand-in and not made, and the C#'s CardStack
         over windows made and never shown. After each step: each card's phase, place, edge and marks, the stack's frame
-        timer, the calls, and what was posted (notice_action, notice_complete)."""
+        timer, the calls, and what was posted (notice_action, notice_complete); and each card's two windows as its own paint
+        draws them against the render mode's card for the same frame (the live-path proof)."""
         import dataclasses
+        import hashlib
         import make_screenshots
         from codex_auto_resume import notice_card
-        from codex_auto_resume.ui.card import stack as stack_module, win32 as card_win32
+        from codex_auto_resume.ui.card import card as card_module, stack as stack_module, win32 as card_win32
         from codex_auto_resume.ui.popup import fonts, gdiplus, light as light_module, renderer as renderer_module
         WM_TIMER, WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSELEAVE, WM_RBUTTONUP = 0x0113, 0x0200, 0x0201, 0x0202, 0x02A3, 0x0205
         TRANSPARENT = 0x20
@@ -1044,14 +1061,17 @@ class WindowJob:
                     return ((rect[1] + rect[3]) // 2 & 0xFFFF) << 16 | ((rect[0] + rect[2]) // 2 & 0xFFFF)
             return 0
 
-        script = ([["show", 0, "a"], ["clock", 100], ["timer", 1], ["clock", 200], ["timer", 1], ["show", 1, "b"],
-                   ["clock", 150], ["timer", 1], ["show", 2, "a"], ["clock", 400], ["timer", 1], ["show", 3, "c"],
-                   ["show", 4, "d"], ["clock", 400], ["timer", 1], ["timer", 3], ["card", 0, "move", None],
-                   ["clock", 2000], ["timer", 1], ["card", 0, "leave", None], ["clock", 100], ["timer", 1],
-                   ["card", 0, "press", "button"], ["card", 0, "release", "button"], ["clock", 300], ["timer", 1],
-                   ["card", 0, "face", None], ["clock", 300], ["timer", 1], ["card", 0, "right", None]]
-                  + [["clock", 800], ["timer", 2]] * 4 + [["show", 5, "e"], ["clock", 9000], ["timer", 2],
-                                                          ["clock", 400], ["timer", 1], ["end"]])
+        # ["proof"]: the live-path proof (step 3) - each card's windows as its own paint draws them against the render mode's.
+        script = ([["show", 0, "a"], ["clock", 100], ["timer", 1], ["proof"], ["clock", 200], ["timer", 1], ["proof"],
+                   ["show", 1, "b"], ["clock", 150], ["timer", 1], ["proof"], ["show", 2, "a"], ["clock", 400], ["timer", 1],
+                   ["show", 3, "c"], ["show", 4, "d"], ["clock", 400], ["timer", 1], ["proof"], ["timer", 3],
+                   ["card", 0, "move", None], ["proof"], ["clock", 2000], ["timer", 1], ["proof"], ["card", 0, "leave", None],
+                   ["clock", 100], ["timer", 1], ["card", 0, "move", "button"], ["proof"], ["card", 0, "press", "button"],
+                   ["proof"], ["card", 0, "release", "button"],
+                   ["clock", 300], ["timer", 1], ["card", 0, "face", None], ["clock", 300], ["timer", 1],
+                   ["card", 0, "right", None]]
+                  + [["clock", 800], ["timer", 2]] * 4 + [["proof"], ["show", 5, "e"], ["clock", 9000], ["timer", 2],
+                                                          ["proof"], ["clock", 400], ["timer", 1], ["end"]])
         runs = [("en", {"theme": "light", "design": "soft", "contrast": False, "reduced": False, "text": 1.0}, 144),
                 ("ko", {"theme": "dark", "design": "plain", "contrast": False, "reduced": False, "text": 1.0}, 120),
                 ("ar", {"theme": "light", "design": "classic", "contrast": True, "reduced": False, "text": 1.0}, 144),
@@ -1087,12 +1107,41 @@ class WindowJob:
                         log=logged.append, clock=lambda: state["clock"], locate=lambda: dict(where),
                         appearance=lambda: dict(drawn), worker=lambda target, *values: target(*values), focus=focus)
                     stack.hold = lambda: float(notice_card.HOLD_MS)
+
+                    def proved(card):
+                        """The card's windows as its own paint draws them now, against a card made offscreen for its
+                        frame - the render mode's - and whether the two plans agree."""
+                        if card.body is None:
+                            return None
+                        now = state["clock"]
+                        card.paint(now)
+                        window = hashlib.sha256(card.body.pixels() + card.shadow.pixels()).hexdigest()
+                        frame = card.motion.frame(now)
+                        fresh = card_module.Card(stack, card.notice, now_ms=card.born, where=dict(where), drawn=dict(drawn),
+                                                 windows=False)
+                        try:
+                            fresh.hover, fresh.pressed, fresh._breathed = card.hover, card.pressed, card._breathed
+                            fresh.redraw()
+                            fresh._paint_body(round(frame.scale, 4))
+                            if fresh.shadows:
+                                fresh._paint_shadow(notice_card.depth_level(frame.depth))
+                            render = hashlib.sha256(fresh.body.pixels() + fresh.shadow.pixels()).hexdigest()
+                            same = plain(fresh.plan) == plain(card.plan)
+                        finally:
+                            fresh.close()
+                        # Each proof must hold in the reference itself, or it proves nothing about the port.
+                        assert window == render and same, "the reference's own card differs from its render at %r" % now
+                        return [window, render, same]
                     stack.create()
-                    sharp, steps = [], []
+                    sharp, steps, proofs = [], [], []
                     try:
                         for step in script:
                             op, returned, mapped = step[0], None, list(step)
                             state["calls"], state["posts"] = [], []
+                            if op == "proof":
+                                proofs.append([proved(card) for card in stack.cards])
+                                sharp.append({"op": op, "do": ["proof"]})
+                                continue
                             if op == "show":
                                 notice = notices[step[1]]
                                 ids[id(notice)] = step[1]
@@ -1136,7 +1185,7 @@ class WindowJob:
                                                              drawn["reduced"], dpi),
                              {"surface": "card_stack", "where": plain(where), "drawn": drawn, "hold": float(notice_card.HOLD_MS),
                               "focuses": focuses, "script": sharp, "pinned": pinned, "system": self.SYSTEM},
-                             {"steps": steps, "log": logged, "left": gdiplus.gdiplus_objects() - before})
+                             {"steps": steps, "proofs": proofs, "log": logged, "left": gdiplus.gdiplus_objects() - before})
         finally:
             (renderer_module.system_rgb, light_module.system_rgb, card_win32._dll, stack_module.FOCUS_AFTER) = saved
 
