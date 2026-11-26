@@ -186,21 +186,19 @@ pub fn private_folder(directory: &Path, sid: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::windows::process::CommandExt;
+    use crate::spawn::{Spawn, Stream, SystemStarter};
 
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     const ACCESS: u32 = 0x0001 | 0x1000 | 0x0010_0000;
 
-    /// A throwaway child of the test's own (cmd.exe waiting on a pipe the test holds), never anyone else's process.
+    /// A throwaway child of the test's own (cmd.exe waiting on a pipe the test holds), started by car-platform's one
+    /// starter (CREATE_NO_WINDOW), never anyone else's process.
     fn child() -> std::process::Child {
-        std::process::Command::new("cmd.exe")
-            .args(["/d", "/q", "/k"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .expect("cmd.exe starts")
+        let spawn = Spawn::new(["cmd.exe", "/d", "/q", "/k"]).with_streams(
+            Stream::Piped,
+            Stream::Null,
+            Stream::Null,
+        );
+        SystemStarter.start(&spawn).expect("cmd.exe starts")
     }
 
     #[test]
