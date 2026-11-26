@@ -136,6 +136,8 @@ namespace CodexAutoResume
                     return CardLife(task);
                 case "icon":
                     return Icon(task);
+                case "paint":
+                    return Paint(task, tables);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -483,6 +485,52 @@ namespace CodexAutoResume
             foreach (object word in (List<object>)task["words"]) lights.Add(TrayMotion.ForLight(word as string));
             return new Dictionary<string, object> { { "frames", frames }, { "colours", colours }, { "pictures", pictures },
                                                     { "allowed", allowed }, { "lights", lights } };
+        }
+
+        /// What every item of a plan is painted with in each look asked - theme, design, High Contrast - by the
+        /// renderer's own rules: the corner, the text's and the chip's colour, a button's face in each state.
+        private static Dictionary<string, object> Paint(Dictionary<string, object> task, Dictionary<string, TableTextCalc> tables)
+        {
+            var inner = (Dictionary<string, object>)task["of"];
+            object made = Case(inner, tables);
+            var map = made as Dictionary<string, object>;
+            SurfacePlan plan = map != null ? (SurfacePlan)map["plan"] : (SurfacePlan)made;
+            object system = Field(task, "system");
+            if (system != null)
+            {
+                SurfaceRenderer.SystemColours = new Dictionary<string, int[]>();
+                foreach (KeyValuePair<string, object> pair in (Dictionary<string, object>)system)
+                    SurfaceRenderer.SystemColours[pair.Key] = Ints(pair.Value);
+            }
+            var looks = new List<object>();
+            foreach (object entry in (List<object>)task["looks"])
+            {
+                var three = (List<object>)entry;
+                var renderer = new SurfaceRenderer { Theme = (string)three[0], Design = (string)three[1], Contrast = (bool)three[2] };
+                var items = new List<object>();
+                foreach (PlanItem item in plan.Items)
+                {
+                    var paint = new Dictionary<string, object>();
+                    if (item.ContainsKey("radius") || item.ContainsKey("corner")) paint["corner"] = renderer.Corner(item, plan.Scale);
+                    string kind = item.Kind;
+                    if (kind == "text") paint["colour"] = renderer.Rgb((string)item["colour"]);
+                    if (kind == "chip") paint["tone"] = renderer.Rgb((string)item["tone"]);
+                    if (kind == "button")
+                    {
+                        var faces = new List<object>();
+                        foreach (string state in new[] { "rest", "hover", "pressed", "busy" }) faces.Add(renderer.FaceColours(item, state));
+                        paint["faces"] = faces;
+                        paint["lifted"] = SurfaceRenderer.Lifted(item, null);
+                    }
+                    items.Add(paint);
+                }
+                looks.Add(new Dictionary<string, object> {
+                    { "items", items }, { "depth", renderer.Depth() }, { "smoothing", renderer.Smoothing() },
+                    { "control", renderer.ControlRadius(plan.Scale) }, { "canvas", renderer.Rgb("canvas") },
+                    { "focus", renderer.Argb("focus") }, { "ink", renderer.ColorRef("ink") } });
+            }
+            SurfaceRenderer.SystemColours = null;
+            return new Dictionary<string, object> { { "looks", looks } };
         }
 
         // ----------------------------------------------------------------------------- the dump

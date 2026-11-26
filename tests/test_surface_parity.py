@@ -523,6 +523,49 @@ class SurfaceJob:
         self.add("icon/all", {"surface": "icon", "states": states, "fines": fines, "moments": moments, "sizes": sizes,
                               "stride": stride, "words": words}, result)
 
+    # High Contrast's system colours, fixed so the paint is the same on every machine (a black scheme's).
+    SYSTEM = {"Window": [0, 0, 0], "WindowFrame": [255, 255, 255], "WindowText": [255, 255, 255],
+              "Highlight": [26, 235, 255], "HighlightText": [0, 0, 0], "Control": [0, 0, 0], "GrayText": [63, 242, 63]}
+    LOOKS = [[theme, design, contrast] for contrast in (False, True) for theme in ("light", "dark")
+             for design in ("soft", "classic", "plain")]
+
+    def paint(self):
+        """Each plan's paint in every look: the cases already laid out, painted by the reference's renderer."""
+        from codex_auto_resume.ui.popup import renderer as renderer_module
+        wanted = [case for case in self.cases
+                  if case["id"].rsplit("/", 1)[-1] in ("1.5", "2.0") and case["id"].split("/")[0] in ("popup", "card", "tip", "menu")
+                  and case["id"].split("/")[2] in ("en", "ar", "ko") and case["id"].split("/")[1] in ("picture", "error", "metered", "icon", "row", "three")]
+        saved = renderer_module.system_rgb
+        renderer_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
+        try:
+            for case in wanted:
+                expected = self.expected[case["id"]]
+                plan = expected["plan"] if "plan" in expected and isinstance(expected["plan"], dict) and "items" in expected["plan"] else expected
+                looks = []
+                for theme, design, contrast in self.LOOKS:
+                    renderer = object.__new__(renderer_module.Renderer)
+                    renderer.theme, renderer._look_design, renderer._contrast, renderer.canvas = theme, design, contrast, None
+                    items = []
+                    for item in plan["items"]:
+                        found = {}
+                        if "radius" in item or "corner" in item:
+                            found["corner"] = renderer._corner(item, plan["scale"])
+                        if item["kind"] == "text":
+                            found["colour"] = renderer._rgb(item["colour"])
+                        if item["kind"] == "chip":
+                            found["tone"] = renderer._rgb(item["tone"])
+                        if item["kind"] == "button":
+                            found["faces"] = [renderer.face_colours(item, state) for state in ("rest", "hover", "pressed", "busy")]
+                            found["lifted"] = renderer._lifted(item, None)
+                        items.append(found)
+                    looks.append({"items": items, "depth": renderer._depth(), "smoothing": renderer.smoothing(),
+                                  "control": renderer._control_radius(plan["scale"]), "canvas": renderer._rgb("canvas"),
+                                  "focus": renderer._argb("focus"), "ink": renderer._colorref("ink")})
+                self.add("paint/" + case["id"], {"surface": "paint", "of": dict(case), "looks": self.LOOKS,
+                                                 "system": self.SYSTEM}, {"looks": looks})
+        finally:
+            renderer_module.system_rgb = saved
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -578,6 +621,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.popup_motion()
         job.card()
         job.icon()
+        job.paint()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -634,6 +678,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_icons_frames_are_the_references_position_level_and_pixel(self):
         self.compare("icon/")
+
+    def test_every_plan_is_painted_with_the_references_colours_and_corners_in_every_look(self):
+        self.compare("paint/")
 
 
 class SurfaceSourceTests(unittest.TestCase):
