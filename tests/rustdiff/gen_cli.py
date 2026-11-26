@@ -153,9 +153,11 @@ def tree(tag: str) -> Path:
 
 def made(tag: str) -> str:
     tree_ = tree(tag)
-    done = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", DUMP, str(tree_)], capture_output=True,
+    sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
+    from rustdiff import reference  # the reference's Python (`--reference-python`), not sys.executable
+    done = subprocess.run(reference.command(DUMP, tree_, paths=[tree_ / "src"]), capture_output=True,
                           creationflags=NO_WINDOW, timeout=300, env={k: v for k, v in os.environ.items()
-                                                                     if k not in ("COLUMNS", "LINES")})
+                                                                     if k not in ("COLUMNS", "LINES", "PYTHONPATH")})
     if done.returncode != 0:
         raise SystemExit(done.stderr.decode("utf-8", "replace"))
     return render(json.loads(done.stdout.decode("utf-8")), tag)

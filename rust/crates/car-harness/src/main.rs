@@ -144,6 +144,11 @@ fn serve() -> i32 {
 }
 
 fn main() {
+    // A thread with the stack for a deeply nested document (car_machine::stack).
+    car_machine::stack::run_deep(run);
+}
+
+fn run() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     match arguments.first().map(String::as_str) {
         Some("serve") => std::process::exit(serve()),

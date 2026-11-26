@@ -71,10 +71,16 @@ stdout, stderr and the profile's files; each call that differs is appended to `<
 files. The run's own verdict is the chosen Python's alone. For readers only (a store that writes where it reads sees the first
 run's files outside the profile).
 
-Not routed yet, because other seats own them: the advanced reference (`advref.py` lines 81, 83, 91, hence `advstore.py`'s
-claim race), the claim race of `diffs_store.reference_process` (:266) and the generators (`gen_*.py`, which make the
-Unicode and other tables from `sys.executable`) still start `sys.executable`. They can call `reference.command(...)`. What
-differs between 3.13 and 3.14 for the diffs that are routed: `outputs/plans/v0627-rust/REFERENCE-314.md`.
+Routed (follow 3.14, D): every start of the reference's Python goes through `reference.command(script, ...)` or
+`reference.script_command(path, ...)` (a script file: the generators, a script too long for a command line), so
+`--reference-python` reaches it: the advanced reference (`advref.run` / `popen`, hence the advanced diffs and `advstore.py`'s
+claim race), `diffs_store.reference_process`, the engine's and the command line's reference (`diffs_engine`, `cliworld`), and
+`gen_cli.py`, `gen_vocab.py`, `gen_logbook.py`. The Unicode generators (`gen_tables`, `gen_codex`, `gen_policy`,
+`gen_advcodex`) run themselves under the bundled runtime through `productpy.py` - which now unpacks nothing of its own, it asks
+`refpython` for `bundled` - whatever `--reference-python` says: a table of Python's Unicode is the product's Python's, not the
+reference's choice. What differs between 3.13 and 3.14: `outputs/plans/v0627-rust/REFERENCE-314.md`; the nesting limits are
+`diffs_nesting_314.py`'s, the drive-like realpath tail `diffs_paths_314.py`'s (both differ BY DESIGN under `system`, and
+`rediff_follow314.py --reference v0.6.26` reruns them with the generators' `--check`).
 
 ## The shim's seam
 

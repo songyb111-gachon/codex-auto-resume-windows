@@ -696,7 +696,9 @@ impl<'a> Protocol<'a> {
                 inner: stdout,
                 closed: Arc::clone(&self.closed),
             };
-            self.reader = Some(std::thread::spawn(move || reader(stdout, input, send)));
+            self.reader = Some(car_machine::stack::spawn_deep(move || {
+                reader(stdout, input, send)
+            }));
         }
         let version = self.backend.product_version.clone();
         let params = object(vec![

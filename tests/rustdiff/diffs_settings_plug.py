@@ -181,10 +181,11 @@ class PlugDiff(Family):
                                          + count("plug.widening_of") + count("plug.power"), len(mine), reference.TAG))
 
     def test_generated_files_are_the_tags(self):
-        # The generator's own --check, which runs under the product's bundled Python (productpy.py) whose Unicode tables
-        # text_tables.rs and unicode_gen.rs hold; generated in this process (3.13.15, say) they would differ.
-        done = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__).resolve().parent / "gen_policy.py"),
-                               "--check", "--ref", reference.TAG], cwd=str(ROOT), capture_output=True,
+        # The generator's own --check: it runs itself under the product's bundled Python (productpy.py), whose Unicode
+        # tables car-policy's files hold - generated in this process (3.13.15, say) they would differ. Started through the
+        # reference's command (`--reference-python`), as the other generators' checks are.
+        done = subprocess.run(reference.script_command(Path(__file__).resolve().parent / "gen_policy.py", "--check", "--ref",
+                                                       reference.TAG, paths=[]), cwd=str(ROOT), capture_output=True,
                               creationflags=reference.NO_WINDOW, timeout=900)
         self.assertEqual(done.returncode, 0, "gen_policy.py --check: %s%s" % (
             done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")[-2000:]))

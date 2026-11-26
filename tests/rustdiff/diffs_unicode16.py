@@ -37,8 +37,9 @@ RECORD: list[str] = []
 # Every file a generator writes that holds Python's Unicode (car-store's seam/python.rs copy is checked beside them).
 GENERATED = ("rust/crates/car-machine/src/pytext_tables.rs", "rust/crates/car-words/src/bidi_tables.rs",
              "rust/crates/car-codex/src/printable_gen.rs", "rust/crates/car-platform/src/printable_gen.rs",
-             "rust/crates/car-policy/src/classify/text_tables.rs", "rust/crates/car-policy/src/settings/unicode_gen.rs")
-GENERATORS = ("gen_tables.py", "gen_codex.py", "gen_policy.py")
+             "rust/crates/car-policy/src/classify/text_tables.rs", "rust/crates/car-policy/src/settings/unicode_gen.rs",
+             "advanced/rust/crates/car-adv/src/codex/alpha_gen.rs")
+GENERATORS = ("gen_tables.py", "gen_codex.py", "gen_policy.py", "gen_advcodex.py")
 # The zeros of the eight decimal runs Unicode 16.0 added over 15.1 (80 digits).
 NEW_ZEROS = (0x10D40, 0x116D0, 0x116DA, 0x11BF0, 0x16130, 0x16D70, 0x1CCF0, 0x1E5F1)
 # A letter of each script Unicode 16.0 added (bidirectional class: Garay R, the others L), and a Garay digit (AN).
@@ -77,12 +78,12 @@ class GeneratedTables(unittest.TestCase):
 
     def test_the_generators_check_agrees_under_any_starting_python(self):
         for name in GENERATORS:
-            done = subprocess.run([sys.executable, "-X", "utf8", str(HERE / name), "--check"], cwd=str(ROOT),
+            done = subprocess.run(reference.script_command(HERE / name, "--check", paths=[]), cwd=str(ROOT),
                                   capture_output=True, creationflags=reference.NO_WINDOW, timeout=900)
             self.assertEqual(done.returncode, 0, "%s --check: %s%s" % (name, done.stdout.decode("utf-8", "replace"),
                                                                       done.stderr.decode("utf-8", "replace")))
-        RECORD.append("unicode16: gen_tables, gen_codex and gen_policy --check agree, started by Python %s" %
-                      ".".join(map(str, sys.version_info[:3])))
+        RECORD.append("unicode16: gen_tables, gen_codex, gen_policy and gen_advcodex --check agree, started by the reference's "
+                      "Python %s and run under the bundled runtime" % reference.refpython.version())
 
     def test_car_stores_copy_of_the_decimal_zeros_is_car_machines(self):
         mine = zeros_of("rust/crates/car-store/src/seam/python.rs")

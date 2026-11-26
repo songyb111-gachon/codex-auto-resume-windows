@@ -1,6 +1,8 @@
 //! The writer's edge cases, each with the bytes Python 3.13 and 3.14 write for it.
 
-use car_machine::json::{Error, Int, MAX_DEPTH, Map, Options, Str, Value, from_str, to_string};
+use car_machine::json::{
+    DUMPS_LIST_LEVELS, Error, Int, Map, Options, Str, Value, from_str, to_string,
+};
 
 fn wire(value: &Value) -> String {
     to_string(value, &Options::wire()).unwrap()
@@ -243,14 +245,18 @@ fn integers_of_any_size() {
 
 #[test]
 fn nesting_past_the_depth_is_refused() {
-    let mut value = Value::Array(vec![1.into()]);
-    for _ in 1..MAX_DEPTH {
-        value = Value::Array(vec![value]);
-    }
-    let written = wire(&value);
-    assert_eq!(written.len(), 2 * MAX_DEPTH + 1);
-    let deeper = Value::Array(vec![value]);
-    assert_eq!(to_string(&deeper, &Options::wire()), Err(Error::TooDeep));
+    // A value this deep is dropped by a thread that has the stack for it (car_machine::stack).
+    car_machine::stack::run_deep(|| {
+        let levels = DUMPS_LIST_LEVELS as usize;
+        let mut value = Value::Array(vec![1.into()]);
+        for _ in 1..levels {
+            value = Value::Array(vec![value]);
+        }
+        let written = wire(&value);
+        assert_eq!(written.len(), 2 * levels + 1);
+        let deeper = Value::Array(vec![value]);
+        assert_eq!(to_string(&deeper, &Options::wire()), Err(Error::TooDeep));
+    });
 }
 
 #[test]

@@ -434,8 +434,8 @@ def traces(scenarios: dict) -> tuple:
                                        "root": str(scratch / "ref")}), encoding="utf-8")
         source = released.package(reference.TAG)
         environment = reference.scratch_environment(profile, PYTHONPATH=str(source), TZ="UTC0")
-        ran = subprocess.run([sys.executable, "-X", "utf8", "-c", SCRIPT, str(request), str(out),
-                              str(HERE / "enginerun.py")], capture_output=True, env=environment, cwd=str(profile),
+        ran = subprocess.run(reference.command(SCRIPT, request, out, HERE / "enginerun.py", paths=[source]),
+                             capture_output=True, env=environment, cwd=str(profile),
                              creationflags=core.NO_WINDOW, timeout=3600)
         if ran.returncode != 0:
             raise AssertionError("the reference failed: " + ran.stderr.decode("utf-8", "replace")[-3000:])

@@ -10,6 +10,11 @@ use car_bin::cli::Io;
 use car_machine::json::{Map, Options, Value, from_str, to_string};
 
 fn main() {
+    // A thread with the stack for a deeply nested document (car_machine::stack).
+    car_machine::stack::run_deep(run);
+}
+
+fn run() {
     let named = std::env::var("CAR_CORE_WORLD").unwrap_or_default();
     let world: Map = match std::fs::read_to_string(&named)
         .ok()

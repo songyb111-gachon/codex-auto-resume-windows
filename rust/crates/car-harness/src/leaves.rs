@@ -10,6 +10,7 @@ use car_machine::pyval::Py;
 mod brand;
 mod config;
 mod machine;
+mod nesting;
 mod words;
 
 fn ok(value: Value) -> Value {
@@ -75,11 +76,46 @@ impl<'a> Args<'a> {
 /// One case: `Some(result)` where this harness knows the name, `None` where not.
 fn case(name: &str, args: &Args) -> Option<Py<Value>> {
     machine::case(name, args)
+        .or_else(|| nesting::case(name, args))
         .or_else(|| words::case(name, args))
         .or_else(|| config::case(name, args))
         .or_else(|| brand::case(name, args))
         .or_else(|| crate::classify::case(name, args))
         .or_else(|| crate::codex::case(name, args))
+}
+
+/// The levels a reply keeps: the runner reading it may be a Python whose `json.loads` stops at 2,998 levels (3.13), and a
+/// value past 64 is answered as `{"$nested": its depth}`, the same on the reference's side (`leaves.PRELUDE`'s `shallow`).
+pub const KEEP_LEVELS: usize = 64;
+
+/// How many arrays and objects `value` is nested, counted without recursion (it may be 17,000 deep).
+pub fn nesting(value: &Value) -> usize {
+    let (mut best, mut stack) = (0, vec![(value, 1usize)]);
+    while let Some((node, level)) = stack.pop() {
+        match node {
+            Value::Array(items) => {
+                best = best.max(level);
+                stack.extend(items.iter().map(|each| (each, level + 1)));
+            }
+            Value::Object(map) => {
+                best = best.max(level);
+                stack.extend(map.values().map(|each| (each, level + 1)));
+            }
+            _ => {}
+        }
+    }
+    best
+}
+
+/// `value`, or `{"$nested": depth}` where it nests deeper than [`KEEP_LEVELS`].
+pub fn shallow(value: Value) -> Value {
+    let depth = nesting(&value);
+    if depth <= KEEP_LEVELS {
+        return value;
+    }
+    let mut entry = Map::new();
+    entry.insert(Str::from("$nested"), Value::from(depth as i64));
+    Value::Object(entry)
 }
 
 /// `leaves.batch`: every case of `cases`, in order.
@@ -102,7 +138,7 @@ pub fn batch(cases: &Value) -> Value {
         };
         let args = Args(&parts[1..]);
         answers.push(match case(&name, &args) {
-            Some(Ok(value)) => ok(value),
+            Some(Ok(value)) => ok(shallow(value)),
             Some(Err(name)) => error(name),
             None => error(&format!("NotPorted:{name}")),
         });

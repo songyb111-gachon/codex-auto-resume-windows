@@ -75,20 +75,21 @@ def run(script: str, *arguments, profile: Path | None = None, tag: str | None = 
     with tempfile.TemporaryDirectory(prefix="advref-run-") as own:
         home = Path(profile) if profile is not None else Path(own)
         # A long script (the arming scenarios') does not fit a command line: it goes in a file of the scratch folder.
+        # (the reference's Python, `--reference-python`: reference.command / script_command, not sys.executable)
         if len(script) > 8000:
             path = Path(own) / "advref-script.py"
             path.write_text(script, encoding="utf-8")
-            command = [sys.executable, "-X", "utf8", str(path)]
+            command = reference.script_command(path, *arguments, paths=trees(tag))
         else:
-            command = [sys.executable, "-X", "utf8", "-c", script]
-        return subprocess.run([*command, *map(str, arguments)], input=stdin,
+            command = reference.command(script, *arguments, paths=trees(tag))
+        return subprocess.run(command, input=stdin,
                               capture_output=True, env=environment(home, tag), cwd=str(home),
                               creationflags=NO_WINDOW, timeout=timeout)
 
 
 def popen(script: str, *arguments, profile: Path, tag: str | None = None) -> subprocess.Popen:
     """`run`, started and not waited for: the cross-process claim runs two at once."""
-    return subprocess.Popen([sys.executable, "-X", "utf8", "-c", script, *map(str, arguments)],
+    return subprocess.Popen(reference.command(script, *arguments, paths=trees(tag)),
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             env=environment(Path(profile), tag), cwd=str(profile), creationflags=NO_WINDOW)
 

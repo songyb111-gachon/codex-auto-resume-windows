@@ -61,6 +61,27 @@ logger.setLevel(logging.INFO)
 logger.propagate = False
 
 
+KEEP = 64
+
+def nesting(value):
+    best, stack = 0, [(value, 0)]
+    while stack:
+        node, level = stack.pop()
+        if isinstance(node, dict):
+            best = max(best, level + 1)
+            stack.extend((each, level + 1) for each in node.values())
+        elif isinstance(node, (list, tuple, set, frozenset)):
+            best = max(best, level + 1)
+            stack.extend((each, level + 1) for each in node)
+    return best
+
+def shallow(value):
+    # The runner's own `json.loads` may be 3.13's (2,998 levels): a value nested past KEEP levels is answered as the one-key
+    # object "$nested" and its depth, as car-harness's `shallow` does.
+    depth = nesting(value)
+    return {"$nested": depth} if depth > KEEP else value
+
+
 def plain(value):
     if isinstance(value, (tuple, list)):
         return [plain(each) for each in value]
@@ -253,7 +274,7 @@ def messages(path):
             break
         if value is None:
             break
-        found.append("skipped" if value is appserver.SKIPPED else value)
+        found.append("skipped" if value is appserver.SKIPPED else shallow(value))
     return {"messages": found, "said": list(LOGGED)}
 
 

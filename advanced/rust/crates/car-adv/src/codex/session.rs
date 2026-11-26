@@ -281,7 +281,7 @@ impl Session {
                 Arc::clone(&self.events),
                 Arc::clone(&self.counts),
             );
-            self.reader = Some(std::thread::spawn(move || {
+            self.reader = Some(car_machine::stack::spawn_deep(move || {
                 read(stdout, input, send, events, counts)
             }));
         }

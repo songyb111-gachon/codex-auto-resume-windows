@@ -16,6 +16,7 @@ pub mod pytext;
 #[rustfmt::skip]
 mod pytext_tables;
 pub mod pyval;
+pub mod stack;
 pub mod vocab;
 pub mod winpath;
 #[rustfmt::skip]

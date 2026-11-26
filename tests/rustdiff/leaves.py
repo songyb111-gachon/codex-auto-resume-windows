@@ -29,11 +29,31 @@ def norm(value):
         return {key: norm(each) for key, each in value.items()}
     return value
 
+KEEP = 64
+
+def nesting(value):
+    best, stack = 0, [(value, 0)]
+    while stack:
+        node, level = stack.pop()
+        if isinstance(node, dict):
+            best = max(best, level + 1)
+            stack.extend((each, level + 1) for each in node.values())
+        elif isinstance(node, (list, tuple, set, frozenset)):
+            best = max(best, level + 1)
+            stack.extend((each, level + 1) for each in node)
+    return best
+
+def shallow(value):
+    # The runner's own `json.loads` may be 3.13's (2,998 levels): a value nested past KEEP levels is answered as the one-key
+    # object "$nested" and its depth, as car-harness's `shallow` does.
+    depth = nesting(value)
+    return {"$nested": depth} if depth > KEEP else value
+
 def run(cases, ops):
     results = []
     for case in cases:
         try:
-            results.append({"ok": norm(ops[case[0]](*case[1:]))})
+            results.append({"ok": norm(shallow(ops[case[0]](*case[1:])))})
         except Exception as error:
             results.append({"error": type(error).__name__})
     return results
