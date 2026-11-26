@@ -1,7 +1,7 @@
 """Which Python an installation runs under (v0.6.23): the one record, its two readers, and the launcher that takes it up.
 
 The record is the advanced edition's to write (control/pythons.py); here is what both editions' code does with it. Every
-fallback ends at the bundled runtime, in Python and in C#, and the launcher hands the watcher to a chosen Python only on the
+fallback ends at the bundled runtime, and the launcher hands the watcher to a chosen Python only on the
 plug's word and takes it back when it does not come up. No real home, registry or watcher: every home is a temporary folder
 and every process a stand-in.
 
@@ -27,7 +27,6 @@ if str(ROOT / "src") not in sys.path:
 from codex_auto_resume import chosen_runtime as chosen  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, NULL, Plug, guard  # noqa: E402
 
-CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 VERSION = "3.15.2"
 
@@ -110,105 +109,23 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(chosen.line_of("3.14.10"), "3.14")
 
 
-@unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")
-class CSharpReaderTests(unittest.TestCase):
-    """gui/RuntimeChoice.cs, compiled as every launcher compiles it, gives the same answers."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.made = tempfile.TemporaryDirectory()
-        cls.addClassCleanup(cls.made.cleanup)
-        folder = Path(cls.made.name)
-        probe = folder / "Probe.cs"
-        probe.write_text('namespace CodexAutoResume { internal static class Probe { static int Main(string[] a) { '
-                         'System.Console.Write(a.Length > 1 ? RuntimeChoice.BundledPython(a[0]) : RuntimeChoice.Python(a[0])); '
-                         'return 0; } } }', encoding="utf-8")
-        cls.exe = folder / "probe.exe"
-        subprocess.run([str(CSC), "/nologo", "/target:exe", "/platform:x64", "/reference:System.dll", "/out:" + str(cls.exe),
-                        str(probe), str(ROOT / "gui" / "RuntimeChoice.cs")],
-                       check=True, capture_output=True, timeout=180, creationflags=NO_WINDOW)
-
-    def setUp(self):
-        made = tempfile.TemporaryDirectory()
-        self.addCleanup(made.cleanup)
-        self.folder = Path(made.name) / "home"
-
-    def answer(self, home) -> str:
-        return subprocess.run([str(self.exe), str(home)], capture_output=True, text=True, encoding="locale", errors="replace", timeout=30,
-                              creationflags=NO_WINDOW, check=True).stdout
-
-    def bundled(self, home) -> str:
-        return str(home / "runtime" / "python.exe")
-
-    def test_a_complete_chosen_runtime_is_the_answer(self):
-        home = make_home(self.folder)
-        self.assertEqual(self.answer(home), str(home / "runtimes" / VERSION / "python.exe"))
-
-    def test_no_record(self):
-        home = make_home(self.folder, record=False)
-        self.assertEqual(self.answer(home), self.bundled(home))
-
-    def test_a_standard_installation_never_takes_a_record(self):
-        """Fails with AdvancedInstalled reverted: a record left behind by an edition change would still move it."""
-        home = make_home(self.folder, advanced=False)
-        self.assertEqual(self.answer(home), self.bundled(home))
-
-    def test_every_record_that_is_no_record(self):
-        home = make_home(self.folder)
-        record = home / "runtimes" / "chosen.json"
-        for text in ("", "not json", "[]", '{"version": 3}', '{"version": "3.15"}', '{"version": "2.7.18"}',
-                     '{"version": "../../evil"}', '{"other": "3.15.2"}', '{"version": "3.15.2", "pad": "%s"}' % ("x" * 5000)):
-            with self.subTest(text[:30]):
-                record.write_text(text, encoding="utf-8")
-                self.assertEqual(self.answer(home), self.bundled(home))
-
-    def test_an_incomplete_runtime_whichever_file_is_gone(self):
-        for name in chosen.required(VERSION):
-            with self.subTest(name), tempfile.TemporaryDirectory() as folder:
-                home = make_home(Path(folder) / "home")
-                (home / "runtimes" / VERSION / name).unlink()
-                self.assertEqual(self.answer(home), self.bundled(home))
-
-    def test_no_app_folder_at_all(self):
-        home = make_home(self.folder)
-        import shutil
-        shutil.rmtree(home / "app")
-        self.assertEqual(self.answer(home), self.bundled(home))
-
-    def test_the_two_readers_ask_for_the_same_files(self):
-        """Fails when a required file is added on one side only."""
-        text = (ROOT / "gui" / "RuntimeChoice.cs").read_text(encoding="utf-8")
-        self.assertIn('"python.exe", "pythonw.exe", stem + ".dll", stem + "._pth", stem + ".zip"', text)
-
-
 class WhoAsksTests(unittest.TestCase):
     def read(self, name) -> str:
         return (ROOT / name).read_text(encoding="utf-8")
 
-    def test_the_bridges_and_launchers_go_through_the_reader(self):
-        """Fails with any of them put back on the fixed path."""
-        for name in ("gui/McpLauncher.cs", "gui/HookLauncher.cs"):
-            with self.subTest(name):
-                self.assertIn("RuntimeChoice.Python(home)", self.read(name))
-                self.assertNotIn('"runtime", "python.exe"', self.read(name))
-        for name in ("gui/Dashboard.cs", "gui/SettingsApp.cs"):
-            with self.subTest(name):
-                self.assertIn("RuntimeChoice.Python(root)", self.read(name))
-
-    def test_what_must_outlive_a_broken_choice_stays_on_the_bundled_runtime(self):
-        """Repair and the setup window's own step run on the bundled runtime, so a broken choice cannot stop them."""
-        self.assertIn('Path.Combine(root, "runtime", "python.exe")', self.read("gui/DashboardMaintenance.cs"))
-        self.assertIn('Path.Combine(Path.Combine(home, "runtime"), "python.exe")', self.read("gui/InstallerFlow.cs"))
-
-    def test_the_mcp_launcher_is_built_with_the_reader(self):
-        self.assertIn("gui\\RuntimeChoice.cs", self.read("build/make_gui.ps1"))
-
-    def test_the_long_lived_bridge_leaves_a_broken_choice(self):
-        """Fails with FailedLocked reverted: a broken chosen Python would keep the page, and its Back, out of reach."""
-        text = self.read("gui/Dashboard.cs")
-        self.assertEqual(text.count("FailedLocked();"), 2, "both calls that can fail")
-        self.assertIn("python = bundled;", text)
-        self.assertIn("once.UseBundled();", text)
+    def test_the_window_asks_no_reader_since_the_rust_core(self):
+        """v0.6.27 (P6 S6.2a, D8): the window, its launchers and Repair run the installation's one core, so there is no C#
+        reader of the record to ask and no bundled runtime to fall back to. Fails with RuntimeChoice.cs, or a start on the
+        bundled interpreter's path, put back."""
+        self.assertFalse((ROOT / "gui" / "RuntimeChoice.cs").exists())
+        for path in sorted((ROOT / "gui").glob("*.cs")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path.name):
+                self.assertNotIn("RuntimeChoice", text)
+                self.assertNotIn('"runtime", "python.exe"', text)
+                self.assertNotIn('"runtime"), "python.exe"', text)
+        self.assertNotIn("RuntimeChoice", self.read("build/make_gui.ps1"))
+        self.assertNotIn("UseBundled", self.read("gui/Dashboard.cs"))
 
     def test_the_installer_knows_the_folder(self):
         """The watcher under a chosen Python is stopped for an update, uninstall removes the folder, the standard edition drops it."""
