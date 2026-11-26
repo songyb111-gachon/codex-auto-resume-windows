@@ -132,10 +132,9 @@ def _lane(files, proxied: bool, scratch: Path, debug: bool):
 
 
 def _outcomes(report) -> dict:
-    tests = report.get("tests") if isinstance(report, dict) else None
-    if isinstance(tests, dict):
-        return {key: (value.get("outcome") if isinstance(value, dict) else value) for key, value in tests.items()}
-    return {}
+    """scripts/test_parts.py's report: {"outcomes": {test id: "pass" | "fail" | "error" | "skip" | ...}}."""
+    outcomes = report.get("outcomes") if isinstance(report, dict) else None
+    return dict(outcomes) if isinstance(outcomes, dict) else {}
 
 
 def run(files, debug: bool) -> int:
@@ -147,7 +146,7 @@ def run(files, debug: bool) -> int:
             rust, calls = _lane([name], True, scratch, debug)
             want, got = _outcomes(python), _outcomes(rust)
             differ = sorted(key for key in set(want) | set(got) if want.get(key) != got.get(key))
-            bad = sorted(key for key, outcome in got.items() if outcome not in ("passed", "skipped", "expected"))
+            bad = sorted(key for key, outcome in got.items() if outcome not in ("pass", "skip", "expected-failure"))
             ok = bool(got) and not differ and not bad and sum(calls.values()) > 0
             worst = worst or (0 if ok else 1)
             print("%-52s %s  tests %d  calls %s%s" % (name, "GREEN" if ok else "NOT GREEN", len(got),

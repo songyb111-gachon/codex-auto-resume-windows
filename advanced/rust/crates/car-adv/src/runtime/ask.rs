@@ -130,11 +130,11 @@ impl<'a> Admission<'a> {
         if let Some(found) = self.memo.get() {
             return Ok(found);
         }
-        let found = match caught(
+        let found = match caught(runtime.faulted("admission").and_then(|()| {
             runtime
                 .state
-                .admission(field(self.record, "interruption_id")),
-        )? {
+                .admission(field(self.record, "interruption_id"))
+        }))? {
             Some(row) => (row, false),
             None => (None, true),
         };
@@ -429,14 +429,16 @@ impl Runtime {
         } else {
             Value::Null
         };
-        Ok(caught(self.state.admit(
-            map.get("interruption_id").unwrap_or(&Value::Null),
-            &Value::Str(definition.id.as_str().into()),
-            &answer.to_value().unwrap_or(Value::Null),
-            &rule,
-            &shape,
-            &Value::Float(self.now()),
-        ))?
+        Ok(caught(self.faulted("admit").and_then(|()| {
+            self.state.admit(
+                map.get("interruption_id").unwrap_or(&Value::Null),
+                &Value::Str(definition.id.as_str().into()),
+                &answer.to_value().unwrap_or(Value::Null),
+                &rule,
+                &shape,
+                &Value::Float(self.now()),
+            )
+        }))?
         .unwrap_or(false))
     }
 

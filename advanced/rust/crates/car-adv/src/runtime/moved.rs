@@ -160,6 +160,7 @@ impl Runtime {
         let word = Value::Str(movement.into());
         let id = field(record, "record_id");
         let moved = (|| -> Result<Option<crate::state::sql::Row>, crate::state::Error> {
+            self.faulted("record_moved")?;
             let mut moved = self.state.record_moved(
                 id,
                 &word,

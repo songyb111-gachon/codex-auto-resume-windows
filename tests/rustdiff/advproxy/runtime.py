@@ -86,7 +86,17 @@ class _Session:
 # ------------------------------------------------------------------ the state
 
 # The reference's answer shapes the JSON loses: a method whose answer is a tuple, or a set.
-TUPLES = {"all_off", "spends_since", "read"}
+TUPLES = {"move", "move_set", "all_off", "add_rule"}
+# A state method's name as car-adv's `StatePort` calls it, where the two differ (runtime/faults.rs).
+FAULT_NAMES = {"move": "move_to"}
+
+
+def _scoped_names(state, capability):
+    """What a `Scoped` of `capability` offers: the reference's own names for it (its reads are closures, made but
+    never called here), and nothing else - a view writes nothing."""
+    from codex_auto_resume_advanced.state import Scoped
+    made = Scoped(state, capability)
+    return set(made._reads) | {name for name in dir(Scoped) if not name.startswith("_")}
 SETS = set()
 
 
@@ -123,12 +133,35 @@ class StateProxy(_Session):
             if arguments and isinstance(arguments[0], sqlite3.Connection):
                 # A fixture writer on the test's own connection (`record_spend(connection, "main", ...)`): the
                 # reference's method, on that connection - the test's arrangement, not the subject.
-                return getattr(_reference_state(), name)(self, *arguments, **keywords)
+                reference = _reference_state()
+                if isinstance(inspect.getattr_static(reference, name, None), staticmethod):
+                    return getattr(reference, name)(*arguments, **keywords)
+                return getattr(reference, name)(self, *arguments, **keywords)
             return self._call(name, *arguments, **keywords)
         return call
 
-    def scoped(self, capability, **keywords):
-        raise NotImplementedError("advproxy: a Scoped made by a test itself is not forwarded (table.py)")
+    # `patch.object(runtime.state, "arming", side_effect=StateError(...))`: the mock is this object's own, for the
+    # test's own calls, and car-adv's runtime is told the method raises (its `faults`) until the patch ends.
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if not name.startswith("_") and self._owner_runtime() is not None:
+            effect = getattr(value, "side_effect", None)
+            raises = isinstance(effect, BaseException) or (isinstance(effect, type)
+                                                           and issubclass(effect, BaseException))
+            self._owner._call("fault", FAULT_NAMES.get(name, name), raises)
+
+    def __delattr__(self, name):
+        object.__delattr__(self, name)
+        if not name.startswith("_") and self._owner_runtime() is not None:
+            self._owner._call("fault", FAULT_NAMES.get(name, name), False)
+
+    def _owner_runtime(self):
+        owner = self.__dict__.get("_owner")
+        return owner if isinstance(owner, Runtime) and owner.__dict__.get("_session") is not None else None
+
+    def scoped(self, capability, on=None, verdict=None, armed=None):
+        """`Scoped(self, capability, on, verdict, armed)`: car-adv's, its callables asked back by its number."""
+        return MadeScoped(self, capability, on, verdict, armed)
 
     # A test that writes or reads the file itself (`_transaction`, `_read`) gets a connection of its own to the file
     # car-adv keeps, with the reference's transaction rule (state/session.py `_begin`); a static helper the reference
@@ -187,10 +220,20 @@ class StateProxy(_Session):
         return JournalMixin._prune_spend(*arguments, **keywords)
 
 
+def _scoped_answer(owner, line):
+    made = owner.__dict__.get("_scopes", {})[line["scoped"]]
+    return made.asked(line["name"], line["arg"]) if "arg" in line else made.asked(line["name"])
+
+
+def _hashable(key):
+    """A key JSON carried as a list is the reference's tuple (`(bucket, minutes)`)."""
+    return tuple(_hashable(each) for each in key) if isinstance(key, list) else key
+
+
 def _unpairs(value):
     if isinstance(value, dict):
         if set(value) == {"__pairs__"}:
-            return {_unpairs(key): _unpairs(item) for key, item in value["__pairs__"]}
+            return {_hashable(_unpairs(key)): _unpairs(item) for key, item in value["__pairs__"]}
         return {key: _unpairs(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_unpairs(item) for item in value]
@@ -233,7 +276,18 @@ def _shaped(name, found):
 PRIVATE = ("_transaction", "_read", "_prune", "_prune_spend")
 
 
-class AdvancedState(_Session):
+class _ReferenceClass(type):
+    """A class attribute the forwarder lacks is the reference class's (`AdvancedState._tables(connection)`, a static
+    helper a test runs on a connection of its own)."""
+
+    def __getattr__(cls, name):
+        reference = cls.__dict__.get("__advproxy_reference__")
+        if reference is None or name.startswith("__"):
+            raise AttributeError(name)
+        return getattr(reference, name)
+
+
+class AdvancedState(_Session, metaclass=_ReferenceClass):
     """`state.AdvancedState(paths, registry=REGISTRY, clock=time.time)`, a session of its own in advserve."""
 
     def __init__(self, paths, *, registry=_DEFAULT, clock=time.time, **options):
@@ -247,6 +301,8 @@ class AdvancedState(_Session):
     def answer(self, line):
         if line.get("ask") == "source" and line.get("name") == "clock":
             return {"value": self._proxy.clock()}
+        if line.get("ask") == "scoped":
+            return _scoped_answer(self, line)
         raise LookupError(line.get("ask"))
 
     def __getattr__(self, name):
@@ -277,6 +333,8 @@ class ArmingProxy:
     SOURCES = {"_policy": "policy", "_view": "view", "_measured": "measured", "_live": "live"}
 
     def __setattr__(self, name, value):
+        if name == "catalogs" and "_runtime" in self.__dict__ and value is not None:
+            self._runtime._catalogs.fill(value)
         if name in ArmingProxy.SOURCES:
             self._runtime._arming_options[ArmingProxy.SOURCES[name]] = value
             return
@@ -341,6 +399,30 @@ ARMING_SHAPES = {"current": _states, "read": _read, "measured": _measured, "chec
 
 # ------------------------------------------------------------------ the runtime
 
+class _Catalogs:
+    """The catalogs car-adv reads: a folder of this runtime's own holding a copy of the handed-in catalogs' files, so
+    `runtime.arming.catalogs = other` (a test's) takes effect as it does on the reference's Arming - before car-adv
+    has read a language (it keeps what it read, as the reference's Catalogs keeps its own cache)."""
+
+    def __init__(self, catalogs):
+        import shutil
+        import tempfile
+        import weakref
+        self.folder = tempfile.mkdtemp(prefix="car-advproxy-catalogs-")
+        weakref.finalize(self, shutil.rmtree, self.folder, True)
+        self.fill(catalogs)
+
+    def fill(self, catalogs):
+        import shutil
+        from pathlib import Path
+        self.catalogs = catalogs
+        for old in Path(self.folder).glob("*"):
+            if old.is_file():
+                old.unlink()
+        for each in Path(catalogs.directory).glob("*.json"):
+            shutil.copyfile(each, Path(self.folder) / each.name)
+
+
 class _RustThing:
     """An object car-adv made and handed the test (the errands of a tick, a channel of its own): asked by number."""
 
@@ -380,13 +462,14 @@ class Runtime(_Session):
         self._measure = dict(session_factory=measure_session_factory, launcher=measure_launcher,
                              backend=measure_backend, cli=measure_cli, ipc=measure_ipc, hands=measure_hands,
                              evidence_dir=evidence_dir)
-        self._codes, self._made_raised, self._objects, self._views = {}, {}, {}, {}
+        self._code, self._made_raised, self._objects, self._views = {}, {}, {}, {}
         self._backend, self._guard = None, None
         self.state = StateProxy(self, paths, registry, clock)
         catalogs = arming.get("catalogs") or statement.CATALOGS
+        self._catalogs = _Catalogs(catalogs)
         self._session = PIPE.session(self)
         PIPE.request(self._session, "open", kind="runtime", home=str(paths.home), definitions=definitions(registry),
-                     catalogs=str(catalogs.directory), view=arming.get("view") is not None,
+                     catalogs=str(self._catalogs.folder), view=arming.get("view") is not None,
                      measured=arming.get("measured") is not None, live=arming.get("live") is not None)
         self.arming = ArmingProxy(self)
         from codex_auto_resume_advanced.ledger import ClaimLedger
@@ -480,7 +563,7 @@ class Runtime(_Session):
         self._call("conversation_off", thread_id)
 
     def _code_of(self, definition):
-        if definition.id not in self._codes:
+        if definition.id not in self._code:
             try:
                 self._call("make", definition.id)
             except BaseException:
@@ -488,12 +571,12 @@ class Runtime(_Session):
                 if made is not None:
                     raise made
                 raise
-        return self._codes[definition.id]
+        return self._code[definition.id]
 
     def action(self, definition):
-        if definition.id not in self._codes:
+        if definition.id not in self._code:
             self._call("action", definition.id)
-        return self._codes[definition.id]
+        return self._code[definition.id]
 
     def claim(self, connection, record, now, carried):
         raise NotImplementedError("advproxy: P11 runs on core's own connection, in core's process (table.py)")
@@ -507,6 +590,8 @@ class Runtime(_Session):
     # -------------------------------------------------------------- what car-adv asks back
     def answer(self, line):
         kind = line.get("ask")
+        if kind == "scoped":
+            return _scoped_answer(self, line)
         if kind == "hook":
             return self._hook(line["capability"], line["hook"], line.get("args") or [])
         if kind == "source":
@@ -553,7 +638,7 @@ class Runtime(_Session):
             raise
         if code is None:
             return None
-        self._codes[capability] = code
+        self._code[capability] = code
         return {"own": [name for name in OPTIONAL if _own(code, name) is not None]}
 
     def _decoded(self, value):
@@ -571,7 +656,7 @@ class Runtime(_Session):
 
     def _hook(self, capability, hook, arguments):
         from codex_auto_resume.domain.plug import Point
-        code = self._codes[capability]
+        code = self._code[capability]
         arguments = [self._decoded(each) for each in arguments]
         if hook == "taken" and arguments:
             arguments[0] = Point(arguments[0])
@@ -624,6 +709,35 @@ class Runtime(_Session):
         return {"value": plain(found)}
 
 
+class MadeScoped:
+    """A `Scoped` a test made itself (`state.scoped(...)`), as car-adv's: every call by its name, `on`, `verdict` and
+    `armed` answered here (pipe `scoped` questions, through the owner's `answer`)."""
+
+    def __init__(self, state, capability, on, verdict, armed):
+        self._state, self.capability = state, capability
+        self._callables = {"on": on, "verdict": verdict, "armed": armed}
+        owner = state._owner
+        scopes = owner.__dict__.setdefault("_scopes", {})
+        self._number = len(scopes) + 1
+        scopes[self._number] = self
+
+    def __getattr__(self, name):
+        if name.startswith("_") or name not in _scoped_names(self._state, self.capability):
+            raise AttributeError(name)
+
+        def call(*arguments, **keywords):
+            found = PIPE.request(self._state._session, "made_scoped", scoped=self._number,
+                                 capability=self.capability, method=name, args=plain(list(arguments)),
+                                 kwargs=plain(keywords),
+                                 **{key: value is not None for key, value in self._callables.items()})
+            return _shaped(name, found)
+        return call
+
+    def asked(self, name, arg=_DEFAULT):
+        found = self._callables[name]
+        return {"value": plain(found() if arg is _DEFAULT else found(arg))}
+
+
 class ScopedProxy:
     """A code's own `state.Scoped`, as car-adv's (`state::calls::scoped_call`), through the binding it was made with."""
 
@@ -631,7 +745,7 @@ class ScopedProxy:
         self._runtime, self.capability = runtime, capability
 
     def __getattr__(self, name):
-        if name.startswith("_"):
+        if name.startswith("_") or name not in _scoped_names(self._runtime.state, self.capability):
             raise AttributeError(name)
 
         def call(*arguments, **keywords):

@@ -29,6 +29,7 @@
 
 pub mod ask;
 pub mod claim;
+pub mod faults;
 pub mod lists;
 pub mod measurement;
 pub mod moved;
@@ -281,7 +282,11 @@ pub(crate) type Acted = (Point, String, Option<String>);
 pub struct Runtime {
     // Declared first, so it is dropped first: it borrows the boxes below.
     pub(crate) arming: Arming<'static>,
+    // Borrowed by `arming` (as the state it reaches), so declared after it and before what it borrows.
+    _faulted: Box<faults::Faulted<'static>>,
     pub state: Box<AdvancedState>,
+    /// What a test made a state method raise (the advanced proxy's `patch.object`); empty in the product.
+    pub faults: Box<faults::Faults>,
     pub registry: Arc<Registry>,
     _catalogs: Box<Catalogs>,
     _edges: Box<dyn Edges + Send + Sync>,
@@ -352,10 +357,19 @@ impl Shared {
                 .live
                 .map(|live| -> ViewFn { Box::new(move || live()) }),
         };
+        let faults = Box::new(faults::Faults::default());
+        // SAFETY: the state and the faults are boxed and outlive `faulted`, declared before them in `Runtime`.
+        let faulted = unsafe {
+            Box::new(faults::Faulted {
+                inner: &*(state.as_ref() as *const AdvancedState),
+                faults: &*(faults.as_ref() as *const faults::Faults),
+            })
+        };
         // SAFETY: the boxes and the Arc outlive `arming`, which is declared first in `Runtime` and so dropped first, and
         // nothing replaces or moves their contents while the runtime lives.
         let arming = unsafe {
-            let state_ref: &'static AdvancedState = &*(state.as_ref() as *const AdvancedState);
+            let state_ref: &'static faults::Faulted<'static> =
+                &*(faulted.as_ref() as *const faults::Faulted<'static>);
             let edges_ref: &'static (dyn Edges + Send + Sync) =
                 &*(edges.as_ref() as *const (dyn Edges + Send + Sync));
             let registry_ref: &'static Registry = &*(registry.as_ref() as *const Registry);
@@ -366,7 +380,9 @@ impl Shared {
             gil: Gil::default(),
             runtime: Runtime {
                 arming,
+                _faulted: faulted,
                 state,
+                faults,
                 registry,
                 _catalogs: catalogs,
                 _edges: edges,
@@ -462,6 +478,14 @@ impl CoreView for Swept<'_> {
 impl Runtime {
     pub fn now(&self) -> f64 {
         (self.clock)()
+    }
+
+    /// A state method a test made raise (`faults`), as the state's own refusal.
+    pub(crate) fn faulted(&self, method: &str) -> Result<(), StateError> {
+        if self.faults.raises(method) {
+            return Err(StateError::state("locked"));
+        }
+        Ok(())
     }
 
     /// `self.arming`.

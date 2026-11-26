@@ -85,16 +85,6 @@ impl Session {
         self.objects.borrow_mut().insert(number, held);
         object([("rust", int(number)), ("kind", text(kind))])
     }
-
-    fn state(&self) -> Result<&AdvancedState, Fault> {
-        match &self.kind {
-            Kind::State(state) => Ok(state),
-            Kind::Runtime(_) => Err(Fault::new(
-                "TypeError",
-                "a runtime's state is reached by `runtime`",
-            )),
-        }
-    }
 }
 
 thread_local! {
@@ -272,6 +262,51 @@ fn dispatch(line: &Value) -> Result<Value, Fault> {
                 Kind::Runtime(shared) => {
                     let shared = shared.clone();
                     Ok(shared.enter(|runtime| calls::call(&runtime.state, &method, c))?)
+                }
+            }
+        }
+        "made_scoped" => {
+            // `state.scoped(capability, on=..., verdict=..., armed=...)` made by the test itself: its three callables
+            // asked back by the scoped object's number (the ones it handed none of are None).
+            let session = session(line)?;
+            let c = Call {
+                args: &args,
+                kwargs: &kwargs,
+            };
+            let number = field(line, "scoped").clone();
+            let has = |name: &str| matches!(field(line, name), Value::Bool(true));
+            let ask_scoped = |name: &str, arg: Option<&Value>| {
+                let mut fields = vec![
+                    ("session", int(session.id)),
+                    ("scoped", number.clone()),
+                    ("name", text(name)),
+                ];
+                if let Some(arg) = arg {
+                    fields.push(("arg", arg.clone()));
+                }
+                wire::ask("scoped", fields)
+                    .map(|found| proxied::plain_of(&found))
+                    .unwrap_or(Value::Null)
+            };
+            let on = || car_machine::pyval::truthy(&ask_scoped("on", None));
+            let verdict = |measurement: &Value| ask_scoped("verdict", Some(measurement));
+            let armed =
+                |other: &Value| car_machine::pyval::truthy(&ask_scoped("armed", Some(other)));
+            let call_in = |state: &AdvancedState| {
+                let scoped = car_adv::state::scoped::Scoped {
+                    state,
+                    capability: field(line, "capability").clone(),
+                    on: has("on").then_some(&on as &dyn Fn() -> bool),
+                    verdict: has("verdict").then_some(&verdict as &dyn Fn(&Value) -> Value),
+                    armed: has("armed").then_some(&armed as &dyn Fn(&Value) -> bool),
+                };
+                calls::scoped_call(&scoped, &method, c)
+            };
+            match &session.kind {
+                Kind::State(state) => Ok(call_in(state)?),
+                Kind::Runtime(shared) => {
+                    let shared = shared.clone();
+                    Ok(shared.enter(|runtime| call_in(&runtime.state))?)
                 }
             }
         }
@@ -653,6 +688,16 @@ fn runtime_call(
         "eligibility" => Ok(maybe_words(shared.enter(|runtime| runtime.eligibility())?)),
         "conversation_off" => {
             shared.enter(|runtime| runtime.conversation_off(&c.opt(Some(0), "thread_id")))?;
+            Ok(Value::Null)
+        }
+        "fault" => {
+            let method = c.need(Some(0), "method")?;
+            let raises = car_machine::pyval::truthy(&c.or(Some(1), "raises", Value::Bool(true)));
+            shared.enter(|runtime| {
+                runtime
+                    .faults
+                    .set(word(&method).unwrap_or_default(), raises)
+            });
             Ok(Value::Null)
         }
         "make" => {
