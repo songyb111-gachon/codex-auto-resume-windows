@@ -2775,3 +2775,77 @@ python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 sta
 bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
+
+The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
+Nothing here was ever run for real: no codex.exe, no Codex app, no turn, no Codex home.
+
+### Ported (module -> crate)
+
+| Python | car-adv |
+|---|---|
+| `evidence.py` (whole) | `evidence` (`build`, `path_for`, `complete`, `outcome`, `write`, `CLOSED_WORDS`, the alias and the diagnostics' four expressions as `search`; records written text-mode, CRLF) |
+| `measure.py` `Context`, `probe`, `run`, `complete`, `_threads_valid`, `_versions`, `_iso`, `_completed_status`, `_goal_status`, `_await_taken`, `_await_turn` | `measure` (seams: `SessionFactory`/`MeasureSession`, `World` = time/monotonic/sleep/uuid4, `Hand`s, `Cli`, `Look`, `BackendView`, `Timing` = the module constants the tests patch; `Raised` = what `probe` turns into a verdict and what leaves `run`) |
+| probes M1 M2 M2b M3 M5 M6 M7 MH MA MQ MT MW | `measure` |
+| MP1 MP2 MP3, MU MN MR (`_mcp_servers`, `_settings_tool`, `_read`, `_running`, `_changed`) | `measure_usage.rs` (a `#[path]` child of `measure`, so no `lib.rs` edit) |
+| MIPC MAWS MCLOUD (`str.splitlines` as Python splits) | `measure_looks.rs` |
+| M6B (`_word`, `_settings`, `_follow`, `_unsubscribed`, `_app_running`) | `measure_stage4.rs` |
+| `runtime.py` `run_measurement`, `complete_measurement` | `runtime::measurement` (`Measuring` = the runtime's `measure_*=`/`evidence_dir=` seams, kept beside the runtime since `runtime/mod.rs` is S7.2a's; `Live` = the `measure.live_*` builders) |
+
+**Not ported (28 probes, `Raised::Unported` from `run`), and what each waits for:** M4 (`_lock_users` over
+`resource_users`, the m4_hook_note hand), ME (S7.2e1's `emptyreply.EMPTY_KINDS`), MS (S7.2e1's `subagent.kind_of`), MK,
+MO (pairing's `session_kind`), MX, MXA, MF, M3B, MB, MB2 (S7.2e1's `retries`, S7.2b's `account.parse`, a scratch home),
+MC1, MC2 (`_Watch`), MQO, MQP (threads), MQG, MTOK (sqlite, rollouts), MOPEN, MAL, MALR (S7.2b's `restart`), MWAKE, MHK,
+M4B, MANCHOR (S7.2e2's `anchor`), MIMG (`images`), MSTEER, MSTEER2 (`ipc`), MGAVE, MPROFILE, MSWAP (S7.2b's `authfile`,
+`swap`, `account`), MAUTO; and the `live_*` builders (`live_backend`, `live_session_factory`, `live_launcher`,
+`live_cli`, `live_ipc`, `_ipc_look`, `live_hands`, `_profile_read`, `_account_swap`, `_wait_for_look`), which touch the
+real install and are S7.3d's to wire through `runtime::measurement::Live`. The seat's time went to the harness, the
+diffs and these 22 probes; the list is in `tests/rustdiff/advledger_s74.py` (`PORTED`) and `measure::ported()`.
+
+### The seams
+
+* `evidence::default_directory()`: the first `docs/evidence/live` above the running program (the reference's is four
+  parents above its own source file, which a binary does not have and must not carry: check_rebuild); else a path that
+  is not there, so `write` refuses as the reference refuses an installed copy.
+* `measure::versions(backend, product_version, windows_build)`: `config.version()` and `sys.getwindowsversion()` are the
+  caller's (`Live::product_version`, `Live::windows_build`; car-platform has no Windows-version reader yet).
+* `BackendView::app_identity`: core's pairing look (`backend.app_identity()`), None where the backend has none.
+* `MeasureSession` is implemented for adv72d's `codex::session::Session` (enter = initialise, `declined_count`).
+
+### The proof (`tests/rustdiff/advmeasure.py`, `diffs_advmeasure.py`, example `advmeasure`)
+
+The reference is the tag's own `measure`/`evidence` (`advref.run`, bundled 3.14.10) with `measure.time`, `measure.uuid`,
+`measure.config`, `measure.sys` and the timing constants replaced; the probe drives car-adv's `measure` with the same
+script. Each case compares the answer (or the class raised) and **every call the fakes saw, in order** (opens, enter,
+calls with params, drains, declined counts, exit, clock readings, sleeps, ids, hands, CLI, IPC, launcher, app look),
+then every evidence file left, byte for byte. `run.py --reference v0.6.26 --reference-python bundled -k
+MeasureEvidenceDiff -k MeasureProbeDiff -k MeasureUsageDiff -k MeasureLookDiff`: **Ran 12, OK** (151 s), about 2,100 cases:
+evidence over ~70 values/texts, 448 builds, 16 seeded files x 6 completions, 12 records; the 22 probes each through no
+session, `{}`, 12 odd answers, 6 raises, failed opens and enters, a thread, versions read or unreadable, a missing
+folder, a pre-1970 clock; M2b x 32 goal/queue scripts, M6 x 108, M6B x 75, MW x 23, MP1 x 145 listings, MU x 17, MN x
+~130, MR x 50, MIPC/MAWS/MCLOUD x 270 helps. Each batch must be mostly answered, not refused at the door: the first
+green runs were vacuous (the cases spelt `M1` where the word is `m1`, so both sides raised ValueError) and the
+mutation checks said so; with the words right the diffs found four port bugs, all fixed: `_iso` refused times before
+1970 (the reference's gmtime takes down to -43200), `complete` read the record with serde (now car-machine's
+`compat::loads`, which takes NaN, the infinities and a lone surrogate as `json.loads` does), a lone surrogate failed
+before the file was opened (now after, the file emptied), and MR refused a reading with no windows (`full` reads
+`windows or ()`).
+
+Safety (the main session's notice of 2026-11-27): the reference refuses `inuse.backend`, `pairing.processes_named`,
+`resource_users`, `process_identity`, `win.inventory.resource_users` and every `measure.live_*`, and both sides run
+with `CODEX_AUTO_RESUME_CODEX_EXE` naming a file that is not there. car-adv's `measure` has no discovery of its own:
+it reaches an engine only through a `SessionFactory`/`Live` its caller hands in, and the harness hands only fakes.
+
+Mutation checks (scratchpad `car-v0627-s74-mutate.py`, each alone, `advmeasure` rebuilt, its diff class run, the file restored): an alias with a final newline refused, records written with LF, a refusal by Codex recorded as blocked, M6 never interrupting its turn, MU reading twice, MR counting down by two, MCLOUD ignoring `unknown`: **7 of 7 caught** (on the second run; the first, on the vacuous cases, caught 1 of 7 and so exposed them).
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_s74.py --reference v0.6.26`.
+
+### For later seats
+
+* The proxy seat (S7.2a3): the 21 files of `advledger_s74.py`; every one waits for the proxy, most also for probes above.
+* S7.3a: the Dashboard's `measure` / `measure-verdict` call `Runtime::run_measurement` / `complete_measurement` with a
+  `Measuring`; a `Raised`'s `class()` is the reference's exception class.
+* S7.3d: implement `runtime::measurement::Live` (the real session over car-codex's backend, MW's WMI chain, the hands).
+* The next S7.4 seat: port the probes above in that order, each a case family in `diffs_advmeasure.py`, and move it
+  into `measure::ported()` and `advledger_s74.PORTED`.
