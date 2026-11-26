@@ -60,6 +60,7 @@ gui/HostSurfaces.cs
 gui/SurfaceRender.cs
 gui/SurfaceRenderWindows.cs
 gui/SurfaceRenderTray.cs
+gui/SurfaceRenderServe.cs
 
 [generated]
 gui/Brand.cs
