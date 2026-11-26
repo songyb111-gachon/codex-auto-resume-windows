@@ -468,6 +468,10 @@ namespace CodexAutoResume
             pushed = null;
         }
 
+        /// When the light last breathed (_breathed): the moment a redraw draws the light at. The render mode sets it on a
+        /// card it draws for a live one's frame (the live-path proof).
+        internal double Breathed { get { return breathed; } set { breathed = value; } }
+
         /// Whether the status light moves now; its band alone drawn again once a breath's frame has passed (breathe).
         internal bool Breathe(double nowMs)
         {
@@ -568,6 +572,16 @@ namespace CodexAutoResume
 
         private static double Round4(double value) { return CardPlan.RoundTo(value, 4); }
 
+        /// Both layers for one frame, as paint draws them - the body at the frame's scale, then the shadow at its depth's
+        /// level - and that level. The render mode draws a card for a given frame through it.
+        internal int PaintLayers(CardFrame frame)
+        {
+            int level = CardPlan.DepthLevel(frame.Depth);
+            PaintBody(Round4(frame.Scale));
+            if (Shadows.Count > 0) PaintShadow(level);
+            return level;
+        }
+
         /// Both layers drawn for `nowMs`: the frame, where the card goes, and a key for the frame (paint).
         internal Dictionary<string, object> Paint(double nowMs)
         {
@@ -576,9 +590,7 @@ namespace CodexAutoResume
             int[] vector = CardPlan.RiseVector(Edge);
             int push = SurfaceMath.Round(frame.Offset * Scale);
             int x = place[0] + vector[0] * push, y = place[1] + vector[1] * push;
-            int level = CardPlan.DepthLevel(frame.Depth);
-            PaintBody(Round4(frame.Scale));
-            if (Shadows.Count > 0) PaintShadow(level);
+            int level = PaintLayers(frame);
             string key = x + "," + y + "," + CardPlan.RoundTo(frame.Alpha, 3).ToString("R") + "," + Round4(frame.Scale).ToString("R") + "," + level;
             return new Dictionary<string, object> { { "frame", frame }, { "x", x }, { "y", y }, { "margin", Margin }, { "key", key } };
         }
