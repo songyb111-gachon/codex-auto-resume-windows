@@ -31,9 +31,43 @@ category}, ...] | "raise"}. The view's `thread_enabled` is `scenario["enabled"]`
 """
 from __future__ import annotations
 
+# A path where no codex.exe is, for every run of the traces (reference and Rust).
+NO_CODEX = r"C:\nonexistent-codex-auto-resume-trace\codex.exe"
+
 REFERENCE_WORLD = r'''
 import importlib
+import os
+import sys
 import types
+
+# No real Codex in a trace (the main session's rule of 2026-11-27): the engine's path points nowhere, and core's
+# discovery - inuse.backend, processes_named, resource_users, process_identity - refuses, wherever it was bound.
+os.environ["CODEX_AUTO_RESUME_CODEX_EXE"] = r"C:\nonexistent-codex-auto-resume-trace\codex.exe"
+
+
+def _refuse(*arguments, **keywords):
+    raise RuntimeError("refused: no real Codex in a trace")
+
+
+def refuse_discovery():
+    import codex_auto_resume.win.inventory as inventory
+    import codex_auto_resume.win.kernel as kernel
+    import codex_auto_resume_advanced.codex.inuse as inuse_module
+    originals = {inventory.resource_users, kernel.process_identity, kernel.processes_named, inuse_module.backend}
+    try:
+        import codex_auto_resume.windows  # noqa: F401 - a re-export, swept below
+    except Exception:
+        pass
+    for module in list(sys.modules.values()):
+        for name in ("resource_users", "process_identity", "processes_named", "backend"):
+            try:
+                if getattr(module, name, None) in originals:
+                    setattr(module, name, _refuse)
+            except Exception:
+                continue
+
+
+refuse_discovery()
 
 from codex_auto_resume_advanced.codex.turns import TurnsUnavailable
 
@@ -194,6 +228,7 @@ class World:
 
     def __init__(self, seams, asked, clock):
         self.seams, self.asked, self.clock = seams, asked, clock
+        refuse_discovery()
         self.calls = {}
         self.follower = FakeFollower(self)
         self.turns = FakeTurns(self)

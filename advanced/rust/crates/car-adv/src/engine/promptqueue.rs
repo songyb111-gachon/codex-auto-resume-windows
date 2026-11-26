@@ -147,7 +147,7 @@ fn plus(a: &Value, b: i64) -> Result<Value, ()> {
 }
 
 /// `could_go(row, queue)`: when a ready occurrence could first go.
-pub fn could_go(row: &Row, queue: &[Row]) -> Result<f64, ()> {
+pub(crate) fn could_go(row: &Row, queue: &[Row]) -> Result<f64, ()> {
     let due = number(sql::get(row, "due_at"))?;
     let waiting = match sql::get(row, "waiting_since") {
         found if car_machine::pyval::truthy(found) => number(found)?,
@@ -377,15 +377,12 @@ impl PromptQueue {
         }
         if car_machine::pyval::truthy(sql::get(row, "depends")) {
             let position = sql::get(row, "position");
-            let last = queue
-                .iter()
-                .filter(|other| {
-                    matches!(
-                        car_machine::pyval::order(sql::get(other, "position"), position),
-                        Ok(Some(std::cmp::Ordering::Less))
-                    )
-                })
-                .last();
+            let last = queue.iter().rev().find(|other| {
+                matches!(
+                    car_machine::pyval::order(sql::get(other, "position"), position),
+                    Ok(Some(std::cmp::Ordering::Less))
+                )
+            });
             if let Some(last) = last {
                 if state_in(last, &STILL_TO_GO) {
                     return Ok(None);
@@ -679,15 +676,12 @@ impl Code for PromptQueue {
                 }
                 if car_machine::pyval::truthy(sql::get(row, "depends")) {
                     let position = sql::get(row, "position");
-                    let last = queue
-                        .iter()
-                        .filter(|other| {
-                            matches!(
-                                car_machine::pyval::order(sql::get(other, "position"), position),
-                                Ok(Some(std::cmp::Ordering::Less))
-                            )
-                        })
-                        .last();
+                    let last = queue.iter().rev().find(|other| {
+                        matches!(
+                            car_machine::pyval::order(sql::get(other, "position"), position),
+                            Ok(Some(std::cmp::Ordering::Less))
+                        )
+                    });
                     if let Some(last) = last
                         && (state_in(last, &STILL_TO_GO)
                             || !sql::py_eq(

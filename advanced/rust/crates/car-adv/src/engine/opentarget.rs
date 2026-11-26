@@ -120,6 +120,9 @@ pub fn own_candidate(row: &Row, start_codex: bool) -> bool {
         && text_of(row, "reason") != Some(PromptReason::TurnRunning.as_str())
 }
 
+/// A look at one conversation (`thread`) a seam answers.
+pub type ThreadLook<T> = Arc<dyn Fn(&Value) -> T + Send + Sync>;
+
 /// The seams the code is made with.
 #[derive(Clone)]
 pub struct OpenWorld {
@@ -130,9 +133,9 @@ pub struct OpenWorld {
     /// `app_running()`: True, False, or None where it cannot be read.
     pub app_running: Arc<dyn Fn() -> Option<bool> + Send + Sync>,
     /// `open_link(thread_id)`: whether the link was handed; Err where it raised.
-    pub open_link: Arc<dyn Fn(&Value) -> Result<bool, ()> + Send + Sync>,
+    pub open_link: ThreadLook<Result<bool, ()>>,
     /// `app_holds(paths, thread)`: True, False, or None where that cannot be told.
-    pub app_holds: Arc<dyn Fn(&Value) -> Option<bool> + Send + Sync>,
+    pub app_holds: ThreadLook<Option<bool>>,
 }
 
 impl OpenWorld {

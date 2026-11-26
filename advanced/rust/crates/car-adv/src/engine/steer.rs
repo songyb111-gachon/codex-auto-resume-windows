@@ -17,6 +17,7 @@ use car_machine::json::Value;
 use car_policy::plug::{Errand, Guards, HookFailed, View};
 
 use super::emptyreply::{enabled, rebind, word};
+use super::opentarget::ThreadLook;
 use crate::capabilities::{Binding, Code, Raised, Said, Spoke};
 use crate::codex::ipc::{STEERED, Stop};
 use crate::state::scoped::Scoped;
@@ -61,13 +62,13 @@ pub type SteerFn =
 pub struct SteerWorld {
     pub steer: SteerFn,
     /// `latest_status(home, thread)`.
-    pub status: Arc<dyn Fn(&Value) -> Option<String> + Send + Sync>,
+    pub status: ThreadLook<Option<String>>,
     /// `latest_started(home, thread)`: when the latest turn began, as the history says it (an int, or anything else).
-    pub started: Arc<dyn Fn(&Value) -> Value + Send + Sync>,
+    pub started: ThreadLook<Value>,
     /// `holders(home, thread)`: how many hold the writer lock, or None.
-    pub holders: Arc<dyn Fn(&Value) -> Option<i64> + Send + Sync>,
+    pub holders: ThreadLook<Option<i64>>,
     /// `held_by_app(paths, thread)`.
-    pub app_holds: Arc<dyn Fn(&Value) -> bool + Send + Sync>,
+    pub app_holds: ThreadLook<bool>,
 }
 
 impl SteerWorld {

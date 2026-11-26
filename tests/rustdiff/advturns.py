@@ -232,7 +232,8 @@ def run_reference(scenario: dict, home: Path, catalog_dir: Path, scratch: Path) 
 
 def run_rust(scenario: dict, home: Path, catalog_dir: Path) -> dict:
     request = json.dumps({"scenario": scenario, "home": str(home), "catalogs": str(catalog_dir)}, ensure_ascii=False)
-    done = subprocess.run([str(ensure())], input=request.encode("utf-8"), capture_output=True,
+    environment = dict(os.environ, CODEX_AUTO_RESUME_CODEX_EXE=advturnsworld.NO_CODEX)
+    done = subprocess.run([str(ensure())], input=request.encode("utf-8"), capture_output=True, env=environment,
                           creationflags=NO_WINDOW, timeout=600)
     if done.returncode != 0:
         raise AssertionError("advturns failed (%d): %s" % (done.returncode,
