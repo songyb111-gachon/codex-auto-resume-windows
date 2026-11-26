@@ -456,6 +456,123 @@ pub fn switch(
     })
 }
 
+// ------------------------------------------------------------------------------------------------ the product's hands
+/// The product's own session hands: `Session(inuse.backend(paths), capability=...)` on the installation's Codex home,
+/// or `swap.default_session_for(paths)` on any other (core's Backend on that home with the Codex the installation
+/// drives, checked). `product_version` is what `config.version()` answers, the entry point's to give.
+pub struct Live {
+    pub installation: String,
+    pub settings_file: std::path::PathBuf,
+    pub capability: &'static str,
+    pub product_version: String,
+}
+
+impl Live {
+    /// account_switch's own sessions for the installation of `paths`.
+    pub fn new(paths: &car_config::Paths) -> Live {
+        Live::for_capability(paths, CAPABILITY)
+    }
+
+    /// `capability`'s own sessions for the installation of `paths`.
+    pub fn for_capability(paths: &car_config::Paths, capability: &'static str) -> Live {
+        let root = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|folder| folder.to_string_lossy().into_owned()))
+            .unwrap_or_default();
+        Live {
+            installation: paths.home.clone(),
+            settings_file: std::path::PathBuf::from(&paths.settings_file),
+            capability,
+            product_version: car_config::codex::version(&root, &mut |_| {}),
+        }
+    }
+
+    /// Core's Backend on `home` (None: the installation's own), checked.
+    pub fn backend(&self, home: Option<&Path>) -> Result<car_codex::transport::Backend, Fault> {
+        use super::inuse::{self, BackendError, Discovery};
+        let platform = std::sync::Arc::new(car_codex::system::Platform::new());
+        let system: std::sync::Arc<dyn car_codex::system::System> = platform.clone();
+        let env = |name: &str| std::env::var(name).ok();
+        let discovery = Discovery {
+            system: std::sync::Arc::clone(&system),
+            env: &env,
+            os: &platform.config,
+            product_version: self.product_version.clone(),
+        };
+        let refused = |error: BackendError| match error {
+            BackendError::Adapter(code) | BackendError::Check(code) => Fault::new("AdapterError", &code),
+            BackendError::Config(text) => Fault::new("ConfigError", &text),
+            BackendError::Raised(class) => Fault::new(class, "raised by discovery"),
+        };
+        let own = inuse::backend(Some(&self.installation), Some(&self.settings_file), &discovery)
+            .map_err(refused)?;
+        let Some(home) = home else {
+            return Ok(own);
+        };
+        let mut made = car_codex::transport::Backend::new(
+            system,
+            &home.to_string_lossy(),
+            &own.codex_exe,
+            false,
+            &self.product_version,
+        );
+        made.compatible()
+            .map_err(|error| Fault::new("AdapterError", &format!("{error:?}")))?;
+        Ok(made)
+    }
+}
+
+struct LiveSession(super::session::Session);
+
+impl Session for LiveSession {
+    fn call(&mut self, method: &str, params: Value) -> Result<Value, Fault> {
+        use super::session::Channel;
+        self.0
+            .call(method, Some(params))
+            .map_err(|error| Fault::new(error.class(), error.text()))
+    }
+}
+
+impl Drop for LiveSession {
+    fn drop(&mut self) {
+        use super::session::Channel;
+        self.0.exit();
+    }
+}
+
+impl Opener for Live {
+    fn open(&self, home: Option<&Path>) -> Result<Box<dyn Session + '_>, Fault> {
+        use super::session::Channel;
+        let backend = self.backend(home)?;
+        let mut session = super::session::Session::new(backend, None, Some(self.capability), Vec::new())
+            .map_err(|error| Fault::new(error.class(), error.text()))?;
+        session
+            .enter()
+            .map_err(|error| Fault::new(error.class(), error.text()))?;
+        Ok(Box::new(LiveSession(session)))
+    }
+}
+
+impl Backend for car_codex::transport::Backend {
+    fn argv(&self) -> Result<Vec<String>, Fault> {
+        Ok(car_codex::transport::Backend::argv(self))
+    }
+    fn environment(&self) -> Result<Vec<(String, String)>, Fault> {
+        Ok(car_codex::transport::Backend::environment(self)
+            .into_iter()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect())
+    }
+    fn codex_home(&self) -> String {
+        self.codex_home.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

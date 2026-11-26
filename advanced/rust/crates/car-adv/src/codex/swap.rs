@@ -1205,3 +1205,64 @@ pub fn unwind(world: &World, store: &Profiles, codex_home: Option<&Path>) -> Res
     }
     Ok(false)
 }
+
+// ------------------------------------------------------------------------------------------------ the product's world
+/// The product's own world for the switch: random names from the system, the private access list, real pauses, core's
+/// process list read afresh, Windows through car-codex's Platform, the monotonic clock. `pairing._OWN` is not readable
+/// from car-codex (no getter; seam left in rust/GROUNDWORK.md), so no app server is taken as this process's own.
+pub struct Live {
+    pub system: std::sync::Arc<car_codex::system::Platform>,
+    inventory: Box<dyn Fn() -> Option<Vec<Value>>>,
+    app_running: Box<dyn Fn() -> Option<bool>>,
+    clock: Box<dyn Fn() -> f64>,
+}
+
+impl Default for Live {
+    fn default() -> Live {
+        Live::new()
+    }
+}
+
+fn pause(seconds: f64) {
+    std::thread::sleep(std::time::Duration::from_secs_f64(seconds.max(0.0)));
+}
+
+fn private(directory: &Path) -> bool {
+    authfile::private_dacl(directory)
+}
+
+fn nobody() -> Vec<Value> {
+    Vec::new()
+}
+
+impl Live {
+    pub fn new() -> Live {
+        let system = std::sync::Arc::new(car_codex::system::Platform::new());
+        let (listing, asking) = (std::sync::Arc::clone(&system), std::sync::Arc::clone(&system));
+        let started = std::time::Instant::now();
+        Live {
+            system,
+            inventory: Box::new(move || {
+                car_codex::pairing::forget_inventory();
+                car_codex::pairing::inventory(listing.as_ref()).ok()
+            }),
+            app_running: Box::new(move || car_codex::pairing::app_running_now(asking.as_ref())),
+            clock: Box::new(move || started.elapsed().as_secs_f64()),
+        }
+    }
+
+    /// The world this live switch hands every function here.
+    pub fn world(&self) -> World<'_> {
+        World {
+            tokens: &crate::credentials::SystemTokens,
+            private: &private,
+            pause: &pause,
+            inventory: self.inventory.as_ref(),
+            own: &nobody,
+            system: self.system.as_ref(),
+            app_running: self.app_running.as_ref(),
+            clock: self.clock.as_ref(),
+            sleep: &pause,
+        }
+    }
+}
