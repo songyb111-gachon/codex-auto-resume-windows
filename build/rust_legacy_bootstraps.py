@@ -124,7 +124,13 @@ foreach ($case in (ConvertFrom-Json (Get-Content -LiteralPath $env:CAR_CASES -Ra
             $unpacked = Join-Path $case.work ('unpacked-' + $case.index + '-' + $case.edition)
             [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path -LiteralPath $case.archive), $unpacked)
             $program = Resolve-SetupProgram -Unpacked $unpacked -Setup $handover.Setup
-            $answer.program = $program.Substring($unpacked.Length).TrimStart('\')
+            # Resolve-SetupProgram answers through [IO.Path]::GetFullPath, which on Windows PowerShell spells an 8.3 name
+            # long (a runner's TEMP is C:\Users\RUNNER~1\...): the path inside is measured from the same full spelling.
+            $root = [IO.Path]::GetFullPath($unpacked).TrimEnd('\')
+            if (-not $program.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) {
+                throw ('the setup program is outside the unpacked archive: ' + $program)
+            }
+            $answer.program = $program.Substring($root.Length).TrimStart('\')
             $answer.stage = 'handed over'
         } catch {
             $answer.error = [string]$_.Exception.Message
