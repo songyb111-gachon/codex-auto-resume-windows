@@ -64,18 +64,19 @@ def stand_ins(folder: Path, edition: str, extra: dict | None = None) -> dict:
              legacy_bins / "python.exe": pe(3, filler=b"car-legacy console"),
              legacy_bins / "pythonw.exe": pe(2, filler=b"car-legacy windowless"),
              folder / ("window-" + edition + ".exe"): pe(2, filler=b"window " + tag),
-             folder / "launcher.exe": pe(3, filler=b"launcher")}
+             folder / "launcher.exe": pe(3, filler=b"launcher"),
+             folder / "host.exe": pe(2, filler=b"watcher host")}
     for path, data in files.items():
         path.write_bytes(data + extra.get(path.name, b""))
     return {"bins": bins, "legacy": legacy_bins, "window": folder / ("window-" + edition + ".exe"),
-            "launcher": folder / "launcher.exe"}
+            "launcher": folder / "launcher.exe", "host": folder / "host.exe"}
 
 
 def build(folder: Path, edition: str, version: str = VERSION, extra: dict | None = None, after=None) -> Path:
     """One edition's archive in folder/dist; `after(stage)` may change the stage before it is packed."""
     given = stand_ins(folder / "in", edition, extra)
     stage = rust_release.stage_edition(folder / ("stage-" + edition), edition, version, bins=given["bins"],
-                                       legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
+                                       legacy=given["legacy"], window=given["window"], launcher=given["launcher"], host=given["host"])
     if after:
         after(stage)
     return make_release.write_archive(stage, folder / "dist" / rust_release.archive_name(edition, version))
@@ -179,7 +180,7 @@ class LayoutTests(unittest.TestCase):
             (given["bins"] / "codex-auto-resume-setup.exe").write_bytes(pe(3))
             with self.assertRaisesRegex(SystemExit, "codex-auto-resume-setup.exe is of subsystem 3, not 2"):
                 rust_release.stage_edition(Path(work) / "stage", "standard", VERSION, bins=given["bins"],
-                                           legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
+                                           legacy=given["legacy"], window=given["window"], launcher=given["launcher"], host=given["host"])
 
     def test_a_core_with_the_test_forward_that_is_not_the_stub_stops_the_build(self):
         """Review 9, note 8: the installer proofs' forward (CODEX_AUTO_RESUME_TEST_CORE) never reaches a release."""
@@ -189,11 +190,11 @@ class LayoutTests(unittest.TestCase):
             core.write_bytes(core.read_bytes() + rust_release.TEST_HOOK)
             with self.assertRaisesRegex(SystemExit, "carries the installer proofs' test forward"):
                 rust_release.stage_edition(Path(work) / "stage", "standard", VERSION, bins=given["bins"],
-                                           legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
+                                           legacy=given["legacy"], window=given["window"], launcher=given["launcher"], host=given["host"])
             # The stub core may carry it: it is never a release.
             core.write_bytes(core.read_bytes() + rust_release.STUB_CORE)
             rust_release.stage_edition(Path(work) / "stage", "standard", VERSION, bins=given["bins"],
-                                       legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
+                                       legacy=given["legacy"], window=given["window"], launcher=given["launcher"], host=given["host"])
 
     def test_the_same_inputs_give_the_same_bytes_in_another_folder(self):
         with tempfile.TemporaryDirectory(prefix="car-rust-release-again-") as work:

@@ -1,0 +1,25 @@
+# The watcher host's compile list (v0.6.27, P6-DESIGN 1.7): CodexAutoResume.exe, the C# host that loads car_core.dll.
+# One repository-relative path per line, in the order csc is given them, under [group] lines, as gui/window.sources is
+# written; build/make_gui.ps1 and tests/guiscan.py read it. None of these files is part of the settings window, and the
+# window's own list names none of them.
+#
+#   [host]       the host's Main, the DLL load, the pump and the core's six imports (S6.2b): HostCore.cs, HostMain.cs,
+#                HostPump.cs. No ProcessStartInfo, Process.Start or ShellExecute anywhere in this list (P6-DESIGN 1.8)
+#   [contract]   gui/ISurfaces.cs: the surfaces' side of the contract (the event and action tables, IHostActions, ISurfaces and
+#                the events' classes), which the surfaces post through and implement
+#   [standin]    until Integration 10 brings S6.3's [surface] group (car-v0627-s63: the surfaces, gui/SurfaceJson.cs among
+#                them, gui/HostSurfaces.cs and gui/SurfaceRender.cs): the JSON class the host reads its replies with, and
+#                gui/HostStandIn.cs (SurfaceRender and HostSurfaces that draw nothing). Integration 10 drops this group
+#                and HostStandIn.cs, and takes S6.3's [surface] and [generated] groups as they are.
+
+[host]
+gui/HostCore.cs
+gui/HostMain.cs
+gui/HostPump.cs
+
+[contract]
+gui/ISurfaces.cs
+
+[standin]
+gui/SurfaceJson.cs
+gui/HostStandIn.cs

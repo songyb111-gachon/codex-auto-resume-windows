@@ -16,8 +16,8 @@ and `check` refuses an executable whose stamp is missing, or names another versi
 digest than the tree holds now. It is a check on the tree being packed, not on the compiler:
 CI builds the executables and packs them in one job, so the stamp always matches there.
 
-    python build/gui_stamp.py write --root ROOT --edition standard|advanced --kind window|launcher EXE
-    python build/gui_stamp.py check --root ROOT --edition standard|advanced --kind window|launcher EXE
+    python build/gui_stamp.py write --root ROOT --edition standard|advanced --kind window|launcher|host EXE
+    python build/gui_stamp.py check --root ROOT --edition standard|advanced --kind window|launcher|host EXE
 """
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ LAUNCHER_SOURCES = ("gui/McpLauncher.cs", "gui/RuntimeChoice.cs")
 BUILD_SCRIPTS = ("build/make_gui.ps1", "build/normalize_pe.py")
 ICON = "assets/codex-auto-resume.ico"
 MANIFEST = "gui/app.manifest"
+HOST_MANIFEST = "gui/host.manifest"
 
 
 class StaleBuild(Exception):
@@ -59,20 +60,23 @@ def inputs(root: Path, edition: str, kind: str) -> list:
     """Every file the build reads, as root-relative names in the order the compiler takes them."""
     if kind == "launcher":
         names = list(LAUNCHER_SOURCES) + [ICON]
+    elif kind == "host":
+        # v0.6.27: the watcher host, one file in both editions (built by the standard run only).
+        names = ["gui/host.sources"] + _source_list(root, "gui/host.sources") + [HOST_MANIFEST, ICON]
     elif kind == "window":
         names = ["gui/window.sources"] + _source_list(root, "gui/window.sources")
         if edition == "advanced":
             names += ["advanced/gui/window.sources"] + _source_list(root, "advanced/gui/window.sources")
         names += [MANIFEST, ICON]
     else:
-        raise ValueError("kind is window or launcher, not %r" % kind)
+        raise ValueError("kind is window, launcher or host, not %r" % kind)
     return names + list(BUILD_SCRIPTS)
 
 
 def describe(root: Path, edition: str, kind: str) -> dict:
     """The stamp this tree would give an executable of that kind and edition."""
     root = Path(root)
-    if kind == "launcher":
+    if kind in ("launcher", "host"):
         edition = "standard"           # one file in both editions, built by the standard run only
     manifest = json.loads((root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
     digest = hashlib.sha256()
@@ -98,7 +102,7 @@ def write(exe: Path, root: Path, edition: str, kind: str) -> dict:
 
 def rebuild_command(edition: str, kind: str) -> str:
     """What makes the executable again; the launcher is built by the standard run only."""
-    if kind == "launcher" or edition == "standard":
+    if kind in ("launcher", "host") or edition == "standard":
         return "powershell -File build/make_gui.ps1"
     return "powershell -File build/make_gui.ps1 -Edition %s" % edition
 
@@ -134,7 +138,7 @@ def main(argv=None) -> int:
     parser.add_argument("exe")
     parser.add_argument("--root", required=True)
     parser.add_argument("--edition", choices=("standard", "advanced"), default="standard")
-    parser.add_argument("--kind", choices=("window", "launcher"), required=True)
+    parser.add_argument("--kind", choices=("window", "launcher", "host"), required=True)
     args = parser.parse_args(argv)
     try:
         if args.action == "write":

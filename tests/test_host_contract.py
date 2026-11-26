@@ -199,11 +199,14 @@ class SurfaceTests(unittest.TestCase):
 
 
 class BuildTests(unittest.TestCase):
-    def test_the_shipped_window_does_not_compile_them(self):
+    def test_they_are_on_host_sources_not_on_window_sources(self):
+        # S6.2b: the host's own list builds them (gui/host.sources, [host] and [contract]); the window's never does,
+        # and make_gui.ps1 names the list, not the files.
         for name in ("gui/HostCore.cs", "gui/ISurfaces.cs"):
             with self.subTest(name):
                 self.assertNotIn(name, guiscan.manifest())
                 self.assertIn(name, guiscan.HOST)
+                self.assertIn(name, guiscan.host_group("host") + guiscan.host_group("contract"))
                 self.assertNotIn(name.replace("/", "\\").split("\\")[-1],
                                  read(ROOT / "build" / "make_gui.ps1"))
 

@@ -36,9 +36,6 @@ class ScanError(RuntimeError):
 
 # Built by the same script from its own single source, and not part of the window: the MCP launcher, and (v0.6.19)
 # the advanced edition's Stop hook launcher, its twin, built only into that edition (build/make_gui.ps1 -Edition advanced).
-# v0.6.27 (P6 step 0): the watcher host's contracts with car_core.dll, compiled alone by tests/test_host_contract.py
-# until the host's own list (gui/host.sources, S6.2b) builds them; never part of the window.
-HOST = ("gui/HostCore.cs", "gui/ISurfaces.cs")
 # v0.6.27 (S6.3): the host's own list, gui/host.sources, and the surfaces its [surface] group names - the popup, the
 # icon's menu, the tip, the cards and the icon the host draws. Built into the host, never into the window.
 HOST_MANIFEST = GUI / "host.sources"
@@ -63,7 +60,12 @@ def host_group(name: str) -> tuple[str, ...]:
 
 
 SURFACE = host_group("surface")
-SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST + SURFACE
+# v0.6.27 (S6.2b): the host's own files - its Main, pump and the core's imports ([host]) and the contract the surfaces
+# implement ([contract]) - and, until Integration 10, the stand-ins for S6.3's surfaces ([standin]). Built into the host
+# from gui/host.sources, never into the window.
+HOST = host_group("host") + host_group("contract")
+STANDIN = host_group("standin")
+SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST + SURFACE + STANDIN
 
 # The groups `gui/window.sources` divides the compile list into, and what each one means:
 #

@@ -8,6 +8,8 @@ version's updater requires of an archive, and what v0.6.26's setup handover read
   payload/app/bin/codex-auto-resume.exe                                the Rust core's console program (car-bin)
   payload/app/bin/codex-auto-resume-setup.exe                          its setup program, GUI subsystem (BRIDGE.md)
   payload/app/bin/car_core.dll                                         the core the watcher host loads (car-host)
+  payload/app/bin/CodexAutoResume.exe                                  the watcher host (C#, make_gui.ps1), one file in
+                                                                       both editions (P6-DESIGN Q3)
   payload/app/mcp/codex-auto-resume-mcp.exe, payload/app/.mcp.json     the MCP launcher and its declaration, as today
   payload/app/.codex-plugin, .agents, skills, assets, docs, README...  the plugin tree Codex reads, as today
   payload/app/src/codex_auto_resume/{data,locales,mcp/assets}/...      the data the core reads, at the same paths
@@ -28,7 +30,8 @@ the archive, the one-file Setup exe's Install.cmd, and v0.6.26's setup handover 
 The window is
 the C# one build/make_gui.ps1 compiles (`--window` takes another); the MCP launcher is car-bin's codex-auto-resume-mcp.exe
 from the standard workspace's cargo build (D18; `--mcp-launcher` takes another); the watcher host
-(CodexAutoResume.exe, seat S6.2) is not built yet and is not in the archive.
+(CodexAutoResume.exe, seat S6.2b) is the C# one make_gui.ps1's standard run compiles (`--host` takes another): the same
+bytes in both editions, which the edition audit's (f) holds, since the edition differences are in car_core.dll.
 
     python build/rust_release.py --edition standard [--version 0.6.27-alpha] [--build] [--setup] [--output DIR]
 
@@ -78,11 +81,17 @@ EDITION_BINARIES = {"codex-auto-resume.exe": "payload/app/bin/codex-auto-resume.
                     "car_core.dll": "payload/app/bin/car_core.dll"}
 # car-legacy, from the standard workspace in both editions: one stand-in for every installation (D9).
 LEGACY_BINARIES = {"python.exe": "payload/runtime/python.exe", "pythonw.exe": "payload/runtime/pythonw.exe"}
-BINARIES = tuple(EDITION_BINARIES.values()) + tuple(LEGACY_BINARIES.values())
+# The watcher host (P6-DESIGN 1.7, 1.10, Q3): C#, built once by make_gui.ps1's standard run, the same bytes in both
+# editions. It is not one of EDITION_BINARIES: those are what each edition's workspace builds for itself (the edition
+# audit's PER_EDITION), and the host is held identical across the two archives instead.
+HOST_EXE = "CodexAutoResume.exe"
+HOST = "payload/app/bin/" + HOST_EXE
+# Every executable of ours among the binaries (the edition audit's (d) reads each).
+BINARIES = tuple(EDITION_BINARIES.values()) + tuple(LEGACY_BINARIES.values()) + (HOST,)
 # car-bin's MCP launcher, from the standard workspace in both editions like car-legacy (D18): where the C# one was.
 MCP_LAUNCHER = "payload/app/mcp/" + make_release.MCP_EXE
 # Every executable of the payload that cargo builds (the window is the C# one).
-RUST_BUILT = BINARIES + (MCP_LAUNCHER,)
+RUST_BUILT = tuple(EDITION_BINARIES.values()) + tuple(LEGACY_BINARIES.values()) + (MCP_LAUNCHER,)
 # The installer proofs' test forward, by the variable it reads, and the stub core, by the line only it says (car-bin).
 TEST_HOOK = b"CODEX_AUTO_RESUME_TEST_CORE"
 STUB_CORE = b"is not ported yet (stub core); nothing was done"
@@ -250,7 +259,7 @@ def collect_app(stage: Path, edition: str, release: str) -> None:
 
 
 def collect_window(stage: Path, edition: str, window: Path | None, launcher: Path | None,
-                   legacy: Path | None = None) -> None:
+                   legacy: Path | None = None, host: Path | None = None) -> None:
     """The C# window make_gui.ps1 built from this tree (its stamp checked) and car-bin's MCP launcher from the standard
     workspace's build (`legacy`'s folder, where car-legacy is: one launcher for both editions, D18), or the ones given."""
     if window is None:
@@ -261,6 +270,15 @@ def collect_window(stage: Path, edition: str, window: Path | None, launcher: Pat
     copy(window, stage, "payload/" + make_release.GUI_EXE)
     copy(ROOT / "assets" / "codex-auto-resume.ico", stage, "payload/codex-auto-resume.ico")
     copy(launcher, stage, MCP_LAUNCHER)
+    # The watcher host: make_gui.ps1's standard build for both editions (its stamp checked), a GUI program (PLAN 6.7:
+    # what Windows starts with no console is GUI).
+    if host is None:
+        host = make_release.BUILT / HOST_EXE
+        make_release.check_built_for_this_tree(host, "standard", "host")
+    copy(host, stage, HOST)
+    found = subsystem((stage / HOST).read_bytes())
+    if found != 2:
+        raise SystemExit("%s is of subsystem %s, not 2" % (HOST, found))
 
 
 def collect_launchers(stage: Path) -> None:
@@ -284,13 +302,14 @@ def marker(edition: str, release: str) -> bytes:
             ).encode("utf-8")
 
 
-def stage_edition(stage: Path, edition: str, release: str, bins=None, legacy=None, window=None, launcher=None) -> Path:
+def stage_edition(stage: Path, edition: str, release: str, bins=None, legacy=None, window=None, launcher=None,
+                  host=None) -> Path:
     if stage.exists():
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
     collect_binaries(stage, edition, bins, legacy)
     collect_app(stage, edition, release)
-    collect_window(stage, edition, window, launcher, legacy)
+    collect_window(stage, edition, window, launcher, legacy, host)
     collect_launchers(stage)
     declare(stage, edition, release)
     write(stage, MARKER, marker(edition, release))
@@ -334,6 +353,7 @@ def main(argv=None) -> int:
     parser.add_argument("--legacy-bins", default=None, help="car-legacy's (default: rust/target/release)")
     parser.add_argument("--window", default=None, help="a settings window other than make_gui.ps1's")
     parser.add_argument("--mcp-launcher", default=None, help="an MCP launcher other than make_gui.ps1's")
+    parser.add_argument("--host", default=None, help="a watcher host other than make_gui.ps1's")
     parser.add_argument("--setup", action="store_true",
                         help="also build the one-file Setup exe around the archive (build/make_setup.py's)")
     args = parser.parse_args(argv)
@@ -345,7 +365,8 @@ def main(argv=None) -> int:
                   bins=Path(args.bins) if args.bins else None,
                   legacy=Path(args.legacy_bins) if args.legacy_bins else None,
                   window=Path(args.window) if args.window else None,
-                  launcher=Path(args.mcp_launcher) if args.mcp_launcher else None)
+                  launcher=Path(args.mcp_launcher) if args.mcp_launcher else None,
+                  host=Path(args.host) if args.host else None)
     target = make_release.write_archive(stage, Path(args.output) / archive_name(args.edition, release))
     digest = make_release.write_sidecar(target)
     setup = None

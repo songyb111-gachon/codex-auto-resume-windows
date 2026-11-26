@@ -271,7 +271,7 @@ def rust_stage(folder: Path, edition: str, lock: str) -> Path:
     shutil.copyfile(RELEASE["standard"] / "python.exe", work / "launcher.exe")
     stage = rust_release.stage_edition(folder / ("rust-" + edition), edition, VERSION, bins=RELEASE[edition],
                                        legacy=RELEASE["standard"], window=work / "window.exe",
-                                       launcher=work / "launcher.exe")
+                                       launcher=work / "launcher.exe", host=RELEASE["standard"] / "pythonw.exe")
     copy_python(stage / "payload" / "app" / "bin", host=True)
     installer = stage / "install" / "install.ps1"
     installer.write_bytes(compose(installer.read_bytes().decode("utf-8"), lock).encode("utf-8"))
