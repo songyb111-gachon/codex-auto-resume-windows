@@ -663,6 +663,30 @@ class SurfaceJob:
                               for design in ("soft", "classic", "plain")]}
         self.add("elevation/all", {"surface": "elevation", "masks": masks, "steps": steps}, result)
 
+    DAY_MOMENTS = [0.0, 16.0, 333.3, 1000.0, 2750.5, 4400.0, 7777.0, 12345.6, 61000.0]
+    DAY_WITHIN = [[0.0, 300.0], [40.0, 120.5], [-50.0, 10.0], [250.0, 400.0], [301.0, 500.0]]
+    DAY_PATHS = [["M25.5 2l1 3.5 3.5 1-3.5 1-1 3.5-1-3.5-3.5-1 3.5-1z", 1], ["M142 48q4.7 7 9.5 0t9.5 0 9.5 0 9.5 0v-3q0-3-3-3h-32q-3 0-3 3z", 8],
+                 ["M60 42q4-6 11-3 5-6 12-1 6-2 8 4z", 8], ["M149 39v12M143 45h12", 8], ["m10 10l5 5H30V2zT4 4", 3]]
+
+    def days(self):
+        """A special day's pieces at a few moments (scene_frame, speck_frame with and without `within`), the specks'
+        reach, the icon's mark on a grid of the 32 by 32 and path_points over the paths it is fed."""
+        from codex_auto_resume import brand
+        from codex_auto_resume.brand import days
+        points = [[x / 4.0 + 0.125, y / 4.0 + 0.125] for x in range(0, 128, 3) for y in range(0, 128, 3)]
+        for look in sorted(brand.DAY_LOOKS):
+            def listed(shapes):
+                return [[kind, list(numbers), colour, opacity] for kind, numbers, colour, opacity in shapes]
+            result = {"scenes": [listed(days.scene_frame(look, ms)) for ms in self.DAY_MOMENTS],
+                      "specks": [[listed(days.speck_frame(look, ms))] + [listed(days.speck_frame(look, ms, tuple(within)))
+                                                                         for within in self.DAY_WITHIN]
+                                 for ms in self.DAY_MOMENTS],
+                      "reach": [list(reach) for reach in days.speck_reach(look)],
+                      "marks": [days.mark_colour(look, x, y) for x, y in points],
+                      "paths": [days.path_points(path, steps) for path, steps in self.DAY_PATHS]}
+            self.add("days/" + look, {"surface": "days", "look": look, "moments": self.DAY_MOMENTS, "within": self.DAY_WITHIN,
+                                      "points": points, "paths": self.DAY_PATHS}, result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -722,6 +746,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.shape()
         job.gdip()
         job.elevation()
+        job.days()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -787,6 +812,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_shadows_masks_and_recipes_are_the_references(self):
         self.compare("elevation/")
+
+    def test_a_special_days_pieces_and_the_icons_mark_are_the_references_frame_for_frame(self):
+        self.compare("days/")
 
     def test_the_painters_gdiplus_calls_make_the_references_pixels_and_leak_nothing(self):
         self.compare("gdip/")

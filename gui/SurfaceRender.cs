@@ -144,6 +144,8 @@ namespace CodexAutoResume
                     return GdipCase(task);
                 case "elevation":
                     return ElevationCase(task);
+                case "days":
+                    return DaysCase(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -686,6 +688,44 @@ namespace CodexAutoResume
             foreach (string theme in SurfaceTheme.Themes)
                 foreach (string design in SurfaceTheme.Designs) grounds.Add(SurfaceTheme.Hex(SurfaceElevation.TileGround(theme, design)));
             return new Dictionary<string, object> { { "masks", masks }, { "recipes", recipes }, { "steps", steps }, { "grounds", grounds } };
+        }
+
+        private static List<object> Shapes(List<DayShape> shapes)
+        {
+            var listed = new List<object>();
+            foreach (DayShape shape in shapes) listed.Add(new List<object> { shape.Kind, shape.Numbers, shape.Colour, shape.Opacity });
+            return listed;
+        }
+
+        /// A day's scene and specks at each moment asked (scene_frame, speck_frame with and without `within`), the
+        /// specks' reach, and the icon's mark at each point asked (mark_colour).
+        private static Dictionary<string, object> DaysCase(Dictionary<string, object> task)
+        {
+            string look = (string)task["look"];
+            var scenes = new List<object>();
+            var specks = new List<object>();
+            foreach (object entry in (List<object>)task["moments"])
+            {
+                double ms = (double)entry;
+                scenes.Add(Shapes(SurfaceDays.SceneFrame(look, ms)));
+                var at = new List<object> { Shapes(SurfaceDays.SpeckFrame(look, ms)) };
+                foreach (object within in (List<object>)task["within"]) at.Add(Shapes(SurfaceDays.SpeckFrame(look, ms, Doubles(within))));
+                specks.Add(at);
+            }
+            var marks = new List<object>();
+            foreach (object entry in (List<object>)task["points"])
+            {
+                double[] point = Doubles(entry);
+                marks.Add(SurfaceDays.MarkColour(look, point[0], point[1]));
+            }
+            var paths = new List<object>();
+            foreach (object entry in (List<object>)task["paths"])
+            {
+                var ask = (List<object>)entry;
+                paths.Add(SurfaceDays.PathPoints((string)ask[0], (int)(double)ask[1]));
+            }
+            return new Dictionary<string, object> { { "scenes", scenes }, { "specks", specks }, { "reach", SurfaceDays.SpeckReach(look) },
+                                                    { "marks", marks }, { "paths", paths } };
         }
 
         // ----------------------------------------------------------------------------- the dump
