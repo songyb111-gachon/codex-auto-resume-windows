@@ -55,9 +55,9 @@ STANDARD = {
     # S8.2: the stub core's test-double forward and the setup program start their child through car-platform's starter
     # S5.2: the command line reads the config, the store, the settings, the words and the vocabulary and asks
     # car-platform for the registrations (cli.py and commands/* import config, store, settings, l10n, machine and
-    # startup/shortcut/addremove)
-    "car-bin": {"car-config", "car-control", "car-machine", "car-platform", "car-policy", "car-store", "car-watcher",
-                "car-words"},
+    # startup/shortcut/addremove); Integration 8: `activate` reads the notices' URIs with car-surface's notice_uris
+    "car-bin": {"car-config", "car-control", "car-machine", "car-platform", "car-policy", "car-store", "car-surface",
+                "car-watcher", "car-words"},
     "car-host": {"car-control", "car-watcher"},
     "car-legacy": {"car-platform"},
     # dev only: it writes its replies through car-machine's Python-compatible JSON writer (S0.2) instead of an inline copy;

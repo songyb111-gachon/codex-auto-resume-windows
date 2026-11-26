@@ -34,4 +34,6 @@ car-config = { path = "../car-config" }
 car-machine = { path = "../car-machine" }
 car-policy = { path = "../car-policy" }
 car-store = { path = "../car-store" }
+# Integration 8: `activate` reads the notices' URIs with car-surface's notice_uris and codex_link (src/uris.rs).
+car-surface = { path = "../car-surface" }
 car-words = { path = "../car-words" }

@@ -18,6 +18,7 @@ dependencies = [
  "car-platform",
  "car-policy",
  "car-store",
+ "car-surface",
  "car-watcher",
  "car-words",
 ]
