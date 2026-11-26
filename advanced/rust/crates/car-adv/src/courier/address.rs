@@ -10,6 +10,8 @@
 //! as far as these checks read them (the bundled 3.14.10's rules: the bracketed host's check, the NFKC netloc check
 //! over the 19 code points whose compatibility form holds a delimiter, IPv6's 45-character limit and scope id).
 
+#![allow(clippy::result_unit_err)]
+
 use car_machine::json::Value;
 
 use crate::jsonx::object;
@@ -47,7 +49,9 @@ fn label(text: &str) -> bool {
     let bytes = text.as_bytes();
     !bytes.is_empty()
         && bytes.len() <= 63
-        && bytes.iter().all(|b| b.is_ascii_alphanumeric() || *b == b'-')
+        && bytes
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || *b == b'-')
         && bytes[0] != b'-'
         && bytes[bytes.len() - 1] != b'-'
 }
@@ -300,7 +304,9 @@ pub fn split(url: &str) -> Result<Split, ()> {
         if open && close {
             // netloc.partition('[')[2].partition(']')[0]
             let after_open = netloc.split_once('[').map_or("", |(_, after)| after);
-            let bracketed = after_open.split_once(']').map_or(after_open, |(host, _)| host);
+            let bracketed = after_open
+                .split_once(']')
+                .map_or(after_open, |(host, _)| host);
             check_bracketed(bracketed)?;
         }
     }

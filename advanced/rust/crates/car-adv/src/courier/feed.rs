@@ -5,6 +5,8 @@
 //! are listed (at most 99). Nothing else is kept, and what is kept is a word to show - never a gate's input. A reply that
 //! cannot be read is unknown; a page that cannot be reached leaves no words, its time moved on (`touch`).
 
+#![allow(clippy::result_unit_err)]
+
 use car_machine::json::Value;
 
 use crate::courier::http::{self, Opener};
@@ -86,7 +88,10 @@ pub fn parse(raw: &[u8]) -> std::result::Result<Found, ()> {
             let Value::Object(each) = each else {
                 continue;
             };
-            if each.get("name").is_some_and(|name| starts_with(name, "Codex")) {
+            if each
+                .get("name")
+                .is_some_and(|name| starts_with(name, "Codex"))
+            {
                 codex = match each.get("status") {
                     Some(Value::Str(text)) => text.as_str().map_or(FeedWord::Unknown, component),
                     _ => FeedWord::Unknown,
@@ -188,7 +193,11 @@ pub fn refresh(
     };
     let found = parse(&reply).map_err(|()| Raised::Recursion)?;
     save(state, found, now).map_err(Raised::State)?;
-    let code = if found == UNKNOWN { "unknown" } else { "checked" };
+    let code = if found == UNKNOWN {
+        "unknown"
+    } else {
+        "checked"
+    };
     state
         .counted(&capability, &string(code), &Value::Null)
         .map_err(Raised::State)?;

@@ -159,14 +159,23 @@ pub fn class_of(status: i64) -> &'static str {
 fn capitalized(name: &str) -> String {
     let mut chars = name.chars();
     match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars.flat_map(char::to_lowercase)).collect(),
+        Some(first) => first
+            .to_uppercase()
+            .chain(chars.flat_map(char::to_lowercase))
+            .collect(),
         None => String::new(),
     }
 }
 
 /// `urllib.request.Request(url, data=body, method=method, headers=dict(headers, **{"User-Agent": ...}))` as the
 /// opener is handed it.
-pub fn made(url: &str, body: Option<&[u8]>, headers: &[(&str, &str)], method: &str, timeout: i64) -> Request {
+pub fn made(
+    url: &str,
+    body: Option<&[u8]>,
+    headers: &[(&str, &str)],
+    method: &str,
+    timeout: i64,
+) -> Request {
     let mut given: Vec<(String, String)> = Vec::new();
     let mut put = |name: &str, value: &str| {
         // dict(headers, **{"User-Agent": ...}): a later equal key keeps the first one's place.

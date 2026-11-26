@@ -30,7 +30,9 @@ fn error(text: &str) -> std::io::Error {
 
 /// This process's one job object for its children: KILL_ON_JOB_CLOSE, never closed here.
 fn job() -> std::io::Result<HANDLE> {
-    let mut held = JOB.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut held = JOB
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(handle) = *held {
         return Ok(HANDLE(handle as *mut core::ffi::c_void));
     }
@@ -87,6 +89,23 @@ pub fn adopt(child: &mut std::process::Child) -> std::io::Result<()> {
     done
 }
 
+/// Whether a named mutex exists now (`OpenMutexW(SYNCHRONIZE)`), opened and never taken: the resident courier's
+/// probe (`courier/resident.running`), which must not turn away a resident starting at that moment.
+pub fn mutex_exists(name: &str) -> bool {
+    use windows::Win32::System::Threading::{OpenMutexW, SYNCHRONIZATION_SYNCHRONIZE};
+    let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    // SAFETY: a NUL-terminated name; the handle, where there is one, is closed at once.
+    unsafe {
+        match OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(wide.as_ptr())) {
+            Ok(handle) => {
+                let _ = CloseHandle(handle);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+}
+
 /// Whether this process has made its job object yet (a test's question).
 pub fn made() -> bool {
     JOB.lock()
@@ -103,9 +122,13 @@ mod tests {
     fn a_child_started_suspended_runs_only_once_it_is_in_the_job() {
         // A throwaway child of the test's own: cmd.exe exiting with a code, in the job, resumed.
         let system = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
-        let spawn = Spawn::new([format!(r"{system}\System32\cmd.exe"), "/c".into(), "exit 7".into()])
-            .with_flags(CREATE_SUSPENDED)
-            .with_streams(Stream::Null, Stream::Null, Stream::Null);
+        let spawn = Spawn::new([
+            format!(r"{system}\System32\cmd.exe"),
+            "/c".into(),
+            "exit 7".into(),
+        ])
+        .with_flags(CREATE_SUSPENDED)
+        .with_streams(Stream::Null, Stream::Null, Stream::Null);
         let mut child = SystemStarter.start(&spawn).expect("the child starts");
         adopt(&mut child).expect("the job takes it");
         assert!(made());

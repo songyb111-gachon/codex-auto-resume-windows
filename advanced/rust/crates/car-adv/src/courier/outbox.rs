@@ -32,7 +32,11 @@ pub fn codes() -> Vec<String> {
     for channel in CourierChannel::ALL {
         let channel = channel.as_str();
         found.push(format!("sent_{channel}"));
-        found.extend(FAILED.iter().map(|word| format!("refused_{channel}_{word}")));
+        found.extend(
+            FAILED
+                .iter()
+                .map(|word| format!("refused_{channel}_{word}")),
+        );
         found.push(format!("dropped_{channel}"));
         found.push(format!("off_{channel}"));
     }
@@ -161,7 +165,12 @@ pub fn waiting(state: &AdvancedState, now: f64) -> Result<bool> {
 }
 
 /// `settle(state, item_id, sent, now)`: what a try of row `item_id` came to; the row's state after.
-pub fn settle(state: &AdvancedState, item_id: &Value, sent: bool, now: f64) -> Result<&'static str> {
+pub fn settle(
+    state: &AdvancedState,
+    item_id: &Value,
+    sent: bool,
+    now: f64,
+) -> Result<&'static str> {
     state.writing(|connection| {
         let row = sql::one(
             connection,

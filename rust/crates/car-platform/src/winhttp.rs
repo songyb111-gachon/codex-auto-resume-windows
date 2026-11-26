@@ -77,7 +77,11 @@ fn is_tls(code: u32) -> bool {
 
 fn fault(error: &windows::core::Error) -> Error {
     let code = (error.code().0 as u32) & 0xFFFF;
-    if is_tls(code) { Error::Tls } else { Error::Timeout }
+    if is_tls(code) {
+        Error::Tls
+    } else {
+        Error::Timeout
+    }
 }
 
 /// The parts of an address WinHTTP is handed: host, port, path with its query.
@@ -197,7 +201,13 @@ pub fn send(asked: &Asked<'_>) -> Result<Reply, Error> {
     };
     // SAFETY: plain WinHTTP calls on handles this function owns (each closed by `Handle`'s drop, children first).
     unsafe {
-        let session = Handle(WinHttpOpen(PCWSTR::null(), access, PCWSTR::null(), PCWSTR::null(), 0));
+        let session = Handle(WinHttpOpen(
+            PCWSTR::null(),
+            access,
+            PCWSTR::null(),
+            PCWSTR::null(),
+            0,
+        ));
         if session.0.is_null() {
             return Err(Error::Timeout);
         }
@@ -304,12 +314,7 @@ pub fn send(asked: &Asked<'_>) -> Result<Reply, Error> {
             let want = (asked.most - read.len()).min(65536);
             let mut piece = vec![0u8; want];
             let mut got: u32 = 0;
-            match WinHttpReadData(
-                request.0,
-                piece.as_mut_ptr().cast(),
-                want as u32,
-                &mut got,
-            ) {
+            match WinHttpReadData(request.0, piece.as_mut_ptr().cast(), want as u32, &mut got) {
                 Ok(()) if got == 0 => break,
                 Ok(()) => read.extend_from_slice(&piece[..got as usize]),
                 Err(error) => {
@@ -333,11 +338,86 @@ pub fn send(asked: &Asked<'_>) -> Result<Reply, Error> {
     }
 }
 
+/// The courier's one listening socket (`courier/api.py`'s `Server`: `SO_EXCLUSIVEADDRUSE` before `bind`, so no other
+/// program can share the port, and `listen(backlog)`): an IPv4 TCP listener on `ip:port` (port 0: any free one).
+pub fn exclusive_listener(
+    ip: [u8; 4],
+    port: u16,
+    backlog: i32,
+) -> std::io::Result<std::net::TcpListener> {
+    use std::os::windows::io::FromRawSocket;
+    use windows::Win32::Networking::WinSock::{
+        AF_INET, IN_ADDR, IN_ADDR_0, IPPROTO_TCP, SO_EXCLUSIVEADDRUSE, SOCK_STREAM, SOCKADDR,
+        SOCKADDR_IN, SOL_SOCKET, WSA_FLAG_NO_HANDLE_INHERIT, WSA_FLAG_OVERLAPPED, WSADATA,
+        WSASocketW, WSAStartup, bind, closesocket, listen, setsockopt,
+    };
+    // SAFETY: Winsock's own calls on a socket this function owns until it is handed to std (or closed on a failure).
+    unsafe {
+        let mut data = WSADATA::default();
+        if WSAStartup(0x0202, &mut data) != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let socket = WSASocketW(
+            i32::from(AF_INET.0),
+            SOCK_STREAM.0,
+            IPPROTO_TCP.0,
+            None,
+            0,
+            WSA_FLAG_OVERLAPPED | WSA_FLAG_NO_HANDLE_INHERIT,
+        )
+        .map_err(|_| std::io::Error::last_os_error())?;
+        let fail = |socket| {
+            let error = std::io::Error::last_os_error();
+            let _ = closesocket(socket);
+            Err(error)
+        };
+        if setsockopt(
+            socket,
+            SOL_SOCKET,
+            SO_EXCLUSIVEADDRUSE,
+            Some(&1i32.to_ne_bytes()),
+        ) != 0
+        {
+            return fail(socket);
+        }
+        let address = SOCKADDR_IN {
+            sin_family: AF_INET,
+            sin_port: port.to_be(),
+            sin_addr: IN_ADDR {
+                S_un: IN_ADDR_0 {
+                    S_addr: u32::from_ne_bytes(ip),
+                },
+            },
+            sin_zero: [0; 8],
+        };
+        if bind(
+            socket,
+            (&address as *const SOCKADDR_IN).cast::<SOCKADDR>(),
+            std::mem::size_of::<SOCKADDR_IN>() as i32,
+        ) != 0
+        {
+            return fail(socket);
+        }
+        if listen(socket, backlog) != 0 {
+            return fail(socket);
+        }
+        Ok(std::net::TcpListener::from_raw_socket(socket.0 as u64))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+
+    #[test]
+    fn the_listening_socket_is_this_process_s_alone() {
+        let first = exclusive_listener([127, 0, 0, 1], 0, 8).expect("a loopback port");
+        let port = first.local_addr().expect("its address").port();
+        assert!(exclusive_listener([127, 0, 0, 1], port, 8).is_err());
+        assert!(TcpListener::bind(("127.0.0.1", port)).is_err());
+    }
 
     #[test]
     fn an_address_is_taken_apart_as_winhttp_is_handed_it() {
@@ -350,7 +430,10 @@ mod tests {
                 path: "/bot1:x/getMe?offset=2".into()
             })
         );
-        assert_eq!(target("http://127.0.0.1:8080").map(|t| t.path), Some("/".into()));
+        assert_eq!(
+            target("http://127.0.0.1:8080").map(|t| t.path),
+            Some("/".into())
+        );
         assert_eq!(target("ftp://example.org/"), None);
         assert_eq!(target("https://user@example.org/"), None);
     }
@@ -419,7 +502,10 @@ mod tests {
         let seen = server.join().expect("the server");
         assert_eq!(reply.status, 201);
         assert_eq!(reply.body.expect("a body"), b"0123");
-        assert!(seen.starts_with("POST /in/made-up?x=1 HTTP/1.1\r\n"), "{seen}");
+        assert!(
+            seen.starts_with("POST /in/made-up?x=1 HTTP/1.1\r\n"),
+            "{seen}"
+        );
         // WinHTTP writes a header it knows under its own spelling (urllib's title case) and in its own order.
         let lower = seen.to_ascii_lowercase();
         for line in [
