@@ -2877,5 +2877,6 @@ diffs (scratchpad runner = run.py without its check for the standard harness, wh
 ## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
 ## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0 (car-adv 11 + 1); cargo deny rc=0
 python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)   test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 privacy_scan.py on every file added: clean
