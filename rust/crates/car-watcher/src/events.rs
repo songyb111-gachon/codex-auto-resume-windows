@@ -11,6 +11,8 @@ use std::time::{Duration, Instant};
 
 use car_machine::json::{Map, Value};
 
+use crate::surface::Catalog;
+
 /// `Tray.start` waits this long for the icon's thread; `Tray.stop` joins it this long.
 pub const SURFACE_WAIT_SECONDS: f64 = 5.0;
 
@@ -79,16 +81,26 @@ impl Events {
         }
     }
 
-    /// The `surfaces` event, and the wait for `tray_started` (`Tray.start`): whether the icon came up.
-    pub fn start_surfaces(&self, icon: &str, settings: &Value, edition: &str, demo: &str) -> bool {
+    /// The `surfaces` event, and the wait for `tray_started` (`Tray.start`): whether the icon came up. The catalog's
+    /// locale and letters go with it, so the first frame is drawn in that language (DECISIONS.md's addendum).
+    pub fn start_surfaces(
+        &self,
+        icon: &str,
+        catalog: &Catalog,
+        settings: &Value,
+        edition: &str,
+        demo: &str,
+    ) -> bool {
         self.push(event(
             "surfaces",
             [
                 ("icon", Value::from(icon)),
-                ("strings", strings()),
+                ("strings", Value::Object(catalog.strings.clone())),
                 ("settings", settings.clone()),
                 ("edition", Value::from(edition)),
                 ("demo", Value::from(demo)),
+                ("locale", Value::from(catalog.locale.as_str())),
+                ("letters", Value::from(catalog.letters.as_str())),
             ],
         ));
         self.wait(SURFACE_WAIT_SECONDS, |queue| queue.started.is_some())
@@ -120,16 +132,28 @@ impl Events {
         let _ = self.wait(SURFACE_WAIT_SECONDS, |queue| queue.closed);
     }
 
-    pub fn queue_snapshot(&self, snapshot: Value) {
-        self.push(event("snapshot", [("snapshot", snapshot)]));
+    /// The tray's snapshot and the popup's ready view (`surface::Shared::field`).
+    pub fn queue_snapshot(&self, snapshot: Value, popup: Value) {
+        self.push(event(
+            "snapshot",
+            [("snapshot", snapshot), ("popup", popup)],
+        ));
     }
 
     pub fn queue_settings(&self, settings: &Value) {
         self.push(event("settings", [("settings", settings.clone())]));
     }
 
-    pub fn queue_strings(&self) {
-        self.push(event("strings", [("strings", strings())]));
+    /// A new catalog with its locale and letters. The caller sends a snapshot right after it, drawn in those words.
+    pub fn queue_strings(&self, catalog: &Catalog) {
+        self.push(event(
+            "strings",
+            [
+                ("strings", Value::Object(catalog.strings.clone())),
+                ("locale", Value::from(catalog.locale.as_str())),
+                ("letters", Value::from(catalog.letters.as_str())),
+            ],
+        ));
     }
 
     /// A watcher notice (`_watcher_notice`): the card where the host attached it and the notice is not the last one,
@@ -179,17 +203,4 @@ impl Events {
     pub fn is_ended(&self) -> bool {
         self.lock().ended
     }
-}
-
-/// `interface.catalog()`: every word the icon, its popup and its cards say, in the Interface language.
-fn strings() -> Value {
-    let environ = |name: &str| std::env::var(name).ok();
-    // Windows' preferred UI languages are not in car-platform yet (GROUNDWORK, Integration 6): `system` reads the
-    // environment's language as the bridge's host does until they are.
-    let catalog = car_words::interface::catalog(&environ, &Vec::new);
-    let mut map = Map::new();
-    for (key, value) in catalog.iter() {
-        map.insert(key.as_str().into(), Value::from(value.as_str()));
-    }
-    Value::Object(map)
 }

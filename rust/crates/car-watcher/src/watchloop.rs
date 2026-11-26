@@ -768,6 +768,7 @@ fn run_loop(
     loop {
         let mut ok = false;
         let result = guarded(|| {
+            crate::trip::wire("tick");
             tick_body(
                 world,
                 state,

@@ -146,6 +146,8 @@ pub struct Start {
     pub host: Arc<dyn car_control::host::Host>,
     pub events: Arc<Events>,
     pub maker: Box<dyn EngineMaker>,
+    /// The popup's model, shared with the Watcher (a click, a `strings` event): `surface::new_popup()`.
+    pub popup: crate::surface::Popup,
 }
 
 /// App: the real world of the loop.
@@ -173,6 +175,7 @@ pub struct App {
     lock_dir: String,
     tray: bool,
     notices: crate::plugnotices::PlugNotices,
+    popup: crate::surface::Popup,
 }
 
 fn stamp(path: &str) -> Option<(u128, u64)> {
@@ -225,6 +228,7 @@ impl App {
                 .into_owned(),
             tray: false,
             notices: crate::plugnotices::PlugNotices::new(),
+            popup: start.popup,
         };
         let stored = app.read_settings();
         app.settings_good = stored.is_some();
@@ -352,6 +356,11 @@ impl HomesApp for App {
     ) -> Res<Box<dyn TickEngine>> {
         self.maker.home_engine(store, path, exe, key, held)
     }
+}
+
+/// `time.strftime("[%Y-%m-%d %H:%M:%S] ")` now, in this PC's zone (the error log's stamp).
+pub(crate) fn stamp_now() -> String {
+    car_watcher_stamp(&crate::clock::LogClock::here())
 }
 
 /// `time.strftime("[%Y-%m-%d %H:%M:%S] ")` in this PC's zone.
@@ -550,7 +559,16 @@ impl World for App {
         let settings = Value::Object(self.settings.clone());
         self.events.queue_settings(&settings);
         if self.settings.get("interface_language") != previous.as_ref() && self.tray {
-            self.events.queue_strings();
+            // `refresh_settings` on a language change, and the snapshot right after it, in those words (DECISIONS.md:
+            // the core sends a snapshot right after each `strings` event).
+            let catalog = crate::surface::catalog();
+            self.events.queue_strings(&catalog);
+            let mut popup = crate::surface::held(&self.popup);
+            popup.adopt(&catalog);
+            if let Some(last) = popup.snapshot.clone() {
+                let field = popup.field(crate::clock::wall());
+                self.events.queue_snapshot(Value::Object(last), field);
+            }
         }
         self.info("settings reloaded");
     }
@@ -627,8 +645,11 @@ impl World for App {
                 .into_owned()
         };
         let edition = car_policy::plug::edition::shown(&self.plug);
+        let catalog = crate::surface::catalog();
+        crate::surface::held(&self.popup).adopt(&catalog);
         self.tray = self.events.start_surfaces(
             &icon,
+            &catalog,
             &Value::Object(self.settings.clone()),
             edition,
             &self.paths.state_dir,
@@ -653,7 +674,23 @@ impl World for App {
             }
             self.edition_notices(&added)?;
             snapshot.insert("blocked".into(), Value::Bool(blocked));
-            self.events.queue_snapshot(Value::Object(snapshot));
+            // What the icon asked its control layer, and the popup's read and view (the host computes neither).
+            let control = self.control();
+            crate::surface::icon_answers(&control, &mut snapshot);
+            let now = crate::clock::wall();
+            let source = crate::surface::names(&*self.host, &self.paths.split_chains_file);
+            let mut popup = crate::surface::held(&self.popup);
+            popup.read(
+                &crate::surface::ControlPopup {
+                    control: &control,
+                    source,
+                },
+                now,
+            );
+            let field = popup.field(now);
+            popup.snapshot = Some(snapshot.clone());
+            drop(popup);
+            self.events.queue_snapshot(Value::Object(snapshot), field);
             Ok(())
         });
     }

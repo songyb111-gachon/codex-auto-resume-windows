@@ -17,6 +17,9 @@ crate-type = ["cdylib", "rlib"]
 # depends on car-host with `default-features = false` and exports the same six over its own plug (P6-DESIGN Q3).
 default = ["exports"]
 exports = []
+# The panic test (P6-DESIGN 1.3): CAR_CORE_PANIC names an export, `tick` or `worker` to panic once there. Never in a
+# shipped build: tests/panic_feature.rs reads the release DLL for the variable's name.
+panic-test = ["car-watcher/panic-test"]
 
 [dependencies]
 car-control = { path = "../car-control" }

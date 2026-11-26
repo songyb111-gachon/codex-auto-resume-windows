@@ -21,13 +21,15 @@ fn the_six_have_the_contracts_types() {
         car_core::car_post_action;
     let free: unsafe extern "C" fn(*mut u8, usize) = car_core::car_free;
     assert_eq!(stop(), 0);
-    let request = br#"{"argv": ["run"]}"#;
+    // A request the core refuses before it starts anything: this test never starts a watcher (tests/host_watcher.rs
+    // does, on a scratch home).
+    let request = br#"{"argv": "run"}"#;
     let mut length = 0usize;
     // SAFETY: `request` lives for the call; `length` is the test's.
     let reply = unsafe { start(request.as_ptr(), request.len(), &mut length) };
     // SAFETY: the reply is `length` bytes the core handed out.
     let text = unsafe { std::slice::from_raw_parts(reply, length) }.to_vec();
-    assert_eq!(text, br#"{"abi": 1, "ok": false, "error": "not_ported"}"#);
+    assert_eq!(text, br#"{"abi": 1, "ok": false, "error": "bad_request"}"#);
     assert!(abi::is_live(reply));
     // SAFETY: handed back once with its own length.
     unsafe { free(reply, length) };
@@ -45,6 +47,25 @@ fn the_six_have_the_contracts_types() {
     assert_eq!(ABI, 1);
     assert_eq!(EventKind::ALL.len(), 8);
     assert_eq!(ActionKind::ALL.len(), 14);
+}
+
+/// P6-DESIGN 1.3's second test: the shipped DLL carries no panic wire (the feature `panic-test` names
+/// `CAR_CORE_PANIC` and its own message; neither may be in a release build). Run with `CAR_CORE_DLL` naming the release
+/// DLL of each edition; a debug build may have been made with the feature by the panic test, so it is not read here.
+#[test]
+fn the_release_dll_has_no_panic_wire() {
+    let Some(named) = std::env::var_os("CAR_CORE_DLL").filter(|value| !value.is_empty()) else {
+        eprintln!("CAR_CORE_DLL is not set: no release DLL to read");
+        return;
+    };
+    let bytes = std::fs::read(&named).unwrap_or_else(|error| panic!("{named:?}: {error}"));
+    for wire in [&b"CAR_CORE_PANIC"[..], &b"the panic test tripped"[..]] {
+        assert!(
+            !bytes.windows(wire.len()).any(|window| window == wire),
+            "{named:?} carries the panic test's wire {:?}",
+            String::from_utf8_lossy(wire)
+        );
+    }
 }
 
 #[test]

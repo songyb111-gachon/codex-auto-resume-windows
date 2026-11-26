@@ -18,6 +18,8 @@ pub mod launcher;
 pub mod plugnotices;
 pub mod rescan;
 pub mod setaside;
+pub mod surface;
 pub mod toasts;
+pub mod trip;
 pub mod waking;
 pub mod watchloop;

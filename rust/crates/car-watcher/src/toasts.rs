@@ -126,7 +126,12 @@ fn run(shared: &Shared) {
         let Some((event, detail)) = next else {
             return;
         };
-        if guarded(|| (shared.show)(&event, &detail)).is_err() {
+        if guarded(|| {
+            crate::trip::wire("worker");
+            (shared.show)(&event, &detail)
+        })
+        .is_err()
+        {
             quietly(|| (shared.log)(&format!("notification failed ({event})")));
         }
     }
@@ -136,8 +141,42 @@ fn run(shared: &Shared) {
 mod tests {
     use super::*;
 
+    /// The panic test's variable is process-wide: the toasts tests run one at a time.
+    static SERIAL: Mutex<()> = Mutex::new(());
+
+    /// P6-DESIGN 1.3: a panic inside the worker (the panic test's wire, `CAR_CORE_PANIC=worker`) costs that notice and
+    /// nothing more - it is said as a failed notification and the next notice is shown by the same worker.
+    #[cfg(feature = "panic-test")]
+    #[test]
+    fn a_panic_in_the_worker_costs_one_notice() {
+        let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
+        // SAFETY: this test alone reads the variable in this binary.
+        unsafe { std::env::set_var("CAR_CORE_PANIC", "worker") };
+        let lines: Arc<Mutex<Vec<String>>> = Arc::default();
+        let shown: Arc<Mutex<Vec<String>>> = Arc::default();
+        let seen = Arc::clone(&shown);
+        let show: Show = Arc::new(move |event, _| {
+            seen.lock().unwrap().push(event.to_owned());
+            Ok(true)
+        });
+        let log_lines = Arc::clone(&lines);
+        let log: Log = Arc::new(move |line| log_lines.lock().unwrap().push(line.to_owned()));
+        let toasts = Toasts::with_idle(show, log, 1.0);
+        assert!(toasts.call("first", &Map::new()));
+        assert!(toasts.call("second", &Map::new()));
+        let until = Instant::now() + Duration::from_secs(10);
+        while shown.lock().unwrap().is_empty() && Instant::now() < until {
+            std::thread::yield_now();
+        }
+        assert_eq!(*shown.lock().unwrap(), ["second"]);
+        assert_eq!(*lines.lock().unwrap(), ["notification failed (first)"]);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var("CAR_CORE_PANIC") };
+    }
+
     #[test]
     fn a_full_queue_drops_and_says_so_and_a_failure_is_one_line() {
+        let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
         let lines: Arc<Mutex<Vec<String>>> = Arc::default();
         let gate: Arc<(Mutex<bool>, Condvar)> = Arc::default();
         let held = Arc::clone(&gate);
