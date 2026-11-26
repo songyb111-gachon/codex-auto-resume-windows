@@ -341,4 +341,14 @@ mod tests {
         let later = from_str(r#"{"read_at": 300, "windows": []}"#).unwrap();
         assert_eq!(newest(&later, &added).unwrap(), later);
     }
+
+    #[test]
+    fn a_meter_of_two_windows_with_a_band_is_kept_in_cores_shape() {
+        let added = from_str(
+            r#"{"meter": {"read_at": 1799655000, "notices": [], "windows": [{"bucket": "codex", "window_minutes": 300, "used_percent": 12, "reset_at": 1800003600, "band": "none"}, {"bucket": "codex", "window_minutes": 10080, "used_percent": 2, "reset_at": 1800086400, "band": "warn"}]}}"#,
+        )
+        .unwrap();
+        let made = newest_made(&Value::Null, &added).unwrap();
+        assert!(made.is_some(), "{made:?}");
+    }
 }

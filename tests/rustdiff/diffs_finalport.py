@@ -37,7 +37,7 @@ PUBLISHER = "2p2nqsd0c76g0"
 OPENAI = "OpenAI OpCo, LLC"
 
 DAY = 86400
-COUNTS = {"cases": 0}
+COUNTS = {"cases": 0, "rewritten": 0}
 
 
 def windows(now: float, primary=0, secondary=0, *, minutes=(300, 10080), bucket="codex") -> list:
@@ -64,10 +64,35 @@ def stored_reading(at, found):
 class StatusMeterDiff(acting.ActingBase):
     def call(self, world, tune, label):
         COUNTS["cases"] += 1
-        return self.run_both("acts", method="get_status", args=(), world=world, tune=tune, label=label)
+        seen = []
+        asked = acting.aw.ask_reference
+
+        def spy(*arguments, **keywords):
+            found = asked(*arguments, **keywords)
+            seen.append(found[4])
+            return found
+        acting.aw.ask_reference = spy
+        try:
+            return self.run_both("acts", method="get_status", args=(), world=world, tune=tune, label=label)
+        finally:
+            acting.aw.ask_reference = asked
+            value = (seen[0] or {}).get("value") if seen else None
+            meter = ((value or {}).get("advanced") or {}) if isinstance(value, dict) else {}
+            usage = ((value or {}).get("watcher") or {}).get("usage") if isinstance(value, dict) else None
+            if isinstance(meter, dict) and isinstance(meter.get("meter"), dict) and isinstance(usage, dict)                     and usage.get("read_at") == meter["meter"].get("read_at"):
+                COUNTS["rewritten"] += 1
+
+    def tearDown(self):
+        # A diff blind to the rule's other side would pass a port that never rewrites the reading: the cases must
+        # include ones where the reference says the meter's reading.
+        if COUNTS["cases"] and self._testMethodName == "test_the_status_says_the_newest_reading":
+            self.assertGreater(COUNTS["rewritten"], 20, "no case reached the meter's reading")
+        super().tearDown()
 
     def test_the_status_says_the_newest_reading(self):
-        now = acting.now()
+        # reset_at must be a whole number for core to keep a window (domain/usage.py `epoch(..., integer=True)`):
+        # the golden clock is a float, so the times are made whole here, and two meters keep a float as an edge.
+        now = int(acting.now())
         own_at = now - 4 * DAY
         readings = {
             "none": stored_reading(None, None),
@@ -120,12 +145,15 @@ class StatusMeterDiff(acting.ActingBase):
             "added text": "meter",
             "added a number": 5,
             "other keys": dict(meter(), other={"x": 1}),
+            "float reset_at": meter(found=[dict(one, reset_at=now + 3600.0)]),
+            "float read_at": meter(read_at=own_at + 600.5),
         }
         for reading, tune in readings.items():
             for name, plug in plugs.items():
                 with self.subTest(reading=reading, plug=name):
                     self.call({"status_plug": plug}, tune, "get_status, %s, %s" % (reading, name))
-        RECORD.append("finalport status meter: %d get_status cases equal" % COUNTS["cases"])
+        RECORD.append("finalport status meter: %d get_status cases equal, %d with the meter's reading said"
+                      % (COUNTS["cases"], COUNTS["rewritten"]))
 
 
 class PackageEnginesDiff(AppBase):
