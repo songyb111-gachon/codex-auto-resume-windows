@@ -11,7 +11,7 @@ use car_adv::capabilities::Code;
 use car_adv::codex::headless::{AppLook, Ended, Follower, HeadlessRun, Opener, Shown};
 use car_adv::codex::session::{Channel, SessionError};
 use car_adv::codex::turns::Turn;
-use car_adv::engine::headless::{Follows, RunWorld, TurnsReader};
+use car_adv::engine::headless::{Follows, RunWorld, TurnsReader, Unreadable};
 use car_adv::registry::CapabilityDef;
 use car_adv::vocabulary::RunEnd;
 use car_config::Paths;
@@ -106,7 +106,7 @@ impl Follows for FakeFollower {
 struct FakeTurns(Arc<Inner>);
 
 impl TurnsReader for FakeTurns {
-    fn latest(&self, thread_id: &Value) -> Result<Option<Turn>, ()> {
+    fn latest(&self, thread_id: &Value) -> Result<Option<Turn>, Unreadable> {
         self.0
             .note(vec![text("turns"), text("latest"), thread_id.clone()]);
         let found = match thread_id {
@@ -114,7 +114,7 @@ impl TurnsReader for FakeTurns {
             _ => &Value::Null,
         };
         if is_raise(found) {
-            return Err(());
+            return Err(Unreadable);
         }
         if matches!(found, Value::Null) {
             return Ok(None);
@@ -153,7 +153,7 @@ impl TurnsReader for FakeTurns {
         }))
     }
 
-    fn turn_code(&self, thread_id: &Value, turn_id: &Value) -> Result<Value, ()> {
+    fn turn_code(&self, thread_id: &Value, turn_id: &Value) -> Result<Value, Unreadable> {
         self.0.note(vec![
             text("turns"),
             text("turn_code"),
@@ -163,7 +163,7 @@ impl TurnsReader for FakeTurns {
         let name = format!("{} {}", python_str(thread_id), python_str(turn_id));
         let found = get(self.0.seam("codes"), &name);
         if is_raise(found) {
-            return Err(());
+            return Err(Unreadable);
         }
         Ok(found.clone())
     }

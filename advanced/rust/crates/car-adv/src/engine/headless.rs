@@ -84,21 +84,28 @@ impl Follows for Arc<Follower> {
 /// The reads of a conversation's turns a run kind makes (`codex/turns.Turns` over the Codex home): Err where the
 /// reference raises.
 pub trait TurnsReader: Send + Sync {
-    fn latest(&self, thread_id: &Value) -> Result<Option<Turn>, ()>;
-    fn turn_code(&self, thread_id: &Value, turn_id: &Value) -> Result<Value, ()>;
+    fn latest(&self, thread_id: &Value) -> Result<Option<Turn>, Unreadable>;
+    fn turn_code(&self, thread_id: &Value, turn_id: &Value) -> Result<Value, Unreadable>;
 }
+
+/// A read of the turns that raised (`TurnsUnavailable`, or any other exception: the run kinds catch them all).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unreadable;
 
 /// The Codex home of a code made from `paths` alone is not known here: every read raises.
 struct NoTurns;
 
 impl TurnsReader for NoTurns {
-    fn latest(&self, _thread_id: &Value) -> Result<Option<Turn>, ()> {
-        Err(())
+    fn latest(&self, _thread_id: &Value) -> Result<Option<Turn>, Unreadable> {
+        Err(Unreadable)
     }
-    fn turn_code(&self, _thread_id: &Value, _turn_id: &Value) -> Result<Value, ()> {
-        Err(())
+    fn turn_code(&self, _thread_id: &Value, _turn_id: &Value) -> Result<Value, Unreadable> {
+        Err(Unreadable)
     }
 }
+
+/// Told of every route a code makes.
+pub type OnRoute = Arc<dyn Fn(&HeadlessRun) + Send + Sync>;
 
 /// `_unheld_now(paths)(thread_id)`: Ok(the answer) or Err (it raised).
 pub type UnheldNow = Arc<dyn Fn(&Value) -> Result<Value, ()> + Send + Sync>;
@@ -112,7 +119,7 @@ pub struct RunWorld {
     pub app_running: Arc<dyn Fn() -> AppLook + Send + Sync>,
     pub turns: Arc<dyn TurnsReader>,
     pub unheld_now: UnheldNow,
-    pub on_route: Option<Arc<dyn Fn(&HeadlessRun) + Send + Sync>>,
+    pub on_route: Option<OnRoute>,
 }
 
 impl RunWorld {

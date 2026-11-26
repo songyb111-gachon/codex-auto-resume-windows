@@ -13,7 +13,7 @@ pub const WINDOW: (f64, f64) = (900.0, 6.0 * 3600.0);
 
 /// `claimed_at(record)`: when the send core holds now was claimed - Ok(None) where it cannot be read, Err where Python's
 /// `math.isfinite` raises (an int too large for a float: the caller's try takes it).
-pub fn claimed_at(record: &Value) -> Result<Value, ()> {
+pub(crate) fn claimed_at(record: &Value) -> Result<Value, ()> {
     let at = match record {
         Value::Object(map) => map.get("last_claim_at").cloned().unwrap_or(Value::Null),
         _ => return Ok(Value::Null),
