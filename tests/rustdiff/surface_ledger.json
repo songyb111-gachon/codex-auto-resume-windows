@@ -1,0 +1,1962 @@
+{
+ "format": "car-surface-ledger/1",
+ "about": "P6-DESIGN 3.4: the 84 test files that import the Python UI (codex_auto_resume.ui, notice_window, tray_place), one row each. kind = what most of the tests that touch the UI hold: pure (car-surface), drawn (pixels, plans, motion), window (messages, focus, windows), scan (source rules). parts = the classes by their own kind, with the count of tests that touch the UI. unaffected = tests in the file that do not touch the UI and stay as they are. status: host (every UI test of the file also runs green on the C# host, `port` names where), pending (not yet: `why` and `needs` say what is missing), python-only (kept on the Python product by rule: `why`). The ledger only ever shrinks: tests/test_surface_ledger.py holds the pending count to a ceiling.",
+ "kinds": {
+  "pure": "through the CODEX_AR_CORE=rust shim against car-surface, unchanged",
+  "drawn": "against the render mode's plan dump (comparison A)",
+  "window": "through the host's --probe mode: windows made unshown, the message posted, state as JSON, never a dialog",
+  "scan": "gui/host.sources through tests/guiscan.py"
+ },
+ "files": {
+  "test_app_server_surfaces.py": {
+   "holds": "#58's follow-up: every surface a record waiting app_server_unmatched reaches says so.",
+   "tests": 15,
+   "ui_tests": 6,
+   "unaffected": 9,
+   "kind": "pure",
+   "by_kind": {
+    "drawn": 1,
+    "pure": 5
+   },
+   "parts": {
+    "pure": {
+     "PopupTests": 3,
+     "IconTests": 3
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_card_focus.py": {
+   "holds": "Who has the keyboard around a card (v0.6.16-beta.3, issue #32: typing lost when a card appears).",
+   "tests": 5,
+   "ui_tests": 5,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 5
+   },
+   "parts": {
+    "window": {
+     "FocusLineTests": 4,
+     "SecondLookTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_card_shadow_under_body.py": {
+   "holds": "v0.6.24: nothing of the notification card's shadow lies under its body.",
+   "tests": 3,
+   "ui_tests": 3,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 3
+   },
+   "parts": {
+    "window": {
+     "ShadowUnderBodyTests": 3
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_compat_surfaces.py": {
+   "holds": "Where the Compatibility Registry shows, and where it must not reach.",
+   "tests": 40,
+   "ui_tests": 9,
+   "unaffected": 31,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 8,
+    "pure": 1
+   },
+   "parts": {
+    "scan": {
+     "CommandLineTests": 1,
+     "McpTests": 1,
+     "PrivacyTests": 4,
+     "ReleaseTests": 2
+    },
+    "pure": {
+     "ReportedTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_control.py": {
+   "holds": "The shared control surface and the JSON bridge the front ends drive it through.",
+   "tests": 114,
+   "ui_tests": 4,
+   "unaffected": 110,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 4
+   },
+   "parts": {
+    "scan": {
+     "SettingsSurfaceTests": 1,
+     "NotARecoveryEngineTests": 1,
+     "ErrorCodeTests": 1,
+     "StopWatcherTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_corners_by_design.py": {
+   "holds": "v0.6.24: a corner follows its design - the popup's, its menus' and the tray card's (brand/shape.py `design_smoothing`).",
+   "tests": 4,
+   "ui_tests": 4,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 4
+   },
+   "parts": {
+    "window": {
+     "CornersByDesignTests": 4
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_day_frame_cost.py": {
+   "holds": "v0.6.24-beta.3 (W2): a frame of a special day's popup header costs what its scene alone cost before the day spread wide.",
+   "tests": 3,
+   "ui_tests": 3,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 3
+   },
+   "parts": {
+    "drawn": {
+     "PopupFrameTests": 3
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_day_wide_cards.py": {
+   "holds": "v0.6.24-beta.3: the day spread wide (W2, the owner's pick of 2026-11-17) on the surfaces the tray draws.",
+   "tests": 9,
+   "ui_tests": 9,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 3,
+    "drawn": 6
+   },
+   "parts": {
+    "drawn": {
+     "PopupTests": 4,
+     "NotificationCardTests": 2
+    },
+    "window": {
+     "TipCardTests": 3
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_detection_blocked.py": {
+   "holds": "v0.6.26 (update resilience, proposal 3): detection that cannot read Codex is said, not only logged.",
+   "tests": 5,
+   "ui_tests": 1,
+   "unaffected": 4,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 1
+   },
+   "parts": {
+    "scan": {
+     "DetectionTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_diagnostics_tools.py": {
+   "holds": "v0.6.11: Diagnostics' own tools, and the prompts to ask Codex in nine languages.",
+   "tests": 19,
+   "ui_tests": 4,
+   "unaffected": 15,
+   "kind": "scan",
+   "by_kind": {
+    "window": 1,
+    "scan": 3
+   },
+   "parts": {
+    "scan": {
+     "StateAccessTests": 1,
+     "DemoModuleTests": 1,
+     "StarterPromptTests": 1
+    },
+    "window": {
+     "DemoTrayTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_dont_postpone.py": {
+   "holds": "v0.6.11: Don't postpone - a person's own postponement taken away, and nothing else.",
+   "tests": 15,
+   "ui_tests": 3,
+   "unaffected": 12,
+   "kind": "pure",
+   "by_kind": {
+    "scan": 1,
+    "pure": 2
+   },
+   "parts": {
+    "scan": {
+     "NeverToAModelTests": 1
+    },
+    "pure": {
+     "PopupTests": 2
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_edition_label.py": {
+   "holds": "v0.6.11: the edition beside the version - since v0.6.14 an advanced edition's only.",
+   "tests": 22,
+   "ui_tests": 7,
+   "unaffected": 15,
+   "kind": "scan",
+   "by_kind": {
+    "drawn": 3,
+    "scan": 4
+   },
+   "parts": {
+    "drawn": {
+     "TooltipTests": 4
+    },
+    "scan": {
+     "PanelTests": 2,
+     "WindowTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_failure_outcomes.py": {
+   "holds": "Which endings are red on the icon and the taskbar button, and which ask for attention (v0.6.20, standard J14 as the",
+   "tests": 11,
+   "ui_tests": 10,
+   "unaffected": 1,
+   "kind": "pure",
+   "by_kind": {
+    "drawn": 4,
+    "pure": 6
+   },
+   "parts": {
+    "pure": {
+     "RedTests": 4,
+     "NeitherTests": 1
+    },
+    "drawn": {
+     "AmberTests": 5
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_failure_seen.py": {
+   "holds": "A certain failure stays red on the icon until somebody has seen it (v0.6.8).",
+   "tests": 38,
+   "ui_tests": 9,
+   "unaffected": 29,
+   "kind": "window",
+   "by_kind": {
+    "window": 6,
+    "scan": 3
+   },
+   "parts": {
+    "scan": {
+     "SeenFileTests": 2,
+     "WatcherTests": 1
+    },
+    "window": {
+     "IconTests": 6
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_focus_rings.py": {
+   "holds": "v0.6.11: every focus ring stands 3:1 off what it is drawn on, in every design and theme (J12).",
+   "tests": 4,
+   "ui_tests": 2,
+   "unaffected": 2,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 1,
+    "scan": 1
+   },
+   "parts": {
+    "scan": {
+     "FocusContrastTests": 1
+    },
+    "drawn": {
+     "PopupRingTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_glyph_coverage.py": {
+   "holds": "Every character of every catalog has a glyph in the fonts each surface draws it with (v0.6.11).",
+   "tests": 8,
+   "ui_tests": 8,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 8
+   },
+   "parts": {
+    "drawn": {
+     "GlyphCoverageTests": 8
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_gui_v0623_days.py": {
+   "holds": "v0.6.23: the days with a look of their own, and the egg on the version (both only by the owner's word).",
+   "tests": 59,
+   "ui_tests": 37,
+   "unaffected": 22,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 5,
+    "drawn": 26,
+    "scan": 6
+   },
+   "parts": {
+    "scan": {
+     "TableTests": 1,
+     "SceneTests": 1,
+     "WiringTests": 4
+    },
+    "drawn": {
+     "IconTests": 7,
+     "TrayGateTests": 4,
+     "PopupSceneTests": 15
+    },
+    "window": {
+     "PopupClockTests": 5
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_gui_v0623_surfaces.py": {
+   "holds": "v0.6.23: the special days on the other surfaces (by the owner's word). Nothing here reads today's date.",
+   "tests": 32,
+   "ui_tests": 17,
+   "unaffected": 15,
+   "kind": "window",
+   "by_kind": {
+    "window": 6,
+    "drawn": 5,
+    "scan": 6
+   },
+   "parts": {
+    "window": {
+     "PopupPressTests": 6
+    },
+    "drawn": {
+     "PopupSweepDrawnTests": 4,
+     "TaskbarTests": 2
+    },
+    "scan": {
+     "DashboardSceneTests": 3,
+     "PanelTests": 2
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_gui_v065_taskbar.py": {
+   "holds": "The window's taskbar button wears the notification-area icon's motion while the window is open (v0.6.5).",
+   "tests": 27,
+   "ui_tests": 27,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 27
+   },
+   "parts": {
+    "drawn": {
+     "TaskbarMarkTests": 27
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_language_faces.py": {
+   "holds": "v0.6.17 (#48): each language in the face Windows sets it in - Korean in Malgun Gothic, Japanese in Yu Gothic UI,",
+   "tests": 11,
+   "ui_tests": 1,
+   "unaffected": 10,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 1
+   },
+   "parts": {
+    "drawn": {
+     "RuleTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_light_parity.py": {
+   "holds": "One rule for the word and the light a header shows, held against all three headers (v0.6.10).",
+   "tests": 16,
+   "ui_tests": 6,
+   "unaffected": 10,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 6
+   },
+   "parts": {
+    "pure": {
+     "TableTests": 4,
+     "PopupTests": 2
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_mcpui_v065.py": {
+   "holds": "The v0.6.5 settings panel: its own drop-down list, and controls that move when they change.",
+   "tests": 69,
+   "ui_tests": 2,
+   "unaffected": 67,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 1,
+    "scan": 1
+   },
+   "parts": {
+    "scan": {
+     "MotionStyleTests": 1
+    },
+    "drawn": {
+     "TileLiftTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_menu_opening_motion.py": {
+   "holds": "v0.6.23 (second round, F4): the icon's right-click menu and the popup's row menus fade and rise in, and fade out.",
+   "tests": 8,
+   "ui_tests": 6,
+   "unaffected": 2,
+   "kind": "window",
+   "by_kind": {
+    "window": 6
+   },
+   "parts": {
+    "window": {
+     "FadeTests": 4,
+     "ReducedFadeTests": 1,
+     "WindowTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_motion_card_strip.py": {
+   "holds": "The notification card's motion picture stands on the right end of a taskbar (v0.6.24, the owner's wish of 2026-11-19).",
+   "tests": 10,
+   "ui_tests": 4,
+   "unaffected": 6,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 3,
+    "pure": 1
+   },
+   "parts": {
+    "drawn": {
+     "PlanTests": 3,
+     "DrawnTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_motion_logo.py": {
+   "holds": "The README's logo, moving (build/motion_logo.py): the icon's own watching motion on the logo's own drawing.",
+   "tests": 7,
+   "ui_tests": 2,
+   "unaffected": 5,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 1,
+    "scan": 1
+   },
+   "parts": {
+    "drawn": {
+     "LogoFrameTests": 2
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_motion_popup.py": {
+   "holds": "The notification-area popup in the README's motion picture (build/motion_popup.py): opened from the icon, used by a pointer.",
+   "tests": 29,
+   "ui_tests": 3,
+   "unaffected": 26,
+   "kind": "window",
+   "by_kind": {
+    "window": 2,
+    "drawn": 1
+   },
+   "parts": {
+    "window": {
+     "PopupPlanTests": 2
+    },
+    "drawn": {
+     "PopupDrawnTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_motion_tray_story.py": {
+   "holds": "The tray popup's motion picture shows where to click (v0.6.24, the owner's option A of 2026-11-17).",
+   "tests": 24,
+   "ui_tests": 1,
+   "unaffected": 23,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 1
+   },
+   "parts": {
+    "drawn": {
+     "StoryTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_near_limit_window_name.py": {
+   "holds": "The near-limit notification names a window as every surface does, a whole-day one in days (v0.6.26, the third",
+   "tests": 2,
+   "ui_tests": 2,
+   "unaffected": 0,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 2
+   },
+   "parts": {
+    "pure": {
+     "NearLimitWindowNameTests": 2
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_notice_card.py": {
+   "holds": "The notification card (v0.6.5, requirements 4 and 6): one notification, one route.",
+   "tests": 120,
+   "ui_tests": 70,
+   "unaffected": 50,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 27,
+    "drawn": 30,
+    "scan": 8,
+    "pure": 5
+   },
+   "parts": {
+    "drawn": {
+     "PolicyTests": 1,
+     "MotionTests": 10,
+     "StackTests": 6,
+     "LayoutTests": 4,
+     "ShadowTests": 7,
+     "DesignShadowTests": 1
+    },
+    "scan": {
+     "CharacterizationTests": 3,
+     "SafetyTests": 4,
+     "SettingTests": 1
+    },
+    "pure": {
+     "NoticeTests": 2,
+     "PrivacyTests": 1,
+     "PowerStopTests": 3
+    },
+    "window": {
+     "WindowsTests": 21,
+     "CardDesignTests": 6
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_notice_click.py": {
+   "holds": "A click on a notice itself (v0.6.16): the card's face and the toast's body go where the notice is about.",
+   "tests": 25,
+   "ui_tests": 3,
+   "unaffected": 22,
+   "kind": "window",
+   "by_kind": {
+    "window": 3
+   },
+   "parts": {
+    "window": {
+     "CardTests": 3
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_notice_click_chat.py": {
+   "holds": "Where a click on a notice goes while the in-app chat is on (v0.6.19, the roadmap's \"the person picks that",
+   "tests": 5,
+   "ui_tests": 2,
+   "unaffected": 3,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 2
+   },
+   "parts": {
+    "pure": {
+     "OpenTests": 2
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_notice_stay.py": {
+   "holds": "Notices that stay on screen until clicked, chosen per kind (v0.6.16, notice_kinds.py).",
+   "tests": 18,
+   "ui_tests": 3,
+   "unaffected": 15,
+   "kind": "window",
+   "by_kind": {
+    "window": 1,
+    "drawn": 1,
+    "scan": 1
+   },
+   "parts": {
+    "window": {
+     "CardTests": 2
+    },
+    "scan": {
+     "WindowTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_observe_and_admission.py": {
+   "holds": "v0.6.11: observe only, delivery receipts, and which conversations and projects may resume.",
+   "tests": 43,
+   "ui_tests": 3,
+   "unaffected": 40,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 2,
+    "pure": 1
+   },
+   "parts": {
+    "scan": {
+     "AdmissionEngineTests": 1,
+     "ProjectRuleControlTests": 2
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_picture_popup_face_pinned.py": {
+   "holds": "The tray popup's, the notification card's and the tip's pictures are set in each language's own Windows face,",
+   "tests": 6,
+   "ui_tests": 6,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 6
+   },
+   "parts": {
+    "drawn": {
+     "PinnedPopupFaceTests": 6
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_plug_points.py": {
+   "holds": "Where core asks the edition's plug, and what it does with each answer (v0.6.11, P2-P14).",
+   "tests": 120,
+   "ui_tests": 3,
+   "unaffected": 117,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 2,
+    "pure": 1
+   },
+   "parts": {
+    "scan": {
+     "MovedTests": 2
+    },
+    "pure": {
+     "SurfaceTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_popup_access.py": {
+   "holds": "v0.6.11: the notification-area popup for a screen reader, and at Windows' text size.",
+   "tests": 24,
+   "ui_tests": 21,
+   "unaffected": 3,
+   "kind": "window",
+   "by_kind": {
+    "window": 19,
+    "drawn": 2
+   },
+   "parts": {
+    "window": {
+     "AccessibleItemsTests": 8,
+     "TextSizeTests": 4,
+     "ScreenReaderTests": 6,
+     "PopupTextSizeTests": 3
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_popup_card_still.py": {
+   "holds": "v0.6.24 (O14 amended by the owner, 2026-11-15): the popup is its card - drawn alone, and its still.",
+   "tests": 14,
+   "ui_tests": 14,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 8,
+    "drawn": 6
+   },
+   "parts": {
+    "drawn": {
+     "AloneTests": 6
+    },
+    "window": {
+     "StillTests": 5,
+     "ShadowLayerTests": 2,
+     "RecipeTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_popup_card_window.py": {
+   "holds": "v0.6.24 (O14 amended by the owner, 2026-11-15): the popup's window IS its card.",
+   "tests": 11,
+   "ui_tests": 11,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 11
+   },
+   "parts": {
+    "window": {
+     "CardWindowTests": 11
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_popup_motion_held.py": {
+   "holds": "v0.6.23 (second round, F1): the popup's light, scene, glides and sweep hold still under battery saver and a locked session.",
+   "tests": 10,
+   "ui_tests": 10,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 9,
+    "drawn": 1
+   },
+   "parts": {
+    "window": {
+     "GateTests": 7,
+     "IconReadingTests": 2,
+     "WindowTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_popup_opening_motion.py": {
+   "holds": "v0.6.23 (second round, F3): the popup opens with the brand's fade and a small rise, and its buttons' faces glide.",
+   "tests": 11,
+   "ui_tests": 11,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 6,
+    "drawn": 5
+   },
+   "parts": {
+    "drawn": {
+     "ArithmeticTests": 3,
+     "FaceDrawnTests": 2
+    },
+    "window": {
+     "WindowTests": 6
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_popup_row_menu_drawn.py": {
+   "holds": "The popup's row menus, drawn by the code that draws the icon's menu (v0.6.20).",
+   "tests": 27,
+   "ui_tests": 27,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 26,
+    "scan": 1
+   },
+   "parts": {
+    "window": {
+     "ParityTests": 4,
+     "FallbackTests": 4,
+     "PopupFocusTests": 1,
+     "SubmenuTests": 9,
+     "RightToLeftSubmenuTests": 2,
+     "PlacementTests": 5,
+     "WindowsTests": 2
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_popup_row_menu_parity.py": {
+   "holds": "The popup's waiting-task menu offers what the Dashboard's Pending menu offers (v0.6.23; the owner, 2026-11-11:",
+   "tests": 17,
+   "ui_tests": 17,
+   "unaffected": 0,
+   "kind": "pure",
+   "by_kind": {
+    "window": 2,
+    "scan": 4,
+    "pure": 11
+   },
+   "parts": {
+    "pure": {
+     "OfferedTests": 4,
+     "EnablementTests": 3,
+     "OpenerTests": 4
+    },
+    "window": {
+     "RemoveTests": 3,
+     "OpensTheDashboardTests": 3
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_popup_shape.py": {
+   "holds": "The popup is one module, however many files it is written in.",
+   "tests": 7,
+   "ui_tests": 6,
+   "unaffected": 1,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 4,
+    "pure": 2
+   },
+   "parts": {
+    "scan": {
+     "SurfaceTests": 6
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_postpone_and_tiers.py": {
+   "holds": "v0.6.11: postponing a record, quiet hours, and how much a conversation asks before it resumes.",
+   "tests": 55,
+   "ui_tests": 7,
+   "unaffected": 48,
+   "kind": "pure",
+   "by_kind": {
+    "window": 1,
+    "pure": 6
+   },
+   "parts": {
+    "pure": {
+     "ControlTests": 1,
+     "PopupRowMenuTests": 6
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_power.py": {
+   "holds": "v0.6.11: sleep-safe waiting, keeping this PC awake while a task waits, and waiting for the network.",
+   "tests": 39,
+   "ui_tests": 2,
+   "unaffected": 37,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 1,
+    "pure": 1
+   },
+   "parts": {
+    "pure": {
+     "PopupTests": 1
+    },
+    "scan": {
+     "AdapterTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_recovery_blocked.py": {
+   "holds": "v0.6.26 (update resilience, proposal 1): the watcher says, within minutes, when recovery cannot work here.",
+   "tests": 16,
+   "ui_tests": 1,
+   "unaffected": 15,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 1
+   },
+   "parts": {
+    "pure": {
+     "FeederTests": 1
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_right_to_left.py": {
+   "holds": "Right to left: the popup, the notification card and the panel mirror in Arabic and Hebrew (v0.6.11).",
+   "tests": 20,
+   "ui_tests": 8,
+   "unaffected": 12,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 1,
+    "drawn": 7
+   },
+   "parts": {
+    "drawn": {
+     "PopupMirrorTests": 7,
+     "CardMirrorTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_rtl_values_kept.py": {
+   "holds": "A date or a time inside a right-to-left sentence keeps its order, in the popup and on the card (v0.6.23).",
+   "tests": 7,
+   "ui_tests": 3,
+   "unaffected": 4,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 3
+   },
+   "parts": {
+    "pure": {
+     "PopupTests": 3
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_screenshots.py": {
+   "holds": "The screenshots are generated, and stale ones fail the build.",
+   "tests": 99,
+   "ui_tests": 45,
+   "unaffected": 54,
+   "kind": "scan",
+   "by_kind": {
+    "window": 2,
+    "drawn": 1,
+    "scan": 37,
+    "pure": 5
+   },
+   "parts": {
+    "scan": {
+     "ManifestTests": 1,
+     "CopyTests": 2,
+     "PixelTests": 1,
+     "BreathingPictureTests": 4,
+     "DesignPictureTests": 1,
+     "ContentTests": 3,
+     "EnvelopeTests": 2,
+     "PopupDrawingTests": 4,
+     "CardPictureTests": 2,
+     "IconMotionPictureTests": 6,
+     "AuditSheetTests": 2,
+     "FasterRunTests": 14,
+     "PinnedClockTests": 1,
+     "PointerShutOutTests": 1
+    },
+    "pure": {
+     "ClearGroundTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_settings_unreadable.py": {
+   "holds": "A settings file that cannot be read now is never taken as the defaults (v0.6.18, the core audit's R1).",
+   "tests": 9,
+   "ui_tests": 6,
+   "unaffected": 3,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 3,
+    "scan": 3
+   },
+   "parts": {
+    "scan": {
+     "ReadTests": 2,
+     "LoopTests": 1
+    },
+    "drawn": {
+     "WatcherTests": 3
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_single_rules.py": {
+   "holds": "Rules the product states once, and what every caller gets from each of them.",
+   "tests": 26,
+   "ui_tests": 2,
+   "unaffected": 24,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 1,
+    "pure": 1
+   },
+   "parts": {
+    "pure": {
+     "PageTests": 1
+    },
+    "scan": {
+     "OneImplementationTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_social_motion.py": {
+   "holds": "The social preview's motion: one cycle of the watching icon's motion on the card, as an APNG, under 1 MB.",
+   "tests": 21,
+   "ui_tests": 8,
+   "unaffected": 13,
+   "kind": "scan",
+   "by_kind": {
+    "drawn": 3,
+    "scan": 4,
+    "pure": 1
+   },
+   "parts": {
+    "scan": {
+     "TheReaderReadsTheWriter": 3
+    },
+    "drawn": {
+     "TheScheduleIsTheIcons": 5
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_squircle_shadows.py": {
+   "holds": "v0.6.24: every mask follows the squircle - shadows, wells, the card's cut - in the window and in Python.",
+   "tests": 15,
+   "ui_tests": 13,
+   "unaffected": 2,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 2,
+    "drawn": 11
+   },
+   "parts": {
+    "drawn": {
+     "LiftTests": 4,
+     "WellTests": 3,
+     "CardCutTests": 5
+    },
+    "window": {
+     "GdiPlusTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_srcscan.py": {
+   "holds": "The scanner every structural test reads the product's source through (`tests/srcscan.py`).",
+   "tests": 10,
+   "ui_tests": 10,
+   "unaffected": 0,
+   "kind": "scan",
+   "by_kind": {
+    "window": 2,
+    "scan": 8
+   },
+   "parts": {
+    "scan": {
+     "ListingTests": 4,
+     "NoOneFileScanTests": 2
+    },
+    "window": {
+     "TreeTests": 4
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_status_light_states.py": {
+   "holds": "v0.6.20 (the owner's report of 2026-10-26): every state its matching light, on every surface that shows one.",
+   "tests": 14,
+   "ui_tests": 9,
+   "unaffected": 5,
+   "kind": "pure",
+   "by_kind": {
+    "drawn": 4,
+    "pure": 5
+   },
+   "parts": {
+    "pure": {
+     "PopupTests": 5
+    },
+    "drawn": {
+     "IconTests": 4
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_surface_parity.py": {
+   "holds": "Comparison A (P6-DESIGN 3.3): the C# host's surfaces laid out exactly as the Python reference lays them out.",
+   "tests": 21,
+   "ui_tests": 21,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 18,
+    "scan": 3
+   },
+   "parts": {
+    "window": {
+     "SurfaceParityTests": 18
+    },
+    "scan": {
+     "SurfaceSourceTests": 3
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_surface_properties.py": {
+   "holds": "Properties the product claims about itself that nothing was executing.",
+   "tests": 31,
+   "ui_tests": 17,
+   "unaffected": 14,
+   "kind": "window",
+   "by_kind": {
+    "window": 9,
+    "scan": 8
+   },
+   "parts": {
+    "window": {
+     "TrayMenuTests": 9
+    },
+    "scan": {
+     "NoBrowserTests": 2,
+     "NoGuiAutomationTests": 2,
+     "JournalIsWriteOnlyTests": 3,
+     "ShortcutTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_surface_render_retarget.py": {
+   "holds": "The picture makers retargeted to the host's render mode are wired right (P6-DESIGN 3.3 B and C; seat S6.3f).",
+   "tests": 4,
+   "ui_tests": 4,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 4
+   },
+   "parts": {
+    "window": {
+     "RetargetStructureTests": 3,
+     "ServeTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_surface_windows.py": {
+   "holds": "Comparison A for what the host's surface windows decide (P6-DESIGN 3.3; seat S6.3c).",
+   "tests": 8,
+   "ui_tests": 8,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 8
+   },
+   "parts": {
+    "window": {
+     "SurfaceWindowTests": 8
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray.py": {
+   "holds": "The watcher's notification-area icon.",
+   "tests": 10,
+   "ui_tests": 10,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 5,
+    "drawn": 3,
+    "pure": 2
+   },
+   "parts": {
+    "drawn": {
+     "WordingTests": 4
+    },
+    "pure": {
+     "SnapshotTests": 1
+    },
+    "window": {
+     "PowerMenuTests": 4,
+     "LiveIconTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_cards.py": {
+   "holds": "v0.6.5: the notification card wired into the watcher, and its entrance on a real screen.",
+   "tests": 15,
+   "ui_tests": 15,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 6,
+    "drawn": 9
+   },
+   "parts": {
+    "drawn": {
+     "AppWiringTests": 8
+    },
+    "window": {
+     "IconHostTests": 4,
+     "EntranceTests": 3
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_icon_motion.py": {
+   "holds": "The notification-area icon's motion (v0.6.5).",
+   "tests": 76,
+   "ui_tests": 74,
+   "unaffected": 2,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 32,
+    "drawn": 40,
+    "scan": 1,
+    "pure": 1
+   },
+   "parts": {
+    "drawn": {
+     "StateTests": 8,
+     "PhaseTests": 15,
+     "MotionRuleTests": 1,
+     "FrameTests": 6,
+     "BudgetTests": 3,
+     "GlideTests": 6,
+     "StoredDesignTests": 4
+    },
+    "window": {
+     "TimerTests": 4,
+     "ObserveTests": 6,
+     "StoredReduceMotionTests": 5,
+     "PlacementTests": 11,
+     "SwapTests": 3,
+     "LiveMotionTests": 2
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_menu_drawn.py": {
+   "holds": "The icon's right-click menu, drawn in the product's design (v0.6.20).",
+   "tests": 37,
+   "ui_tests": 37,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 37
+   },
+   "parts": {
+    "window": {
+     "ParityTests": 4,
+     "FallbackTests": 5,
+     "KeyTests": 2,
+     "BehaviourTests": 10,
+     "PlacementTests": 6,
+     "RightToLeftTests": 1,
+     "LookTests": 6,
+     "LiveWindowTests": 3
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_menu_fallbacks.py": {
+   "holds": "The icon's menu says what the English catalog says when it has no catalog (v0.6.23, the reachability audit's M2).",
+   "tests": 2,
+   "ui_tests": 2,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 1,
+    "scan": 1
+   },
+   "parts": {
+    "window": {
+     "MenuFallbackTests": 2
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_menu_no_glow.py": {
+   "holds": "The drawn tray-icon menu has no bright edge round it (v0.6.20 final, the owner's word of 2026-11-01).",
+   "tests": 5,
+   "ui_tests": 5,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 5
+   },
+   "parts": {
+    "window": {
+     "NoGlowTests": 4,
+     "SourceTests": 1
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_open_popup.py": {
+   "holds": "The icon's right-click menu offers Open the popup (v0.6.23; the owner, 2026-11-11: \"트레이에서 아이콘 우클릭시 메뉴에 팝업",
+   "tests": 13,
+   "ui_tests": 13,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 12,
+    "pure": 1
+   },
+   "parts": {
+    "window": {
+     "ItemTests": 5,
+     "OfferedTests": 2,
+     "OpensTests": 6
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_overflow_open.py": {
+   "holds": "The notification-area icon moves in the overflow flyout while the flyout is open (v0.6.18).",
+   "tests": 10,
+   "ui_tests": 10,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 10
+   },
+   "parts": {
+    "window": {
+     "OpenFlyoutTickTests": 5,
+     "OverflowOpenTests": 5
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_popup.py": {
+   "holds": "The notification-area mini-dashboard.",
+   "tests": 118,
+   "ui_tests": 117,
+   "unaffected": 1,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 24,
+    "drawn": 53,
+    "scan": 4,
+    "pure": 36
+   },
+   "parts": {
+    "pure": {
+     "ViewModelTests": 12,
+     "ActivityTests": 5,
+     "StatusLightTests": 1,
+     "SelectTests": 4,
+     "ActionTests": 11,
+     "NoBadgeTests": 1
+    },
+    "drawn": {
+     "PlacementTests": 10,
+     "LayoutTests": 12,
+     "MotionTests": 10,
+     "SwitchGlideTests": 4,
+     "ElevationTests": 6,
+     "HighContrastTests": 2,
+     "FontTests": 9,
+     "ReduceMotionSettingTests": 2
+    },
+    "scan": {
+     "SafetyTests": 6
+    },
+    "window": {
+     "WindowsTests": 22
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_popup_depth.py": {
+   "holds": "v0.6.5, requirement 11: depth inside the notification-area popup.",
+   "tests": 22,
+   "ui_tests": 22,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 1,
+    "drawn": 21
+   },
+   "parts": {
+    "drawn": {
+     "RecipeTests": 6,
+     "LayoutTests": 7,
+     "PixelTests": 7,
+     "CountsFitTests": 1
+    },
+    "window": {
+     "CardTileTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_popup_designs.py": {
+   "holds": "v0.6.10 in the notification-area popup: the Design setting.",
+   "tests": 16,
+   "ui_tests": 16,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 5,
+    "drawn": 11
+   },
+   "parts": {
+    "drawn": {
+     "AdoptedDesignTests": 3,
+     "DesignRendererTests": 8
+    },
+    "window": {
+     "WindowGateTests": 4,
+     "PopupDesignTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_popup_v064.py": {
+   "holds": "v0.6.4 in the notification-area popup.",
+   "tests": 42,
+   "ui_tests": 42,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "window": 17,
+    "drawn": 24,
+    "pure": 1
+   },
+   "parts": {
+    "drawn": {
+     "ThemeResolutionTests": 7,
+     "DarkElevationTests": 3,
+     "SwitchPlacementTests": 8,
+     "DarkRendererTests": 7
+    },
+    "window": {
+     "NextOpenTests": 7,
+     "MenuThemeTests": 5,
+     "PopupThemeTests": 5
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_reuses_window.py": {
+   "holds": "The icon reuses the settings window that is open (v0.6.20, issue #55).",
+   "tests": 15,
+   "ui_tests": 12,
+   "unaffected": 3,
+   "kind": "pure",
+   "by_kind": {
+    "window": 2,
+    "scan": 3,
+    "pure": 7
+   },
+   "parts": {
+    "pure": {
+     "OpenAsksFirstTests": 4,
+     "RunningWindowTests": 3
+    },
+    "window": {
+     "PauseResumeTests": 2
+    },
+    "scan": {
+     "WindowSideTests": 2,
+     "WindowDecisionTests": 1
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_tray_shape.py": {
+   "holds": "The icon is one module and one class, however many files they are written in.",
+   "tests": 10,
+   "ui_tests": 8,
+   "unaffected": 2,
+   "kind": "window",
+   "by_kind": {
+    "window": 4,
+    "scan": 4
+   },
+   "parts": {
+    "scan": {
+     "ShapeTests": 4
+    },
+    "window": {
+     "CompositionTests": 4
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_tip_header_ink.py": {
+   "holds": "The icon's card's first row reads as one line, measured by its ink (v0.6.24 final).",
+   "tests": 4,
+   "ui_tests": 4,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 4
+   },
+   "parts": {
+    "window": {
+     "HeaderInkTests": 4
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_tip_messages.py": {
+   "holds": "What the icon does with the shell's words about hovering (v0.6.24): its own tooltip card shown and hidden.",
+   "tests": 17,
+   "ui_tests": 17,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 17
+   },
+   "parts": {
+    "window": {
+     "ShowTests": 4,
+     "HideTests": 2,
+     "FlagTests": 3,
+     "FallbackTests": 2,
+     "SilentShellTests": 4,
+     "LiveCardTests": 2
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_tip_shape.py": {
+   "holds": "The shape of the icon's tooltip card (v0.6.24): two files, one pure and one that calls Windows, loaded only on a hover.",
+   "tests": 4,
+   "ui_tests": 4,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 2,
+    "scan": 2
+   },
+   "parts": {
+    "window": {
+     "TipShapeTests": 4
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_tray_tip_whole.py": {
+   "holds": "What the icon's szTip says is whole in every language (v0.6.26, the third audit's N1).",
+   "tests": 4,
+   "ui_tests": 4,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 4
+   },
+   "parts": {
+    "drawn": {
+     "WholeTooltipTests": 4
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_tray_tipcard.py": {
+   "holds": "The icon's own tooltip card (v0.6.24, surface D, the owner's option 2): what it says, where it goes, how it is drawn.",
+   "tests": 33,
+   "ui_tests": 33,
+   "unaffected": 0,
+   "kind": "window",
+   "by_kind": {
+    "window": 18,
+    "drawn": 15
+   },
+   "parts": {
+    "drawn": {
+     "PartsTests": 5,
+     "PlanTests": 10
+    },
+    "window": {
+     "PlaceTests": 3,
+     "DrawTests": 10,
+     "AccessibleTests": 1,
+     "CardStateTests": 4
+    }
+   },
+   "route": "probe",
+   "status": "pending",
+   "why": "not yet run against the host's probe mode: its windows are driven with the Python stand-ins",
+   "needs": "a probe job per class (gui/SurfaceRenderWindows.cs) and the same assertions over its JSON"
+  },
+  "test_typeface.py": {
+   "holds": "One face for a language on every surface (v0.6.11, win/typeface.py).",
+   "tests": 15,
+   "ui_tests": 7,
+   "unaffected": 8,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 6,
+    "scan": 1
+   },
+   "parts": {
+    "drawn": {
+     "RuleTests": 1,
+     "PersianFaceTests": 2,
+     "WindowsFacesTests": 4
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_usage_left.py": {
+   "holds": "v0.6.24 final: the at-a-glance surfaces say what is LEFT of a usage window; a diagnosis says what is used.",
+   "tests": 8,
+   "ui_tests": 4,
+   "unaffected": 4,
+   "kind": "pure",
+   "by_kind": {
+    "scan": 1,
+    "pure": 3
+   },
+   "parts": {
+    "pure": {
+     "WordsTests": 3
+    },
+    "scan": {
+     "WindowSourceTests": 1
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_usage_reading.py": {
+   "holds": "v0.6.11: Codex's usage, the last reading - kept in the heartbeat, shown with its age.",
+   "tests": 12,
+   "ui_tests": 4,
+   "unaffected": 8,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 4
+   },
+   "parts": {
+    "pure": {
+     "WordsTests": 4
+    }
+   },
+   "route": "shim",
+   "status": "pending",
+   "why": "not yet run against car-surface: the shim has no surface proxy for the names this file calls",
+   "needs": "tests/rustdiff/surfaceproxy.py answering those names through car-surface (surface.batch)"
+  },
+  "test_usage_surfaces.py": {
+   "holds": "Where the icon, the popup and a notice show the advanced edition's usage meter (v0.6.16-beta.3, issue #29), and",
+   "tests": 10,
+   "ui_tests": 5,
+   "unaffected": 5,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 3,
+    "pure": 2
+   },
+   "parts": {
+    "drawn": {
+     "KeyTests": 1,
+     "TooltipTests": 2
+    },
+    "pure": {
+     "PopupTests": 2
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  },
+  "test_vocabulary.py": {
+   "holds": "The closed vocabularies: every word the product stores, sends, translates or branches on.",
+   "tests": 13,
+   "ui_tests": 2,
+   "unaffected": 11,
+   "kind": "scan",
+   "by_kind": {
+    "scan": 1,
+    "pure": 1
+   },
+   "parts": {
+    "scan": {
+     "ListTests": 1
+    },
+    "pure": {
+     "HomeTests": 1
+    }
+   },
+   "route": "scan",
+   "status": "pending",
+   "why": "not yet re-pointed: its rules read the Python sources",
+   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py"
+  },
+  "test_words_fit.py": {
+   "holds": "The popup and the notification card hold their longest words in every language at every scale (v0.6.11).",
+   "tests": 3,
+   "ui_tests": 3,
+   "unaffected": 0,
+   "kind": "drawn",
+   "by_kind": {
+    "drawn": 3
+   },
+   "parts": {
+    "drawn": {
+     "PopupWordsFitTests": 2,
+     "CardWordsFitTests": 1
+    }
+   },
+   "route": "plan",
+   "status": "pending",
+   "why": "not yet run against the render mode: its geometry and motion are asserted on the Python plans",
+   "needs": "the same assertions over the plan dump of the host's render mode (tests/rustdiff/surfacehost.py)"
+  }
+ }
+}
