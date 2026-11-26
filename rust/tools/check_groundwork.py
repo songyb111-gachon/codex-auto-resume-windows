@@ -53,7 +53,11 @@ STANDARD = {
                     "car-policy", "car-store", "car-surface", "car-words"},
     # the entry points sit above control and watcher (C5)
     # S8.2: the stub core's test-double forward and the setup program start their child through car-platform's starter
-    "car-bin": {"car-control", "car-platform", "car-watcher"},
+    # S5.2: the command line reads the config, the store, the settings, the words and the vocabulary and asks
+    # car-platform for the registrations (cli.py and commands/* import config, store, settings, l10n, machine and
+    # startup/shortcut/addremove)
+    "car-bin": {"car-config", "car-control", "car-machine", "car-platform", "car-policy", "car-store", "car-watcher",
+                "car-words"},
     "car-host": {"car-control", "car-watcher"},
     "car-legacy": {"car-platform"},
     # dev only: it writes its replies through car-machine's Python-compatible JSON writer (S0.2) instead of an inline copy;
@@ -63,9 +67,10 @@ STANDARD = {
     # S3.2: it runs car-codex's readers (src/codex.rs: `codex.script` and the `codex.*` cases of `leaves.batch`);
     # S4.1: it drives car-engine's engine and car-scheduler's watch (src/engine.rs: `engine.open`, `engine.step`);
     # S5.1a: it runs car-control's bridge over a scratch home (src/bridge.rs: `bridge.run`);
-    # S6.0: it runs car-surface's models and decisions (src/surface.rs: `surface.batch`)
-    "car-harness": {"car-brand", "car-codex", "car-config", "car-control", "car-engine", "car-machine", "car-platform",
-                    "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
+    # S6.0: it runs car-surface's models and decisions (src/surface.rs: `surface.batch`);
+    # S5.2: car-core-stub (the CODEX_AR_CORE=rust shim's program) runs car-bin's roles and command line.
+    "car-harness": {"car-bin", "car-brand", "car-codex", "car-config", "car-control", "car-engine", "car-machine",
+                    "car-platform", "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
 }
 # The advanced workspace: its three crates, and for car-adv every library of the standard one, the superset the
 # alpha's single advanced crate may reach through the plug; the S7 seats trim it to what is used.

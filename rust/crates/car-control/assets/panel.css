@@ -1,0 +1,679 @@
+
+/* Three states, not two. An explicit choice - Light or Dark, the panel's or the Theme's - stamps
+   `data-theme` on the root; following the host stamps nothing and only the media query,
+   which is Codex's own scheme, separates light from dark. The stamp goes on the root and
+   nowhere else: the `--check-*` aliases are resolved where they are declared, which is here.
+   A colour whose only definition lives inside the media block is the classic unreadable
+   panel, so every token is declared here first and only redefined below. */
+:root {
+  color-scheme: light dark;
+  @LIGHT@
+  @ELEVATION_LIGHT@
+  @TILE_LIGHT@
+  @SCALE@
+  /* The line a control's one line of words stands in - a button's, a segment's, a chip's and a drop-down's
+     - which Windows' text size makes taller with the words in it (v0.6.11, panel.text_scale_style). */
+  --line-control: 20px;
+  /* The edition after the version in the heading (v0.6.11, .edition): .5625 of the eyebrow's size, never under 9px. Made
+     of --type-small, so Windows' text size makes it larger with the eyebrow (panel.text_scale_style). */
+  --type-edition: max(9px, calc(var(--type-small) * .5625));
+  /* The light's easing: half a raised cosine, to within 0.002 of each phase, so the cycle the
+     stylesheet draws is the same curve brand.glow() gives the window and the popup. */
+  --glow-ease: cubic-bezier(.37, 0, .63, 1);
+  /* How far into its cycle a light is when it is drawn, which the script sets on the root each time
+     it draws the page (panel.js showLight): a light that has not changed goes on from where it was,
+     and the page's lights share one phase. Nothing before the script has run. */
+  --light-delay: 0ms;
+  /* Every transition on the page takes brand's time and brand's one curve, --transition and
+     --transition-ease (MOTION, in the scale above): an ease-out, so a switch's knob, a check box's
+     mark and a list that opens leave at once and settle softly, as they do in the window and the
+     popup. */
+  --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", "Yu Gothic UI",
+          "Microsoft YaHei UI", "Microsoft JhengHei UI", "Leelawadee UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
+}
+:root[data-theme="dark"] { color-scheme: dark; @DARK@ @ELEVATION_DARK@ @TILE_DARK@ }
+:root[data-theme="light"] { color-scheme: light; @LIGHT@ @ELEVATION_LIGHT@ @TILE_LIGHT@ }
+/* v0.6.10: the designs. Soft is the blocks above. A design that draws in other colours, without depth
+   or with other corners (Classic, Plain) redeclares them in the same four places, each also naming the
+   design, so each outranks the block it stands for and every design is in light and dark. Only on the
+   root, where the theme is stamped and the --check-* aliases are resolved (brand.css_design_blocks);
+   the script stamps `data-design` from the stored design (applyDesign). */
+@DESIGNS@
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* A line breaks between words, never inside one, in the languages that set lines without hyphens.
+   Korean puts spaces between its words, so it breaks only there ('진단', never '진/단'). Japanese has
+   no spaces: keeping all its characters together would break it only at its commas and stops and
+   leave lines half empty, so it breaks between phrases where the engine knows them (auto-phrase) and
+   as before where it does not. Chinese is set breaking between any two characters, as it always was.
+   In all three a word longer than its whole line still breaks rather than run past the edge. The root
+   carries the page's language (applyLanguage); Latin text is set as it always was. */
+:root:lang(ko) { word-break: keep-all; }
+@supports (word-break: auto-phrase) {
+  :root:lang(ja) { word-break: auto-phrase; }
+}
+:root:lang(ko), :root:lang(ja), :root:lang(zh) { overflow-wrap: anywhere; }
+/* v0.6.17 (#48): Korean, Japanese and Chinese in the face Windows sets each in on a Windows set to that language
+   (win/typeface.py SCRIPT_FACES; the window's and the popup's too), whatever Windows' UI font is - not in whichever
+   East Asian face comes first in the stack - and in the stack where that face is missing. */
+:root:lang(ko) { --font: "Malgun Gothic", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+:root:lang(ja) { --font: "Yu Gothic UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+:root:lang(zh-CN) { --font: "Microsoft YaHei UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+:root:lang(zh-TW) { --font: "Microsoft JhengHei UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+/* v0.6.23: Thai in Leelawadee UI, as Windows sets it; the browser breaks Thai between words by its dictionary. */
+:root:lang(th) { --font: "Leelawadee UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+body { margin: 0; padding: var(--size-page-pad); background: var(--canvas); color: var(--ink);
+       font: var(--type-body)/var(--lh-body) var(--font); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p, ul { margin: 0; }
+button, select, input { font: inherit; }
+.page { max-width: 820px; margin: 0 auto; display: grid; gap: var(--size-page-gap); }
+.help, .note { color: var(--muted); font-size: var(--type-small); line-height: var(--lh-small); }
+.note:empty { display: none; }
+.mono { font-family: var(--mono); font-size: var(--type-mono); }
+
+/* The card is one object, repeated: one ground, one hairline, one radius, one soft lift.
+   The hairline stays even where the shadow does the visible work - a shadow alone is not
+   an edge for everybody, and nothing here may depend on seeing one. */
+.card { background: var(--surface); border: 1px solid var(--line);
+        border-radius: var(--radius-card); box-shadow: var(--elev-card);
+        padding: var(--size-card-pad); min-width: 0; }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .card { background: var(--card-ground); }
+}
+.card h2 { font-size: var(--type-title); line-height: var(--lh-title); font-weight: 600; }
+.card-head { display: flex; align-items: center; justify-content: space-between;
+             gap: var(--size-card-head-gap); }
+.count { min-width: var(--size-count-min-width); padding: 0 var(--size-count-pad-x); border-radius: 999px;
+         background: var(--inset); color: var(--muted); font-size: var(--type-small);
+         line-height: var(--size-count-height); text-align: center;
+         font-variant-numeric: tabular-nums; }
+
+/* State leads. Whether anything is being watched is the reason the panel gets opened,
+   so it is the first thing on it and the largest type on it - a word, never a colour
+   alone, with the halo saying the same thing for a reader who glances. */
+.hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); position: relative; }
+.day-scene { --d: 6s; --w: 0s; --spin: 0deg; --low: .4; --high: 1;     /* each drawing's own, written on it, stand in front of these */
+             position: absolute; top: 1px; inset-inline-end: 1px; pointer-events: none; overflow: clip;
+             border-start-end-radius: var(--radius-card); }
+.day-veil { position: absolute; inset: 0; }
+.day-fall { transform-box: fill-box; transform-origin: center; animation: day-fall var(--d) linear var(--w) infinite; }
+.day-twinkle { transform-box: fill-box; transform-origin: center; animation: day-twinkle var(--d) ease-in-out var(--w) infinite; }
+.day-breathe { animation: day-breathe var(--d) ease-in-out infinite; }
+.day-drift { animation: day-drift var(--d) ease-in-out infinite alternate; }
+.day-sway { transform-box: view-box; animation: day-sway var(--d) ease-in-out infinite; }
+.day-flame { transform-box: view-box; animation: day-flame var(--d) ease-in-out infinite; }
+@keyframes day-fall { from { transform: translateY(-14px) rotate(0); } to { transform: translateY(82px) rotate(var(--spin)); } }
+@keyframes day-twinkle { 0%, 100% { opacity: .25; transform: scale(.7); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes day-breathe { 0%, 100% { opacity: var(--low); } 50% { opacity: var(--high); } }
+@keyframes day-drift { from { transform: translateX(-10px); } to { transform: translateX(14px); } }
+@keyframes day-sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes day-flame { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.35); } }
+.day-sweep { position: absolute; pointer-events: none; overflow: visible; }
+.day-ring { transform-box: fill-box; transform-origin: center; opacity: 0; vector-effect: non-scaling-stroke;
+            animation: day-ring 900ms var(--transition-ease) both; }
+.day-arc { opacity: 0; animation: day-arc 1050ms var(--transition-ease) 1; }
+.day-head { opacity: 0; animation: day-head 1050ms var(--transition-ease) 1; }
+@keyframes day-ring { from { transform: scale(.5769); opacity: .65; } to { transform: scale(1); opacity: 0; } }
+@keyframes day-arc { 0% { stroke-dashoffset: 100; opacity: 1; } 70% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes day-head { 0% { transform: rotate(0); opacity: 1; } 70% { transform: rotate(360deg); opacity: 1; } 100% { transform: rotate(360deg); opacity: 0; } }
+.aside-in { animation: aside-in 450ms var(--transition-ease); }
+@keyframes aside-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.eyebrow { font-size: var(--type-small); color: var(--muted); }
+/* The edition after the version (v0.6.11; the owner's decision of 2026-10-02): quiet secondary text, a space after
+   the version and no separator, .5625 of its size - 9px beside 16, a pixel under the 10 of the mock he approved,
+   since he asked for it smaller again on 2026-10-15 - but never under those 9px, muted whichever edition it is, and
+   on the version's baseline. The window's VersionLabel takes the same two numbers (Soft.AsideShare, Soft.AsideLeast). */
+.edition { font-size: var(--type-edition); color: var(--muted); vertical-align: baseline; }
+.hero-state { display: flex; align-items: baseline; gap: 18px; padding-block: 8px 4px; padding-inline: 9px 0; position: relative; }
+/* v0.6.24 final (the owner, 2026-11-18, of the headers' lights: "정렬이 안 맞아보여"): the light is centred on the state
+   word's x-height middle, not its line box, which put it 3.4 CSS px above. Its bottom edge stands on the word's baseline
+   (the row aligns by baselines), and it moves down by half its height less half the word's x-height - `ex` in the word's
+   own size, so the font says how tall its x is. */
+.hero-state > .halo { font-size: var(--type-display); top: calc(6px - .5ex); }
+.hero h1 { font-size: var(--type-display); line-height: var(--lh-display); font-weight: 600;
+           letter-spacing: -.01em; }
+.facts { display: flex; flex-wrap: wrap; color: var(--muted); }
+.facts span:not(:last-child)::after { content: "\00b7"; padding: 0 8px; }
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.hero-actions > * { margin-top: 6px; }
+
+/* The status light: a flat dot that blinks the way the notification-area icon's head does. The
+   dot is the brand's `active` cyan whenever the watcher runs with recovery on, whatever it is
+   doing; the word beside it and the motion tell those states apart. A light that is off -
+   stopped, not known to be running, or paused - keeps the grey it always had and never moves,
+   and amber is for a watcher that runs and is not well.
+
+   The motion is brand's GLOW, the breath the window and the popup draw: one symmetric cosine a
+   cycle, the dot's colour drawn toward the ground it stands on and back (glow-dot) with the glow
+   riding its brightness (glow-spread) - a falloff, never a disc with an edge. The curve is in the
+   keyframes themselves, sampled from brand.glow_phase, so what lies between two stops is walked
+   straight (`linear`) rather than eased again. Monitoring runs it slowly, recovering faster and
+   attention slowest of all, each for as long as it lasts - until v0.6.8 attention ran it once and
+   then held lit. Waiting breathes on monitoring's rhythm, as the notification-area icon draws it
+   (until v0.6.9 it held lit and still); checking holds lit with no glow and turns its arc.
+
+   The dot dims by its colour, mixed with --halo-ground, and never by its opacity: the glow is drawn
+   inside the dot's element, and until v0.6.10 an opacity on the dot dimmed the glow with it, so
+   halfway through a breath the panel's glow was a fifth weaker than the window's and the popup's.
+
+   There are two lights, one light word (v0.6.10): the state's at the top, and the same light at
+   the mini size on the Automatic recovery tile (.halo.mini), which until then was a dot that never
+   moved beside a light that breathed. Both start their cycle where the script says (--light-delay,
+   panel.js showLight), so they breathe together and a redraw does not send them back to the top. */
+.halo { --halo-color: var(--idle); position: relative; flex: none; width: 12px; height: 12px;
+        border-radius: 50%; background: var(--halo-color); }
+.halo.mini { width: 8px; height: 8px; @GLOW_MINI@ }
+/* The ground each light stands on, which its dot is drawn toward as it dims: the card's under the
+   state, the tile's under the tile's light. */
+.hero { --halo-ground: var(--card-ground); }
+.master { --halo-ground: var(--raised); }
+.halo::before { content: none; position: absolute; inset: calc(-1 * var(--glow-reach));
+                border-radius: 50%; pointer-events: none; opacity: 0; transform: scale(var(--glow-from));
+                background: radial-gradient(circle closest-side,
+                  color-mix(in srgb, var(--halo-color) var(--glow-edge-mix), transparent) var(--glow-edge),
+                  color-mix(in srgb, var(--halo-color) var(--glow-near-mix), transparent) var(--glow-near),
+                  color-mix(in srgb, var(--halo-color) var(--glow-far-mix), transparent) var(--glow-far),
+                  transparent var(--glow-outer)); }
+.halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { --halo-color: var(--active); }
+.halo.attention { --halo-color: var(--attention); }
+.halo.paused { --halo-color: var(--paused); }
+.halo.monitoring::before, .halo.waiting::before, .halo.recovering::before, .halo.attention::before { content: ""; }
+.halo.monitoring { animation: glow-dot var(--glow-monitoring-ms) linear var(--light-delay) infinite; }
+.halo.monitoring::before { animation: glow-spread var(--glow-monitoring-ms) linear var(--light-delay) infinite; }
+.halo.waiting { animation: glow-dot var(--glow-waiting-ms) linear var(--light-delay) infinite; }
+.halo.waiting::before { animation: glow-spread var(--glow-waiting-ms) linear var(--light-delay) infinite; }
+.halo.recovering { animation: glow-dot var(--glow-recovering-ms) linear var(--light-delay) infinite; }
+.halo.recovering::before { animation: glow-spread var(--glow-recovering-ms) linear var(--light-delay) infinite; }
+.halo.attention { animation: glow-dot var(--glow-attention-ms) linear var(--light-delay) infinite; }
+.halo.attention::before { animation: glow-spread var(--glow-attention-ms) linear var(--light-delay) infinite; }
+/* Checking's arc, as the window and the popup stroke it: a ring whose middle is --glow-arc-gap past
+   the dot's edge, --glow-arc-width wide, --glow-arc-sweep of it drawn in the light's colour at
+   --glow-arc-mix, turning once every --glow-arc-ms. Its angle is theirs, clockwise from three
+   o'clock - where a conic gradient begins once it is turned from twelve - and held still it rests
+   where theirs does (--glow-arc-still). The ring is cut from the gradient by a mask whose edges are
+   each softened across a pixel, centred on the edge: the box is a pixel wider than the ring for it. */
+.halo.checking::after { --halo-arc: color-mix(in srgb, var(--halo-color) var(--glow-arc-mix), transparent);
+                        content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+                        inset: calc(-1 * (var(--glow-arc-gap) + var(--glow-arc-width) / 2 + 1px));
+                        background: conic-gradient(from 90deg, var(--halo-arc) 0deg var(--glow-arc-sweep),
+                                                   transparent 0deg);
+                        -webkit-mask: radial-gradient(circle closest-side,
+                          transparent calc(100% - 1.5px - var(--glow-arc-width)),
+                          #000 calc(100% - .5px - var(--glow-arc-width)), #000 calc(100% - 1.5px),
+                          transparent calc(100% - .5px));
+                        mask: radial-gradient(circle closest-side,
+                          transparent calc(100% - 1.5px - var(--glow-arc-width)),
+                          #000 calc(100% - .5px - var(--glow-arc-width)), #000 calc(100% - 1.5px),
+                          transparent calc(100% - .5px));
+                        transform: rotate(var(--glow-arc-still));
+                        animation: glow-arc var(--glow-arc-ms) linear var(--light-delay) infinite; }
+@GLOW_KEYFRAMES@
+
+/* Controls rest on the card; values sit in wells. */
+button { min-height: var(--size-button-height); padding: var(--size-button-pad);
+         border-radius: var(--radius-control);
+         border: 1px solid var(--line); background: var(--raised); color: var(--ink);
+         box-shadow: var(--elev-control); font-weight: 500; line-height: var(--line-control); cursor: pointer;
+         transition: background-color var(--transition), border-color var(--transition),
+                     box-shadow var(--transition), color var(--transition);
+         transition-timing-function: var(--transition-ease); }
+button:hover:not([disabled]) { background: var(--surface); }
+button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset);
+                                transition-duration: var(--transition-press); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.primary:hover:not([disabled]) { background: var(--accent-hover); border-color: var(--accent-hover); }
+/* After hover, which it would otherwise lose to: a pressed primary stays primary. Without it a
+   key press, which is active without hover, fell through to `inset` under white text. */
+button.primary:active:not([disabled]) { background: var(--accent-pressed); border-color: var(--accent-pressed);
+                                        box-shadow: var(--elev-inset); transition-duration: var(--transition-press); }
+button.danger { color: var(--danger); }
+/* Disabled is said by the text and the lost lift, not by fading the whole control: at half
+   opacity the label fell to about 3.3:1. `muted` on the card's ground stays above 4.5. */
+button[disabled] { background: var(--surface); border-color: var(--line); color: var(--muted);
+                   box-shadow: none; cursor: default; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.combo-box, input[type=number] { min-height: var(--size-field-height); padding: 6px 12px; color: var(--ink);
+        background-color: var(--inset); border: 1px solid var(--line);
+        border-radius: var(--radius-control); box-shadow: var(--elev-inset);
+        transition: border-color var(--transition), box-shadow var(--transition);
+        transition-timing-function: var(--transition-ease); }
+input[type=number] { width: var(--size-number-width); text-align: end; font-variant-numeric: tabular-nums; }
+/* Opacity 1 is said, not left out: the browser's own stylesheet fades a disabled field to 0.7,
+   and muted text at 0.7 fell to about 3:1 in light. */
+.combo-box[aria-disabled="true"], input[type=number]:disabled { background-color: var(--surface); box-shadow: none;
+                                               color: var(--muted); cursor: default; opacity: 1; }
+
+/* A drop-down is the page's own, never the browser's: the list a native select opens is a
+   square, flat, system-blue box that belongs to no card here, so every choice opens the list the
+   Windows Dashboard opens (SoftDropList) - the same list, by the same numbers, on this page's type.
+   The select stays in the page, hidden, as the value the rest of the page reads and the `change`
+   it listens to; the combobox beside it is what is seen, focused and read out.
+
+   The field is the well a value sits in, with brand's wedge on the right. The list is a card: the
+   card's ground, hairline, radius and lift, the soft shadow spilling outside it (in dark, its light
+   top edge), SPACING xs under the field - over it where there is no room below. It starts a pad
+   (SPACING s) left of the field and is at least a pad wider on each side, so each item's pill starts
+   where the field does and its words start under the field's; it is wider only where its words need
+   it, and never wider than the page.
+
+   Its items are pills a pad in from the card's edge and SPACING xs apart, each the field's line with
+   a pad above and below, set as the field is set, words the field's padding in, RADII small. The
+   current value is sunken, in the accent; under the pointer an item rises, the control's lift - not
+   the current one, which stays sunken, and not while the keyboard leads; the item the keyboard is on
+   carries the focus ring every control has, in the room kept around the items for it. The field
+   gives its own ring up while its list is open, so the ring is where the keyboard is.
+
+   It shows twelve rows whole - every list here has fewer, so none scrolls - and a longer list, or one
+   cut to the room there is, scrolls inside the card's padding and not at its edge, a whole row at a
+   time, on the window's soft bar. It rises a few pixels into place as it fades in, and closes at once. */
+.combo { position: relative; display: block; width: 100%; min-width: 0;
+         --combo-line: var(--line-control); --combo-words: @SELECT_PAD_LEFT@;
+         --combo-pill: calc(var(--combo-line) + 2 * var(--space-s)); }
+.combo-box { position: relative; display: flex; align-items: center; width: 100%; min-width: 0;
+             padding: var(--size-select-pad); line-height: var(--combo-line); cursor: pointer; }
+.combo-box[aria-expanded="true"] { outline: none; }
+.combo-value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-box::after { content: ""; position: absolute; inset-inline-end: var(--size-chevron-right);
+                    top: calc(55% - var(--size-chevron-height) * .55);
+                    width: var(--size-chevron-width); height: var(--size-chevron-height);
+                    background: var(--muted); clip-path: polygon(0 0, 100% 0, 50% 100%); pointer-events: none; }
+.combo-list { position: absolute; z-index: 3; top: calc(100% + var(--space-xs)); inset-inline-start: calc(-1 * var(--space-s));
+              width: max-content; min-width: calc(100% + 2 * var(--space-s));
+              padding: calc(var(--space-s) - var(--space-xs) - var(--size-hairline));
+              background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card);
+              box-shadow: var(--elev-card);
+              animation: combo-rise var(--transition) var(--transition-ease); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .combo-list { background: var(--card-ground); }
+}
+.combo-list.up { top: auto; bottom: calc(100% + var(--space-xs)); }
+@keyframes combo-rise {
+  from { opacity: 0; transform: translateY(var(--space-xs)); }
+}
+/* What scrolls, inside the card's padding: SPACING xs of room around the items for the ring, which
+   with the card's hairline and padding is the window's pad. */
+.combo-scroll { position: relative; display: grid; gap: var(--space-xs); padding: var(--space-xs);
+                max-height: calc(2 * var(--space-xs) + 10 * var(--combo-pill) + 9 * var(--space-xs));
+                overflow-y: auto; overscroll-behavior: contain;
+                scroll-snap-type: y mandatory; scroll-padding: var(--space-xs) 0; }
+.combo-option { display: block; min-width: 0; padding: calc(var(--space-s) - var(--size-hairline)) var(--combo-words);
+                border-radius: var(--radius-small); border: 1px solid transparent; color: var(--ink);
+                line-height: var(--combo-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                scroll-snap-align: start; cursor: pointer;
+                transition: background-color var(--transition), box-shadow var(--transition),
+                            color var(--transition), border-color var(--transition);
+                transition-timing-function: var(--transition-ease); }
+.combo-list:not(.keys) .combo-option:not([aria-selected="true"]):hover { background: var(--raised);
+                border-color: var(--line); box-shadow: var(--elev-control); }
+.combo-option[aria-selected="true"] { background: var(--inset); border-color: var(--line);
+                                      box-shadow: var(--elev-inset); color: var(--accent); }
+.combo-list.keys .combo-option.active { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The soft bar anything scrolls on, the window's SoftBar - either axis, whatever overflows, never the
+   browser's grey: a well 12 across, padded from its ends, holding a pill 2 inside it, 32 at shortest. */
+::-webkit-scrollbar { width: var(--space-m); height: var(--space-m); }
+::-webkit-scrollbar-track { margin: var(--space-xs) 0; background: var(--inset);
+                            border: 1px solid var(--line); border-radius: 999px; }
+::-webkit-scrollbar-track:horizontal { margin: 0 var(--space-xs); }
+::-webkit-scrollbar-thumb { min-height: var(--space-xxl); min-width: var(--space-xxl); background: var(--raised);
+                            background-clip: padding-box; border: 2px solid transparent;
+                            border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
+::-webkit-scrollbar-thumb:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+::-webkit-scrollbar-corner { background: var(--inset); }
+@supports not selector(::-webkit-scrollbar) {
+  :root { scrollbar-width: thin; scrollbar-color: var(--line) var(--inset); }
+}
+
+/* A switch glides: the knob slides end to end and settles, and the track cross-fades from the
+   grey well to the accent and back - brand's time on brand's curve, and nothing but paint. A check box fades its fill and its mark in the same time. With less motion or in
+   High Contrast the change is immediate (see the two blocks at the end). */
+input.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none;
+               width: var(--size-switch-width); height: var(--size-switch-height); margin: 0;
+               border-radius: 999px; cursor: pointer;
+               background: var(--inset); border: 1px solid var(--line); box-shadow: var(--elev-inset);
+               transition: background-color var(--transition), border-color var(--transition),
+                           box-shadow var(--transition);
+               transition-timing-function: var(--transition-ease); }
+input.switch::before { content: ""; position: absolute; top: calc(var(--size-knob-inset) - var(--size-hairline));
+                       inset-inline-start: calc(var(--size-knob-inset) - var(--size-hairline)); width: var(--size-knob);
+                       height: var(--size-knob); border-radius: 50%; background: var(--muted);
+                       transition: transform var(--transition), background-color var(--transition);
+                       transition-timing-function: var(--transition-ease); }
+input.switch:checked { background: var(--accent); border-color: var(--accent); box-shadow: none; }
+input.switch:checked::before { transform: translateX(var(--size-knob-travel)); background: var(--on-accent); }
+/* A switch carries no text, so it may still fade. */
+input.switch:disabled { opacity: .5; cursor: default; }
+
+/* A switch turns something that runs on or off; a check box picks which items of a list apply -
+   which kinds of interruption may be recovered, which events notify. The box is brand's CHECKBOX
+   through the `--check-*` names css_scale() writes: unchecked, the sunken well a switch sits in;
+   checked, the accent with its mark; disabled, flat on the surface. The mark is brand's tick,
+   clipped out of a layer that covers the whole box, border included. The box sits left of its
+   label, centred on the label's first line however far the label wraps. */
+input.check { appearance: none; -webkit-appearance: none; position: relative; flex: none;
+              width: var(--size-check-size); height: var(--size-check-size);
+              margin: calc((var(--type-body) * var(--lh-body) - var(--size-check-size)) / 2) 0 0;
+              border-radius: var(--radius-check); cursor: pointer;
+              background: var(--check-off-fill); border: var(--size-hairline) solid var(--check-off-edge);
+              box-shadow: var(--check-off-elev);
+              transition: background-color var(--transition), border-color var(--transition),
+                          box-shadow var(--transition);
+              transition-timing-function: var(--transition-ease); }
+/* The mark fades rather than blinks: its opacity eases, and it stays visible until a fade out has
+   finished (a visibility transition keeps `visible` for its whole length). */
+input.check::before { content: ""; position: absolute; inset: calc(-1 * var(--size-hairline));
+                      clip-path: var(--check-mark-shape); background: var(--check-on-mark);
+                      opacity: 0; visibility: hidden;
+                      transition: opacity var(--transition), visibility var(--transition),
+                                  background-color var(--transition);
+                      transition-timing-function: var(--transition-ease); }
+input.check:checked { background: var(--check-on-fill); border-color: var(--check-on-edge);
+                      box-shadow: var(--check-on-elev); }
+input.check:checked::before { opacity: 1; visibility: visible; }
+input.check:disabled { background: var(--check-off-disabled-fill); border-color: var(--check-off-disabled-edge);
+                       box-shadow: var(--check-off-disabled-elev); cursor: default; }
+input.check:checked:disabled { background: var(--check-on-disabled-fill);
+                               border-color: var(--check-on-disabled-edge);
+                               box-shadow: var(--check-on-disabled-elev); }
+input.check:checked:disabled::before { background: var(--check-on-disabled-mark); }
+
+/* A setting is a row: what it is on the left, the control on the right. When there is no
+   room for both, the control moves under its name rather than pushing past the edge.
+
+   A switch or a button at the right of a row is pinned to the row's bottom-right: its right
+   edge on the row's, its bottom on the bottom of the text beside it - so it sits beside the
+   last line of a name that wraps, not centred on the first. Text shorter than the control is
+   still centred on it, so a one-line row is drawn as it always was. The control comes after
+   its text in the markup, which is the order it is read and reached by Tab, and it is a flex
+   item that never shrinks beside text that does: the text wraps, or the control drops under
+   it and stays on the right, and nothing ever runs underneath it. A select, a number, a chip
+   and a check box keep their places. */
+.rows > .setting + .setting, .rows > .setting + .custom, .toggles > .setting,
+.custom > .setting + .setting { border-top: 1px solid var(--line); }
+.setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+           gap: 6px var(--size-row-gap); padding: var(--size-row-pad); min-width: 0; }
+label.setting { cursor: pointer; }
+.setting.toggle > input.switch { align-self: flex-end; margin-inline-start: auto; }
+.setting.check { flex-wrap: nowrap; justify-content: flex-start; align-items: flex-start;
+                 gap: var(--size-check-gap); }
+.setting-text { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; }
+.setting-label { font-weight: 500; }
+.setting-control { flex: 0 1 auto; display: flex; min-width: 0; max-width: 100%; margin-inline-start: auto; }
+.has-select .setting-control { flex: 0 1 280px; }
+.has-select .combo { width: 100%; }
+.setting.stack { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 8px; }
+/* v0.6.11: Custom... - a value of the person's own, on a line of its own under its drop-down's row: the range,
+   then its fields - a number and its unit, the hour and the minute, or the days - drawn as every row's are. */
+.own { flex: 1 0 100%; display: grid; gap: 6px; min-width: 0; }
+.own[hidden] { display: none; }
+.own-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px var(--size-row-gap); min-width: 0; }
+.own-fields .combo { width: auto; flex: 0 1 180px; }
+.own-days { display: flex; flex-wrap: wrap; gap: 6px var(--size-row-gap); }
+.own-day { display: inline-flex; align-items: flex-start; gap: var(--size-check-gap); cursor: pointer; }
+.own-break { flex-basis: 100%; height: 0; }
+.card > h2 + *, .card-head + * { margin-top: var(--size-card-first-gap); }
+
+.toggles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+           column-gap: 28px; }
+.toggles .setting { flex-wrap: nowrap; }
+.toggles.quiet .setting-label { color: var(--muted); }
+/* What a needs-you notice is told with - its kinds, its stall and its sound - under When a conversation needs
+   you, one step in: their boxes start where its words do (a box and its gap), as in the Dashboard. */
+.toggles.needs-you { margin-inline-start: calc(var(--size-check-size) + var(--size-check-gap)); }
+
+/* A tile - the master switch's here, a waiting task's below - stands on its card as the popup's task
+   tiles do: the `raised` ground, the hairline, and --elev-tile, which is brand's control lift and, in
+   dark, where a drop alone does not show at a tile's size, the dark card's one-pixel top light. */
+.master { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0 6px;
+          padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
+          border-radius: var(--radius-control); box-shadow: var(--elev-tile); }
+/* What the tile says - the state, and under it what the last press answered - is one block, and
+   the button is pinned to the tile's bottom-right beside it (see .setting). */
+.master-body { flex: 1 1 200px; display: grid; gap: 4px; min-width: 0; }
+.master-text { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 500; }
+.master > button { align-self: flex-end; margin-inline-start: auto; }
+/* The tile's light is the state's light, smaller (.halo.mini, with the status light above): it says
+   and does what the one at the top of the page says and does. */
+
+.segmented { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--size-segment-gap); }
+.segment { position: relative; display: flex; min-width: 0; }
+.segment input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0;
+                 cursor: pointer; }
+.segment span { flex: 1; min-width: 0; padding: var(--size-segment-pad); text-align: center; line-height: var(--line-control);
+                font-weight: 500; overflow-wrap: anywhere; color: var(--ink);
+                border-radius: var(--radius-control); border: 1px solid var(--line);
+                background: var(--raised); box-shadow: var(--elev-control);
+                transition: background-color var(--transition), box-shadow var(--transition),
+                            color var(--transition), border-color var(--transition);
+                transition-timing-function: var(--transition-ease); }
+.segment input:hover:not(:disabled) + span { background: var(--surface); }
+.segment input:checked + span { background: var(--inset); box-shadow: var(--elev-inset);
+                                color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.segment input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+.segment input:disabled { cursor: default; }
+.segment input:disabled + span { background: var(--surface); box-shadow: none; color: var(--muted); }
+
+/* Folding sections: what is rarely changed stays one line tall until it is wanted. */
+details.fold > summary { display: flex; align-items: center; justify-content: space-between;
+                         gap: 12px; list-style: none; cursor: pointer; }
+details.fold > summary::-webkit-details-marker { display: none; }
+.chevron { flex: none; width: var(--size-fold-chevron); height: var(--size-fold-chevron); margin-inline-end: 6px;
+           border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+           transform: translateY(-2px) rotate(45deg);
+           transition: transform var(--transition) var(--transition-ease); }
+details.fold:not([open]) > summary .chevron { transform: rotate(-45deg); }
+details.card.fold { padding: 0; }
+details.card.fold > summary { padding: var(--size-card-pad); border-radius: var(--radius-card); }
+details.card.fold[open] > summary { padding-bottom: 4px; }
+details.card.fold > .fold-body { padding: 0 18px 8px; }
+details.inner { border-top: 1px solid var(--line); }
+details.inner > summary { padding: 12px 0; border-radius: var(--radius-small); }
+details.inner > summary h3 { font-size: var(--type-body); font-weight: 600; }
+details.inner > .fold-body { padding-bottom: 2px; }
+details.inner > .fold-body > .setting { border-top: 1px solid var(--line); }
+/* What a folded card says while it is folded - the Codex compatibility card's overall word - rides
+   beside its chevron, at the right of the title. */
+.fold-end { display: flex; flex: none; align-items: center; gap: var(--space-s); }
+
+/* The Codex compatibility card (v0.6.5): the parts the product relies on, as settings rows are drawn
+   - a hairline between each two, the state as a chip at the end of the row - as the window's
+   Diagnostics page lists them too. One column: at the panel's width two columns wrapped most names
+   onto a second line, where the window's wider page keeps them on one. Read-only. */
+.compat-meta { margin-top: var(--space-xs); }
+.compat-rows { list-style: none; padding: 0; margin: var(--space-s) 0 0; grid-template-columns: minmax(0, 1fr); }
+.compat-rows .setting { flex-wrap: nowrap; }
+.compat-state { flex: none; }
+.compat-legend { display: grid; gap: var(--space-xs); margin-top: var(--space-m); }
+.compat .callout { margin: var(--space-m) 0 0; }
+/* Where what others report is shown (v0.6.10): muted help text like the refresh's, never a chip. */
+.compat-reported { margin-top: var(--space-m); }
+.compat-refresh { margin-top: var(--space-m); }
+
+/* What is waiting, as soft rows rather than a table. Wide content wraps inside its row;
+   the panel itself never scrolls sideways. */
+.prows { list-style: none; padding: 0; display: grid; gap: var(--size-tile-gap); }
+.prow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0;
+        padding: var(--size-tile-pad); background: var(--raised); border: 1px solid var(--line);
+        border-radius: var(--radius-control); box-shadow: var(--elev-tile); }
+.prow-main { flex: 1 1 220px; min-width: 0; display: grid; gap: 3px; }
+.prow-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.prow-name { font-weight: 600; min-width: 0; max-width: 100%; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; }
+.prow-meta { display: flex; flex-wrap: wrap; gap: 0 14px; color: var(--muted); font-size: var(--type-small);
+             font-variant-numeric: tabular-nums; }
+.prow-meta b { font-weight: 500; color: var(--ink); }
+/* Pinned to the row's bottom-right, beside the facts line (see .setting); an open confirmation is
+   a line of its own under both. */
+.prow-switch { display: flex; align-items: center; align-self: flex-end; gap: 10px; margin-inline-start: auto;
+               color: var(--muted); font-size: var(--type-small); cursor: pointer; }
+.prow-confirm { flex: 1 1 100%; display: grid; gap: 8px; padding-top: 10px;
+                border-top: 1px solid var(--line); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip { --chip: var(--paused); display: inline-block; max-width: 100%; padding: 1px var(--size-chip-pad-x);
+        border-radius: 999px; font-size: var(--type-small); line-height: var(--line-control); font-weight: 500;
+        color: var(--chip); background: var(--inset); white-space: nowrap; overflow: hidden;
+        text-overflow: ellipsis; }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .chip { background: color-mix(in srgb, var(--chip) 12%, var(--surface)); }
+}
+.chip.waiting { --chip: var(--waiting); }
+.chip.active { --chip: var(--accent); }
+.chip.success { --chip: var(--success); }
+.chip.warning { --chip: var(--warning); }
+.chip.danger { --chip: var(--danger); }
+.chip.paused { --chip: var(--paused); }
+
+/* Stored Custom text: shown in a well, never in a field. */
+.custom { display: grid; }
+.stored { display: grid; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.stored-item { display: grid; gap: 4px; min-width: 0; }
+.stored-title { font-size: var(--type-small); font-weight: 500; color: var(--muted); }
+.stored-text { padding: var(--size-stored-pad); border-radius: var(--radius-control); background: var(--inset);
+               border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere;
+               max-height: 10.5em; overflow: auto; }
+.stored-item.unset { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; }
+.stored-item.unset .stored-title { color: var(--ink); font-size: var(--type-body); font-weight: 400; }
+.stored-empty { color: var(--muted); font-size: var(--type-small); }
+.callout { display: flex; align-items: flex-start; gap: var(--size-callout-gap); padding: var(--size-callout-pad);
+           margin-bottom: 10px; border-radius: var(--radius-control); background: var(--accent-soft);
+           color: var(--ink); font-size: var(--type-small); line-height: var(--lh-small); }
+.callout::before { content: "i"; flex: none; width: var(--size-callout-badge); height: var(--size-callout-badge);
+                   border-radius: 50%; background: var(--accent); color: var(--on-accent);
+                   font: 600 var(--type-badge)/var(--size-callout-badge) var(--font); text-align: center; }
+
+.bubble { margin-top: 10px; padding: var(--size-well-pad); border-radius: var(--radius-control);
+          background: var(--inset); border: 1px solid var(--line); box-shadow: var(--elev-inset); }
+.bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: var(--lh-bubble);
+               transition: opacity var(--transition) var(--transition-ease); }
+.bubble[aria-busy="true"] .bubble-text { opacity: .55; }
+.bubble.unavailable .bubble-text { color: var(--muted); }
+.skeleton { display: block; height: var(--size-skeleton-height); margin: 6px 0;
+            border-radius: var(--size-skeleton-radius); background: var(--line); }
+.skeleton + .skeleton { width: 62%; }
+.preview .source { margin-top: 10px; color: var(--ink); font-weight: 500; }
+.preview .source + .help, .preview .bubble + .help { margin-top: 8px; }
+
+.savebar { position: sticky; bottom: 10px; z-index: 1; display: flex; flex-wrap: wrap;
+           align-items: center; gap: 8px 14px; padding: var(--size-savebar-pad); background: var(--surface);
+           border: 1px solid var(--line); border-radius: var(--radius-card);
+           box-shadow: var(--elev-card); }
+/* The save card is a card: in dark it stands on the same lifted ground as the others. */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .savebar { background: var(--card-ground); }
+}
+.savebar .note { flex: 1 1 200px; min-width: 0; }
+.savebar button { margin-inline-start: auto; }
+/* v0.6.14: Open beside the chat stays at the bar's leading edge, wrapped or not. */
+.savebar .beside { margin-inline-start: 0; }
+
+@media (max-width: 520px) {
+  body { padding: 10px 10px 16px; }
+  .card { padding: 14px; }
+  .hero { padding: 14px 16px; }
+  .hero h1, .hero-state > .halo { font-size: var(--type-display-narrow); }
+  /* One fact per line: a separator left hanging at the end of a wrapped line reads as a typo. */
+  .facts { display: grid; gap: 1px; }
+  .facts span:not(:last-child)::after { content: none; }
+  details.card.fold > summary { padding: 14px; }
+  details.card.fold > .fold-body { padding: 0 14px 6px; }
+  .has-select { flex-direction: column; align-items: stretch; }
+  .has-select .setting-text { flex: none; }
+  .has-select .setting-control { flex: none; width: 100%; margin-inline-start: 0; }
+  .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* A person who asked Windows for less motion gets none: every light holds lit with no glow - the
+   checking arc held where it rests - nothing slides, a switch or a check box simply changes, and a
+   list simply appears. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .halo::before { display: none; }
+}
+
+/* v0.6.10: the product's own Reduce motion, and each design's marks, from brand.DESIGN
+   (panel.design_rules). Reduce motion (`data-motion`, which until then only the Dashboard, the popup,
+   the card and the icon read) holds everything as the rule above does, in every design, and no design
+   holds anything of its own; a design with no glow (Plain) dims its light with nothing round it; and
+   Classic draws v0.6.2's accent bar inside each card's left hairline - a shadow, so nothing moves by its
+   width. Nothing here can start what the rule above or High Contrast stops. */
+@DESIGN_MOTION@
+
+/* v0.6.11: right to left (`dir="rtl"` on the root, which the script sets for a language written that
+   way, l10n.RIGHT_TO_LEFT). The page is laid out with the reading direction - rows, grids and the start
+   and end of a line follow it, and so do the margins, insets and paddings written above as start and
+   end - and what is drawn to one side is drawn to the other here (panel.right_to_left_rules): a field's
+   and a tile's wider padding, a switch's knob travelling left, a folded section's chevron pointing left,
+   and Classic's accent bar inside the right hairline. The brand's light still falls from the top left,
+   as it does on every surface. A name, a Custom message and an id are read in their own direction, and
+   a value set into a sentence is isolated (fill). */
+@RIGHT_TO_LEFT@
+
+/* Windows High Contrast. The browser puts the person's system colours in place of the palette
+   and takes every shadow away - and it would paint the light over with the page's ground,
+   and the switch's knob with it. So those keep a solid system colour of their own: Highlight
+   while something is watched, the text colour for a problem, grey when the light is off. No
+   glow: a soft falloff is exactly what High Contrast is asked to remove.
+
+   And no motion, whatever Windows' animation setting says: High Contrast is less motion, as the
+   window counts it (Soft.ReduceMotion) - a list simply appears, an item simply changes, and a switch
+   or a check box simply changes. */
+@media (forced-colors: active) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .card, .savebar, button, select, input, .segment span, .bubble,
+  .combo-box, .combo-list, .combo-option, .master, .prow { box-shadow: none; }
+  .halo, .halo.paused { forced-color-adjust: none; background: GrayText; }
+  .halo.monitoring, .halo.waiting, .halo.checking, .halo.recovering { background: Highlight; }
+  .halo.attention { background: CanvasText; }
+  .halo::before { display: none; }
+  /* The checking arc, still, in the light's own system colour - as the popup and the window draw it. */
+  .halo.checking::after { --halo-arc: Highlight; }
+  /* The wedge is a clipped fill, which forced colours would paint the page's ground: it keeps the
+     text colour. */
+  .combo-box::after { forced-color-adjust: none; background: CanvasText; }
+  .combo-box[aria-disabled="true"]::after { background: GrayText; }
+  /* The list's items opt out for the same reason as the check box, so each draws itself in system
+     colours: the current value in Highlight, the item under the pointer edged in it, and the item
+     the keyboard is on ringed in it. */
+  .combo-option { forced-color-adjust: none; background: Canvas; color: CanvasText; border-color: Canvas; }
+  .combo-list:not(.keys) .combo-option:not([aria-selected="true"]):hover { background: Canvas;
+                border-color: Highlight; box-shadow: none; }
+  .combo-option[aria-selected="true"] { background: Highlight; color: HighlightText; border-color: Highlight;
+                                        box-shadow: none; }
+  .combo-list.keys .combo-option.active { outline-color: Highlight; }
+  input.switch::before { forced-color-adjust: none; background: CanvasText; }
+  input.switch:checked { forced-color-adjust: none; background: Highlight; border-color: Highlight; }
+  input.switch:checked::before { background: HighlightText; }
+  button[disabled], .combo-box[aria-disabled="true"], input:disabled, .segment input:disabled + span {
+    color: GrayText; border-color: GrayText; }
+  /* The check box keeps brand's system colours (CHECKBOX_SYSTEM) for the same reason as the knob:
+     left to forced colours, the layer its mark is cut from is painted the page's ground. It opts
+     out, so it takes its own shadow off and draws its own focus ring in a system colour. */
+  input.check { forced-color-adjust: none; background: Canvas; border-color: CanvasText; box-shadow: none; }
+  input.check:checked { background: Highlight; border-color: Highlight; box-shadow: none; }
+  input.check:checked::before { background: HighlightText; }
+  input.check:disabled { background: Canvas; border-color: GrayText; box-shadow: none; }
+  input.check:checked:disabled { background: Canvas; border-color: GrayText; box-shadow: none; }
+  input.check:checked:disabled::before { background: GrayText; }
+  input.switch:focus-visible, input.check:focus-visible { outline-color: Highlight; }
+  .segment input:checked + span { forced-color-adjust: none; background: Highlight; color: HighlightText;
+                                  border-color: Highlight; box-shadow: none; }
+}
+/* v0.6.24 (owner, O11): Soft's corners as a superellipse where the engine draws `corner-shape`, the nearest it comes to
+   the window's and the popup's squircle (brand/shape.py's CSS_CORNER), and plain border-radius everywhere else. Each
+   role's radius is pointed at the one the superellipse takes (--squircle-*, brand.css_corner); a design with circular
+   corners keeps its own radii, which its block declares above this one's reach, and says --corner-shape: round. The
+   border, the shadows and the background follow the corner shape. Only what is rounded by a role: a pill stays a pill. */
+@supports (corner-shape: superellipse(2)) {
+  :root { --radius-card: var(--squircle-card); --radius-control: var(--squircle-control);
+          --radius-small: var(--squircle-small); --radius-check: var(--squircle-check); }
+  .card, .day-scene, button, .combo-box, input[type=number], .combo-list, .combo-option, input.check, .master,
+  .segment span, details.card.fold > summary, details.inner > summary, .prow, .stored-text, .callout, .bubble,
+  .savebar { corner-shape: var(--corner-shape); }
+}

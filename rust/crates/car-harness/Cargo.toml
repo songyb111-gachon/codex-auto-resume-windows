@@ -28,6 +28,11 @@ path = "src/bin/car-core-stub.rs"
 name = "car-fake-codex"
 path = "src/bin/car-fake-codex.rs"
 
+# S5.2: car-bin's dispatcher over a world, for the legacy shapes' end-to-end diff (copied into a scratch installation).
+[[bin]]
+name = "car-core-world"
+path = "src/bin/car-core-world.rs"
+
 [dependencies]
 # D5: JSON is written by car-machine's Python-compatible writer.
 car-machine = { path = "../car-machine" }
@@ -52,5 +57,7 @@ car-scheduler = { path = "../car-scheduler" }
 car-control = { path = "../car-control" }
 # S6.0: car-surface's models, words and decisions (src/surface.rs: `surface.batch`), and car-brand's numbers they read.
 car-surface = { path = "../car-surface" }
+# S5.2: car-core-stub runs codex-auto-resume.exe's roles and command line (car-bin) for the CODEX_AR_CORE=rust shim.
+car-bin = { path = "../car-bin" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

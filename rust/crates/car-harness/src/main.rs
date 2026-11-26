@@ -51,6 +51,8 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
         (Some("control.call"), Some(home)) => {
             ok("value", car_harness::bridge::call(home, &whole()))
         }
+        (Some("cli.run"), _) => ok("value", car_harness::cli::run(&whole())),
+        (Some("mcp.panel"), _) => ok("value", car_harness::mcp::panel(&whole())),
         (Some("sqlite.version"), _) => ok("value", Value::from(car_store::sqlite_version())),
         (Some("leaves.batch"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {

@@ -1,76 +1,77 @@
-//! The stand-in for codex-auto-resume.exe that the CODEX_AR_CORE=rust shim starts (tests/rustdiff/shim.py).
+//! The program the CODEX_AR_CORE=rust shim starts (tests/rustdiff/shim.py): the Python entry point's name, then its own
+//! argv - `bridge <controlcli argv>`, `mcp <mcpserver argv>`, `cli <cli argv>` - run by car-bin exactly as
+//! `codex-auto-resume.exe` runs them (S5.2). `cli` is the command line itself, never `plugin_setup.py`'s commands of
+//! the same names (`codex-auto-resume.exe status` is plugin_setup's; `cli.main(["status"])` is the CLI's).
 //!
-//! Its command line is the entry point's name and then the Python entry point's own argv:
-//! `bridge <controlcli argv>`, `mcp <mcpserver argv>`, `cli <cli argv>`. Ported: `bridge --home H defaults`.
-//! Everything else is refused with error_code "not_ported" and exit code 3, so a shim-lane test that
-//! reaches an unported command fails saying so instead of passing on Python.
-//!
-//! TO BE REPLACED by car-bin (S5.1/S5.2), the real codex-auto-resume.exe.
+//! The installation it answers for is the repository the shim runs from: `CODEX_AR_PROJECT_ROOT`, else the folder
+//! three above this program (`rust/target/release/car-core-stub.exe`), where `.codex-plugin/plugin.json` gives the
+//! version and `src/` the package.
 
-use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use car_harness::{NOT_PORTED, defaults, object, rejected};
-use car_machine::json::{Options, Str, Value, to_string};
+use car_bin::cli::{Io, Machine};
+use car_control::host::Host;
 
-const NOT_PORTED_EXIT: i32 = 3;
-
-/// Write one reply line the way `controlcli._emit` does; exit 0 when the reply is ok, 1 otherwise.
-fn emit(reply: &Value) -> i32 {
-    let ok = matches!(reply, Value::Object(pairs) if pairs.get(&Str::new("ok")) == Some(&Value::Bool(true)));
-    let line = to_string(reply, &Options::wire()).unwrap_or_else(|_| "{\"ok\": false}".into());
-    let mut stdout = std::io::stdout().lock();
-    if writeln!(stdout, "{line}")
-        .and_then(|_| stdout.flush())
-        .is_err()
+fn project_root() -> String {
+    if let Ok(named) = std::env::var("CODEX_AR_PROJECT_ROOT")
+        && !named.is_empty()
     {
-        return 1;
+        return named;
     }
-    if ok { 0 } else { 1 }
-}
-
-fn not_ported(what: &str) -> i32 {
-    eprintln!("car-core-stub: {what} is not ported");
-    emit(&rejected("this command is not ported", NOT_PORTED));
-    NOT_PORTED_EXIT
-}
-
-fn bridge(arguments: &[String]) -> i32 {
-    let mut home: Option<PathBuf> = None;
-    let mut rest = Vec::new();
-    let mut index = 0;
-    while index < arguments.len() {
-        match arguments[index].as_str() {
-            "--home" if index + 1 < arguments.len() => {
-                home = Some(PathBuf::from(&arguments[index + 1]));
-                index += 2;
-            }
-            other => {
-                rest.push(other.to_string());
-                index += 1;
-            }
-        }
-    }
-    match (rest.as_slice(), home) {
-        ([command], Some(home)) if command == "defaults" => match defaults::restore(&home) {
-            Ok(values) => emit(&object([
-                ("ok", Value::Bool(true)),
-                ("settings", Value::Object(values)),
-            ])),
-            // controlcli answers a save it cannot make with the generic request_failed refusal.
-            Err(_) => emit(&rejected("cannot save settings", "request_failed")),
-        },
-        ([command], None) if command == "defaults" => not_ported("bridge defaults without --home"),
-        _ => not_ported(&format!("bridge {}", rest.join(" "))),
-    }
+    let exe = std::env::current_exe().unwrap_or_default();
+    exe.ancestors()
+        .nth(4)
+        .map(PathBuf::from)
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn main() {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let arguments: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|each| each.to_string_lossy().into_owned())
+        .collect();
+    let root = project_root();
+    let host: Arc<dyn Host> = Arc::new(car_control::host::SystemHost::new(&root));
+    let machine = Machine {
+        host,
+        outside: Arc::new(car_bin::seam::SystemOutside),
+        project_root: root,
+        env: Arc::new(|name: &str| std::env::var(name).ok()),
+    };
+    let stdout = std::io::stdout();
+    let stderr = std::io::stderr();
+    let (mut out, mut err) = (stdout.lock(), stderr.lock());
+    let mut io = Io {
+        out: &mut out,
+        err: &mut err,
+        silent: false,
+    };
+    let stdin = std::io::stdin();
+    let mut input = stdin.lock();
     let code = match arguments.split_first() {
-        Some((entry, rest)) if entry == "bridge" => bridge(rest),
-        Some((entry, _)) => not_ported(entry),
-        None => not_ported("no entry point"),
+        Some((entry, rest)) if entry == "bridge" => {
+            car_bin::roles::bridge(&machine, rest, &mut io, &mut input)
+        }
+        Some((entry, rest)) if entry == "mcp" => {
+            car_bin::roles::mcp(&machine, rest, &mut io, &mut input)
+        }
+        Some((entry, rest)) if entry == "cli" => {
+            match car_bin::argparse::parse_args(
+                car_bin::parsers_gen::PARSERS,
+                car_bin::parsers_gen::CLI,
+                rest,
+            ) {
+                Ok(args) => car_bin::cli::run(&machine, &args, &mut io),
+                Err(exit) => car_bin::roles::shown(exit, &mut io),
+            }
+        }
+        _ => {
+            eprintln!("car-core-stub: an entry point is bridge, mcp or cli");
+            3
+        }
     };
     std::process::exit(code);
 }

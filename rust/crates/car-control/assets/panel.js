@@ -1,0 +1,3003 @@
+
+// The widget bridge is whatever the host provides. Try the documented shape first,
+// then the ones seen in practice, and degrade to read-only rather than pretending.
+function bridge() {
+  var hosts = [window.openai, window.webplus, window.mcp, window.parent && window.parent.openai];
+  for (var i = 0; i < hosts.length; i++) {
+    var host = hosts[i];
+    if (host && typeof host.callTool === 'function') return host;
+  }
+  return null;
+}
+
+function initialData() {
+  var host = bridge() || window.openai || {};
+  return parsedOutput(host.toolOutput || host.output || window.__CODEX_AUTO_RESUME__);
+}
+
+// A tool result as the host hands it: an object, or the same as JSON text. Null for anything else.
+function parsedOutput(output) {
+  if (typeof output === 'string') { try { output = JSON.parse(output); } catch (e) { output = null; } }
+  return output || null;
+}
+
+var HOST = bridge();
+var DATA = initialData();
+// A stamp the page was served with is a documentation capture's pinned theme, which the stored
+// setting must not undo. Codex is never served one.
+var THEME_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-theme-pinned'));
+// And a design it was served with (v0.6.10), the same way.
+var DESIGN_PINNED = !!(document.documentElement && document.documentElement.hasAttribute('data-design-pinned'));
+// Survives a re-render: set before render(), shown by it, then cleared.
+var NOTICE = '';
+var EDITORS = {};
+// Unsaved choices, kept across a re-render. A pause or a per-conversation switch redraws
+// the whole panel, and a redraw that quietly put back what somebody had just changed would
+// be a Save button that saves less than the panel showed a moment ago.
+var DRAFT = {};
+// Which folding sections are open, for the same reason.
+var OPEN = {};
+var HOOKS = {};
+// The pending row whose "turn off" is being confirmed, by its exact interruption id.
+var CONFIRM_ROW = '';
+// What each pending row's switch showed when the page was last drawn, by interruption id - the
+// drawing before this one in WAS, this one's in SHOWN - and the switches to move once drawn.
+// A conversation's switch changes only when a tool has confirmed the change, and that answer
+// arrives with a redraw: a switch drawn already moved would jump, so it is drawn where it was and
+// glides from there (glide()).
+var WAS = {};
+var SHOWN = {};
+var GLIDES = [];
+var PREVIEW = {reason: '', nodes: null, last: null, asking: ''};
+// The settings whose unsaved value changes the Preview.
+var PREVIEW_FIELDS = ['interface_language', 'continuation_language', 'continuation_style',
+                      'custom_message_mode'];
+// The status light's phase: which light the page shows, and since when (performance.now()). Kept
+// across a redraw, so a light whose word has not changed goes on from where it was rather than
+// starting again at the top on every click, and the page's two lights share it (showLight).
+var LIGHT = {light: '', since: 0};
+// The page's one timer, set for the moment the soonest time a row carries comes (watchClock), and
+// the hero it says again what that changed in (retell).
+var CLOCK = null;
+var HERO = null;
+// A timer asked to wait longer than about 24.8 days fires at once, and would again and again, so it
+// is never asked to wait longer than a day: it wakes, finds the time still to come, and waits again.
+var CLOCK_LONGEST = 86400000;
+// How long, in seconds, the page goes on saying checking once a task's time has come - or once it
+// read a task whose time already had (checkingRow): one pass of the watcher at its own pace
+// (runtime/loop.py DEFAULT_POLL, which a test holds this to). The popup and the Dashboard read the
+// record every second and leave checking at the pass that acts on it; this page reads it once. A
+// watcher run slower than that (`run --poll`) is still checking when the page stops saying so, which
+// says less than is true and never more.
+var CHECKING_HOLD = 30;
+// When the rows the page shows were read, on its clock, in seconds (readAt): set when it is served
+// them, and again whenever it reads the list anew.
+var READ_AT = readAt(DATA, Date.now() / 1000);
+// v0.6.14: beside the chat the page stays open while the person works in the conversation, and what it
+// read grows old. So when they come back to it - the page shown again, or its window focused - it reads
+// open_settings again (readAgain): only beside the chat, where Codex says the page is fullscreen (inline,
+// the conversation's own item is the page Codex keeps), and at most once every READ_AGAIN_MS of its own
+// asking. ASKED_AT is when it last asked; READ_AT cannot serve, since it is held to one watcher pass after
+// the last one the status names, and a stopped watcher's page would ask on every return. READING is a
+// read still out. OWN_CALLS counts the page's own calls - every one made, and those still out - so a read
+// made before one of them is never drawn over what that call changed.
+var READ_AGAIN_MS = 15000;
+var ASKED_AT = Date.now();
+var READING = false;
+var OWN_CALLS = {made: 0, out: 0};
+
+// Every word on this panel comes from Python, in the language Python resolved. The panel
+// does not consult the browser's language: the notifications, the setup output, the
+// standalone window and this page all have to agree, and only one of them can decide.
+var S = window.__CODEX_AUTO_RESUME_STRINGS__ || {};
+// The locale those words are in, and every language's words for this page. Python still
+// decides: a language chosen here is spoken the moment the watcher confirms it was saved, by
+// the rule Python resolves it with, from the words Python shipped - not a page that tells
+// somebody the panel will change language the next time it is opened.
+var LOCALE = window.__CODEX_AUTO_RESUME_LOCALE__ || '';
+var CATALOGS = window.__CODEX_AUTO_RESUME_CATALOGS__ || {};
+// The languages written right to left (l10n.RIGHT_TO_LEFT, v0.6.11): the page mirrors in one of them
+// (applyLanguage) and isolates a value set into one of its sentences (fill).
+var RIGHT_TO_LEFT = window.__CODEX_AUTO_RESUME_RTL__ || [];
+// What the save card says once a save has redrawn the page in another language.
+var SAVED = '';
+
+function t(key, fallback) {
+  var value = S[key];
+  return (value === undefined || value === null) ? (fallback || key) : value;
+}
+
+function rightToLeft(locale) {
+  return typeof locale === 'string' && RIGHT_TO_LEFT.indexOf(locale) >= 0;
+}
+
+// A value set into a sentence of a right-to-left language is isolated (FSI ... PDI), so a version, a path
+// or an id keeps its own order inside the sentence's: `0.6.11-alpha.2` does not read `alpha.2-0.6.11`.
+// Nothing is added in any other language, nor where the page's language is not known.
+function fill(key, fallback, values) {
+  var text = t(key, fallback);
+  var isolate = typeof LOCALE === 'string' && typeof rightToLeft === 'function' && rightToLeft(LOCALE);
+  Object.keys(values || {}).forEach(function (name) {
+    var value = String(values[name]);
+    text = text.split('{' + name + '}').join(isolate ? '\u2068' + value + '\u2069' : value);
+  });
+  return text;
+}
+
+// The locale a stored Interface language is spoken in, by the rule Python adopts it with: a
+// language chosen by name is that language, and `system` - or no choice at all - follows
+// Windows, which Python already resolved and sent as `system_language`. '' when the page has no
+// words for the answer, or no answer: then it keeps the words it was served rather than
+// speaking a language nobody chose.
+function localeFor(preference, systemLanguage, catalogs) {
+  catalogs = catalogs || {};
+  var has = function (code) {
+    return typeof code === 'string' && Object.prototype.hasOwnProperty.call(catalogs, code);
+  };
+  if (typeof preference === 'string' && preference && preference !== 'system') {
+    return has(preference) ? preference : '';
+  }
+  return has(systemLanguage) ? systemLanguage : '';
+}
+
+// Speak the stored language. True when the words changed, and so the page has to be drawn again.
+function adoptLanguage(settings) {
+  var locale = localeFor((settings || {}).interface_language, DATA && DATA.system_language, CATALOGS);
+  if (!locale || locale === LOCALE) return false;
+  S = CATALOGS[locale];
+  LOCALE = locale;
+  return true;
+}
+
+// Light or Dark as chosen, and nothing for Use system setting, which leaves Codex's own scheme in
+// charge - as is anything else, from a watcher older than the setting or newer than this page.
+function themeStamp(preference) {
+  return (preference === 'light' || preference === 'dark') ? preference : '';
+}
+
+// On the root, where the theme blocks are declared; High Contrast's forced colours replace any. The
+// panel theme's own choice, or the Theme's while it is "same" - absent too, from an older watcher.
+function applyTheme(root, settings, pinned) {
+  if (!root || pinned) return;
+  var own = (settings = settings || {}).panel_theme;
+  var stamp = themeStamp(own === 'system' || own === 'light' || own === 'dark' ? own : settings.theme);
+  if (stamp) root.setAttribute('data-theme', stamp);
+  else root.removeAttribute('data-theme');
+}
+
+// The design the surfaces are drawn in (v0.6.10), stamped for Classic and Plain; Soft is the
+// stylesheet's own blocks and stamps nothing, as does any other value - from a watcher older than the
+// setting, or newer than this page. And the product's own Reduce motion, which the panel follows from
+// v0.6.10 as well as the host's reduced-motion preference: `data-motion="reduced"` holds everything
+// in every design, and nothing else does - no design holds motion of its own. Both on the root, where
+// the stylesheet's design blocks are declared (panel.css).
+function designStamp(preference) {
+  return (preference === 'classic' || preference === 'plain') ? preference : '';
+}
+
+function applyDesign(root, settings, pinned) {
+  if (!root) return;
+  settings = settings || {};
+  if (!pinned) {
+    var stamp = designStamp(settings.design);
+    if (stamp) root.setAttribute('data-design', stamp);
+    else root.removeAttribute('data-design');
+  }
+  if (settings.reduce_motion === true) root.setAttribute('data-motion', 'reduced');
+  else root.removeAttribute('data-motion');
+}
+
+// The language the words are in, on the root: the stylesheet breaks a line of Korean between words and
+// one of Japanese between phrases by it, and a screen reader reads each language in its own voice. Set on
+// every draw (render), because a saved Interface language draws the page again in that language; none
+// when the page has no locale to name.
+function applyLanguage(root, locale) {
+  if (!root || typeof root.setAttribute !== 'function') return;
+  if (typeof locale === 'string' && locale) root.setAttribute('lang', locale);
+  else root.removeAttribute('lang');
+  // v0.6.11: and its direction - `rtl` mirrors the page (panel.css, right_to_left_rules). None in a language
+  // written left to right, so every other page is served and drawn as it was.
+  if (rightToLeft(locale)) root.setAttribute('dir', 'rtl');
+  else root.removeAttribute('dir');
+}
+
+// The stored appearance and language, applied to the page in place. True when the words changed.
+function adopt(settings) {
+  applyTheme(document.documentElement, settings, THEME_PINNED);
+  applyDesign(document.documentElement, settings, DESIGN_PINNED);
+  return adoptLanguage(settings);
+}
+
+// The one code that is not worth translating, because the sentence beside it says more.
+// The control layer gives it to a refusal it deliberately leaves unworded - a value the
+// validator rejected, whose sentence names the setting it refused - and swapping that for
+// "the request could not be completed" inside "Not saved: {reason}" would throw away the
+// only informative half to say nothing twice.
+var GENERIC_REFUSAL = 'request_failed';
+
+// What a refused call says, in the language the rest of the panel is already speaking.
+//
+// Every refusal from the control layer carries a machine code from a closed set beside its
+// English sentence, and this page was served an `error.<code>` string for every member of
+// that set - so the code, not the prose, is the part that can be said in Korean. Without
+// it the panel could only wrap a Korean frame around an English sentence, which is half a
+// translation and reads worse than either language alone.
+//
+// Hosts differ on whether a rejected call hands back the whole tool result or only its
+// structured half, exactly as they differ on a fulfilled one, so both shapes are looked in
+// rather than depending on one. A refusal that arrives with no code at all is an older
+// watcher than the codes, and then its sentence is all there is - still better than a
+// panel that goes quiet about why nothing was saved.
+function refusal(error) {
+  var sentence = (error && error.message) ? error.message : t('panel.refused', 'refused');
+  var payload = (error && error.structuredContent) || error || {};
+  var code = payload.error_code;
+  if (!code || code === GENERIC_REFUSAL) return sentence;
+  return t('error.' + code, sentence);
+}
+
+// MCP tool failures are successful JSON-RPC replies with isError set. A host may
+// resolve its promise with that reply (or only its structured content), so rejection
+// of the JavaScript promise alone is not evidence that the operation succeeded.
+function toolPayload(result) {
+  var payload = (result && result.structuredContent) || result || {};
+  if ((result && result.isError) || payload.error_code) {
+    var content = (result && result.content) || [];
+    var text = content.filter(function (item) { return item.type === 'text'; })
+                      .map(function (item) { return item.text; }).join(' ');
+    var error = new Error(text || t('panel.refused', 'refused'));
+    error.structuredContent = payload;
+    throw error;
+  }
+  return payload;
+}
+
+// The parameter is not called `arguments`. It was, and inside the inner function that
+// name is that function's own implicit arguments object - so every call this panel made,
+// Save included, handed the host an empty object instead of what it meant to send.
+//
+// v0.6.14: each call is counted in OWN_CALLS - made, and still out - so a state read again before it is
+// never drawn over what it changed (readAgain). A page without the count (a test's few functions) calls
+// all the same.
+function callTool(name, args) {
+  var counted = typeof OWN_CALLS === 'object' && OWN_CALLS ? OWN_CALLS : null;
+  if (counted) {
+    counted.made += 1;
+    counted.out += 1;
+  }
+  var call = Promise.resolve().then(function () {
+    return HOST.callTool(name, args);
+  }).then(toolPayload);
+  if (counted) {
+    var landed = function () { counted.out -= 1; };
+    call.then(landed, landed);
+  }
+  return call;
+}
+
+function saveSettings(changes) {
+  return callTool('update_settings', changes).then(function (payload) {
+    if (!payload.settings || typeof payload.settings !== 'object' || Array.isArray(payload.settings)) {
+      throw new Error(t('panel.refused', 'refused'));
+    }
+    // A later pause re-renders the panel. Keep the acknowledged settings so that
+    // re-render cannot restore the values from the original open_settings snapshot.
+    DATA.settings = payload.settings;
+    return payload;
+  });
+}
+
+function setRecoveryEnabled(enable) {
+  return callTool(enable ? 'resume_auto_recovery' : 'pause_auto_recovery', {}).then(function (payload) {
+    if (typeof payload.enabled !== 'boolean') throw new Error(t('panel.refused', 'refused'));
+    DATA.status.enabled = payload.enabled;
+    return payload;
+  });
+}
+
+// Automatic recovery for one exact conversation, addressed by the thread id the row was
+// drawn from and by nothing else. Not optimistic: the rows change only once a tool has
+// answered for that same thread, and a reply about any other thread is a refusal.
+// Turning it back on adds automation, so Codex asks the person first; that is expected.
+function setThreadRecovery(threadId, enable) {
+  var tool = enable ? 'enable_conversation_recovery' : 'disable_conversation_recovery';
+  return callTool(tool, {thread_id: threadId}).then(function (payload) {
+    if (payload.thread_id !== threadId) throw new Error(t('panel.refused', 'refused'));
+    var enabled = typeof payload.enabled === 'boolean' ? payload.enabled : null;
+    if (enabled === null) {
+      // Turning recovery off answers with the thread alone. Turning it on has to say so.
+      if (enable) throw new Error(t('panel.refused', 'refused'));
+      enabled = false;
+    }
+    (DATA.pending || []).forEach(function (row) {
+      if (row.thread_id !== threadId) return;
+      row.thread_enabled = enabled;
+      var overlays = (row.overlays || []).filter(function (name) { return name !== 'thread_disabled'; });
+      if (!enabled) overlays.push('thread_disabled');
+      row.overlays = overlays;
+    });
+    return enabled;
+  });
+}
+
+// Which settings this panel may write. The same rule the server generates the
+// update_settings schema by - the groups a person edits, and never Custom message text,
+// which is written in the Dashboard by the person it will speak for - kept here so
+// the Save button cannot even assemble a request that carries it.
+function editable(entry) {
+  var groups = ['general', 'recovery', 'limits', 'notifications', 'continuation'];
+  // Of the appearance settings only the two themes, which the panel is drawn in. Reduce motion
+  // and the notification-area icon are Windows' own and stay in the Dashboard, and so does the
+  // design (v0.6.10) - mcp.tools.PANEL_APPEARANCE says why. The panel draws in both
+  // (applyDesign) and sends neither.
+  var appearance = ['theme', 'panel_theme'];
+  if (!entry || typeof entry.name !== 'string') return false;
+  if (entry.group === 'appearance') return appearance.indexOf(entry.name) >= 0 && !entry.multiline;
+  if (groups.indexOf(entry.group) < 0 || entry.multiline) return false;
+  return entry.name.indexOf('custom_message') !== 0 || entry.name === 'custom_message_mode';
+}
+
+function collectChanges(editors, schema) {
+  var changes = {};
+  (schema || []).forEach(function (entry) {
+    if (editable(entry) && typeof editors[entry.name] === 'function') {
+      changes[entry.name] = editors[entry.name]();
+    }
+  });
+  return changes;
+}
+
+// Of the collected changes, the settings surfaces are drawn in - language and both themes - that still
+// hold what the page was drawn with. This page is not told when the Dashboard or Codex changes them,
+// so sending them back unedited would quietly undo that change; they go only when chosen here, the
+// rule the Dashboard saves by too. Every other setting is still sent whole, as it always was.
+function unedited(changes, saved) {
+  saved = saved || {};
+  return ['interface_language', 'theme', 'panel_theme'].filter(function (name) {
+    return Object.prototype.hasOwnProperty.call(changes, name)
+           && Object.prototype.hasOwnProperty.call(saved, name)
+           && changes[name] === saved[name];
+  });
+}
+
+// The Preview request: one kind of interruption, and the unsaved language and style.
+// Exactly these four choices and nothing else - the tool refuses Custom text, and this
+// never offers it one.
+function previewArguments(category, read) {
+  var changes = {};
+  ['interface_language', 'continuation_language', 'continuation_style',
+   'custom_message_mode'].forEach(function (name) {
+    var value = read(name);
+    if (typeof value === 'string' && value) changes[name] = value;
+  });
+  return {category: category, changes: changes};
+}
+
+// One word for the whole product, in the order that matters: nothing is recovered while
+// no watcher runs or while the one that runs is not well, nothing is sent while paused, and
+// a row already in Codex outranks a row that is still waiting; then a task whose time has come
+// is checking. The rule every header keeps - the popup's and the Dashboard's too;
+// tests/data/light_states.json holds all three to it (v0.6.10).
+//
+// `now` is the clock, in seconds, that "a time has come" is read by - the page's own, as the
+// popup and the Dashboard read theirs. `read` is when the rows were read, on that clock: the
+// others read theirs every second, so for them it is `now`, and it is when it is not given. Until
+// v0.6.10 this page took no clock: it is drawn once, so it said waiting where the other two said
+// checking, and each row said "due now". Now it says checking too, but only for as long as what
+// it read can still say so (checkingRow): the others leave checking at the watcher's next pass,
+// which they see and this page does not. The one timer the page keeps (watchClock) reads the rows
+// again when a time they carry comes, and when that stops. Without a clock nothing has come due.
+function activity(status, rows, now, read) {
+  var moving = ['submission_claimed', 'submitted', 'withdrawing', 'turn_running', 'turn_finishing'];
+  var codes = (status && status.codes) || {};
+  var list = rows || [];
+  status = status || {};
+  if (status.watcher_running !== true) return 'attention';
+  if (attentionCause(status, list) !== null) return 'attention';
+  if (status.enabled !== true) return 'paused';
+  for (var i = 0; i < moving.length; i++) {
+    if (codes[moving[i]] > 0) return 'recovering';
+  }
+  for (var j = 0; j < list.length; j++) {
+    if (moving.indexOf(list[j].code) >= 0) return 'recovering';
+  }
+  for (var k = 0; k < list.length; k++) {
+    if (checkingRow(list[k], now, read)) return 'checking';
+  }
+  return (status.pending > 0 || list.length > 0) ? 'waiting' : 'monitoring';
+}
+
+// Whether a row's time has come by `now`, in seconds: the popup's and the Dashboard's test. A row
+// with no time, or a caller with no clock, has not come due.
+function due(row, now) {
+  var at = row && row.eligible_at;
+  return typeof at === 'number' && typeof now === 'number' && at <= now;
+}
+
+// Whether a row makes the page say checking at `now`: its time has come (due), and no more than one
+// watcher pass (CHECKING_HOLD) has gone by since the later of that time and `read`, when the row was
+// read. After that, what the page read no longer says what the watcher is doing - it has had its
+// pass at the task, and what it did is in a reading the page has not had - so the page says waiting
+// again, and the row "due now", which is still true (standard J7: a state is never overstated).
+// With no `read` the row was read at `now`, as the popup and the Dashboard read theirs.
+function checkingRow(row, now, read) {
+  if (!due(row, now)) return false;
+  if (typeof read !== 'number' || !isFinite(read)) return true;
+  return now < Math.max(row.eligible_at, read) + CHECKING_HOLD;
+}
+
+// Why a watcher that runs needs a person, or null when it does not: an older watcher still
+// owns the state, it has stopped ticking, the engine is not supported or failed its checks
+// here - or a row is held for one of those (an overlay), which the list, read a moment after
+// the status, can know first. In this order, and the rows in theirs; the Dashboard's
+// AttentionCause is the same.
+function attentionCause(status, rows) {
+  var watcher = (status && status.watcher) || {};
+  if (status && status.upgrade_pending === true) return 'upgrade_pending';
+  if (watcher.ticking === false) return 'watcher_not_ticking';
+  if (watcher.engine_state === 'incompatible') return 'compatibility_blocked';
+  if (watcher.engine_state === 'failed_here') return 'compatibility_failed_here';
+  // v0.6.26: the watcher's own judge found that recovery cannot work here (domain/public.py self_check, its WORDS; the
+  // Dashboard's Blocked).
+  var blocked = (watcher.self_check || {}).blocked;
+  if (typeof blocked === 'string' && (blocked.indexOf('recovery_blocked:') === 0 ||
+                                      blocked.indexOf('detection_blocked:') === 0)) return 'codex_changed';
+  var held = ['compatibility_blocked', 'compatibility_failed_here', 'engine_unavailable', 'watcher_not_ticking',
+              'app_server_unmatched', 'codex_changed'];
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    var overlays = list[i].overlays || [];
+    for (var j = 0; j < held.length; j++) {
+      if (overlays.indexOf(held[j]) >= 0) return held[j];
+    }
+  }
+  // v0.6.20: and last, a record held for a person: nothing is sent for it until they let it continue.
+  for (var k = 0; k < list.length; k++) {
+    if ((list[k].overlays || []).indexOf('held') >= 0) return 'held';
+  }
+  return null;
+}
+
+// The status light for a state. Not quite the word: a watcher that is not running - or that
+// nothing has confirmed is running - is a light that is off, grey as it always was, while the
+// word beside it still asks for attention. Amber is for a watcher that runs and is not well.
+// A row held for a watcher not running (engine_unavailable) outweighs a status that says it
+// runs, the two read a moment apart: no moving light beside "Watcher not running" (the popup's
+// watcher_known_running, the Dashboard's HeaderLight).
+function lightFor(status, state, rows) {
+  if (!status || status.watcher_running !== true) return 'idle';
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    if ((list[i].overlays || []).indexOf('engine_unavailable') >= 0) return 'idle';
+  }
+  return state;
+}
+
+// The colour a state chip carries. Always beside its word, never instead of it.
+function tone(code) {
+  if (['submission_claimed', 'submitted', 'withdrawing', 'turn_running',
+       'turn_finishing'].indexOf(code) >= 0) return 'active';
+  if (['waiting_reset', 'waiting_usage', 'waiting_thread', 'scheduled'].indexOf(code) >= 0) return 'waiting';
+  if (code === 'recovered') return 'success';
+  if (['exhausted', 'failed_terminal', 'recovery_failed'].indexOf(code) >= 0) return 'danger';
+  if (['failed_retryable', 'outcome_unverified', 'submission_unknown', 'no_progress',
+       'engine_unavailable', 'watcher_not_ticking', 'compatibility_blocked', 'compatibility_failed_here',
+       'app_server_unmatched', 'codex_changed']
+      .indexOf(code) >= 0) return 'warning';
+  return 'paused';
+}
+
+function label(name) {
+  var known = S['field.' + name];
+  if (known) return known;
+  var key = name.replace(/^recover_/, '').replace(/^notify_/, '').replace(/_/g, ' ');
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function element(tag, className, text) {
+  var node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function card(title, extra) {
+  var node = element('section', 'card' + (extra ? ' ' + extra : ''));
+  if (title) node.appendChild(element('h2', null, title));
+  return node;
+}
+
+// A section whose body folds away. Whether it is open survives a redraw. `aside`, when given, is what
+// the section says while it is folded - beside the chevron, at the right of the title.
+function folding(key, title, openByDefault, kind, aside) {
+  var node = element('details', kind === 'inner' ? 'fold inner' : 'card fold');
+  node.open = Object.prototype.hasOwnProperty.call(OPEN, key) ? OPEN[key] : openByDefault;
+  var summary = element('summary');
+  summary.id = 'car-fold-' + key;
+  summary.appendChild(element(kind === 'inner' ? 'h3' : 'h2', null, title));
+  var chevron = element('span', 'chevron');
+  chevron.setAttribute('aria-hidden', 'true');
+  if (aside) {
+    var end = element('span', 'fold-end');
+    end.appendChild(aside);
+    end.appendChild(chevron);
+    summary.appendChild(end);
+  } else {
+    summary.appendChild(chevron);
+  }
+  node.appendChild(summary);
+  node.addEventListener('toggle', function () { OPEN[key] = node.open; });
+  var body = element('div', 'fold-body');
+  node.appendChild(body);
+  return {node: node, body: body};
+}
+
+function endonym(code) {
+  return (DATA.endonyms || {})[code] || code || '';
+}
+
+// "System (한국어)" - with the language named in itself, or with no brackets at all when an
+// older watcher did not say which language the system has.
+function withLanguage(key, fallback, code) {
+  var text = fill(key, fallback, {language: endonym(code)});
+  return code ? text : text.replace(/\s*\(\s*\)/, '');
+}
+
+function value(name) {
+  if (Object.prototype.hasOwnProperty.call(DRAFT, name)) return DRAFT[name];
+  return (DATA.settings || {})[name];
+}
+
+function read(name) {
+  return typeof EDITORS[name] === 'function' ? EDITORS[name]() : value(name);
+}
+
+function edited(name) {
+  if (HOOKS.dirty) HOOKS.dirty();
+  if (PREVIEW_FIELDS.indexOf(name) >= 0) refreshPreview();
+}
+
+function unsaved(schema) {
+  var saved = DATA.settings || {};
+  var changes = collectChanges(EDITORS, schema);
+  return Object.keys(changes).some(function (name) { return changes[name] !== saved[name]; });
+}
+
+function settingRow(title, help, control, className) {
+  var row = element('div', 'setting' + (className ? ' ' + className : ''));
+  var text = element('div', 'setting-text');
+  var name = element('label', 'setting-label', title);
+  if (control.id) name.htmlFor = control.id;
+  text.appendChild(name);
+  var helpNode = null;
+  if (help) {
+    helpNode = element('p', 'help', help);
+    text.appendChild(helpNode);
+  }
+  row.appendChild(text);
+  var box = element('div', 'setting-control');
+  box.appendChild(control);
+  row.appendChild(box);
+  return {row: row, help: helpNode, label: name};
+}
+
+// A drop-down: a select, and the list this page opens for it (`.combo` in the stylesheet says why).
+//
+// The select stays in the page, hidden, and is still the value: EDITORS read it, the page listens
+// to its `change`, and picking from the list sets it and fires that `change`, so nothing that reads
+// a choice knows the list exists. Nothing can open the browser's own list: the select is never
+// shown, never focused and never reached by Tab.
+//
+// What is seen, focused and read out is a combobox, as the WAI-ARIA pattern for a select-only
+// combobox has it: `aria-expanded` while its list is open, `aria-activedescendant` naming the item
+// the keyboard is on - focus itself never leaves the combobox - and a listbox of options, the
+// current value's `aria-selected`. The listbox is the card; what scrolls inside it says nothing of
+// its own. Its keys are the pattern's and the window's list's (SoftCombo) together:
+//   closed  Down, Up, Enter, Space, F4, Alt+Down and Alt+Up open the list on the current value;
+//           Home and End open it on the first and the last item, Page Up and Page Down a page along;
+//           a letter opens it on the next item whose name begins with it;
+//   open    Up, Down, Home, End, Page Up and Page Down move - a page is what shows, less one row, as
+//           in the window; Enter, Space, F4, Alt+Up and Alt+Down pick and close; Tab picks and moves
+//           on; Escape closes and changes nothing; Left and Right do nothing; a letter finds.
+// Letters typed within a second of each other are one search, the window's TypeAhead, measured
+// between the keys' own time stamps, so nothing here ticks. The search is the window's
+// (SoftCombo.Find): a first letter looks from the item after the one the keyboard is on, round to
+// the start, and the same letter again steps on through the items it begins; a longer search keeps
+// the item the keyboard is on while that still matches, so a word typed through goes to its item and
+// stays there.
+//
+// The pointer: a press on the field opens or closes the list, a press on an item picks it. The
+// pointer moving over an item moves the keyboard's item there - shown by the item rising rather than
+// by the ring - so Enter takes the item under the pointer, as in the window; a move the browser makes
+// up for a pointer that stood still while the list appeared or scrolled under it leaves the keyboard
+// where it is. A press anywhere else, the page losing focus - to another window, or to Codex itself -
+// and Tab away all close it, since each takes focus from the combobox; only Tab picks on the way. A
+// press inside the list keeps focus where it is. The wheel scrolls a long list, a row at a time, and
+// stops at its ends rather than carrying on into the page.
+// How many rows a list shows before it scrolls, the window's MaxDropDownItems: about ten, the owner's
+// number for the language pickers (v0.6.11), whose seventeen choices scroll.
+var COMBO_ROWS = 10;
+var COMBO_TYPING_MS = 1000;
+
+function combo(select) {
+  var id = select.id;
+  var wrap = element('div', 'combo');
+  select.hidden = true;
+  select.setAttribute('tabindex', '-1');
+  select.setAttribute('aria-hidden', 'true');
+  wrap.appendChild(select);
+  var box = element('div', 'combo-box');
+  box.id = id + '-box';
+  box.setAttribute('role', 'combobox');
+  box.setAttribute('aria-haspopup', 'listbox');
+  box.setAttribute('aria-expanded', 'false');
+  box.setAttribute('aria-controls', id + '-list');
+  var shown = element('span', 'combo-value');
+  box.appendChild(shown);
+  wrap.appendChild(box);
+  var list = element('div', 'combo-list');
+  list.id = id + '-list';
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('tabindex', '-1');
+  list.hidden = true;
+  var scroll = element('div', 'combo-scroll');
+  scroll.setAttribute('role', 'none');
+  list.appendChild(scroll);
+  wrap.appendChild(list);
+  var items = [];
+  var expanded = false;
+  var active = 0;
+  var typed = '';
+  var typedAt = -Infinity;
+  // Where the pointer last moved to, on the screen.
+  var pointer = null;
+
+  Array.prototype.forEach.call(select.options, function (option, index) {
+    var item = element('div', 'combo-option');
+    item.id = id + '-option-' + index;
+    item.setAttribute('role', 'option');
+    item.addEventListener('click', function () {
+      pick(index);
+      box.focus();
+    });
+    item.addEventListener('mousemove', function (event) { hover(index, event); });
+    scroll.appendChild(item);
+    items.push(item);
+  });
+
+  // The index of the value the select holds.
+  function current() {
+    for (var index = 0; index < select.options.length; index++) {
+      if (select.options[index].value === select.value) return index;
+    }
+    return 0;
+  }
+
+  // The field, the items and whether any of it can be used, from the select - which is also how a
+  // caller that renames an option (the Continuation language's "Same as the interface") is shown.
+  function sync() {
+    var chosen = current();
+    shown.textContent = items.length ? select.options[chosen].textContent : '';
+    items.forEach(function (item, index) {
+      item.textContent = select.options[index].textContent;
+      item.setAttribute('aria-selected', index === chosen ? 'true' : 'false');
+    });
+    if (select.disabled) {
+      close();
+      box.setAttribute('aria-disabled', 'true');
+      box.removeAttribute('tabindex');
+    } else {
+      box.removeAttribute('aria-disabled');
+      box.setAttribute('tabindex', '0');
+    }
+  }
+
+  // From one item to the next, as laid out: an item and the gap under it.
+  function pitch() {
+    return items.length > 1 ? items[1].offsetTop - items[0].offsetTop : items[0].offsetHeight;
+  }
+
+  // How many rows show: as laid out, or - where nothing is laid out - what the stylesheet shows.
+  function rows() {
+    var step = pitch();
+    var count = step > 0 ? Math.round((scroll.clientHeight - 2 * items[0].offsetTop + step - items[0].offsetHeight) / step)
+                         : NaN;
+    return count >= 1 ? count : Math.min(items.length, COMBO_ROWS);
+  }
+
+  // A page: what shows, less the row kept in view from the page before.
+  function page() {
+    return Math.max(1, rows() - 1);
+  }
+
+  // As the window places its list (SoftDropList.Place). Across, from a pad left of the field, as the
+  // stylesheet has it, and moved left as far as it would run past the page, which it is never wider
+  // than. Below the field, or above it when there is not room for it below and there is more above;
+  // a list with room on neither side goes to the larger and is cut to the whole rows that fit there,
+  // never fewer than one, and scrolls. Measured in layout, which the opening rise does not move.
+  function place() {
+    list.classList.toggle('up', false);
+    list.style.left = '';
+    list.style.right = '';
+    list.style.maxWidth = '';
+    scroll.style.maxHeight = '';
+    var root = document.documentElement || {};
+    var width = root.clientWidth || window.innerWidth || 0;
+    if (width && typeof list.getBoundingClientRect === 'function') {
+      list.style.maxWidth = width + 'px';
+      var edge = list.getBoundingClientRect();
+      if (rightToLeft(LOCALE)) {
+        // Right to left (v0.6.11) the list starts a pad right of the field and runs leftward: moved right
+        // as far as it would run past the page's left edge.
+        var under = Math.min(-edge.left, width - edge.right);
+        var holder = list.offsetParent;
+        if (under > 0 && holder) list.style.right = (holder.clientWidth - list.offsetLeft - list.offsetWidth - under) + 'px';
+      } else {
+        var over = Math.min(edge.right - width, edge.left);
+        if (over > 0) list.style.left = (list.offsetLeft - over) + 'px';
+      }
+    }
+    var view = window.innerHeight || root.clientHeight || 0;
+    if (!view || typeof box.getBoundingClientRect !== 'function') return;
+    var field = box.getBoundingClientRect();
+    var gap = Math.max(0, list.offsetTop - box.offsetHeight);
+    var height = list.offsetHeight;
+    var below = view - field.bottom - 2 * gap;
+    var above = field.top - 2 * gap;
+    if (height <= below) return;
+    var up = above > below;
+    list.classList.toggle('up', up);
+    var room = Math.floor(up ? above : below);
+    var step = pitch(), pill = items[0].offsetHeight, inset = items[0].offsetTop;
+    if (height <= room || !(step > 0)) return;
+    // The card's hairlines and padding and the room around the items, above and below them.
+    var frame = height - scroll.clientHeight + 2 * inset;
+    var fit = Math.max(1, Math.floor((room - frame + step - pill) / step));
+    scroll.style.maxHeight = (2 * inset + fit * step - (step - pill)) + 'px';
+  }
+
+  // The item the keyboard is on, scrolled into the list's view with its ring - a whole row at a time,
+  // since every row starts a pitch after the one before.
+  function reveal(item) {
+    var room = scroll.clientHeight;
+    if (!(scroll.scrollHeight > room)) return;
+    var pad = items[0].offsetTop;
+    var top = item.offsetTop - pad;
+    var bottom = item.offsetTop + item.offsetHeight + pad;
+    if (top < scroll.scrollTop) scroll.scrollTop = top;
+    else if (bottom > scroll.scrollTop + room) scroll.scrollTop = bottom - room;
+  }
+
+  // The keyboard's item to `index`, kept to the list; scrolled into view unless the pointer put it there.
+  function move(index, byPointer) {
+    active = Math.max(0, Math.min(items.length - 1, index));
+    items.forEach(function (item, at) { item.classList.toggle('active', at === active); });
+    box.setAttribute('aria-activedescendant', items[active].id);
+    if (!byPointer) reveal(items[active]);
+  }
+
+  // The pointer over item `index`. A move with no movement, or to where the pointer already was, is
+  // one the browser makes up when the list appears or scrolls under a pointer that stood still: while
+  // the keyboard leads, that leaves its item where it is. Any other hands the lead to the pointer.
+  function hover(index, event) {
+    if (!expanded) return;
+    var at = event && typeof event.screenX === 'number' ? event.screenX + ',' + event.screenY : null;
+    var still = !!event && ((event.movementX === 0 && event.movementY === 0) || (at !== null && at === pointer));
+    pointer = at;
+    if (still && list.classList.contains('keys')) return;
+    list.classList.toggle('keys', false);
+    move(index, true);
+  }
+
+  function open(index, byKeys) {
+    if (select.disabled || !items.length) return;
+    if (!expanded) {
+      expanded = true;
+      list.hidden = false;
+      box.setAttribute('aria-expanded', 'true');
+      list.classList.toggle('keys', !!byKeys);
+      place();
+    }
+    move(index);
+  }
+
+  function close() {
+    if (!expanded) return;
+    expanded = false;
+    list.hidden = true;
+    list.classList.toggle('keys', false);
+    box.setAttribute('aria-expanded', 'false');
+    box.removeAttribute('aria-activedescendant');
+    typed = '';
+  }
+
+  // The item at `index` becomes the value, and the select says so the way a select does.
+  function pick(index) {
+    close();
+    var option = select.options[index];
+    if (!option || option.value === select.value) return;
+    select.value = option.value;
+    sync();
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  }
+
+  // What `text` finds with the keyboard on item `from`: SoftCombo.Find, the window's. -1 when nothing does.
+  function seek(text, from) {
+    var wanted = text.toLowerCase();
+    var repeated = wanted.split('').every(function (character) { return character === wanted.charAt(0); });
+    if (repeated) wanted = wanted.charAt(0);
+    var start = repeated ? from + 1 : from;
+    for (var step = 0; step < items.length; step++) {
+      var at = (start + step) % items.length;
+      if (items[at].textContent.toLowerCase().indexOf(wanted) === 0) return at;
+    }
+    return -1;
+  }
+
+  function typing(time) {
+    return typed !== '' && time - typedAt < COMBO_TYPING_MS;
+  }
+
+  function find(letter, time) {
+    if (!typing(time)) typed = '';
+    typed += letter;
+    typedAt = time;
+    var from = expanded ? active : current();
+    var at = seek(typed, from);
+    open(at < 0 ? from : at, true);
+  }
+
+  box.addEventListener('keydown', function (event) {
+    if (select.disabled || event.ctrlKey || event.metaKey) return;
+    var key = event.key || '';
+    var time = event.timeStamp || Date.now();
+    var last = items.length - 1;
+    if (key === 'Tab') {
+      if (expanded) pick(active);
+      return;
+    }
+    // F4, and Alt with Down or Up: what opens the window's list and takes its item. Never Alt+F4.
+    var toggles = (key === 'F4' && !event.altKey) || (event.altKey && (key === 'ArrowDown' || key === 'ArrowUp'));
+    if (key.length === 1 && !event.altKey && (key !== ' ' || typing(time))) find(key, time);
+    else if (!expanded) {
+      if (toggles || key === 'ArrowDown' || key === 'ArrowUp' || key === 'Enter' || key === ' ') open(current(), true);
+      else if (key === 'Home') open(0, true);
+      else if (key === 'End') open(last, true);
+      else if (key === 'PageUp' || key === 'PageDown') {
+        open(current(), true);
+        move(active + (key === 'PageUp' ? -1 : 1) * page());
+      }
+      else return;
+    }
+    else if (toggles || key === 'Enter' || key === ' ') pick(active);
+    else if (key === 'Escape') {
+      close();
+      event.stopPropagation();
+    }
+    else if (key === 'ArrowDown') move(active + 1);
+    else if (key === 'ArrowUp') move(active - 1);
+    else if (key === 'Home') move(0);
+    else if (key === 'End') move(last);
+    else if (key === 'PageUp') move(active - page());
+    else if (key === 'PageDown') move(active + page());
+    else if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+    event.preventDefault();
+    if (expanded) list.classList.toggle('keys', true);
+  });
+  box.addEventListener('click', function () {
+    if (select.disabled) return;
+    if (expanded) close();
+    else open(current(), false);
+  });
+  box.addEventListener('blur', close);
+  list.addEventListener('mousedown', function (event) { event.preventDefault(); });
+  select.addEventListener('change', sync);
+  sync();
+
+  // The setting's name names the field and its list, a press on the name puts focus on the field,
+  // and the help under the name describes it.
+  function labelled(labelNode, helpNode) {
+    labelNode.id = id + '-label';
+    box.setAttribute('aria-labelledby', labelNode.id);
+    list.setAttribute('aria-labelledby', labelNode.id);
+    if (helpNode) {
+      helpNode.id = id + '-help';
+      box.setAttribute('aria-describedby', helpNode.id);
+    }
+    labelNode.addEventListener('click', function () {
+      if (!select.disabled) box.focus();
+    });
+  }
+
+  return {node: wrap, box: box, list: list, sync: sync, labelled: labelled};
+}
+
+function toggle(entry, onChange) {
+  var row = element('label', 'setting toggle');
+  var text = element('span', 'setting-text');
+  text.appendChild(element('span', 'setting-label', label(entry.name)));
+  managedNote(text, entry);
+  row.appendChild(text);
+  var input = element('input', 'switch');
+  input.id = 'car-' + entry.name;
+  input.type = 'checkbox';
+  input.setAttribute('role', 'switch');
+  input.checked = !!value(entry.name);
+  input.disabled = !HOST || !!entry.managed;
+  input.addEventListener('change', function () {
+    DRAFT[entry.name] = input.checked;
+    edited(entry.name);
+    if (onChange) onChange(input.checked);
+  });
+  row.appendChild(input);
+  EDITORS[entry.name] = function () { return input.checked; };
+  return row;
+}
+
+// Which control an on/off setting gets, by what it means rather than by its type. A switch turns
+// something that runs on or off - the notifications master, a conversation's auto-resume. A check
+// box picks which items of a list apply: `recover_<category>`, which kinds of interruption may be
+// recovered, and `notify_<event>`, which events notify under the master switch. The window
+// draws the same setting as the same kind.
+function booleanKind(entry) {
+  if (!entry || entry.master) return 'switch';
+  return /^(recover|notify)_[a-z0-9_]+$/.test(String(entry.name || '')) ? 'check' : 'switch';
+}
+
+// A native check box - no switch role, because it is not one - ahead of its label, inside the
+// label so the whole row toggles it.
+function checkItem(entry) {
+  var row = element('label', 'setting check');
+  var input = element('input', 'check');
+  input.id = 'car-' + entry.name;
+  input.type = 'checkbox';
+  input.checked = !!value(entry.name);
+  input.disabled = !HOST || !!entry.managed;
+  input.addEventListener('change', function () {
+    DRAFT[entry.name] = input.checked;
+    edited(entry.name);
+  });
+  row.appendChild(input);
+  var text = element('span', 'setting-text');
+  text.appendChild(element('span', 'setting-label', label(entry.name)));
+  managedNote(text, entry);
+  row.appendChild(text);
+  EDITORS[entry.name] = function () { return input.checked; };
+  return row;
+}
+
+// v0.6.11: a setting an administrator's policy key decides (its schema says `managed`) is drawn as it
+// stands, greyed, with one line saying who set it - as the Dashboard draws it. Saving sends what it
+// shows, which is never written over the person's own (managed.admit).
+function managedNote(text, entry) {
+  if (entry && entry.managed) text.appendChild(element('span', 'help', t('settings.managed', 'Set by your administrator.')));
+}
+
+function onOff(entry, onChange) {
+  return booleanKind(entry) === 'check' ? checkItem(entry) : toggle(entry, onChange);
+}
+
+function numberField(entry, onChange) {
+  var input = document.createElement('input');
+  input.type = 'number';
+  input.id = 'car-' + entry.name;
+  if (entry.min !== undefined) input.min = entry.min;
+  // v0.6.19: a key that is a ceiling (the schema's `ceiling`, managed.ceilings) holds the most the field
+  // takes and leaves it editable below; any other key greys it, as the Dashboard does.
+  var ceiling = entry.managed && typeof entry.ceiling === 'number' ? entry.ceiling : null;
+  var most = ceiling !== null && (entry.max === undefined || ceiling < entry.max) ? ceiling : entry.max;
+  if (most !== undefined) input.max = most;
+  input.value = ceiling !== null ? Math.min(Number(value(entry.name)), ceiling) : value(entry.name);
+  input.disabled = !HOST || (!!entry.managed && ceiling === null);
+  var held = function () {
+    var number = Number(input.value);
+    return ceiling !== null && number > ceiling ? ceiling : number;
+  };
+  input.addEventListener('input', function () {
+    DRAFT[entry.name] = held();
+    edited(entry.name);
+    if (onChange) onChange();
+  });
+  EDITORS[entry.name] = held;
+  var note = ceiling !== null ? fill('settings.managed_ceiling', 'Your administrator allows at most {n}.', {n: ceiling})
+    : entry.managed ? t('settings.managed', 'Set by your administrator.') : '';
+  return settingRow(label(entry.name), note, input).row;
+}
+
+// A select whose stored value is the untranslated choice and whose label is whatever the
+// caller says - a settings file whose meaning changed with the display language would be
+// a bug nobody could see.
+function choiceField(entry, options, help, onChange) {
+  var input = document.createElement('select');
+  input.id = 'car-' + entry.name;
+  var chosen = value(entry.name);
+  // v0.6.11: a value of the person's own, and Custom... last, where the schema offers one (ownvalues.py).
+  if (entry.custom) options = ownOptions(entry.custom, options, chosen);
+  options.forEach(function (option) {
+    var node = element('option', null, option.text);
+    node.value = option.value;
+    if (option.value === chosen) node.selected = true;
+    input.appendChild(node);
+  });
+  input.disabled = !HOST || !!entry.managed;
+  if (entry.managed) help = t('settings.managed', 'Set by your administrator.') + (help ? ' ' + help : '');
+  var own = entry.custom ? ownEditor(entry, input, onChange) : null;
+  input.addEventListener('change', function () {
+    if (own) own.follow();
+    DRAFT[entry.name] = EDITORS[entry.name]();
+    edited(entry.name);
+    if (onChange) onChange(input.value);
+  });
+  EDITORS[entry.name] = function () { return own && input.value === OWN_ITEM ? own.read() : input.value; };
+  var field = combo(input);
+  var built = settingRow(label(entry.name), help, field.node, 'has-select');
+  field.labelled(built.label, built.help);
+  if (own) {
+    built.row.appendChild(own.node);
+    own.follow();
+  }
+  built.select = input;
+  built.sync = function () {
+    field.sync();
+    if (own) own.follow();
+  };
+  return built;
+}
+
+// ------------------------------------------------------------------ Custom... (v0.6.11)
+// A value of the person's own beside a drop-down's choices: Custom..., last, opens an editor under its row - a
+// number and its unit, a time of day, or the days of the week - with the range it may be in said above it, from
+// the schema (ownvalues.published). Whether it is taken is never decided here: the page composes the words the
+// settings store (`m45`, `13:15`, `mon,wed,fri`, `above_300000`) and update_settings answers when it is saved,
+// with the one rule every surface has, which refuses a value past its range. The Dashboard's is SettingsOwn.cs.
+var OWN_ITEM = '\u0001own';
+var OWN_UNITS = {duration: {s: 1, m: 60, h: 3600}, count: {'': 1, k: 1000, m: 1000000}};
+
+// What a value of the person's own measures - seconds, or a count - read from its words, or -1. How it is shown
+// and where its editor starts, never whether it is allowed.
+function ownAmount(custom, text) {
+  if (!custom || typeof text !== 'string' || !OWN_UNITS[custom.kind]) return -1;
+  var digits = text, unit = '';
+  if (custom.kind === 'duration') {
+    unit = text.charAt(0);
+    digits = text.slice(1);
+  } else {
+    var prefix = custom.prefix || '';
+    if (text.indexOf(prefix) !== 0) return -1;
+    digits = text.slice(prefix.length);
+    if (/[km]$/.test(digits)) {
+      unit = digits.slice(-1);
+      digits = digits.slice(0, -1);
+    }
+  }
+  var size = OWN_UNITS[custom.kind][unit];
+  return size && /^[0-9]+$/.test(digits) ? Number(digits) * size : -1;
+}
+
+// A wait, in the words the page's waits are said in - in whole days where it is some.
+function ownDuration(seconds) {
+  return seconds >= 86400 && seconds % 86400 === 0 ? fill('time.days', '{n}d', {n: seconds / 86400}) : duration(seconds);
+}
+
+// A count in its words where the schema names them - "{n} MB", in plain digits as the choices beside it are -
+// or as a number grouped as the page's language groups one (groupDigits).
+function ownCount(custom, amount, words) {
+  var plain = !!words && words === custom.amount;
+  var number = plain ? String(amount) : groupDigits(amount);
+  return words && words.indexOf('own.') === 0 ? fill('own.' + words.slice(4), '{n}', {n: number}) : number;
+}
+
+// A value of the person's own as its drop-down item says it.
+function ownLabel(custom, text) {
+  if (custom.kind === 'clock') return text;
+  if (custom.kind === 'days') {
+    return text.split(',').map(function (day) { return t('day.' + day, day); }).join(t('own.days_join', ', '));
+  }
+  var amount = ownAmount(custom, text);
+  if (amount < 0) return text;
+  return custom.kind === 'duration' ? ownDuration(amount) : ownCount(custom, amount, custom.label || custom.amount);
+}
+
+// What a value of the person's own measures, where the schema's words for its range say it is in that range - its
+// bounds, and its first unit as the finest - or -1. Only for what the page says of a value before Save: the retry
+// preview promises no wait the watcher would never keep. Whether a value is taken is still update_settings' answer.
+function ownWithin(custom, text) {
+  var amount = ownAmount(custom, text);
+  if (amount < 0 || !/^[a-z_]*[1-9][0-9]*[km]?$/.test(text)) return -1;
+  var finest = custom.kind === 'duration' ? OWN_UNITS.duration[(custom.units || ['s'])[0]] || 1
+    : OWN_UNITS.count[(custom.units || [''])[0]] || 1;
+  if (typeof custom.min === 'number' && amount < custom.min) return -1;
+  if (typeof custom.max === 'number' && amount > custom.max) return -1;
+  return amount % finest === 0 ? amount : -1;
+}
+
+// What the editor says above its fields: the range, or what a time of day and the days are.
+function ownHint(custom) {
+  if (custom.kind === 'clock') return t('own.clock', 'A time of day, from 00:00 to 23:59.');
+  if (custom.kind === 'days') return t('own.days', 'Choose at least one day.');
+  var said = custom.kind === 'duration' ? ownDuration : function (amount) { return ownCount(custom, amount, custom.amount); };
+  return fill('own.range', 'From {low} to {high}.', {low: said(custom.min), high: said(custom.max)});
+}
+
+// The drop-down's items: its choices, the value of the person's own it holds now when that is none of them, and
+// Custom..., last.
+function ownOptions(custom, options, chosen) {
+  var listed = options.some(function (option) { return option.value === chosen; });
+  var items = options.slice();
+  if (!listed && typeof chosen === 'string' && chosen) items.push({value: chosen, text: ownLabel(custom, chosen)});
+  items.push({value: OWN_ITEM, text: t('choice.custom_value', 'Custom...')});
+  return items;
+}
+
+// The editor under a row, shown while Custom... is picked: it starts at the value the drop-down held before.
+function ownEditor(entry, select, onChange) {
+  var custom = entry.custom;
+  var node = element('div', 'own');
+  node.hidden = true;
+  node.appendChild(element('p', 'help', ownHint(custom)));
+  var fields = element('div', 'own-fields');
+  node.appendChild(fields);
+  var inputs = [], read, start, unit = null;
+  var name = label(entry.name);
+  function changed() {
+    DRAFT[entry.name] = read();
+    edited(entry.name);
+    if (onChange) onChange(select.value);
+  }
+  if (custom.kind === 'clock') {
+    // Two numbers, the hour and the minute: no field on this page can hold words (CustomTextBoundaryTests).
+    var clock = [t('own.unit.h', 'hours'), t('own.unit.m', 'minutes')].map(function (unitName, index) {
+      var part = element('input');
+      part.id = 'car-' + entry.name + '-own-' + ['h', 'm'][index];
+      part.type = 'number';
+      part.min = '0';
+      part.max = '99';
+      part.setAttribute('aria-label', name + ' - ' + unitName);
+      if (index) fields.appendChild(element('span', 'own-colon', ':'));
+      fields.appendChild(part);
+      inputs.push(part);
+      return part;
+    });
+    var twoDigits = function (input) {
+      var digits = String(input.value || '').trim();
+      return digits.length === 1 ? '0' + digits : digits;
+    };
+    read = function () { return twoDigits(clock[0]) + ':' + twoDigits(clock[1]); };
+    start = function (from) {
+      var parts = /^([0-9]{1,2}):([0-9]{2})$/.exec(from || '') || [null, '0', '00'];
+      clock[0].value = String(Number(parts[1]));
+      clock[1].value = parts[2];
+    };
+  } else if (custom.kind === 'days') {
+    var group = element('div', 'own-days');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', name);
+    var named = custom.named || {};
+    var working = named.weekdays || [];
+    var boxes = {};
+    (custom.days || []).forEach(function (day) {
+      var item = element('label', 'own-day');
+      var box = element('input', 'check');
+      box.id = 'car-' + entry.name + '-own-' + day;
+      box.type = 'checkbox';
+      item.appendChild(box);
+      item.appendChild(element('span', null, t('day.' + day, day)));
+      group.appendChild(item);
+      // The working days on one line and the weekend on the next, as the choices name them.
+      if (day === working[working.length - 1]) group.appendChild(element('span', 'own-break'));
+      boxes[day] = box;
+      inputs.push(box);
+    });
+    fields.appendChild(group);
+    read = function () {
+      return (custom.days || []).filter(function (day) { return boxes[day].checked; }).join(',');
+    };
+    start = function (from) {
+      var picked = named[from] || (typeof from === 'string' ? from.split(',') : []);
+      (custom.days || []).forEach(function (day) { boxes[day].checked = picked.indexOf(day) >= 0; });
+    };
+  } else {
+    var number = element('input');
+    number.id = 'car-' + entry.name + '-own';
+    number.type = 'number';
+    number.min = '0';
+    number.step = String(custom.kind === 'count' ? OWN_UNITS.count[(custom.units || [''])[0]] || 1 : 1);
+    number.setAttribute('aria-label', name);
+    fields.appendChild(number);
+    inputs.push(number);
+    if (custom.kind === 'duration') {
+      unit = document.createElement('select');
+      unit.id = 'car-' + entry.name + '-unit';
+      (custom.units || []).forEach(function (letter) {
+        var option = element('option', null, t('own.unit.' + letter, letter));
+        option.value = letter;
+        unit.appendChild(option);
+      });
+      var unitField = combo(unit);
+      // Named by the setting's own name, as its drop-down is (combo's `labelled` gives that name this id); what it
+      // holds - minutes, hours - says it is the unit.
+      unitField.box.setAttribute('aria-labelledby', 'car-' + entry.name + '-label');
+      unitField.list.setAttribute('aria-labelledby', 'car-' + entry.name + '-label');
+      unit.addEventListener('change', changed);
+      fields.appendChild(unitField.node);
+      inputs.push(unit);
+      unit.sync = unitField.sync;
+    }
+    read = function () {
+      var digits = String(number.value || '').trim();
+      return unit ? unit.value + digits : (custom.prefix || '') + digits;
+    };
+    start = function (from) {
+      var amount = ownAmount(custom, from);
+      if (amount < 0) amount = custom.min;
+      if (!unit) {
+        number.value = String(amount);
+        return;
+      }
+      // The largest unit that says it exactly, as the settings spell it.
+      var shown = (custom.units || ['s'])[0];
+      (custom.units || []).forEach(function (letter) {
+        if (amount % OWN_UNITS.duration[letter] === 0) shown = letter;
+      });
+      unit.value = shown;
+      unit.sync();
+      number.value = String(amount / OWN_UNITS.duration[shown]);
+    };
+  }
+  inputs.forEach(function (input) {
+    if (input !== unit) input.addEventListener(input.type === 'checkbox' ? 'change' : 'input', changed);
+  });
+  var held = value(entry.name);
+  select.addEventListener('change', function () {
+    if (select.value !== OWN_ITEM) held = select.value;
+  });
+  return {
+    node: node,
+    read: read,
+    // Shown while Custom... is picked, starting where the drop-down was; its fields as usable as the drop-down.
+    follow: function () {
+      var picked = select.value === OWN_ITEM;
+      if (picked && node.hidden) start(held);
+      node.hidden = !picked;
+      inputs.forEach(function (input) { input.disabled = select.disabled; });
+      if (unit && unit.sync) unit.sync();
+    }
+  };
+}
+
+function segmented(entry, onChange) {
+  var group = element('div', 'segmented');
+  group.setAttribute('role', 'radiogroup');
+  group.setAttribute('aria-label', label(entry.name));
+  var chosen = value(entry.name);
+  var inputs = [];
+  (entry.choices || []).forEach(function (choice) {
+    var item = element('label', 'segment');
+    var input = document.createElement('input');
+    input.id = 'car-' + entry.name + '-' + choice;
+    input.type = 'radio';
+    input.name = 'car-' + entry.name;
+    input.value = choice;
+    input.checked = choice === chosen;
+    input.disabled = !HOST;
+    input.addEventListener('change', function () {
+      if (!input.checked) return;
+      DRAFT[entry.name] = choice;
+      edited(entry.name);
+      if (onChange) onChange(choice);
+    });
+    item.appendChild(input);
+    item.appendChild(element('span', null, t('choice.style.' + choice, choice)));
+    group.appendChild(item);
+    inputs.push(input);
+  });
+  EDITORS[entry.name] = function () {
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputs[i].checked) return inputs[i].value;
+    }
+    return chosen;
+  };
+  return group;
+}
+
+// When a record is next looked at, as a local clock time.
+//
+// Not a ticking countdown: this page is drawn once from one tool result and is not
+// refreshed, so a number counting down here would be wrong within a minute and would go
+// on being wrong convincingly. A time is still true an hour later, and "due now" is what
+// a moment that has already passed actually means - the watcher looks at it on its next
+// pass, and nothing here can say when that is. A time that comes while the page is open
+// turns to "due now" then (retell, v0.6.10), which is a change the page can know of.
+function nextCheck(row) {
+  var at = row.eligible_at;
+  // v0.6.11: a task held for a person has no time - nothing sends it until they let it continue.
+  if ((row.overlays || []).indexOf('held') >= 0) return t('overlay.held', 'waiting for you');
+  if (at === null || at === undefined) return t('panel.next_unknown', 'not known yet');
+  var when = new Date(at * 1000);
+  if (isNaN(when.getTime())) return t('panel.next_unknown', 'not known yet');
+  if (when.getTime() <= Date.now()) return t('panel.due', 'due now');
+  // The clock, written the way the continuation writes a reset time. Not the browser's
+  // own format: that speaks the browser's language, and put "오전 02:48" into an English
+  // panel on a Korean machine.
+  var pad = function (number) { return (number < 10 ? '0' : '') + number; };
+  return pad(when.getHours()) + ':' + pad(when.getMinutes());
+}
+
+// The facts under the word, most consequential first: whether anything can be recovered, and
+// what is waiting on it. The Dashboard's header keeps its own format for them, and names the
+// same cause first for a watcher that runs and is not well (SettingsForm.HeroFacts, held to
+// these by tests/test_light_parity.py); the soonest check below is the panel's own, a clock
+// time where the window counts down.
+function heroFacts(status, state, rows) {
+  var count = status.pending || 0;
+  var pending = count === 0 ? t('status.pending_none', 'Nothing pending')
+              : count === 1 ? t('status.pending_one', '1 recovery pending')
+              : fill('status.pending_many', '{n} recoveries pending', {n: count});
+  if (status.watcher_running !== true) {
+    var facts = [status.watcher_running === false ? stoppedFact(status.watcher || {})
+                                                  : t('status.unknown', 'Watcher status unknown'),
+                 t('status.recovery_idle', 'Nothing will be recovered until it is running')];
+    if (count) facts.push(pending);
+    return facts;
+  }
+  if (state === 'attention') {
+    // A watcher that runs and is not well: what is wrong, not "recovery is on".
+    var cause = attentionCause(status, rows);
+    var why = cause === 'upgrade_pending'
+              ? t('diag.upgrade_pending', 'An older watcher still owns the state; finish by restarting the watcher')
+            : cause === 'compatibility_blocked' ? t('overlay.compatibility_blocked', 'Codex version not supported')
+            : cause === 'compatibility_failed_here'
+              ? t('overlay.compatibility_failed_here', 'Codex checks failed on this computer')
+            : cause === 'held' ? t('popup.held', 'Waiting for you to let it continue')
+            : cause === 'app_server_unmatched' ? t('overlay.app_server_unmatched', "Codex app's server not matched")
+            : cause === 'codex_changed' ? t('overlay.codex_changed', 'Codex changed; recovery cannot work here')
+            : cause === 'engine_unavailable' ? t('status.not_running', 'Watcher not running')
+            : t('status.not_responding', 'Watcher not responding');
+    return [why, pending];
+  }
+  if (state === 'paused') return [t('status.recovery_paused', 'Automatic recovery is paused'), pending];
+  return [t('status.recovery_on', 'Automatic recovery is on'), pending];
+}
+
+// v0.6.11: a watcher that is not running, as it ended (control/watcher.how_it_ended) - stopped by the
+// memory guard, or unexpectedly in this sign-in, each at the time it did, as the Dashboard's Watcher fact
+// says it; otherwise "Watcher not running", as it always said.
+function stoppedFact(watcher) {
+  var at = watcher.ended_at;
+  if (typeof at === 'number' && isFinite(at) && at > 0) {
+    if (watcher.ended === 'unexpected') {
+      return fill('status.stopped_unexpectedly', 'Watcher stopped unexpectedly at {time}', {time: clockTime(at)});
+    }
+    if (watcher.ended === 'memory_guard') {
+      return fill('status.stopped_memory_guard', 'Watcher stopped by the memory guard at {time}', {time: clockTime(at)});
+    }
+  }
+  return t('status.not_running', 'Watcher not running');
+}
+
+// The soonest check, which is the question a count raises rather than answers - while recovery
+// can happen at all; null otherwise.
+function soonestFact(status, state, rows) {
+  if (!status.pending || status.watcher_running !== true || state === 'attention' || state === 'paused') return null;
+  var soonest = null;
+  (rows || []).forEach(function (row) {
+    if (row.eligible_at === null || row.eligible_at === undefined) return;
+    if (soonest === null || row.eligible_at < soonest) soonest = row.eligible_at;
+  });
+  if (soonest === null) return null;
+  return fill('status.next_check', 'next check {time}', {time: nextCheck({eligible_at: soonest})});
+}
+
+// The status light, at the size it is drawn: `mini` on the Automatic recovery tile.
+function lightNode(light, mini) {
+  var node = element('span', lightClass(light, mini));
+  node.setAttribute('aria-hidden', 'true');
+  return node;
+}
+
+function lightClass(light, mini) {
+  return 'halo ' + (mini ? 'mini ' : '') + light;
+}
+
+// The facts under the word, written into `facts` afresh: on a draw, and when the clock has moved
+// the word (retell).
+function showFacts(facts, status, state, rows) {
+  facts.textContent = '';
+  var aside = typeof window === 'undefined' ? null : window.__CODEX_AUTO_RESUME_ASIDE__;
+  var saying = !!aside && Date.now() >= aside[0] && Date.now() < aside[1];
+  if (facts.classList && !!facts.saying !== saying && (saying || facts.saying)) {
+    // The line changes by a fade and a small rise, both ways (the stylesheet's; none with motion reduced).
+    facts.classList.remove('aside-in');
+    void facts.offsetWidth;
+    facts.classList.add('aside-in');
+  }
+  facts.saying = saying;
+  if (saying) {
+    facts.appendChild(element('span', null, t('status.aside', "It's okay if it stops. I'll pick it up.")));
+    return;
+  }
+  var shown = heroFacts(status, state, rows);
+  var soonest = soonestFact(status, state, rows);
+  if (soonest !== null) shown.push(soonest);
+  // v0.6.11: and Codex's usage as the watcher last read it, with its age - once it has been read.
+  var usage = usageLine(status.watcher && status.watcher.usage, Date.now() / 1000);
+  if (usage !== null) shown.push(usage);
+  shown.forEach(function (fact) { facts.appendChild(element('span', null, fact)); });
+}
+
+// v0.6.11: how long ago, as the window says it (SettingsForm.Age) and the popup (ui/words.age).
+function age(seconds) {
+  var total = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (total < 5) return t('time.just_now', 'just now');
+  var time = total < 60 ? fill('time.seconds', '{n}s', {n: total})
+           : total < 3600 ? fill('time.minutes', '{n}m', {n: Math.floor(total / 60)})
+           : total < 86400 ? fill('time.hours', '{n}h', {n: Math.floor(total / 3600)})
+           : fill('time.days', '{n}d', {n: Math.floor(total / 86400)});
+  return fill('time.ago', '{time} ago', {time: time});
+}
+
+// v0.6.11: a usage window's length, named as the popup (ui/words.window_name) and the window name it.
+function windowName(minutes) {
+  if (typeof minutes !== 'number' || !(minutes > 0) || Math.floor(minutes) !== minutes) return t('usage.limit', 'limit');
+  if (minutes === 10080) return t('usage.weekly', 'weekly');
+  if (minutes % 1440 === 0) return fill('usage.days', '{n}-day', {n: minutes / 1440});
+  if (minutes % 60 === 0) return fill('usage.hours', '{n}-hour', {n: minutes / 60});
+  return fill('usage.minutes', '{n}-minute', {n: minutes});
+}
+
+// v0.6.11: the last usage reading in one line - each window's length, share left and reset, and the reading's
+// age - as the popup (ui/words.usage_line) and the window say it; null until usage has been read.
+function usageLine(reading, now) {
+  if (!reading || typeof reading !== 'object' || !Array.isArray(reading.windows) || !reading.windows.length ||
+      typeof reading.read_at !== 'number') return null;
+  var parts = reading.windows.map(function (entry) {
+    var used = Number(entry.used_percent) || 0;
+    // v0.6.24 final: the share LEFT (ui/words.left): 100 minus the whole share used, 0 only when used up.
+    var values = {window: windowName(entry.window_minutes), percent: 100 - (used >= 100 ? 100 : Math.floor(Math.max(0, used)))};
+    if (typeof entry.reset_at !== 'number') return fill('usage.window', '{window} {percent}% left', values);
+    values.time = clockTime(entry.reset_at);
+    return fill('usage.window_resets', '{window} {percent}% left, resets {time}', values);
+  });
+  return fill('usage.line', 'Codex usage, read {age}: {windows}', {age: age(now - reading.read_at), windows: parts.join(' · ')});
+}
+
+// The special days and the seventh press: only the page's own canvas; nothing here reaches the control layer.
+var DAY = window.__CODEX_AUTO_RESUME_DAY__ || null;
+var DAY_TABLE = window.__CODEX_AUTO_RESUME_SWEEP__ || null;
+var PRESS_COUNT = 0;
+var PRESS_LAST = null;
+
+function pageHoldsStill() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    || document.documentElement.getAttribute('data-motion') === 'reduced' || pageHighContrast();
+}
+
+function pageHighContrast() {
+  return !!(window.matchMedia && window.matchMedia('(forced-colors: active)').matches);
+}
+
+// day-art begin: brand.days.element_at, read here; every scene is in brand/days.py.
+function dayWave(seconds, duration, delay) {
+  var phase = (seconds - delay) / duration;
+  phase -= Math.floor(phase);
+  return (1 - Math.cos(2 * Math.PI * phase)) / 2;
+}
+
+function dayCentre(kind, n) {
+  if (kind !== 'poly') return [n[0], n[1]];
+  var xs = n.filter(function (_, i) { return i % 2 === 0; }), ys = n.filter(function (_, i) { return i % 2 === 1; });
+  return [(Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2];
+}
+
+function dayPlaced(kind, n, move) {
+  var out = n.slice();
+  if (kind === 'poly' || kind === 'stroke') {
+    for (var at = kind === 'stroke' ? 1 : 0; at + 1 < n.length; at += 2) {
+      var moved = move(n[at], n[at + 1]);
+      out[at] = moved[0];
+      out[at + 1] = moved[1];
+    }
+    return out;
+  }
+  var first = move(n[0], n[1]);
+  out[0] = first[0];
+  out[1] = first[1];
+  return out;
+}
+
+function dayElementAt(e, seconds) {
+  var kind = e[0], n = e[1].slice(), opacity = e[3], motion = e[4], v = e[5], c, s, radians, cx, cy, centre, level, part;
+  if (motion === 'fall') {
+    part = (seconds - v[1]) / v[0];
+    part -= Math.floor(part);
+    centre = dayCentre(kind, n);
+    cx = centre[0];
+    cy = centre[1];
+    radians = v[2] * part * Math.PI / 180;
+    c = Math.cos(radians);
+    s = Math.sin(radians);
+    n = dayPlaced(kind, n, function (x, y) {
+      return [cx + (x - cx) * c - (y - cy) * s, cy - 14 + 96 * part + (x - cx) * s + (y - cy) * c];
+    });
+  } else if (motion === 'twinkle') {
+    level = dayWave(seconds, v[0], v[1]);
+    centre = dayCentre(kind, n);
+    cx = centre[0];
+    cy = centre[1];
+    n = dayPlaced(kind, n, function (x, y) {
+      return [cx + (x - cx) * (0.7 + 0.4 * level), cy + (y - cy) * (0.7 + 0.4 * level)];
+    });
+    opacity = 0.25 + 0.75 * level;
+  } else if (motion === 'breathe') {
+    opacity = v[1] + v[2] * dayWave(seconds, v[0], 0);
+  } else if (motion === 'drift') {
+    var turn = seconds / v[0];
+    part = turn - Math.floor(turn);
+    if (Math.floor(turn) % 2) part = 1 - part;
+    var dx = -10 + 24 * (1 - Math.cos(Math.PI * part)) / 2;
+    n = dayPlaced(kind, n, function (x, y) { return [x + dx, y]; });
+  } else if (motion === 'sway') {
+    radians = (-5 + 10 * dayWave(seconds, v[0], 0)) * Math.PI / 180;
+    c = Math.cos(radians);
+    s = Math.sin(radians);
+    n = dayPlaced(kind, n, function (x, y) {
+      return [v[1] + (x - v[1]) * c - (y - v[2]) * s, v[2] + (x - v[1]) * s + (y - v[2]) * c];
+    });
+  } else if (motion === 'flame') {
+    var tall = n[3] * (1 + 0.35 * dayWave(seconds, v[0], 0));
+    n[1] = v[1] - tall;
+    n[3] = tall;
+  }
+  return [kind, n, e[2], opacity];
+}
+// day-art end
+
+var SVG_SPACE = null;
+
+function svg(name, attributes) {
+  if (SVG_SPACE === null) {                                     // the parser's own name for it: the page names no address
+    var probe = document.createElement('div');
+    probe.innerHTML = '<svg></svg>';
+    SVG_SPACE = probe.firstChild.namespaceURI;
+  }
+  var node = document.createElementNS(SVG_SPACE, name);
+  Object.keys(attributes).forEach(function (key) { node.setAttribute(key, String(attributes[key])); });
+  return node;
+}
+
+function dayPoints(n, from) {
+  var out = [];
+  for (var i = from; i + 1 < n.length; i += 2) out.push(n[i] + ',' + n[i + 1]);
+  return out.join(' ');
+}
+
+// One shape as an element; what moves it is the stylesheet's (.day-*), with its own timings.
+function dayNode(element, defs, index) {
+  var still = pageHoldsStill(), e = still ? [element[0], dayElementAt(element, 0)[1], element[2], dayElementAt(element, 0)[3], '', []] : element;
+  var kind = e[0], n = e[1], colour = e[2], opacity = e[3], motion = e[4], v = e[5], node;
+  if (kind === 'poly') node = svg('polygon', {points: dayPoints(n, 0), fill: colour});
+  else if (kind === 'stroke') node = svg('polyline', {points: dayPoints(n, 1), fill: 'none', stroke: colour, 'stroke-width': n[0], 'stroke-linecap': 'round'});
+  else if (kind === 'circle') node = svg('circle', {cx: n[0], cy: n[1], r: n[2], fill: colour});
+  else if (kind === 'ellipse') node = svg('ellipse', {cx: n[0], cy: n[1], rx: n[2], ry: n[3], fill: colour});
+  else if (kind === 'round') node = svg('rect', {x: n[0], y: n[1], width: n[2], height: n[3], rx: n[4], fill: colour});
+  else if (kind === 'ring') node = svg('circle', {cx: n[0], cy: n[1], r: n[2], fill: 'none', stroke: colour, 'stroke-width': n[3]});
+  else {
+    var id = 'day-glow-' + index, whole = n[3], light = svg('radialGradient', {id: id});
+    [[0, 1], [whole, 1], [whole + (1 - whole) * 0.3, 0.55], [whole + (1 - whole) * 0.65, 0.16], [1, 0]].forEach(function (stop) {
+      light.appendChild(svg('stop', {offset: stop[0], 'stop-color': colour, 'stop-opacity': stop[1]}));
+    });
+    defs.appendChild(light);
+    node = svg('circle', {cx: n[0], cy: n[1], r: n[2], fill: 'url(#' + id + ')'});
+  }
+  node.setAttribute('opacity', String(opacity));
+  if (motion) {
+    node.setAttribute('class', 'day-' + motion);
+    node.style.setProperty('--d', v[0] + 's');
+    if (motion === 'fall' || motion === 'twinkle') node.style.setProperty('--w', v[1] + 's');
+    if (motion === 'fall') node.style.setProperty('--spin', v[2] + 'deg');
+    if (motion === 'breathe') {
+      node.removeAttribute('opacity');
+      node.style.setProperty('--low', String(v[1]));
+      node.style.setProperty('--high', String(v[1] + v[2]));
+    }
+    if (motion === 'sway') node.style.transformOrigin = v[1] + 'px ' + v[2] + 'px';
+    if (motion === 'flame') node.style.transformOrigin = n[0] + 'px ' + v[1] + 'px';
+  }
+  return node;
+}
+
+function placeDayScene() {
+  if (!DAY || !HERO) return;
+  var hero = HERO.node, old = hero.querySelector('.day-scene');
+  if (old) old.parentNode.removeChild(old);
+  if (pageHighContrast() || document.documentElement.getAttribute('data-design') === 'classic') return;
+  var box = hero.getBoundingClientRect(), tall = Math.min(66, box.height);
+  var rtl = document.documentElement.getAttribute('dir') === 'rtl', end = 0;
+  Array.prototype.forEach.call(hero.children, function (child) {
+    var range = document.createRange();
+    range.selectNodeContents(child);
+    var rect = range.getBoundingClientRect();
+    if (rect.width > 0 && rect.top - box.top < tall) end = Math.max(end, rtl ? box.right - rect.left : rect.right - box.left);
+  });
+  // W2 (the owner's pick, 2026-11-17): the day across the header from the words' end to the card's outer side - its ground,
+  // its specks band after band, its scene as tall as the band when its main piece is whole there - the card's own colour
+  // fading into it past the words (brand.days.WIDE and day_band).
+  var left = end + DAY.wide.gap, right = box.width - 1, unit = tall / DAY.height, fadeMost = DAY.wide.fade;
+  if (right - left < fadeMost / 2 + 24) return;                 // the words leave the day no room at all
+  var focal = DAY.width - DAY.focus, wide = right - left, room = wide - 2 - focal * unit, shown = room >= 28;
+  var fade = Math.max(2, Math.min(fadeMost, shown ? room : wide - 2 - 24));
+  var holder = element('div', 'day-scene');
+  holder.setAttribute('aria-hidden', 'true');
+  holder.style.width = wide + 'px';
+  holder.style.height = tall + 'px';
+  holder.style.background = DAY.ground;
+  var units = wide / unit, defs = svg('defs', {});
+  var specks = svg('svg', {viewBox: '0 0 ' + units + ' ' + DAY.height, width: wide, height: tall, 'class': 'day-specks'});
+  specks.style.position = 'absolute';
+  specks.style.left = '0';
+  specks.style.top = '0';
+  specks.appendChild(defs);
+  // Laid from the outer side inward, as the scene is, so the words moving never moves them.
+  // A speck that can never reach into the band's picture (brand.speck_reach) is never made: as many moving pieces as
+  // can be seen, so a frame costs what the scene's did before the day spread wide.
+  for (var from = units; from > 0; from -= DAY.speckBand) {
+    var shift = rtl ? units - from : from - DAY.speckBand;
+    var band = svg('g', {transform: 'translate(' + shift + ' 0)'});
+    DAY.specks.forEach(function (one, index) {
+      var reach = DAY.speckReach[index];
+      if (shift + reach[1] < 0 || shift + reach[0] > units) return;
+      band.appendChild(dayNode(one, defs, 'speck-' + index));
+    });
+    specks.appendChild(band);
+  }
+  holder.appendChild(specks);
+  if (shown) {
+    var picture = svg('svg', {viewBox: '0 0 ' + DAY.width + ' ' + DAY.height, width: DAY.width * unit, height: DAY.height * unit,
+                              'class': 'day-picture'});
+    picture.style.position = 'absolute';
+    picture.style[rtl ? 'left' : 'right'] = '0';
+    picture.style[DAY.fromTop ? 'top' : 'bottom'] = '0';
+    var own = svg('defs', {}), group = svg('g', rtl ? {transform: 'translate(' + DAY.width + ' 0) scale(-1 1)'} : {});
+    picture.appendChild(own);
+    DAY.elements.forEach(function (one, index) { group.appendChild(dayNode(one, own, index)); });
+    picture.appendChild(group);
+    holder.appendChild(picture);
+  }
+  var veil = element('div', 'day-veil');
+  veil.style.background = 'linear-gradient(to ' + (rtl ? 'left' : 'right') + ', var(--card-ground) 2px, transparent ' + (2 + fade) + 'px)';
+  holder.appendChild(veil);
+  hero.appendChild(holder);
+}
+
+// Seven presses of the version line, each within the gap of the last: the ring round the light, and one sentence for a moment.
+function versionPressed() {
+  if (!DAY_TABLE) return;
+  var now = Date.now();
+  PRESS_COUNT = PRESS_LAST !== null && now - PRESS_LAST <= DAY_TABLE.presses.gap_ms ? PRESS_COUNT + 1 : 1;
+  PRESS_LAST = now;
+  if (PRESS_COUNT < DAY_TABLE.presses.wanted) return;
+  PRESS_COUNT = 0;
+  var still = pageHoldsStill(), from = now + (still ? 0 : DAY_TABLE.sweep.aside_after_ms);
+  if (!still) playSweep();
+  // The page's one clock says when the line changes and changes back (watchClock).
+  window.__CODEX_AUTO_RESUME_ASIDE__ = [from, from + DAY_TABLE.sweep.aside_ms];
+  retell();
+}
+
+function playSweep() {
+  var light = HERO && HERO.node.querySelector('.hero-state .halo');
+  if (!light) return;
+  var n = DAY_TABLE.sweep, line = light.parentNode, half = light.offsetWidth / 2, reach = Math.min(n.reach, half + 16);
+  var size = 2 * reach, picture = svg('svg', {viewBox: '-27 -27 54 54', width: size, height: size, 'class': 'day-sweep', 'aria-hidden': 'true'});
+  picture.style.left = (light.offsetLeft + half - reach) + 'px';
+  picture.style.top = (light.offsetTop + half - reach) + 'px';
+  var colour = 'var(--halo-color)';
+  picture.style.setProperty('--halo-color', window.getComputedStyle(light).getPropertyValue('--halo-color'));
+  var run = n.arc_ms + n.arc_fade_ms, last = null;
+  [[n.first_ring_ms, 1.6], [n.second_ring_ms, 1.2]].forEach(function (ring) {
+    last = svg('circle', {r: n.reach - 1, fill: 'none', style: 'stroke: ' + colour, 'stroke-width': ring[1], 'class': 'day-ring'});
+    last.style.animationDuration = n.ring_ms + 'ms';
+    last.style.animationDelay = ring[0] + 'ms';
+    picture.appendChild(last);
+  });
+  var arc = svg('circle', {r: n.arc_radius, fill: 'none', style: 'stroke: ' + colour, 'stroke-width': 2.4, 'stroke-linecap': 'round', pathLength: 100,
+                           'stroke-dasharray': 100, 'stroke-dashoffset': 100, transform: 'rotate(-90)', 'class': 'day-arc'});
+  arc.style.animationDuration = run + 'ms';
+  picture.appendChild(arc);
+  var head = svg('g', {'class': 'day-head'});
+  head.style.animationDuration = run + 'ms';
+  head.appendChild(svg('circle', {cy: -n.arc_radius, r: n.head_radius, fill: DAY_TABLE.head}));
+  picture.appendChild(head);
+  last.addEventListener('animationend', function () { if (picture.parentNode) picture.parentNode.removeChild(picture); });
+  line.appendChild(picture);
+}
+
+if (window.addEventListener) window.addEventListener('resize', placeDayScene);
+if (document.addEventListener) document.addEventListener('visibilitychange', placeDayScene);
+
+// `now` is the clock the word is read by (activity); render() reads it once for the whole page.
+function renderHero(status, now) {
+  var state = activity(status, DATA.pending, now, READ_AT);
+  var hero = element('section', 'card hero');
+  hero.setAttribute('data-state', state);
+  // The product name is an eyebrow rather than a heading: inside Codex the panel is
+  // already attributed, and the question a reader arrives with is what it is doing.
+  // v0.6.11: and the edition after the version, in this language's word, as every surface that shows the version
+  // names it - since the owner's decision of 2026-10-02 as quiet secondary text: a space and no separator, smaller,
+  // muted, on the version's baseline (.edition; the window's VersionLabel). v0.6.14: an advanced edition only - the
+  // standard edition is named nowhere beside the version (the owner, 2026-10-05), so its heading is the version alone.
+  // v0.6.24 (the owner, 2026-11-19, "버전 표시에 v 빼고 버전 숫자만 넣자"): the number alone, as the window's pill shows it.
+  var named = status.edition && status.edition !== 'standard';
+  var eyebrow = hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · ' + (status.version || '?')
+    + (named ? ' ' : '')));
+  if (named) eyebrow.appendChild(element('span', 'edition', t('edition.' + status.edition, status.edition)));
+  eyebrow.onclick = function () { versionPressed(); };
+  var line = element('div', 'hero-state');
+  var light = lightFor(status, state, DATA.pending);
+  line.appendChild(lightNode(light, false));
+  var word = line.appendChild(element('h1', null, t('activity.' + state, state)));
+  hero.appendChild(line);
+  var facts = element('p', 'facts');
+  showFacts(facts, status, state, DATA.pending);
+  hero.appendChild(facts);
+  var actions = element('div', 'hero-actions');
+  // Offered only when it is the thing that is wrong. Nothing is recovered while the
+  // watcher is stopped, so a panel that reports it and offers no way out is a dead end.
+  var start = null;
+  if (status.watcher_running === false) {
+    start = element('button', 'primary', t('action.start', 'Start watcher'));
+    start.id = 'car-start';
+    start.disabled = !HOST;
+    actions.appendChild(start);
+  }
+  var message = element('p', 'note');
+  message.setAttribute('role', 'status');
+  actions.appendChild(message);
+  hero.appendChild(actions);
+  // v0.6.16-beta.3 (issue #31): and, under it, how the watcher starts for good - before anyone presses Start, whose
+  // start is made inside Codex, which may end it when it closes, while nothing else may be about to start it.
+  var how = start ? offHow(status) : '';
+  if (how) hero.appendChild(element('p', 'note', how));
+  return {node: hero, message: message, start: start, word: word, facts: facts, state: state, light: light};
+}
+
+// v0.6.16-beta.3 (issue #31): a stopped watcher's way back that outlives Codex, by what the status says of the
+// sign-in entry: off, nothing starts the watcher on its own; on, it starts at the next sign-in, and the Start
+// menu's start is the one that lasts now. A status that does not say names neither.
+function offHow(status) {
+  if (status.startup_enabled === false) {
+    return t('panel.off_no_sign_in', 'Nothing starts it on its own: Run at Windows sign-in is off. From the Start menu, open Codex Auto Resume and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.');
+  }
+  if (status.startup_enabled === true) {
+    return t('panel.off_sign_in', 'Run at Windows sign-in is on, but it is not running now. To start it so it keeps running after Codex closes, open Codex Auto Resume from the Start menu and start it there.');
+  }
+  return '';
+}
+
+function renderPending(rows) {
+  if (!rows || !rows.length) return null;
+  var box = card(null, 'pending');
+  var head = element('div', 'card-head');
+  head.appendChild(element('h2', null, t('panel.pending_title', 'Waiting to resume')));
+  head.appendChild(element('span', 'count', String(rows.length)));
+  box.appendChild(head);
+  var list = element('ul', 'prows');
+  rows.slice(0, 8).forEach(function (row) { list.appendChild(pendingRow(row)); });
+  box.appendChild(list);
+  if (rows.length > 8) {
+    var more = element('p', 'note', fill('panel.more', 'and {n} more', {n: rows.length - 8}));
+    more.style.marginTop = '10px';
+    box.appendChild(more);
+  }
+  return box;
+}
+
+function pendingRow(row) {
+  var item = element('li', 'prow');
+  var main = element('div', 'prow-main');
+  var title = element('div', 'prow-title');
+  // The exact thread id, shortened for display only. Every action this panel can take
+  // addresses a record by its full id, never by what is shown.
+  var shown = row.name || String(row.thread_id || '').slice(0, 8);
+  // v0.6.15-beta: with more than one Codex home watched, a record of another home says which, by its alias.
+  if (typeof row.home === 'string' && row.home) shown += ' · ' + row.home;
+  title.appendChild(element('span', 'prow-name' + (row.name ? '' : ' mono'), shown));
+  // The public code, never the engine's working state: several stored states share
+  // one code, and what a person is told must not depend on engine internals.
+  var code = row.code || row.state || '';
+  title.appendChild(element('span', 'chip ' + tone(code), t('code.' + code, code.replace(/_/g, ' '))));
+  (row.overlays || []).forEach(function (overlay) {
+    title.appendChild(element('span', 'chip ' + tone(overlay),
+                              t('overlay.' + overlay, overlay.replace(/_/g, ' '))));
+  });
+  main.appendChild(title);
+  var meta = element('div', 'prow-meta');
+  if (row.category && S['reason.' + row.category]) {
+    meta.appendChild(element('span', null, t('reason.' + row.category, row.category)));
+  }
+  // The attempts used beside those it may have now: "19/6" after the limit was lowered (v0.6.11).
+  var attempts = String(row.recovery_attempts === undefined ? 0 : row.recovery_attempts)
+    + (typeof row.attempt_limit === 'number' ? '/' + row.attempt_limit : '');
+  var facts = [[t('panel.col_next', 'Next check'), nextCheck(row), row.eligible_at],
+               [t('panel.col_attempts', 'Attempts'), attempts]];
+  facts.forEach(function (pair) {
+    var fact = element('span', null, pair[0] + ' ');
+    var said = fact.appendChild(element('b', null, pair[1]));
+    // A time that becomes "due now" while the page is open, which retell() says again when it comes.
+    if (typeof pair[2] === 'number') said.setAttribute('data-due', String(pair[2]));
+    meta.appendChild(fact);
+  });
+  // v0.6.11: the tokens its conversation had used, where the context-cost guard read them.
+  if (typeof row.context_tokens === 'number') {
+    meta.appendChild(element('span', null, fill('pending.tokens', '{n} tokens used',
+                                                {n: groupDigits(row.context_tokens)})));
+  }
+  main.appendChild(meta);
+  item.appendChild(main);
+  if (typeof row.thread_enabled === 'boolean' && row.thread_id) {
+    item.appendChild(threadSwitch(row, shown));
+  }
+  if (CONFIRM_ROW && CONFIRM_ROW === row.interruption_id) item.appendChild(confirmOff(row, shown));
+  return item;
+}
+
+// A count with its thousands apart as the page's language groups them - 300.000 in German, 300 000 in Russian - as
+// the choices beside a value of the person's own are written and as the Dashboard groups it (OwnCount, N0), in the
+// digits every number on the page is in. A comma where the page speaks no language yet, or has no Intl.
+function groupDigits(count) {
+  var whole = Math.max(0, Math.floor(count));
+  try {
+    if (LOCALE && typeof Intl === 'object' && typeof Intl.NumberFormat === 'function') {
+      return new Intl.NumberFormat(LOCALE + '-u-nu-latn', {useGrouping: true, maximumFractionDigits: 0}).format(whole);
+    }
+  } catch (unknown) {
+    // A language Intl does not know: grouped as below.
+  }
+  return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function threadSwitch(row, shown) {
+  var wrap = element('label', 'prow-switch');
+  wrap.appendChild(element('span', null, t('pending.col_resume', 'Auto-resume')));
+  var input = element('input', 'switch');
+  input.id = 'car-row-' + row.interruption_id;
+  input.type = 'checkbox';
+  input.setAttribute('role', 'switch');
+  input.setAttribute('aria-label', t('pending.col_resume', 'Auto-resume') + ': ' + shown);
+  var was = WAS[row.interruption_id];
+  input.checked = typeof was === 'boolean' ? was : row.thread_enabled;
+  if (input.checked !== row.thread_enabled) GLIDES.push({input: input, to: row.thread_enabled});
+  SHOWN[row.interruption_id] = row.thread_enabled;
+  input.disabled = !HOST;
+  input.addEventListener('change', function () {
+    // The switch shows what a tool last confirmed, until a tool confirms something else. Put back
+    // in the same task as the press, before anything is drawn: it never moves on the press, and so
+    // never snaps back - it moves once, when the change is confirmed.
+    input.checked = row.thread_enabled;
+    if (row.thread_enabled) {
+      // Turning it off cancels what this conversation has waiting, so it is asked first.
+      CONFIRM_ROW = row.interruption_id;
+      render();
+      return;
+    }
+    changeThread(row, shown, true, [input]);
+  });
+  wrap.appendChild(input);
+  return wrap;
+}
+
+function confirmOff(row, shown) {
+  var box = element('div', 'prow-confirm');
+  box.appendChild(element('p', null, fill('confirm.thread_off',
+    'Turn automatic recovery off for "{name}"? Its waiting recoveries are cancelled.', {name: shown})));
+  var actions = element('div', 'actions');
+  var off = element('button', 'danger', t('action.thread_off', 'Turn off for this conversation'));
+  var keep = element('button', null, t('action.cancel', 'Cancel'));
+  off.id = 'car-row-' + row.interruption_id + '-off';
+  keep.id = 'car-row-' + row.interruption_id + '-cancel';
+  off.onclick = function () { changeThread(row, shown, false, [off, keep]); };
+  keep.onclick = function () { CONFIRM_ROW = ''; render(); };
+  actions.appendChild(off);
+  actions.appendChild(keep);
+  box.appendChild(actions);
+  return box;
+}
+
+function changeThread(row, shown, enable, controls) {
+  controls.forEach(function (control) { control.disabled = true; });
+  setThreadRecovery(row.thread_id, enable).then(function (enabled) {
+    NOTICE = shown + ': ' + (enabled ? t('event.thread_enabled', 'Conversation switched back on')
+                                     : t('overlay.thread_disabled', 'off for this conversation'));
+    // Turning a conversation off cancels what it had waiting, so the list is read again
+    // rather than guessed at. If it cannot be read, the confirmed switch is still shown.
+    return callTool('list_pending', {}).then(function (payload) {
+      if (!Array.isArray(payload.pending)) return;
+      DATA.pending = payload.pending;
+      READ_AT = Date.now() / 1000;
+      if (DATA.status) DATA.status.pending = payload.pending.length;
+    }, function () {});
+  }, function (error) {
+    NOTICE = refusal(error);
+  }).then(function () {
+    CONFIRM_ROW = '';
+    render();
+  });
+}
+
+// The Codex Compatibility Registry (v0.6.5), read-only, as the Dashboard's Diagnostics page shows
+// it: for the Codex engine on this machine, which of the things this product does can be relied on, in
+// the registry's four words - each with what it means - with when that was checked and which data was in
+// force. Folded until it is opened; folded, its chip says the headline.
+//
+// What reaches this page is codes only (the status reply's `watcher.compatibility`): the state and the
+// reason of each part, where the data came from and its sequence number, what the watcher acts on, the
+// refreshed data's standing, one time - no version string, no path and no word from a registry document.
+// And nothing here refreshes the data: a refresh is a request to GitHub, and neither a model nor this
+// page may make one. The person is told where they can.
+var COMPAT_STATES = ['VERIFIED', 'CHECKED', 'COMPATIBLE', 'FAILED_HERE', 'INCOMPATIBLE', 'UNKNOWN'];
+// The refreshed data's standings that are more than "in force", each said as the window's card says it:
+// expired or dated ahead, its restrictions apply and its trust does not; the others, the bundled data applies.
+var COMPAT_CAVEATS = ['expired', 'from_the_future', 'rejected', 'superseded', 'from_newer_product'];
+// The parts, in the registry's own order; the four it does not offer yet are left out, as in the window.
+var COMPAT_ORDER = ['engine_present', 'exact_thread_recovery', 'usage_limit_detection', 'usage_reset_hint',
+                    'usage_probe', 'thread_eligibility', 'loaded_state_detection', 'recovery_turn_tracking',
+                    'queue_withdraw', 'outcome_observation', 'transient_classification', 'projection_freshness',
+                    'empty_response_recovery', 'not_loaded_recovery', 'goal_continuation', 'subagent_recovery'];
+
+// A registry state from either word a view carries one in - a part's state, or the overall's coarse word.
+// Anything else is UNKNOWN, as the registry reads it.
+var COMPAT_WORDS = {verified: 'VERIFIED', checked: 'CHECKED', structurally_compatible: 'COMPATIBLE',
+                    failed_here: 'FAILED_HERE', incompatible: 'INCOMPATIBLE'};
+function compatState(word) {
+  if (COMPAT_STATES.indexOf(word) >= 0) return word;
+  return Object.prototype.hasOwnProperty.call(COMPAT_WORDS, word) ? COMPAT_WORDS[word] : 'UNKNOWN';
+}
+
+// A state's chip: green for what can be relied on, red for what cannot, grey for what is not known - as
+// the window draws its checks. Always beside the word.
+function compatTone(state) {
+  return state === 'INCOMPATIBLE' || state === 'FAILED_HERE' ? 'danger' : state === 'UNKNOWN' ? 'paused' : 'success';
+}
+
+// A moment as a clock shows it, and its date when that is not today. Written out, as nextCheck writes a
+// time, rather than in the browser's own format and language.
+function clockTime(at) {
+  if (typeof at !== 'number' || !isFinite(at)) return '-';
+  var when = new Date(at * 1000);
+  if (isNaN(when.getTime())) return '-';
+  var pad = function (number) { return (number < 10 ? '0' : '') + number; };
+  var time = pad(when.getHours()) + ':' + pad(when.getMinutes());
+  var now = new Date();
+  if (when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth() &&
+      when.getDate() === now.getDate()) return time;
+  return when.getFullYear() + '-' + pad(when.getMonth() + 1) + '-' + pad(when.getDate()) + ' ' + time;
+}
+
+function renderCompatibility(status, rows) {
+  var view = status && status.watcher && status.watcher.compatibility;
+  if (!view || typeof view !== 'object') return null;
+  var overall = compatState(view.overall);
+  var chip = element('span', 'chip ' + compatTone(overall), t('compat.state.' + overall, overall.toLowerCase()));
+  var fold = folding('compat', t('compat.title', 'Codex compatibility'), false, null, chip);
+  fold.node.className += ' compat';
+  var body = fold.body;
+  // A report that cannot be used makes every part unknown, for that one reason: said once, not listed. It
+  // says nothing about the data in force either, which is '-' then, as in the window - never 'none'.
+  var usable = view.status === 'ok';
+  var source = (view.source === 'cache' || view.source === 'bundled') ? view.source : 'none';
+  // Which data, by its sequence number when there is data and a number: the window's words for both.
+  var data = t('compat.source.' + source, source);
+  var sequence = view.sequence;
+  if (source !== 'none' && typeof sequence === 'number' && isFinite(sequence) && sequence >= 0 &&
+      Math.floor(sequence) === sequence) {
+    data = fill('compat.source_sequence', '{source}, #{sequence}', {source: data, sequence: sequence});
+  }
+  var meta = element('div', 'prow-meta compat-meta');
+  [[t('compat.checked', 'Evaluated'), typeof view.checked_at === 'number' ? clockTime(view.checked_at) : t('time.never', 'never')],
+   [t('compat.data', 'Data in force'), usable ? data : '-']
+  ].forEach(function (pair) {
+    var fact = element('span', null, pair[0] + ' ');
+    fact.appendChild(element('b', null, pair[1]));
+    meta.appendChild(fact);
+  });
+  body.appendChild(meta);
+  // What the view cannot vouch for, as the window's card says it and in its order: why a report cannot be
+  // used; else a watcher still acting on what it found when it started, which the window tells a person
+  // to restart - from the window, which this page names; and refreshed data that is not simply in force.
+  var notices = [];
+  if (!usable) {
+    notices.push(t('compat.status.' + (typeof view.status === 'string' ? view.status : 'invalid'),
+      t('compat.status.invalid', 'The last check could not be read, so nothing in it is relied on.')));
+  }
+  if (usable && typeof view.acting === 'string' && view.acting !== view.overall) {
+    notices.push(t('panel.compat_acting_differs',
+      "The watcher is still acting on what it found when it started. Stop it and start it again on the Dashboard's Diagnostics page to check again."));
+  }
+  // #58's follow-up: a task waiting because the Codex app runs and no server of its could be matched, read from the rows
+  // this page already holds: the summary a model reads is handed nothing new for it. Every part below can still read as
+  // compatible, which is what misled #58's reporter.
+  if (usable && (rows || []).some(function (row) { return (row.overlays || []).indexOf('app_server_unmatched') >= 0; })) {
+    notices.push(t('compat.server.notice',
+      'The Codex app is running, but this product could not match its server, so recoveries wait and nothing is sent, even where the parts below read as compatible. Restart the Codex app; if this stays, Codex may have changed how it runs: check for an update of this product, or report it.'));
+  }
+  if (usable && COMPAT_CAVEATS.indexOf(view.cache) >= 0) {
+    notices.push(t('compat.cache.' + view.cache, view.cache.replace(/_/g, ' ')));
+  }
+  notices.forEach(function (text) { body.appendChild(element('p', 'callout', text)); });
+  // The words shown, explained - not for a report that cannot be used, which is unknown for the one reason
+  // the callout gives, and which the legend's reason would contradict.
+  var shown = usable ? [overall] : [];
+  var capabilities = (usable && view.capabilities && typeof view.capabilities === 'object') ? view.capabilities : {};
+  var rows = element('ul', 'toggles compat-rows');
+  rows.setAttribute('aria-label', t('compat.title', 'Codex compatibility'));
+  COMPAT_ORDER.forEach(function (name) {
+    var entry = capabilities[name];
+    if (!entry || typeof entry !== 'object' || entry.reason === 'not_implemented') return;
+    var state = compatState(entry.state);
+    if (shown.indexOf(state) < 0) shown.push(state);
+    var row = element('li', 'setting');
+    var text = element('div', 'setting-text');
+    text.appendChild(element('span', 'setting-label', t('compat.capability.' + name, name.replace(/_/g, ' '))));
+    row.appendChild(text);
+    row.appendChild(element('span', 'chip compat-state ' + compatTone(state), t('compat.state.' + state, state.toLowerCase())));
+    rows.appendChild(row);
+  });
+  if (rows.children.length) body.appendChild(rows);
+  var legend = element('div', 'compat-legend');
+  COMPAT_STATES.forEach(function (state) {
+    if (shown.indexOf(state) >= 0) legend.appendChild(element('p', 'help', t('compat.meaning.' + state, state)));
+  });
+  if (legend.children.length) body.appendChild(legend);
+  // What others report of this Codex version (v0.6.10) is the Dashboard's to show, beside the version: this page is
+  // handed codes only - no version string, and no count of anyone's reports - so it says where to look instead, by
+  // the name the row has there (compat.reported, which each language's sentence carries word for word).
+  body.appendChild(element('p', 'help compat-reported', t('panel.compat_reported',
+    "What other people report about this Codex version is shown under Reported by others, beside the version on the Dashboard's Diagnostics page. It changes nothing here.")));
+  body.appendChild(element('p', 'help compat-refresh', t('panel.compat_refresh',
+    "This data changes only when you ask: with Refresh compatibility data on the Dashboard's Diagnostics page, or with Check for updates.")));
+  return fold.node;
+}
+
+function renderGeneral(byName) {
+  var entry = byName.interface_language;
+  if (!entry) return null;
+  var node = card(t('group.general', 'General'));
+  var rows = element('div', 'rows');
+  var options = (entry.choices || []).map(function (choice) {
+    return {value: choice, text: choice === 'system'
+      ? withLanguage('choice.language.system', 'System ({language})', DATA.system_language)
+      : endonym(choice)};
+  });
+  rows.appendChild(choiceField(entry, options,
+    t('help.interface_language', 'Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.'),
+    function (chosen) { if (HOOKS.follow) HOOKS.follow(chosen); }).row);
+  node.appendChild(rows);
+  return node;
+}
+
+// Both themes, each in its own words. Applied once the save is confirmed, not while only on screen.
+function renderAppearance(byName) {
+  var shown = ['theme', 'panel_theme'].filter(function (name) { return byName[name] && editable(byName[name]); });
+  if (!shown.length) return null;
+  var node = card(t('group.appearance', 'Appearance')), rows = element('div', 'rows');
+  var words = {theme: function (c) { return t('choice.theme.' + c, c); },
+               panel_theme: function (c) { return t('choice.panel_theme.' + c, c); }};
+  var help = {theme: t('help.theme', ''), panel_theme: t('help.panel_theme', '')};
+  shown.forEach(function (name) {
+    rows.appendChild(choiceField(byName[name], (byName[name].choices || []).map(function (choice) {
+      return {value: choice, text: words[name](choice)};
+    }), help[name]).row);
+  });
+  node.appendChild(rows);
+  return node;
+}
+
+// v0.6.11: what to ask Codex for this product, in the panel's own language - folded, after what the
+// continuation will say and before Appearance, which stays last before the save card, where the Windows
+// Dashboard puts it. The English ones are the prompts .codex-plugin/plugin.json offers in Codex itself
+// (tests/test_diagnostics_tools.py holds the two to each other); Codex's own list has no other language.
+function renderStarters() {
+  var fold = folding('starters', t('starter.title', 'Ask Codex'), false);
+  fold.body.appendChild(element('p', 'note', t('starter.note', 'Type one of these to Codex, in this language or any other.')));
+  [t('starter.status', 'Show auto resume status'), t('starter.pending', 'What is auto resume waiting for?'),
+   t('starter.pause', 'Pause auto resume'), t('starter.settings', 'Open auto resume settings')
+  ].forEach(function (prompt) { fold.body.appendChild(element('p', null, prompt)); });
+  return fold.node;
+}
+
+function renderRecovery(status, schema, now) {
+  var node = card(t('group.recovery', 'Automatic recovery'));
+  // The control every check box on this card depends on, first. It acts at once -
+  // pausing needs no Save and resuming asks for approval - so it is a button beside what
+  // it will change, rather than a switch that looks like it waits for Save. What the tile
+  // says comes first - the state, and under it what the last press answered - and the
+  // button last, pinned to the tile's bottom-right beside that text.
+  var master = element('div', 'master');
+  var body = element('div', 'master-body');
+  var text = element('div', 'master-text');
+  var running = status.watcher_running === true;
+  // The state's light, smaller, and never a light of its own (v0.6.10): until then a dot that
+  // never moved sat here, cyan while the light above it breathed - and every light that says the
+  // product is running moves. Read by the same rule at the same moment as the hero's.
+  text.appendChild(lightNode(lightFor(status, activity(status, DATA.pending, now, READ_AT), DATA.pending), true));
+  text.appendChild(element('span', null, !running
+    ? t('status.recovery_idle', 'Nothing will be recovered until it is running')
+    : status.enabled ? t('status.recovery_on', 'Automatic recovery is on')
+    : t('status.recovery_paused', 'Automatic recovery is paused')));
+  body.appendChild(text);
+  var note = element('p', 'note');
+  note.setAttribute('role', 'status');
+  // v0.6.11: a pause an administrator's DisableAutoResume holds says who set it, and cannot be undone here.
+  var heldPause = !status.enabled && (status.managed || []).indexOf('DisableAutoResume') >= 0;
+  if (heldPause) note.textContent = t('settings.managed', 'Set by your administrator.');
+  body.appendChild(note);
+  master.appendChild(body);
+  var pause = element('button', null, status.enabled
+    ? t('action.pause', 'Pause recovery') : t('action.resume', 'Resume recovery'));
+  pause.id = 'car-pause';
+  pause.disabled = !HOST || heldPause;
+  master.appendChild(pause);
+  node.appendChild(master);
+  if (HOST) {
+    pause.onclick = function () {
+      pause.disabled = true;
+      setRecoveryEnabled(!status.enabled).then(function () {
+        render();
+      }, function (error) {
+        note.textContent = refusal(error);
+        pause.disabled = false;
+      });
+    };
+  }
+
+  var toggles = element('div', 'toggles');
+  schema.forEach(function (entry) {
+    if (entry.group === 'recovery' && entry.type === 'boolean' && editable(entry)) {
+      toggles.appendChild(onOff(entry));
+    }
+  });
+  node.appendChild(toggles);
+
+  var limits = schema.filter(function (entry) { return entry.group === 'limits' && editable(entry); });
+  if (limits.length) {
+    var fold = folding('limits', t('group.limits', 'Limits'), false, 'inner');
+    fold.node.style.marginTop = '4px';
+    // v0.6.11: the line that says what the retry timing comes to, and the notice while a limit is high.
+    var waits = element('p', 'help');
+    var high = element('p', 'callout', t('warn.high_limits', 'These limits are high: a task that keeps failing can be continued many times before it stops, and every continuation uses your Codex usage.'));
+    var retell = function () {
+      waits.textContent = retryPreview(limits);
+      waits.hidden = !waits.textContent;
+      high.hidden = !highLimits(limits);
+    };
+    limits.forEach(function (entry) {
+      if (entry.type === 'boolean') {
+        fold.body.appendChild(toggle(entry, retell));
+        if (entry.name === 'retry_jitter') fold.body.appendChild(waits);
+        // v0.6.11: what waiting for an internet connection does, under its switch, as in the Dashboard.
+        if (entry.name === 'wait_for_network') fold.body.appendChild(element('p', 'help', t('help.wait_for_network', '')));
+      } else if (entry.choices) {
+        fold.body.appendChild(choiceField(entry, entry.choices.map(function (choice) {
+          return {value: choice, text: t('choice.' + choice, choice)};
+        }), limitHelp(entry.name), retell).row);
+      } else {
+        fold.body.appendChild(numberField(entry, retell));
+        if (entry.name === 'max_chain_continuations') fold.body.appendChild(high);
+      }
+    });
+    retell();
+    node.appendChild(fold.node);
+  }
+  return node;
+}
+
+// v0.6.11: the help the new limits carry in the panel, as in the Dashboard; '' for every other limit.
+function limitHelp(name) {
+  if (name === 'retry_wait_5') return t('help.retry_wait_5', '');
+  if (name === 'chain_time_ceiling') return t('help.chain_time_ceiling', '');
+  if (name === 'task_changed_guard') return t('help.task_changed_guard', '');
+  if (name === 'context_guard') return t('help.context_guard', '');
+  if (name === 'ask_after_sleep_minutes') return t('help.ask_after_sleep_minutes', '');
+  return '';
+}
+
+// A wait in the words the rest of the page uses: seconds, minutes and seconds, or hours and minutes.
+function duration(seconds) {
+  var total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return fill('time.seconds', '{n}s', {n: total});
+  if (total < 3600) {
+    return fill('time.minutes', '{n}m', {n: Math.floor(total / 60)})
+      + (total % 60 ? ' ' + fill('time.seconds', '{n}s', {n: total % 60}) : '');
+  }
+  return fill('time.hours', '{n}h', {n: Math.floor(total / 3600)})
+    + ((total % 3600) >= 60 ? ' ' + fill('time.minutes', '{n}m', {n: Math.floor((total % 3600) / 60)}) : '');
+}
+
+// The waits before attempts 1 to 5 as the watcher keeps them (ladder.preview), as the page stands now:
+// a preset's from the table the schema carries on retry_timing, Custom's the five chosen, whose lists
+// already start at the floor. '' when the schema has none of it.
+function retryPreview(limits) {
+  var byName = {};
+  limits.forEach(function (entry) { byName[entry.name] = entry; });
+  var timing = byName.retry_timing;
+  if (!timing) return '';
+  var chosen = read('retry_timing');
+  var seconds = [];
+  if (chosen === 'custom') {
+    for (var step = 1; step <= 5; step++) {
+      var entry = byName['retry_wait_' + step];
+      var table = entry && entry.seconds;
+      var wait = entry ? read(entry.name) : null;
+      // v0.6.11: a wait of the person's own is read from its words. One the watcher keeps lies within its bounds,
+      // which start at the floor after the first, so the floor adds nothing to it; one past them - typed, not yet
+      // saved, and refused when it is - gives no line at all rather than a wait that would never be kept.
+      var own = table && typeof table[wait] !== 'number' && entry.custom ? ownWithin(entry.custom, wait) : -1;
+      if (own > 0) {
+        seconds.push(own);
+        continue;
+      }
+      if (!table || typeof table[wait] !== 'number') return '';
+      seconds.push(table[wait]);
+    }
+  } else {
+    seconds = (timing.waits && timing.waits[chosen]) || [];
+  }
+  if (!seconds.length) return '';
+  var line = fill('retry.preview', 'Waits before attempts 1 to 5, if each continuation fails at once: {waits}',
+                  {waits: seconds.map(duration).join(' · ')});
+  if (read('retry_jitter') === true) line += ' ' + t('retry.preview_jitter', 'Each may be up to a fifth longer.');
+  return line;
+}
+
+// Whether any limit is above the "high" its schema gives it.
+function highLimits(limits) {
+  return limits.some(function (entry) {
+    return typeof entry.high === 'number' && Number(read(entry.name)) > entry.high;
+  });
+}
+
+// v0.6.11: what a needs-you notice is told with - each kind of failure, the stall and the sound - which only
+// matters while When a conversation needs you is on (needsyou.py), as the Dashboard's NeedsYouPart has it.
+function needsYouPart(name) {
+  return /^notify_needs_you_/.test(String(name || '')) || name === 'stall_after' || name === 'needs_you_sound';
+}
+
+// The one input or select in a row the page drew, or null.
+function inputOf(node) {
+  if (!node) return null;
+  if (node.tagName === 'input' || node.tagName === 'select' ||
+      node.tagName === 'INPUT' || node.tagName === 'SELECT') return node;
+  var children = node.children || [];
+  for (var i = 0; i < children.length; i++) {
+    var found = inputOf(children[i]);
+    if (found) return found;
+  }
+  return null;
+}
+
+function renderNotifications(schema) {
+  var entries = schema.filter(function (entry) { return entry.group === 'notifications' && editable(entry); });
+  if (!entries.length) return null;
+  var fold = folding('notifications', t('group.notifications', 'Notifications'), false);
+  var events = element('div', 'toggles');
+  // v0.6.11: a needs-you notice's parts, one step in under it, live only while it and notifications are on -
+  // what they store is untouched, as in the Dashboard.
+  var told = element('div', 'toggles needs-you');
+  var master = null, masterInput = null, toldInput = null, parts = [];
+  function follow() {
+    var live = (!masterInput || masterInput.checked) && (!toldInput || toldInput.checked);
+    parts.forEach(function (part) {
+      part.input.disabled = !HOST || !!part.entry.managed || !live;
+      if (part.sync) part.sync();
+    });
+    told.classList.toggle('quiet', !live);
+  }
+  entries.forEach(function (entry) {
+    var host = needsYouPart(entry.name) ? told : events;
+    if (entry.master) {
+      master = toggle(entry, function (on) { events.classList.toggle('quiet', !on); follow(); });
+      masterInput = inputOf(master);
+      events.classList.toggle('quiet', !value(entry.name));
+    } else if (entry.choices) {
+      // v0.6.11: how long a turn may not move before a needs-you notice says so.
+      var built = choiceField(entry, entry.choices.map(function (choice) {
+        return {value: choice, text: t('choice.' + choice, choice)};
+      }), '');
+      host.appendChild(built.row);
+      if (host === told) parts.push({entry: entry, input: built.select, sync: built.sync});
+    } else {
+      var row = onOff(entry);
+      host.appendChild(row);
+      if (host === told) parts.push({entry: entry, input: inputOf(row)});
+      if (entry.name === 'notify_needs_you') {
+        toldInput = inputOf(row);
+        toldInput.addEventListener('change', follow);
+      }
+      // v0.6.11: what a needs-you notice is, and what its sound changes, under the last of its settings.
+      if (entry.name === 'needs_you_sound') told.appendChild(element('p', 'help', t('help.needs_you_sound', '')));
+    }
+  });
+  if (master) fold.body.appendChild(master);
+  fold.body.appendChild(events);
+  if (parts.length) fold.body.appendChild(told);
+  follow();
+  return fold.node;
+}
+
+function renderContinuation(byName) {
+  if (!byName.continuation_language && !byName.continuation_style) return null;
+  var node = card(t('group.continuation', 'Continuation message'));
+  var rows = element('div', 'rows');
+  node.appendChild(rows);
+
+  var language = byName.continuation_language;
+  if (language) {
+    var followLabel = function (interfaceChoice) {
+      var code = (!interfaceChoice || interfaceChoice === 'system') ? DATA.system_language : interfaceChoice;
+      return withLanguage('choice.continuation_language.follow', 'Same as the interface ({language})', code);
+    };
+    var field = choiceField(language, (language.choices || []).map(function (choice) {
+      return {value: choice, text: choice === 'follow' ? followLabel(read('interface_language')) : endonym(choice)};
+    }), t('help.continuation_language', 'The language of the message sent to Codex. Unless it follows the interface, changing the interface language leaves it as it is.'));
+    var follow = null;
+    Array.prototype.forEach.call(field.select.options, function (option) {
+      if (option.value === 'follow') follow = option;
+    });
+    HOOKS.follow = function (chosen) {
+      if (follow) follow.textContent = followLabel(chosen);
+      field.sync();
+    };
+    rows.appendChild(field.row);
+  }
+
+  var custom = element('div', 'custom');
+  var styleHelp = function (style) { return t('help.style.' + style, ''); };
+  var showCustom = function () { custom.hidden = read('continuation_style') !== 'custom'; };
+  var style = byName.continuation_style;
+  if (style) {
+    var row = element('div', 'setting stack');
+    var heading = element('div', 'setting-text');
+    heading.appendChild(element('span', 'setting-label', label(style.name)));
+    row.appendChild(heading);
+    var help = element('p', 'help', styleHelp(value(style.name)));
+    row.appendChild(segmented(style, function (chosen) {
+      help.textContent = styleHelp(chosen);
+      showCustom();
+    }));
+    row.appendChild(help);
+    rows.appendChild(row);
+  }
+
+  // Custom: which stored message is used, and what those messages say - shown, not
+  // editable. The text itself is written in the Dashboard.
+  var stored = element('div', 'stored');
+  var drawStored = function () {
+    stored.textContent = '';
+    var settings = DATA.settings || {};
+    var mode = read('custom_message_mode');
+    // A message that is set is shown whole, in a well. One that is not is a single quiet
+    // line, so seven empty kinds of interruption do not bury the one that has words.
+    var item = function (title, text) {
+      var set = typeof text === 'string' && text.trim() !== '';
+      var box = element('div', set ? 'stored-item' : 'stored-item unset');
+      box.appendChild(element('div', 'stored-title', title));
+      box.appendChild(element('div', set ? 'stored-text' : 'stored-empty',
+                              set ? text : t('custom.not_set', 'Not set')));
+      stored.appendChild(box);
+    };
+    if (mode === 'per_reason') {
+      (DATA.reasons || []).forEach(function (reason) {
+        item(t('reason.' + reason, reason), settings['custom_message_' + reason]);
+      });
+      item(t('choice.custom_mode.global', 'Every interruption'), settings.custom_message);
+      stored.appendChild(element('p', 'help', t('custom.fallback', '')));
+    } else {
+      item(label('custom_message'), settings.custom_message);
+    }
+  };
+  var mode = byName.custom_message_mode;
+  if (mode) {
+    custom.appendChild(choiceField(mode, (mode.choices || []).map(function (choice) {
+      return {value: choice, text: t('choice.custom_mode.' + choice, choice)};
+    }), '', drawStored).row);
+  }
+  custom.appendChild(stored);
+  custom.appendChild(element('p', 'callout', t('custom.dashboard_only',
+    'Custom messages are written in the Dashboard, so text sent into your conversations is never set from inside one.')));
+  drawStored();
+  showCustom();
+  rows.appendChild(custom);
+  return node;
+}
+
+function renderPreviewCard() {
+  var node = card(t('preview.title', 'Preview'), 'preview');
+  var reasons = DATA.reasons || [];
+  if (reasons.indexOf(PREVIEW.reason) < 0) PREVIEW.reason = reasons[0] || '';
+  if (reasons.length) {
+    var select = document.createElement('select');
+    select.id = 'car-preview-reason';
+    reasons.forEach(function (reason) {
+      var option = element('option', null, t('reason.' + reason, reason));
+      option.value = reason;
+      if (reason === PREVIEW.reason) option.selected = true;
+      select.appendChild(option);
+    });
+    select.disabled = !HOST;
+    select.addEventListener('change', function () {
+      PREVIEW.reason = select.value;
+      refreshPreview();
+    });
+    var field = combo(select);
+    var built = settingRow(t('preview.for', 'Preview for'), '', field.node, 'has-select');
+    field.labelled(built.label, built.help);
+    var rows = element('div', 'rows');
+    rows.appendChild(built.row);
+    node.appendChild(rows);
+  }
+  var frame = element('div', 'bubble');
+  frame.setAttribute('aria-live', 'polite');
+  var text = element('p', 'bubble-text');
+  text.appendChild(element('span', 'skeleton'));
+  text.appendChild(element('span', 'skeleton'));
+  frame.appendChild(text);
+  node.appendChild(frame);
+  var source = element('p', 'help source');
+  source.hidden = true;
+  node.appendChild(source);
+  node.appendChild(element('p', 'help', t('preview.note', 'This is the text that will be sent. The watcher adds one line after it to recognize the exact turn it starts.')));
+  PREVIEW.nodes = {frame: frame, text: text, source: source};
+  return node;
+}
+
+function showPreview(shown) {
+  var nodes = PREVIEW.nodes;
+  if (!nodes) return;
+  nodes.frame.removeAttribute('aria-busy');
+  nodes.frame.className = 'bubble' + (shown ? '' : ' unavailable');
+  nodes.text.textContent = shown ? shown.text : t('preview.unavailable', 'Preview is not available right now.');
+  var source = shown && ['global', 'per_reason', 'standard'].indexOf(shown.source) >= 0 ? shown.source : '';
+  nodes.source.textContent = source ? t('preview.source.' + source, source) : '';
+  nodes.source.hidden = !source;
+}
+
+// The exact text, from the watcher's own generator, for the choices on screen now. Asked
+// again only when the question changed; an answer to a question nobody is asking any more
+// is dropped rather than shown over a newer one.
+function refreshPreview() {
+  if (!PREVIEW.nodes) return;
+  if (!HOST || !PREVIEW.reason) {
+    showPreview(null);
+    return;
+  }
+  var request = previewArguments(PREVIEW.reason, read);
+  var key = JSON.stringify(request);
+  if (PREVIEW.last && PREVIEW.last.key === key) {
+    showPreview(PREVIEW.last);
+    return;
+  }
+  PREVIEW.nodes.frame.setAttribute('aria-busy', 'true');
+  if (PREVIEW.asking === key) return;
+  PREVIEW.asking = key;
+  callTool('preview_recovery_message', request).then(function (payload) {
+    var preview = payload.preview;
+    if (!preview || typeof preview.text !== 'string') throw new Error(t('panel.refused', 'refused'));
+    return {key: key, text: preview.text, source: preview.source || null};
+  }).then(function (shown) {
+    if (PREVIEW.asking !== key) return;
+    PREVIEW.asking = '';
+    PREVIEW.last = shown;
+    showPreview(shown);
+  }, function () {
+    if (PREVIEW.asking !== key) return;
+    PREVIEW.asking = '';
+    showPreview(null);
+  });
+}
+
+// v0.6.14: beside the chat. In a conversation the Codex app shows this page inline or "fullscreen", and
+// there its fullscreen is the right side panel, beside the chat. Where the host can be asked to move the
+// page (requestDisplayMode) and says it is inline, the save bar offers Open beside the chat; nothing but
+// that click asks. A request Codex does not grant - answered with another mode, or refused - hides the
+// button for the page's life (BESIDE_REFUSED), and the bar says Codex kept the panel where it is. The
+// button drawn now, which a change of mode shows or hides in place (hostChanged), is BESIDE.
+var BESIDE_REFUSED = false;
+var BESIDE = null;
+
+// How the host says the page is shown: 'inline' in the conversation, 'fullscreen' beside it - or ''
+// where it says nothing, as a host that cannot move the page does.
+function displayMode() {
+  var mode = HOST && HOST.displayMode;
+  return typeof mode === 'string' ? mode : '';
+}
+
+// Whether to offer Open beside the chat now: a host that can be asked, a page in the conversation, and
+// no refusal yet.
+function besideOffered() {
+  return !!HOST && typeof HOST.requestDisplayMode === 'function' && displayMode() === 'inline' && !BESIDE_REFUSED;
+}
+
+// Ask Codex to show the page beside the chat, from the button's click alone. The answer is the mode set
+// (MCP Apps' ui/request-display-mode, the Apps SDK's requestDisplayMode); with none, what the host says
+// afterwards. Anything but fullscreen is Codex keeping the page here.
+function openBeside(footer) {
+  var button = footer.beside;
+  button.disabled = true;
+  Promise.resolve().then(function () {
+    return HOST.requestDisplayMode({mode: 'fullscreen'});
+  }).then(function (answer) {
+    var mode = answer && typeof answer.mode === 'string' ? answer.mode : displayMode();
+    if (mode !== 'fullscreen') throw new Error('kept');
+    button.disabled = false;
+    button.hidden = true;
+  }).catch(function () {
+    BESIDE_REFUSED = true;
+    button.disabled = false;
+    button.hidden = true;
+    footer.message.textContent = t('panel.beside_refused', 'Codex kept the panel here.');
+    // The button the keyboard was on is gone; the bar's commit is beside it.
+    if (typeof footer.save.focus === 'function') footer.save.focus({preventScroll: true});
+  });
+}
+
+function renderFooter(schema) {
+  var bar = element('footer', 'savebar');
+  var save = element('button', null, t('action.save', 'Save'));
+  save.id = 'car-save';
+  save.disabled = !HOST;
+  var message = element('p', 'note');
+  message.setAttribute('role', 'status');
+  // v0.6.14: Open beside the chat at the bar's leading edge, drawn wherever the host can be asked and
+  // Codex has not kept the page here, and hidden while the page is not inline (besideOffered).
+  var beside = null;
+  if (HOST && typeof HOST.requestDisplayMode === 'function' && !BESIDE_REFUSED) {
+    beside = element('button', 'beside', t('action.open_beside', 'Open beside the chat'));
+    beside.id = 'car-beside';
+    beside.hidden = !besideOffered();
+    bar.appendChild(beside);
+  }
+  BESIDE = beside;
+  // What happened first, the button last: the commit sits where Windows puts it.
+  bar.appendChild(message);
+  bar.appendChild(save);
+  // Quiet until there is something to save, so a changed switch visibly waits for it.
+  HOOKS.dirty = function () { save.className = unsaved(schema) ? 'primary' : ''; };
+  HOOKS.dirty();
+  HOOKS.save = save;
+  var footer = {node: bar, save: save, message: message, beside: beside};
+  if (beside) beside.onclick = function () { openBeside(footer); };
+  return footer;
+}
+
+// The switches whose change a tool confirmed, moved now that they are drawn in the state they
+// showed before. Reading a layout styles the page once in that state - synchronously, nothing
+// waits or ticks - so the change is a transition from it rather than a switch drawn already moved.
+// With less motion or in High Contrast the stylesheet has no transition, and the change is simply
+// made.
+function glide() {
+  var moves = GLIDES;
+  GLIDES = [];
+  if (!moves.length) return;
+  void moves[0].input.offsetWidth;
+  moves.forEach(function (move) { move.input.checked = move.to; });
+}
+
+// How far into its cycle the light is at `at` (performance.now()), as the negative delay that starts
+// an animation there: 0 for a light that has just changed. The window keeps its light's phase for as
+// long as its state holds (HaloDot.State), and so does the popup; until v0.6.10 this page drew its
+// light anew on every click, and sent it back to the top of its breath each time.
+function lightDelay(light, at) {
+  if (light !== LIGHT.light) LIGHT = {light: light, since: at};
+  return Math.round(LIGHT.since - at);
+}
+
+// Every light on the page starts its cycle at that phase: set on the root, where each animation reads
+// it (panel.css --light-delay). Set only when the lights are new - drawn by render(), or changed by
+// retell() - because a new delay under an animation already running would move it.
+function showLight(light) {
+  var root = document.documentElement;
+  var delay = lightDelay(light, performance.now());
+  if (root && root.style && typeof root.style.setProperty === 'function') {
+    root.style.setProperty('--light-delay', delay + 'ms');
+  }
+}
+
+// How long until what the page says of its rows can next change, in milliseconds from `now` (seconds):
+// the soonest time a row carries that is still to come, or the soonest moment a row whose time has come
+// stops making the page say checking (checkingRow, with the rows read at `read`). Null when neither is
+// still to come - and with no `read`, a row whose time has come has no such moment.
+function untilChange(rows, now, read) {
+  if (typeof now !== 'number' || !isFinite(now)) return null;
+  var known = typeof read === 'number' && isFinite(read);
+  var soonest = null;
+  (rows || []).forEach(function (row) {
+    var at = row && row.eligible_at;
+    if (typeof at !== 'number' || !isFinite(at)) return;
+    var next = !due(row, now) ? at : known ? Math.max(at, read) + CHECKING_HOLD : null;
+    if (next === null || next <= now) return;
+    if (soonest === null || next < soonest) soonest = next;
+  });
+  if (soonest === null) return null;
+  return Math.min(Math.max(1, Math.ceil((soonest - now) * 1000)), CLOCK_LONGEST);
+}
+
+// The page's one timer (v0.6.10). The page is drawn once, from one tool result, and nothing on it
+// counts down (nextCheck says why); but what that result tells it about the future it keeps: when a
+// time a row carries will come, and when, one watcher pass after that, what it read stops saying the
+// task is being checked. It wakes once, when the soonest of those comes, says again what that changes
+// (retell), and waits for the next. A page with neither still to come keeps no timer at all.
+function watchClock() {
+  if (CLOCK !== null) clearTimeout(CLOCK);
+  CLOCK = null;
+  var wait = DATA ? untilChange(DATA.pending, Date.now() / 1000, READ_AT) : null;
+  var aside = typeof window === 'undefined' ? null : window.__CODEX_AUTO_RESUME_ASIDE__;
+  var now = Date.now(), turn = !aside ? null : now < aside[0] ? aside[0] : now < aside[1] ? aside[1] : null;
+  if (turn !== null) wait = wait === null ? turn - now : Math.min(wait, turn - now);
+  if (wait !== null) CLOCK = setTimeout(retell, wait);
+}
+
+// What a time coming changes, said again in place: the word and the light - a waiting task whose
+// time has come is checking, here as in the popup and the Dashboard, for one watcher pass, and then
+// waiting again - the facts under the word, and each row's next check, now "due now". Nothing is
+// drawn anew, which would take the keyboard from wherever it was, and nothing is asked: what the
+// watcher did about the task arrives with the next tool result, as everything else on this page does.
+function retell() {
+  CLOCK = null;
+  if (!DATA || !HERO) return;
+  var status = DATA.status || {};
+  var rows = DATA.pending;
+  var state = activity(status, rows, Date.now() / 1000, READ_AT);
+  var light = lightFor(status, state, rows);
+  eachNode(document.getElementById('root'), function (node) {
+    if (node.classList && node.classList.contains('halo')) {
+      var drawn = lightClass(light, node.classList.contains('mini'));
+      if (node.className !== drawn) node.className = drawn;
+    }
+    var at = typeof node.getAttribute === 'function' ? node.getAttribute('data-due') : null;
+    if (at !== null && at !== undefined) node.textContent = nextCheck({eligible_at: Number(at)});
+  });
+  if (state !== HERO.state) {
+    HERO.state = state;
+    HERO.node.setAttribute('data-state', state);
+    HERO.word.textContent = t('activity.' + state, state);
+  }
+  showFacts(HERO.facts, status, state, rows);
+  if (light !== HERO.light) {
+    HERO.light = light;
+    showLight(light);
+  }
+  watchClock();
+}
+
+// When the rows in `data` were read, as best the page can tell at `now` (seconds): no later than
+// now, and - when the status says when the watcher last had a pass - no later than one pass after
+// that, since the watcher passes that often and the status was read after its last one. A page
+// Codex draws again from a tool result it kept, a day after the reading, is served that day-old
+// reading: by this, it knows the reading is old and says nothing is being checked.
+function readAt(data, now) {
+  var watcher = (data && data.status && data.status.watcher) || {};
+  var tick = watcher.last_tick_at;
+  if (typeof tick !== 'number' || !isFinite(tick)) return now;
+  return Math.min(now, tick + CHECKING_HOLD);
+}
+
+// Every element under `node`, depth first.
+function eachNode(node, visit) {
+  var children = (node && node.children) || [];
+  for (var i = 0; i < children.length; i++) {
+    visit(children[i]);
+    eachNode(children[i], visit);
+  }
+}
+
+function render() {
+  applyLanguage(document.documentElement, LOCALE);
+  var root = document.getElementById('root');
+  root.textContent = '';
+  EDITORS = {};
+  HOOKS = {};
+  PREVIEW.nodes = null;
+  WAS = SHOWN;
+  SHOWN = {};
+  GLIDES = [];
+  HERO = null;
+  BESIDE = null;
+  if (!DATA) {
+    root.appendChild(element('p', 'note',
+      t('panel.unavailable', 'Settings are not available in this view.')));
+    watchClock();
+    return;
+  }
+  var status = DATA.status || {};
+  var schema = DATA.schema || [];
+  var byName = {};
+  schema.forEach(function (entry) { byName[entry.name] = entry; });
+  // One reading of the clock for the whole page, so the state and the tile's light are one light.
+  var now = Date.now() / 1000;
+
+  var page = element('main', 'page');
+  root.appendChild(page);
+  // State first; then what is waiting, because it is the part that changes; then whether this
+  // Codex can be relied on, folded; then what is configured, general to particular; then what
+  // the configuration will say; then how the panel looks, where the Dashboard puts it too.
+  var hero = renderHero(status, now);
+  HERO = hero;
+  page.appendChild(hero.node);
+  if (DAY) placeDayScene();
+  [renderPending(DATA.pending), renderCompatibility(status, DATA.pending), renderGeneral(byName), renderRecovery(status, schema, now),
+   renderNotifications(schema), renderContinuation(byName), renderPreviewCard(), renderStarters(),
+   renderAppearance(byName)
+  ].forEach(function (section) { if (section) page.appendChild(section); });
+  var footer = renderFooter(schema);
+  page.appendChild(footer.node);
+  var message = hero.message;
+
+  showLight(hero.light);
+  watchClock();
+  glide();
+
+  // A message left over from the click that caused this render. It is carried across
+  // rather than written before render(), which empties the panel and would discard it.
+  if (NOTICE) {
+    message.textContent = NOTICE;
+    NOTICE = '';
+  }
+  if (SAVED) {
+    footer.message.textContent = SAVED;
+    SAVED = '';
+    // The redraw replaced the button that was pressed; keep the keyboard where it was.
+    if (typeof footer.save.focus === 'function') footer.save.focus({preventScroll: true});
+  }
+
+  refreshPreview();
+
+  if (!HOST) {
+    message.textContent = t('panel.readonly',
+      'Read-only here. Use the Dashboard to change these.');
+    return;
+  }
+
+  var save = footer.save;
+  save.onclick = function () {
+    var before = DATA.settings || {};
+    // Only what this panel may write, whatever else a control happens to hold.
+    var changes = collectChanges(EDITORS, schema);
+    // Nor the language or theme this page merely shows: either may have changed elsewhere.
+    var kept = unedited(changes, before);
+    kept.forEach(function (name) { delete changes[name]; });
+    save.disabled = true;
+    footer.message.textContent = t('panel.saving', 'Saving...');
+    saveSettings(changes).then(function (payload) {
+      DRAFT = {};
+      var switched = before.interface_language !== undefined
+                     && payload.settings.interface_language !== before.interface_language;
+      // One of those did change elsewhere, and its control still shows the old value.
+      var behind = kept.some(function (name) { return payload.settings[name] !== before[name]; });
+      // The confirmed settings, applied at once: the theme in place, and a new language - or a
+      // control left behind by a change made elsewhere - by drawing the page again from them.
+      // Every draft was just saved, so a redraw loses nothing.
+      if (adopt(payload.settings) || behind) {
+        SAVED = t('panel.saved', 'Saved.');
+        render();
+        return;
+      }
+      // Only a language this page has no words for still waits for the next time it opens.
+      var waits = switched && !localeFor(payload.settings.interface_language, DATA.system_language, CATALOGS);
+      footer.message.textContent = waits
+        ? t('settings.language_changed', 'Language changed. Anything already open changes the next time it opens.')
+        : t('panel.saved', 'Saved.');
+      save.disabled = false;
+      if (HOOKS.dirty) HOOKS.dirty();
+    }, function (error) {
+      footer.message.textContent = fill('panel.not_saved', 'Not saved: {reason}',
+        {reason: refusal(error)});
+      save.disabled = false;
+    });
+  };
+
+  var start = hero.start;
+  if (start) {
+    start.onclick = function () {
+      start.disabled = true;
+      message.textContent = t('panel.starting', 'Starting...');
+      callTool('start_watcher', {}).then(function (result) {
+        // Do not assume it worked. The panel used to set watcher_running to true here
+        // and render a running watcher on the strength of the call not throwing, which
+        // is a claim about a process nobody had looked at yet. Ask instead.
+        // Hosts differ on whether they hand back the tool result or just its
+        // structured half, so look in both rather than depending on one.
+        var payload = (result && result.structuredContent) || result || {};
+        var state = payload.state;
+        // A watcher this panel started runs in the job Codex runs its server in (v0.6.10): where
+        // that job ends what it holds - Codex 26.915, measured - it stops when Codex closes, if
+        // not sooner. The panel says so after every start that may have left one running - running
+        // or not yet confirmed - as the server's reply does, and names a start that outlives Codex:
+        // the Start menu's, once Codex has closed (a Dashboard opened from this watcher's own icon
+        // is in the same job), or the sign-in start. Null is a job Windows would not describe;
+        // false, a watcher already running and one that exited need no sentence.
+        var ends = payload.ends_with_codex;
+        var lasting = ends === true
+          ? t('panel.start_ends_with_codex', 'Codex ends what its plugins start, so this watcher stops when Codex closes, if not sooner. Once Codex has closed, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.')
+          : ends === null
+            ? t('panel.start_may_end_with_codex', 'Windows would not say whether Codex ends what its plugins start, so this watcher may stop when Codex closes. If it does, open Codex Auto Resume from the Start menu and start it there, or turn on Run at Windows sign-in in the Dashboard so it starts with Windows.')
+            : '';
+        if (state === 'running' || state === 'already-running') {
+          status.watcher_running = true;
+          NOTICE = lasting;
+        } else if (state === 'exited') {
+          NOTICE = t('panel.start_exited', 'It started and stopped again; nothing is watching.');
+        } else {
+          NOTICE = t('panel.start_unconfirmed',
+            'Started, but not confirmed running yet. Ask for the status again.')
+            + (lasting ? ' ' + lasting : '');
+        }
+        // Through NOTICE rather than onto `message`, because render() empties the panel
+        // and builds a fresh span: text written here first would be on a node that is
+        // detached before the browser paints it, and the click would look like nothing
+        // happened - on exactly the two states that most need explaining.
+        render();
+      }, function (error) {
+        message.textContent = fill('panel.start_failed', 'Could not start it: {reason}',
+          {reason: refusal(error)});
+        start.disabled = false;
+      });
+    };
+  }
+}
+
+// Read open_settings again because the person came back to the page - beside the chat, at most once every
+// READ_AGAIN_MS of its own asking, with nothing of its own still out - and draw what it read, with the keyboard
+// on the control it was on (keyboardAt, keyboardBack), unless by the time the answer lands the person has
+// started something it would undo (busy) or a call of the page's own went out after it. A refusal, an answer
+// that is not the panel's state, or one dropped says nothing: the page goes on showing what it showed, and the
+// next return asks again.
+function readAgain() {
+  if (!HOST || READING || displayMode() !== 'fullscreen') return;
+  var now = Date.now();
+  if (now - ASKED_AT < READ_AGAIN_MS || OWN_CALLS.out > 0) return;
+  ASKED_AT = now;
+  READING = true;
+  var made = OWN_CALLS.made;
+  Promise.resolve().then(function () {
+    return HOST.callTool('open_settings', {});
+  }).then(toolPayload).then(function (payload) {
+    READING = false;
+    if (!panelState(payload) || made !== OWN_CALLS.made || OWN_CALLS.out > 0 || busy()) return;
+    var keep = keyboardAt();
+    drawState(payload);
+    keyboardBack(keep);
+  }, function () {
+    READING = false;
+  });
+}
+
+// Whether an answer is the panel's state, as open_settings gives it: a status, the settings and the rows.
+function panelState(payload) {
+  return !!payload && typeof payload.status === 'object' && payload.status !== null
+         && typeof payload.settings === 'object' && payload.settings !== null && !Array.isArray(payload.settings)
+         && Array.isArray(payload.pending);
+}
+
+// Whether drawing the page anew now would undo what the person is doing: a change not saved yet, a row
+// asking them to confirm, a list open, the keyboard in a field they may be typing in - or the keyboard on a
+// control the page drawn anew could not give it back to, one with no id (keyboardAt).
+function busy() {
+  if (Object.keys(DRAFT).length || CONFIRM_ROW) return true;
+  var root = document.getElementById('root');
+  var open = false;
+  eachNode(root, function (node) {
+    if (typeof node.getAttribute === 'function' && node.getAttribute('aria-expanded') === 'true') open = true;
+  });
+  if (open || inField(root)) return true;
+  var node = document.activeElement;
+  return !!node && node !== root && within(node, root) && !node.id;
+}
+
+function within(node, root) {
+  for (var at = node; at; at = at.parentNode) if (at === root) return true;
+  return false;
+}
+
+// The keyboard in a box someone may be typing in - a number's - or in a list's field.
+function inField(root) {
+  var node = document.activeElement;
+  if (!node || node === root || !within(node, root)) return false;
+  var tag = String(node.tagName || '').toLowerCase();
+  if (tag === 'select') return true;
+  if (tag === 'input') return node.type !== 'checkbox' && node.type !== 'radio';
+  return typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox';
+}
+
+// Where the keyboard is, in a form a page drawn anew can find again: the id of the control it is on - every
+// control the page draws has one of its own, which names what it changes rather than where it stands, so a
+// row read in above it moves nothing - and the ids of the controls it could reach then, in their order. Null
+// where it is on no control of the page.
+function keyboardAt() {
+  var root = document.getElementById('root');
+  var node = document.activeElement;
+  if (!node || node === root || !within(node, root) || !node.id) return null;
+  var order = [];
+  eachNode(root, function (each) { if (each.id && keyTarget(each) && keyReaches(each, root)) order.push(each.id); });
+  return {id: node.id, order: order};
+}
+
+// The keyboard put back on that control in the page drawn anew - or, where the page read has none, or one it
+// cannot take, on the next control it could reach then that the page still has, and failing those the one
+// before it: where Tab would have taken it.
+function keyboardBack(keep) {
+  if (!keep) return;
+  var root = document.getElementById('root');
+  var drawn = {};
+  eachNode(root, function (node) { if (node.id && keyTarget(node) && !drawn[node.id]) drawn[node.id] = node; });
+  var at = keep.order.indexOf(keep.id);
+  var tries = [keep.id].concat(keep.order.slice(at + 1), keep.order.slice(0, Math.max(at, 0)).reverse());
+  for (var i = 0; i < tries.length; i++) {
+    var node = drawn[tries[i]];
+    if (!node || !keyReaches(node, root) || typeof node.focus !== 'function') continue;
+    node.focus({preventScroll: true});
+    if (document.activeElement === node) return;
+  }
+}
+
+// What the keyboard can be on: a button, a box, a fold's title, or the drop-down that stands for a select (the
+// select itself is hidden behind it).
+function keyTarget(node) {
+  var tag = String(node.tagName || '').toLowerCase();
+  return tag === 'button' || tag === 'input' || tag === 'summary'
+         || (typeof node.getAttribute === 'function' && node.getAttribute('role') === 'combobox');
+}
+
+// Whether the keyboard can reach a control as the page stands: shown, usable, and not in a folded section's body.
+function keyReaches(node, root) {
+  if (node.hidden || node.disabled) return false;
+  if (typeof node.getAttribute === 'function' && node.getAttribute('aria-disabled') === 'true') return false;
+  for (var at = node.parentNode; at && at !== root; at = at.parentNode) {
+    if (at.hidden) return false;
+    if (String(at.tagName || '').toLowerCase() === 'details' && !at.open && node.parentNode !== at) return false;
+  }
+  return true;
+}
+
+// v0.6.14: what the host says of the page has changed - Codex sends `openai:set_globals` when it does. The
+// button follows where the page is shown, in place, with nothing drawn anew. And a page that had no tool
+// result to draw from when it started - the side panel's tab, which calls the tool itself and may be
+// answered after the page has loaded - draws the result it is handed now; one already drawn is left as it
+// is, since a page that changed under the person would undo what they were doing.
+function hostChanged(event) {
+  if (!DATA) {
+    var globals = (event && event.detail && event.detail.globals) || {};
+    var output = parsedOutput(globals.toolOutput !== undefined ? globals.toolOutput
+                              : (HOST || window.openai || {}).toolOutput);
+    if (!output || typeof output !== 'object' || Array.isArray(output)) return;
+    // Just read, by the tab's own call: a return in the next moments need not ask again.
+    ASKED_AT = Date.now();
+    drawState(output);
+    return;
+  }
+  if (BESIDE) BESIDE.hidden = !besideOffered();
+}
+
+// A tool result the page is handed after it was first drawn, drawn as the first one is: read now, its stored
+// theme and language applied first, since it is what is true now, and the page drawn from it.
+function drawState(state) {
+  DATA = state;
+  READ_AT = readAt(DATA, Date.now() / 1000);
+  adopt(DATA.settings);
+  render();
+}
+
+// Each listener only where the document has it: the host's frame always does, a test's stand-in may not.
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('openai:set_globals', hostChanged);
+  window.addEventListener('focus', function () { readAgain(); });
+}
+if (typeof document.addEventListener === 'function') {
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'hidden') readAgain();
+  });
+}
+
+// The stored theme and language before anything is drawn: the page may be one Codex kept from an
+// earlier read, and the tool result is what is true now.
+adopt(DATA && DATA.settings);
+render();
