@@ -15,3 +15,4 @@ pub mod afterwork;
 pub mod clock;
 pub mod homes;
 pub mod watchloop;
+pub mod launcher;
