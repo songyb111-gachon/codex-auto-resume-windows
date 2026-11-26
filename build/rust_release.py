@@ -25,8 +25,9 @@ payload/app/skills/codex-auto-resume-advanced/.
 `install/install.ps1` is build/rust_install/install.ps1 (seat S8.2): v0.6.26's installer on the Rust core, with the
 migration from a Python installation (PLAN 6.2-6.5). Every route ends in it - an earlier version's updater that accepted
 the archive, the one-file Setup exe's Install.cmd, and v0.6.26's setup handover through codex-auto-resume-setup.exe.
-The window and the MCP launcher
-are the C# ones build/make_gui.ps1 compiles (`--window` and `--mcp-launcher` take others); the watcher host
+The window is
+the C# one build/make_gui.ps1 compiles (`--window` takes another); the MCP launcher is car-bin's codex-auto-resume-mcp.exe
+from the standard workspace's cargo build (D18; `--mcp-launcher` takes another); the watcher host
 (CodexAutoResume.exe, seat S6.2) is not built yet and is not in the archive.
 
     python build/rust_release.py --edition standard [--version 0.6.27-alpha] [--build] [--setup] [--output DIR]
@@ -244,14 +245,15 @@ def collect_app(stage: Path, edition: str, release: str) -> None:
             raise SystemExit("missing %s in the payload" % name)
 
 
-def collect_window(stage: Path, edition: str, window: Path | None, launcher: Path | None) -> None:
-    """The C# window and MCP launcher make_gui.ps1 built from this tree (its stamp checked), or the ones given."""
+def collect_window(stage: Path, edition: str, window: Path | None, launcher: Path | None,
+                   legacy: Path | None = None) -> None:
+    """The C# window make_gui.ps1 built from this tree (its stamp checked) and car-bin's MCP launcher from the standard
+    workspace's build (`legacy`'s folder, where car-legacy is: one launcher for both editions, D18), or the ones given."""
     if window is None:
         window = (make_release.BUILT / "advanced" if edition == "advanced" else make_release.BUILT) / make_release.GUI_EXE
         make_release.check_built_for_this_tree(window, edition, "window")
     if launcher is None:
-        launcher = make_release.BUILT / make_release.MCP_EXE
-        make_release.check_built_for_this_tree(launcher, edition, "launcher")
+        launcher = (legacy or built("standard")) / make_release.MCP_EXE
     copy(window, stage, "payload/" + make_release.GUI_EXE)
     copy(ROOT / "assets" / "codex-auto-resume.ico", stage, "payload/codex-auto-resume.ico")
     copy(launcher, stage, "payload/app/mcp/" + make_release.MCP_EXE)
@@ -284,7 +286,7 @@ def stage_edition(stage: Path, edition: str, release: str, bins=None, legacy=Non
     stage.mkdir(parents=True)
     collect_binaries(stage, edition, bins, legacy)
     collect_app(stage, edition, release)
-    collect_window(stage, edition, window, launcher)
+    collect_window(stage, edition, window, launcher, legacy)
     collect_launchers(stage)
     declare(stage, edition, release)
     write(stage, MARKER, marker(edition, release))
