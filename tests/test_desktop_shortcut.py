@@ -409,9 +409,10 @@ using System;
 using System.Diagnostics;
 using System.IO;
 
-// Stands for <home>\runtime\python.exe: records what it was asked, then runs the test's own interpreter with the same
-// words. Refuses (99) unless its Desktop and its home are folders of the test's own: a probe that lost its variables
-// stops here rather than reach the real Desktop.
+// Stands for <home>\app\bin\codex-auto-resume.exe, the core (v0.6.27): records what it was asked, then runs the test's
+// own interpreter on the reference's plugin_setup.py (home\app\scripts, beside it) with the same words - the core's
+// `desktop-shortcut` is plugin_setup's. Refuses (99) unless its Desktop and its home are folders of the test's own: a
+// probe that lost its variables stops here rather than reach the real Desktop.
 internal static class Stub
 {
     private static int Main()
@@ -433,7 +434,8 @@ internal static class Stub
             rest = space < 0 ? "" : line.Substring(space + 1);
         }
         File.AppendAllText(Environment.GetEnvironmentVariable("CAR_STUB_LOG"), rest + "|" + home + "\r\n");
-        var info = new ProcessStartInfo(Environment.GetEnvironmentVariable("CAR_REAL_PYTHON"), rest);
+        string setup = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "scripts", "plugin_setup.py"));
+        var info = new ProcessStartInfo(Environment.GetEnvironmentVariable("CAR_REAL_PYTHON"), "\"" + setup + "\" " + rest);
         info.UseShellExecute = false;
         info.CreateNoWindow = true;
         info.RedirectStandardOutput = true;
@@ -453,23 +455,23 @@ internal static class Stub
 
 
 def _stub_homes(work: Path) -> dict:
-    """Two installations of the test's own: one whose runtime\\python.exe is the stub above (and whose setup script runs
-    the repository's), and one with no interpreter at all."""
+    """Two installations of the test's own: one whose core (app\\bin\\codex-auto-resume.exe) is the stub above (and whose
+    setup script runs the repository's), and one with no core at all."""
     source = work / "Stub.cs"
     source.write_text(STUB, encoding="utf-8")
     stub = work / "stub-python.exe"
     done = subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(stub), str(source)], capture_output=True,
                           encoding="locale", errors="replace", creationflags=NO_WINDOW, timeout=300)
     if done.returncode != 0 or not stub.is_file():
-        raise AssertionError("the stand-in interpreter did not compile: " + (done.stdout + done.stderr)[-1500:])
+        raise AssertionError("the stand-in core did not compile: " + (done.stdout + done.stderr)[-1500:])
     homes = {}
     for name in ("ok", "bare"):
         home = work / ("home-" + name)
         home.mkdir()
         (home / "CodexAutoResumeSettings.exe").write_bytes(b"MZ")
         homes[name] = home
-    (homes["ok"] / "runtime").mkdir()
-    shutil.copyfile(stub, homes["ok"] / "runtime" / "python.exe")
+    (homes["ok"] / "app" / "bin").mkdir(parents=True)
+    shutil.copyfile(stub, homes["ok"] / "app" / "bin" / "codex-auto-resume.exe")
     scripts = homes["ok"] / "app" / "scripts"
     scripts.mkdir(parents=True)
     (scripts / "plugin_setup.py").write_text(
@@ -838,14 +840,13 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(self.answer["change_foreign_remove"], 0)
         self.assertIs(self.answer["change_foreign_remove_kept"], True, "someone else's is never removed")
 
-    def test_the_interpreter_is_started_the_way_every_other_one_is(self):
+    def test_the_core_is_asked_the_way_install_ps1_asks_it(self):
+        """v0.6.27: the core's own words, `desktop-shortcut make|remove`, and nothing before them."""
         lines = self.log.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines), 6, lines)
         for line in lines:
             words, home = line.rsplit("|", 1)
-            self.assertTrue(words.startswith('-X disable-remote-debug "'), words)
-            self.assertTrue(words.endswith('plugin_setup.py" desktop-shortcut make') or
-                            words.endswith('plugin_setup.py" desktop-shortcut remove'), words)
+            self.assertIn(words, ("desktop-shortcut make", "desktop-shortcut remove"))
             self.assertEqual(os.path.normcase(home), os.path.normcase(str(self.homes["ok"])), "the installation it belongs to")
         body = guiscan.type_body("DesktopShortcut", FLOW)
         self.assertIn("info.CreateNoWindow = true;", body)

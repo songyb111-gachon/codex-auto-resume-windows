@@ -175,9 +175,9 @@ foreach ($case in (ConvertFrom-Json $env:CAR_RECORDS).PSObject.Properties) {
 $out.retry['null'] = [bool]$retry.Invoke($null, [object[]]@($null, $true, [double]$env:CAR_NOW))
 $out.give['null'] = [bool]$give.Invoke($null, [object[]]@($null, $true))
 
-# Repair, against real child processes. python is a script that prints and exits; setup is
-# the argument it is handed, which this window quotes and passes through.
-$python = [string](Join-Path $work 'fake-python.cmd')
+# Repair, against real child processes. The core (v0.6.27: app\bin\codex-auto-resume.exe, handed
+# `setup --keep-state`) is a script that prints and exits.
+$python = [string](Join-Path $work 'fake-core.cmd')
 foreach ($case in (ConvertFrom-Json $env:CAR_REPAIRS).PSObject.Properties) {
     $lines = @('@echo off')
     foreach ($line in ($case.Value[0] -split "`n")) {
@@ -185,18 +185,15 @@ foreach ($case in (ConvertFrom-Json $env:CAR_REPAIRS).PSObject.Properties) {
     }
     $lines += ('exit /b ' + $case.Value[1])
     [IO.File]::WriteAllText($python, ($lines -join "`r`n"), (New-Object Text.ASCIIEncoding))
-    $setup = [string](Join-Path $work 'plugin_setup.py')
-    [IO.File]::WriteAllText($setup, '# stands in for setup', (New-Object Text.ASCIIEncoding))
-    $arguments = [object[]]@($work, $python, $setup, $null, $null)
+    $arguments = [object[]]@($work, $python, $null, $null)
     $null = $repair.Invoke($null, $arguments)
-    $out.repair[$case.Name] = $arguments[3]
+    $out.repair[$case.Name] = $arguments[2]
 }
 
-# Nothing to run: this installation is missing the files setup is made of.
-$arguments = [object[]]@($work, [string](Join-Path $work 'absent.exe'),
-                         [string](Join-Path $work 'plugin_setup.py'), $null, $null)
+# Nothing to run: this installation has no core.
+$arguments = [object[]]@($work, [string](Join-Path $work 'absent.exe'), $null, $null)
 $null = $repair.Invoke($null, $arguments)
-$out.repair['incomplete'] = $arguments[3]
+$out.repair['incomplete'] = $arguments[2]
 
 # The installer's own lock is already held by somebody else.
 #
@@ -221,9 +218,9 @@ try {
     if (-not $ready) { throw 'the holder process never took the installer lock' }
     $lines = @('@echo off', 'echo state: ok', 'exit /b 0')
     [IO.File]::WriteAllText($python, ($lines -join "`r`n"), (New-Object Text.ASCIIEncoding))
-    $arguments = [object[]]@($work, $python, [string](Join-Path $work 'plugin_setup.py'), $null, $null)
+    $arguments = [object[]]@($work, $python, $null, $null)
     $null = $repair.Invoke($null, $arguments)
-    $out.repair['busy'] = $arguments[3]
+    $out.repair['busy'] = $arguments[2]
 } finally { $holder | Stop-Process -Force -ErrorAction SilentlyContinue }
 
 # A part of the snapshot that came back as an error, and the two labels that result.
