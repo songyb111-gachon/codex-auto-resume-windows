@@ -25,7 +25,8 @@ ROOT = HERE.parents[1]
 PORTED = ("ui/popup/layout.py", "ui/popup/words.py", "ui/popup/fonts.py", "ui/popup/theme.py", "ui/popup/motion.py",
           "ui/popup/placement.py", "ui/popup/menuplan.py", "ui/popup/renderer.py", "ui/popup/win32.py",
           "ui/popup/menuwindow.py", "ui/tray/tipplan.py", "ui/tray/motion.py", "ui/tray/tipcard.py", "ui/card/card.py",
-          "notice_card.py", "brand", "win/typeface.py", "win/textsize.py", "l10n.py")
+          "notice_card.py", "brand", "win/typeface.py", "win/textsize.py", "l10n.py", "ui/popup/light.py",
+          "ui/popup/gdiplus.py", "ui/popup/elevation.py", "ui/popup/layers.py", "ui/card/surfaces.py")
 # What the matrix's view models are made from.
 INPUTS = ("ui/popup/model.py", "ui/tray/words.py", "ui/tray/menu.py", "notifier.py", "notify.py", "locales")
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
