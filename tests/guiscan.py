@@ -30,12 +30,40 @@ ROOT = Path(__file__).resolve().parents[1]
 GUI = ROOT / "gui"
 MANIFEST = GUI / "window.sources"
 
+class ScanError(RuntimeError):
+    """The window could not be listed. Never caught: a scan over nothing proves nothing."""
+
+
 # Built by the same script from its own single source, and not part of the window: the MCP launcher, and (v0.6.19)
 # the advanced edition's Stop hook launcher, its twin, built only into that edition (build/make_gui.ps1 -Edition advanced).
 # v0.6.27 (P6 step 0): the watcher host's contracts with car_core.dll, compiled alone by tests/test_host_contract.py
 # until the host's own list (gui/host.sources, S6.2b) builds them; never part of the window.
 HOST = ("gui/HostCore.cs", "gui/ISurfaces.cs")
-SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST
+# v0.6.27 (S6.3): the host's own list, gui/host.sources, and the surfaces its [surface] group names - the popup, the
+# icon's menu, the tip, the cards and the icon the host draws. Built into the host, never into the window.
+HOST_MANIFEST = GUI / "host.sources"
+
+
+def host_group(name: str) -> tuple[str, ...]:
+    """One [group] of gui/host.sources, in compile order; empty when the list or the group is not there."""
+    if not HOST_MANIFEST.is_file():
+        return ()
+    found, group = [], None
+    for line in HOST_MANIFEST.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            group = line[1:-1]
+        elif group is None:
+            raise ScanError("%s is listed before any [group] in gui/host.sources" % line)
+        elif group == name:
+            found.append(line)
+    return tuple(found)
+
+
+SURFACE = host_group("surface")
+SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST + SURFACE
 
 # The groups `gui/window.sources` divides the compile list into, and what each one means:
 #
@@ -54,10 +82,6 @@ SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST
 # them all at once; a group is what they name now.
 GROUPS = ("settings", "dashboard", "installer", "controls", "generated")
 HALVES = ("settings", "dashboard")
-
-
-class ScanError(RuntimeError):
-    """The window could not be listed. Never caught: a scan over nothing proves nothing."""
 
 
 @lru_cache(maxsize=None)
