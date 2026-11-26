@@ -2035,3 +2035,31 @@ and 200 % in en/ko/ar in light/dark x Soft/Classic/Plain x High Contrast off/on 
 test_surface_parity (12) + the guards (wait_quiet.sh, one run): see the seat's return
 python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26     exact
 ```
+
+### S6.3 second part (the main session's go-on, 2026-11-26): the drawing, begun
+
+Three more `[surface]` files, each held to the reference by comparison A (now 16 tests, all exact, ~6 s):
+
+| C# | Python | Held by |
+|---|---|---|
+| `SurfaceShape.cs` | `brand/shape.py` whole (corner, outline, flatten, profile, edge_at, inside, distance) - the host's own, since `SoftShape.cs` needs the window | 9 boxes: every segment, flattened points, distance and inside at 10 points |
+| `SurfaceGdip.cs` | `ui/popup/gdiplus.py` whole: startup by users, the leak counter (`GdipObjects`), `_Canvas`, `_Painter`, `_ShadowImage` + stamp | 16 painter calls into an offscreen 160x120 canvas on the reference's own `_Painter` and on the C#'s: pixels by SHA-256 equal for both smoothings x both formats x kept brushes, and 0 objects left per paint (pixel offset mode 0 instead of 4 fails it) |
+| `SurfaceElevation.cs` | `ui/popup/elevation.py` whole, the masks' one memory and turned-twin reuse kept; the C runtime's `erfc` | 14 masks in one order, by SHA-256; recipes in every theme and design; `shadow_step` |
+
+**Exactly what is left of the go-on (in this order; nothing of it is started):**
+
+1. `SurfaceLight.cs` (`ui/popup/light.py`, the status light: `StatusLight`, `draw_halo`, the halo band) and `SurfaceRenderer.cs`'s
+   drawing half (`renderer.py` 145-693: `draw`, `_seal`, `draw_scene`, `_ground`, `_scene`/`_scene_shape` with brand's
+   `scene_frame`/`speck_frame`/`element_at` from `brand/days.py`, `_ground_item`, `_accent_bar`, `_use_scale`, `_image`, `_lift`,
+   `_inner`, `_well`, `_switch`, `_meter`, `_button`, `_text` with DrawTextW). Then the render mode writes pixels per plan (a
+   `pixels` case beside `paint`), and a test draws each plan of the matrix on the reference's `Renderer` (offscreen, its own
+   fonts, as `make_screenshots` does) and on the C#'s, byte for byte, with `GdipObjects` back at 0 after each draw.
+2. The windows: `PopupWindow.cs`/`PopupMessages.cs` (`layers window messages hidden`), `MenuWindow.cs` (+ `MenuRenderer.draw_menu`),
+   `TipCard.cs` (+ `TipRenderer.draw_tip`), `TrayWords.cs`, `CardWindow.cs`/`CardStack.cs` (`ui/card/*`, `notice_window.py`,
+   `notice_card.corner_coverage`/`premultiply`, which `SurfaceShape` now makes possible), `TrayIcon.cs` (`ui/tray/icon win32 clicks
+   cards __init__ animation`), `TrayMenu.cs`, `TrayPlace.cs`, `SurfaceAccess.cs` (MSAA); the probe mode (`--probe <job>`, windows
+   unshown, no dialog); the class implementing `ISurfaces`; the icon's day motif (`brand.mark_colour`, `IconFrames(look)`).
+3. The live-path proof (P6-DESIGN 3.3's last paragraph): each window's own paint into its buffer offscreen against the render
+   mode's, byte-equal, over the matrix.
+4. Retarget `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions to the render mode (not run).
+5. `make_gui.ps1` once at the end: both editions' windows byte-identical to the base (the window's inputs are still 0 diff lines).
