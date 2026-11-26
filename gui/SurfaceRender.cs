@@ -140,6 +140,8 @@ namespace CodexAutoResume
                     return Paint(task, tables);
                 case "shape":
                     return ShapeCase(task);
+                case "gdip":
+                    return GdipCase(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -585,6 +587,69 @@ namespace CodexAutoResume
             foreach (string design in SurfaceTheme.Designs) designs.Add(SurfaceShape.DesignSmoothing(design));
             return new Dictionary<string, object> { { "outlines", outlines }, { "flats", flats }, { "distances", distances },
                                                     { "insides", insides }, { "designs", designs } };
+        }
+
+        private static double[] Doubles(object value)
+        {
+            return ((List<object>)value).ConvertAll(entry => (double)entry).ToArray();
+        }
+
+        private static List<double[]> PointList(object value)
+        {
+            return ((List<object>)value).ConvertAll(entry => Doubles(entry));
+        }
+
+        private static uint Colour(object value)
+        {
+            return (uint)(double)value;
+        }
+
+        /// The painter's calls replayed into an offscreen canvas, in the order the script gives them: the pixels'
+        /// digest, and how many GDI+ objects were left after the painter closed (0, or a leak).
+        private static Dictionary<string, object> GdipCase(Dictionary<string, object> task)
+        {
+            SurfaceGdip.Acquire();
+            try
+            {
+                using (var canvas = new SurfaceCanvas())
+                {
+                    var size = Ints(task["size"]);
+                    canvas.Ensure(size[0], size[1]);
+                    canvas.Smoothing = (double)task["smoothing"];
+                    int before = SurfaceGdip.GdipObjects;
+                    int format = (int)(double)task["format"];
+                    using (var paint = new SurfacePainter(canvas, format))
+                    {
+                        if (SurfaceMath.Truthy(Field(task, "keep_solids"))) paint.KeepSolids();
+                        foreach (object entry in (List<object>)task["calls"])
+                        {
+                            var call = (List<object>)entry;
+                            switch ((string)call[0])
+                            {
+                                case "fill_round": paint.FillRound(Doubles(call[1]), (double)call[2], Colour(call[3])); break;
+                                case "stroke_round": paint.StrokeRound(Doubles(call[1]), (double)call[2], Colour(call[3]), (double)call[4]); break;
+                                case "fill_circle": paint.FillCircle((double)call[1], (double)call[2], (double)call[3], Colour(call[4])); break;
+                                case "fill_polygon": paint.FillPolygon(PointList(call[1]), Colour(call[2])); break;
+                                case "fill_ellipse": paint.FillEllipse((double)call[1], (double)call[2], (double)call[3], (double)call[4], Colour(call[5])); break;
+                                case "stroke_lines": paint.StrokeLines(PointList(call[1]), Colour(call[2]), (double)call[3]); break;
+                                case "clip_round": paint.ClipRound(Doubles(call[1]), (double)call[2]); break;
+                                case "clip_rect": paint.ClipRect(Doubles(call[1])); break;
+                                case "clip_none": paint.ClipNone(); break;
+                                case "fade": paint.Fade(Doubles(call[1]), (double)call[2], (double)call[3], Ints(call[4])); break;
+                                case "arc": paint.Arc((double)call[1], (double)call[2], (double)call[3], (double)call[4], (double)call[5], Colour(call[6]), (double)call[7]); break;
+                                case "glow": paint.Glow((double)call[1], (double)call[2], (double)call[3], PointList(call[4]), Ints(call[5]), (double)call[6]); break;
+                                default: throw new NotSupportedException((string)call[0]);
+                            }
+                        }
+                    }
+                    int left = SurfaceGdip.GdipObjects - before;
+                    return new Dictionary<string, object> { { "pixels", Digest(canvas.Pixels()) }, { "left", left } };
+                }
+            }
+            finally
+            {
+                SurfaceGdip.Release();
+            }
         }
 
         // ----------------------------------------------------------------------------- the dump

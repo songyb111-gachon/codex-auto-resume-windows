@@ -586,6 +586,52 @@ class SurfaceJob:
                                       for x, y in points])
         self.add("shape/all", {"surface": "shape", "boxes": boxes, "points": points}, result)
 
+    GDIP_CALLS = [
+        ["fill_round", [0, 0, 160, 120], 0, 4293519867], ["fill_round", [8.5, 6.25, 120.75, 70.5], 16, 4282079160],
+        ["stroke_round", [10, 80, 90, 112], 11, 4291024079, 1.5], ["fill_round", [100, 80, 140, 102], 999, 2852126720],
+        ["fill_circle", [130.3, 30.7, 9.2, 4278242004]], ["fill_polygon", [[20, 20], [60, 10], [44, 50.5], [12.25, 40]], 3439329279],
+        ["fill_ellipse", 70, 95, 22.5, 7.25, 1612513279], ["stroke_lines", [[5, 115], [60, 100], [150, 118]], 4294901760, 2.0],
+        ["clip_round", [30, 30, 110, 75], 12], ["fill_round", [0, 0, 160, 120], 0, 1342177535], ["clip_none"],
+        ["clip_rect", [0, 0, 80, 60]], ["fade", [0, 0, 160, 60], 20.5, 70.25, [242, 163, 58]], ["clip_none"],
+        ["arc", 120, 60, 18.5, 33.0, 100.0, 4285636863, 1.6],
+        ["glow", 40.5, 60.25, 14.4, [[0.0, 0.67], [0.625, 0.67], [0.6625, 0.58], [0.9, 0.5], [1.0, 0.0]], [6, 182, 212], 0.5],
+    ]
+
+    def gdip(self):
+        """The painter's calls into an offscreen canvas: the reference's own _Painter on its own _Canvas, in memory,
+        and the same calls in C# - pixels byte for byte, and no GDI+ object left behind."""
+        import hashlib
+        from codex_auto_resume.ui.popup import gdiplus, win32
+        win32._declare()
+        gdiplus._gdiplus_acquire()
+        try:
+            for smoothing in (0.6, 0.0):
+                for name, fmt in (("rgb", gdiplus.PIXEL_FORMAT_32BPP_RGB), ("pargb", gdiplus.PIXEL_FORMAT_32BPP_PARGB)):
+                    for keep in (False, True):
+                        canvas = gdiplus._Canvas()
+                        try:
+                            canvas.ensure(160, 120)
+                            canvas.smoothing = smoothing
+                            before = gdiplus.gdiplus_objects()
+                            with gdiplus._Painter(canvas, fmt) as paint:
+                                if keep:
+                                    paint.keep_solids()
+                                for call in self.GDIP_CALLS:
+                                    verb, arguments = call[0], call[1:]
+                                    if verb in ("fill_circle",):
+                                        arguments = arguments[0]
+                                    getattr(paint, verb)(*arguments)
+                            result = {"pixels": hashlib.sha256(canvas.pixels()).hexdigest(),
+                                      "left": gdiplus.gdiplus_objects() - before}
+                        finally:
+                            canvas.close()
+                        calls = [call if call[0] != "fill_circle" else [call[0]] + call[1] for call in self.GDIP_CALLS]
+                        self.add("gdip/%s/%s/%s" % (smoothing, name, keep),
+                                 {"surface": "gdip", "size": [160, 120], "smoothing": smoothing, "format": fmt,
+                                  "keep_solids": keep, "calls": calls}, result)
+        finally:
+            gdiplus._gdiplus_release()
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -643,6 +689,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.icon()
         job.paint()
         job.shape()
+        job.gdip()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -705,6 +752,12 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_corner_outline_and_its_tables_are_the_references(self):
         self.compare("shape/")
+
+    def test_the_painters_gdiplus_calls_make_the_references_pixels_and_leak_nothing(self):
+        self.compare("gdip/")
+        for case_id, case in self.found.items():
+            if case_id.startswith("gdip/"):
+                self.assertEqual(case["plan"]["left"], 0, case_id)
 
 
 class SurfaceSourceTests(unittest.TestCase):

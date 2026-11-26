@@ -24,6 +24,7 @@ gui/PopupWords.cs
 gui/SurfaceFonts.cs
 gui/SurfaceTheme.cs
 gui/SurfaceShape.cs
+gui/SurfaceGdip.cs
 gui/SurfaceRenderer.cs
 gui/PopupLayout.cs
 gui/PopupPlace.cs
