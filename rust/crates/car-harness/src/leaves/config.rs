@@ -2,7 +2,7 @@
 
 use car_config::codex;
 use car_config::logbook::{self, Clock, Logbook};
-use car_config::paths::{self, Paths};
+use car_config::paths::{self, EnsureError, Paths};
 use car_config::{ConfigError, Os};
 use car_machine::json::{Map, Str, Value};
 use car_machine::pytext::py_str;
@@ -207,17 +207,19 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
     Some(match name {
         "paths.build" => build(a).map(|found| fields(&found)),
         "paths.report" => build(a).map(|found| report(&found, a.get(5))),
-        "paths.mutate" => build(a).map(|found| {
+        // The reference catches ConfigError alone: an OSError of ensure()'s mkdir ends the case with its class.
+        "paths.mutate" => build(a).and_then(|found| {
             let ensured = match found.ensure() {
                 Ok(()) => Value::Null,
-                Err(refused) => config_error(refused),
+                Err(EnsureError::Config(refused)) => config_error(refused),
+                Err(EnsureError::Os { class, .. }) => return Err(class),
             };
             let claimed = found.claim_home();
-            object(vec![
+            Ok(object(vec![
                 ("ensure", ensured),
                 ("claim_home", Value::Bool(claimed)),
                 ("after", report(&found, a.get(5))),
-            ])
+            ]))
         }),
         "paths.installed_home" => a
             .text(0)

@@ -307,8 +307,9 @@ class AutocheckDiff(AdvCodexDiff):
                                                         (home / "config" / "advanced" / ".owned-by-codex-auto-resume").write_text("x"))),
                                ("a file", lambda home: ((home / "config").mkdir(parents=True),
                                                         (home / "config" / "advanced").write_text("x"))),
-                               # Not "config is a file": car-config's Paths.ensure() swallows the FileExistsError Python
-                               # raises and makes logs/ (GROUNDWORK S7.2c, "Found and not fixed").
+                               # config/ a file: Paths.ensure() raises FileExistsError at its mkdir and makes no logs/
+                               # (car-config since Integration 8, as the reference's).
+                               ("config is a file", lambda home: (home / "config").write_text("x")),
                                ("over a record", lambda home: ((home / "config" / "advanced").mkdir(parents=True),
                                                                (home / "config" / "advanced" / "autocheck.json").write_text("{}")))):
             home = self.root / ("write-%s" % label.replace(" ", "-"))

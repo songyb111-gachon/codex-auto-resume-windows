@@ -29,6 +29,28 @@ pub fn open(path: impl AsRef<Path>) -> std::io::Result<File> {
     options().read(true).open(path)
 }
 
+/// The Python class of an OSError raised for `error` (winerror -> errno -> class, as CPython maps them).
+pub fn os_error_class(error: &std::io::Error) -> &'static str {
+    if let Some(code) = error.raw_os_error() {
+        return match code {
+            2 | 3 | 15 | 18 | 53 | 67 | 161 | 206 => "FileNotFoundError",
+            5 | 16 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33
+            | 34 | 36 | 65 | 82 | 83 | 108 | 132 | 158 | 167 => "PermissionError",
+            80 | 183 => "FileExistsError",
+            145 => "OSError",
+            267 => "NotADirectoryError",
+            109 | 232 => "BrokenPipeError",
+            _ => "OSError",
+        };
+    }
+    match error.kind() {
+        std::io::ErrorKind::NotFound => "FileNotFoundError",
+        std::io::ErrorKind::PermissionDenied => "PermissionError",
+        std::io::ErrorKind::AlreadyExists => "FileExistsError",
+        _ => "OSError",
+    }
+}
+
 /// `std::fs::read`, with the file held as `Path.read_bytes()` holds it.
 pub fn read(path: impl AsRef<Path>) -> std::io::Result<Vec<u8>> {
     let mut file = open(path)?;

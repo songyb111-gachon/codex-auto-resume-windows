@@ -39,6 +39,51 @@ impl std::fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
+/// What `ensure()` raised: its own refusal (`ConfigError`), or the `OSError` of a `mkdir` - FileExistsError where a file
+/// has the folder's name (`config` a file), which stops it before `logs/` is made, as `directory.mkdir(parents=True,
+/// exist_ok=True)` does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EnsureError {
+    Config(ConfigError),
+    /// The exception's class (car-machine's `os_error_class`) and its text.
+    Os {
+        class: &'static str,
+        message: String,
+    },
+}
+
+impl EnsureError {
+    /// The class the reference raises.
+    pub fn class(&self) -> &'static str {
+        match self {
+            EnsureError::Config(_) => "ConfigError",
+            EnsureError::Os { class, .. } => class,
+        }
+    }
+
+    /// `str(exc)`, as near as the error says it.
+    pub fn message(&self) -> String {
+        match self {
+            EnsureError::Config(refused) => refused.0.clone(),
+            EnsureError::Os { message, .. } => message.clone(),
+        }
+    }
+}
+
+impl From<ConfigError> for EnsureError {
+    fn from(refused: ConfigError) -> EnsureError {
+        EnsureError::Config(refused)
+    }
+}
+
+impl std::fmt::Display for EnsureError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message())
+    }
+}
+
+impl std::error::Error for EnsureError {}
+
 /// What the operating system is asked: where relative paths start, and whether a path past 260 characters
 /// is taken without its `\\?\` prefix (the registry's LongPathsEnabled, which car-platform reads).
 #[derive(Clone, Debug)]
@@ -269,20 +314,28 @@ impl Paths {
         }
     }
 
-    /// `ensure()`: the two owned directories and their markers.
-    pub fn ensure(&self) -> Result<(), ConfigError> {
+    /// `ensure()`: the two owned directories and their markers. A `mkdir` that fails raises its OSError there and then
+    /// (`logs/` is not made after a `config` that could not be), as the reference's does.
+    pub fn ensure(&self) -> Result<(), EnsureError> {
         for directory in [&self.state_dir, &self.logs_dir] {
             let exists = Path::new(directory).exists();
             if self.is_symlink(directory) || (exists && !self.confined(directory)) {
                 return Err(ConfigError(
                     "Owned directory is a link/junction escaping the home; refusing".into(),
-                ));
+                )
+                .into());
             }
-            let _ = fs::create_dir_all(directory);
+            if let Err(error) = fs::create_dir_all(directory) {
+                return Err(EnsureError::Os {
+                    class: car_machine::pyfile::os_error_class(&error),
+                    message: error.to_string(),
+                });
+            }
             if !self.confined(directory) {
                 return Err(ConfigError(
                     "Owned directory escapes the configured home; refusing".into(),
-                ));
+                )
+                .into());
             }
             let marker = child(directory, OWNER_MARKER);
             if !Path::new(&marker).exists() {

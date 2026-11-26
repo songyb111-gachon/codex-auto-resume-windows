@@ -969,9 +969,11 @@ pub enum WriteError {
 
 /// `_write(paths, record)`: the record, whole, in config/advanced/, made and marked as ours first.
 pub fn write(paths: &car_config::Paths, record: &Value) -> Result<(), WriteError> {
-    paths
-        .ensure()
-        .map_err(|error| WriteError::Config(error.0))?;
+    // `_write`'s `except OSError`: a mkdir of ensure() that fails (config a file) is the write's OSError.
+    paths.ensure().map_err(|raised| match raised {
+        car_config::paths::EnsureError::Config(refused) => WriteError::Config(refused.0),
+        car_config::paths::EnsureError::Os { .. } => WriteError::Os,
+    })?;
     let folder = PathBuf::from(&paths.advanced_dir);
     let text = folder.to_string_lossy().into_owned();
     if car_config::paths::is_link(&text) || (folder.exists() && !paths.confined(&text)) {

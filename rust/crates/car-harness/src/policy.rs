@@ -355,9 +355,14 @@ impl config::Home for ConfigHome {
     }
 
     fn ensure(&self) -> Result<(), config::ConfigFailure> {
-        self.0
-            .ensure()
-            .map_err(|refused| config::ConfigFailure::ConfigError(Str::from(refused.0)))
+        self.0.ensure().map_err(|raised| match raised {
+            car_config::paths::EnsureError::Config(refused) => {
+                config::ConfigFailure::ConfigError(Str::from(refused.0))
+            }
+            car_config::paths::EnsureError::Os { class, .. } => {
+                config::ConfigFailure::Raised(class)
+            }
+        })
     }
 }
 

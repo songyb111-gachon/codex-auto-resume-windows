@@ -177,7 +177,9 @@ impl App {
         mark: &str,
     ) -> Result<App, CliError> {
         let log = if enable_logging {
-            paths.ensure().map_err(|error| CliError(error.0))?;
+            paths
+                .ensure()
+                .map_err(|raised| CliError(raised.message()))?;
             Some(car_config::logbook::Logbook::open(
                 &paths.log_file,
                 mark,
@@ -448,7 +450,9 @@ fn cmd_enable(machine: &Machine, global: &Global, args: &Namespace, io: &mut Io)
         let mut changes = Map::new();
         changes.insert(Str::from("detection_lookback_hours"), Value::Float(*hours));
         let os = app.host().os();
-        app.paths.ensure().map_err(|error| CliError(error.0))?;
+        app.paths
+            .ensure()
+            .map_err(|raised| CliError(raised.message()))?;
         app.settings = car_policy::settings::update(
             &*os,
             Path::new(&app.paths.settings_file),

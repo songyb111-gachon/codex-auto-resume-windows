@@ -325,6 +325,8 @@ class OwnedDiff(ConfigBase):
             for home, parts in {
                 "empty": {}, "marked": {marker: text, "config/" + marker: text, "logs/" + marker: text},
                 "only config": {"config/" + marker: text}, "unmarked": {"config/settings.json": "{}", "logs/auto-resume.log": "x"},
+                # config/ a file: ensure()'s mkdir raises FileExistsError and logs/ is never made (Integration 8)
+                "config a file": {"config": "x"},
             }.items():
                 (root / home).mkdir(parents=True)
                 for name, body in parts.items():
@@ -388,7 +390,7 @@ class OwnedDiff(ConfigBase):
         # `junction` has config/ a junction out of the home (ensure() refuses it, both ways) and `junction in` has config/ a
         # junction to a folder inside the home: `Path.is_symlink()` is false for it, so the tag's ensure() lets it pass, and
         # so does car-config's, whose link probe is car-platform's (the one reparse-tag reader, D3; the harness wires it in).
-        for home in ("empty", "marked", "full", "junction", "junction in"):
+        for home in ("empty", "marked", "full", "junction", "junction in", "config a file"):
             template.append(["paths.mutate", "@/" + home, "@/root", ENV, "@/", False, extra])
         # a file of the home that the mutation made is then listed: so is what it did NOT make
         self.pair("owned", template, tree=tree)
@@ -405,5 +407,5 @@ class OwnedDiff(ConfigBase):
         self.assertTrue(answer["claim_home"])
         RECORD.append("Paths ownership: owns, owns_home (marker, config's marker, runtime.json of seven kinds), the owned state, advanced, "
                       "account and log files, the account folders by depth, confined (a junction out of the home, one inside it), and "
-                      "ensure() and claim_home() on 5 scratch homes equal the tag's, a junction inside the home passing ensure() as the tag's "
+                      "ensure() and claim_home() on 6 scratch homes (one whose config/ is a file: FileExistsError, no logs/) equal the tag's, a junction inside the home passing ensure() as the tag's "
                       "Path.is_symlink() lets it (car-platform's one link probe)")

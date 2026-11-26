@@ -109,7 +109,7 @@ impl AdvancedState {
     fn make_directory(&self) -> Result<()> {
         self.paths
             .ensure()
-            .map_err(|error| Error::python("ConfigError", error.0))?;
+            .map_err(|raised| Error::python(raised.class(), raised.message()))?;
         let directory = self.directory_text();
         if is_link(&directory) || (self.directory.exists() && !self.paths.confined(&directory)) {
             return Err(Error::state(
