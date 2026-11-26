@@ -51,6 +51,13 @@ def test_files() -> set[str]:
     return {path.name for path in TESTS.glob("test_*.py") if imports_the_ui(path)}
 
 
+def test_names(path: Path) -> set[tuple[str, str]]:
+    """(class, test) of every test the file defines."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {(node.name, member.name) for node in tree.body if isinstance(node, ast.ClassDef)
+            for member in node.body if isinstance(member, ast.FunctionDef) and member.name.startswith("test_")}
+
+
 def test_classes(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
@@ -95,6 +102,23 @@ class SurfaceLedgerTests(unittest.TestCase):
                 self.assertTrue(row.get("why", "").strip(), "%s: say why it is not on the host" % name)
                 if row["status"] == "pending":
                     self.assertTrue(row.get("needs", "").strip(), "%s: say what would make it pass" % name)
+
+    def test_what_a_row_says_runs_on_the_host_is_there(self):
+        """host_tests are tests of the row's own file that run through the shim or the host; twins name a test of a port file
+        that holds the same rule of the host's C#; no_twin says why a test has no host to run on."""
+        for name, row in self.rows.items():
+            own = test_names(TESTS / name)
+            for ident in row.get("host_tests", []) + list(row.get("twins", {})) + list(row.get("no_twin", {})):
+                cls, test = ident.split(".", 1)
+                self.assertIn((cls, test), own, "%s: %s is not a test of the file" % (name, ident))
+            for ident, twin in row.get("twins", {}).items():
+                port, where = twin.split("::")
+                cls, test = where.split(".", 1)
+                self.assertIn((cls, test), test_names(TESTS / port), "%s: twin %s of %s is not there" % (name, twin, ident))
+            for ident, why in row.get("no_twin", {}).items():
+                self.assertTrue(why.strip(), "%s: say why %s has no host to run on" % (name, ident))
+            self.assertLessEqual(len(row.get("host_tests", [])) + len(row.get("twins", {})) + len(row.get("no_twin", {})),
+                                 row["ui_tests"] + 1, name)
 
     def test_the_ledger_only_shrinks(self):
         pending = [name for name, row in self.rows.items() if row["status"] == "pending"]

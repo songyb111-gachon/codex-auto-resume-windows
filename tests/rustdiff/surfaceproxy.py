@@ -33,7 +33,7 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 ROOT = Path(__file__).resolve().parents[2]
 FLOAT_TAG = "$float"
 MODULES = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model", "codex_auto_resume.ui.words",
-           "codex_auto_resume.ui.tray.model")
+           "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu")
 HOMES = ("USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA", "CODEX_HOME", "TEMP", "TMP")
 
 BUILTINS = {"ValueError": ValueError, "TypeError": TypeError, "KeyError": KeyError, "AttributeError": AttributeError,
@@ -258,6 +258,68 @@ def _tray_model(module):
     module.snapshot_from = snapshot_from
 
 
+def _host():
+    """surfacehost.py, loaded by path once: the host's render mode."""
+    import importlib.util
+    import sys
+    found = sys.modules.get("rustdiff_surfacehost")
+    if found is None:
+        spec = importlib.util.spec_from_file_location("rustdiff_surfacehost", Path(__file__).resolve().with_name(
+            "surfacehost.py"))
+        found = importlib.util.module_from_spec(spec)
+        sys.modules["rustdiff_surfacehost"] = found
+        spec.loader.exec_module(found)
+    return found
+
+
+def _tray_words(module):
+    """The icon's words as the C# host makes them (gui/TrayWords.cs, the render mode's `tray_words` case): the reference's
+    parts, tooltip, joined text and meter line from a snapshot, the catalog, the moment and the edition."""
+    original = {name: getattr(module, name) for name in ("tooltip_parts", "tooltip", "tooltip_joined", "meter_line")}
+
+    def ask(snapshot, strings, now, edition):
+        return {"name": "tray_words", "snapshot": snapshot, "strings": strings, "now": now, "edition": edition}
+
+    def lines(parts):
+        parts["line"] = [tuple(piece) for piece in parts["line"]]
+        return parts
+
+    def tooltip_parts(snapshot, strings, now, edition=None):
+        return lines(_host().SERVE.ask(**ask(snapshot, strings, now, edition))["parts"])
+
+    def tooltip(snapshot, strings, now, edition=None):
+        return _host().SERVE.ask(**ask(snapshot, strings, now, edition))["tooltip"]
+
+    def tooltip_joined(parts):
+        return _host().SERVE.ask("tray_joined", parts=parts)
+
+    def meter_line(snapshot, strings):
+        return _host().SERVE.ask(**ask(snapshot, strings, 0.0, None))["meter_line"]
+
+    for name, function in (("tooltip_parts", tooltip_parts), ("tooltip", tooltip), ("tooltip_joined", tooltip_joined),
+                           ("meter_line", meter_line)):
+        function.rust_core = "host"
+        function.__wrapped__ = original[name]
+        function.__doc__ = original[name].__doc__
+        function.__name__ = name
+        setattr(module, name, function)
+
+
+def _tray_menu(module):
+    """What the icon's menu offers (gui/TrayMenu.cs `MenuItems`), as the host's probe answers it."""
+    original = module.menu_items
+
+    def menu_items(snapshot, strings, now, pending=False, armed=None, popup=False):
+        found = _host().SERVE.ask("menu_items", snapshot=snapshot, strings=strings, now=now, pending=bool(pending),
+                                  armed=armed, popup=bool(popup))
+        return [None if item is None else item for item in found]
+
+    menu_items.rust_core = "host"
+    menu_items.__wrapped__ = original
+    menu_items.__doc__ = original.__doc__
+    module.menu_items = menu_items
+
+
 def _words(module):
     case = PIPE.case
 
@@ -361,4 +423,8 @@ def install(module) -> None:
         _ui_words(module)
     elif module.__name__.endswith("tray.model"):
         _tray_model(module)
+    elif module.__name__.endswith("tray.words"):
+        _tray_words(module)
+    elif module.__name__.endswith("tray.menu"):
+        _tray_menu(module)
     module._rust_surface = True

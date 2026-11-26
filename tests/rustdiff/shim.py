@@ -38,7 +38,7 @@ ENTRY_POINTS = {"codex_auto_resume.controlcli": "bridge", "codex_auto_resume.mcp
 ENGINE = "codex_auto_resume.engine"
 # S6.4: the popup's pure half (words and view model), as car-surface (surfaceproxy.py).
 SURFACE = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model", "codex_auto_resume.ui.words",
-           "codex_auto_resume.ui.tray.model")
+           "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu")
 STDIN_ARGUMENT = "-"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CRATE = Path(__file__).resolve().parents[2] / "rust" / "crates" / "car-harness"
