@@ -207,8 +207,9 @@ fn hashable(value: &Value) -> Result<(), Unreadable> {
     }
 }
 
-/// Python's `<` between two sort-key parts: numbers with numbers, texts with texts; anything else a TypeError.
-fn order(first: &Value, second: &Value) -> Result<Ordering, Unreadable> {
+/// Python's `x < y` between two sort-key parts: numbers with numbers, texts with texts, lists element by element;
+/// anything else a TypeError.
+fn less(first: &Value, second: &Value) -> Result<bool, Unreadable> {
     let numeric = |value: &Value| match value {
         Value::Bool(flag) => Some(f64::from(u8::from(*flag))),
         Value::Int(number) => number.as_i64().map(|n| n as f64),
@@ -216,12 +217,126 @@ fn order(first: &Value, second: &Value) -> Result<Ordering, Unreadable> {
         _ => None,
     };
     match (first, second) {
-        (Value::Str(a), Value::Str(b)) => Ok(a.cmp(b)),
+        (Value::Str(a), Value::Str(b)) => Ok(a < b),
+        (Value::Array(a), Value::Array(b)) => {
+            for (x, y) in a.iter().zip(b) {
+                if !sql::py_eq(x, y) {
+                    return less(x, y);
+                }
+            }
+            Ok(a.len() < b.len())
+        }
         _ => match (numeric(first), numeric(second)) {
-            (Some(a), Some(b)) => Ok(a.partial_cmp(&b).unwrap_or(Ordering::Equal)),
+            (Some(a), Some(b)) => Ok(a < b),
             _ => Err(Unreadable),
         },
     }
+}
+
+/// `(a1, b1) < (a2, b2)` as CPython's tuple compare does it: the first unequal place decides.
+fn key_less(first: &(Value, Value), second: &(Value, Value)) -> Result<bool, Unreadable> {
+    if !sql::py_eq(&first.0, &second.0) {
+        return less(&first.0, &second.0);
+    }
+    if !sql::py_eq(&first.1, &second.1) {
+        return less(&first.1, &second.1);
+    }
+    Ok(false)
+}
+
+/// `list.sort()` of a short list as CPython 3.13+ does it (`count_run`, then `binarysort` from where the run ends):
+/// the same comparisons in the same order, so a pair that cannot be ordered raises exactly where the reference's
+/// does. Lists of 64 and more (no turn has that many interruptions) are sorted with every adjacent pair compared.
+fn sort_keyed<T: Clone>(items: &mut Vec<(T, (Value, Value))>) -> Result<(), Unreadable> {
+    let n = items.len();
+    if n < 2 {
+        return Ok(());
+    }
+    if n >= 64 {
+        let mut failed = false;
+        items.sort_by(|a, b| match key_less(&a.1, &b.1) {
+            Ok(true) => Ordering::Less,
+            Ok(false) => match key_less(&b.1, &a.1) {
+                Ok(true) => Ordering::Greater,
+                Ok(false) => Ordering::Equal,
+                Err(_) => {
+                    failed = true;
+                    Ordering::Equal
+                }
+            },
+            Err(_) => {
+                failed = true;
+                Ordering::Equal
+            }
+        });
+        return if failed { Err(Unreadable) } else { Ok(()) };
+    }
+    let lt = |items: &Vec<(T, (Value, Value))>, i: usize, j: usize| key_less(&items[i].1, &items[j].1);
+    // count_run
+    let mut run = 1;
+    while run < n {
+        if lt(items, run, run - 1)? {
+            break;
+        }
+        run += 1;
+    }
+    if run < n {
+        let mut descending = true;
+        if run > 1 {
+            if lt(items, 0, run - 1)? {
+                descending = false;
+            } else {
+                items[..run].reverse();
+            }
+        }
+        if descending {
+            run += 1;
+            let mut neq = 0usize;
+            let reverse_last = |items: &mut Vec<(T, (Value, Value))>, run: usize, neq: &mut usize| {
+                if *neq > 0 {
+                    let count = *neq + 1;
+                    items[run - count..run].reverse();
+                    *neq = 0;
+                }
+            };
+            while run < n {
+                if lt(items, run, run - 1)? {
+                    reverse_last(items, run, &mut neq);
+                } else if lt(items, run - 1, run)? {
+                    break;
+                } else {
+                    neq += 1;
+                }
+                run += 1;
+            }
+            reverse_last(items, run, &mut neq);
+            items[..run].reverse();
+            while run < n {
+                if lt(items, run, run - 1)? {
+                    break;
+                }
+                run += 1;
+            }
+        }
+    }
+    // binarysort(lo, n, run)
+    let mut ok = run.max(1);
+    while ok < n {
+        let (mut low, mut high) = (0usize, ok);
+        let pivot = items[ok].clone();
+        while low < high {
+            let middle = (low + high) >> 1;
+            if key_less(&pivot.1, &items[middle].1)? {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        items.remove(ok);
+        items.insert(low, pivot);
+        ok += 1;
+    }
+    Ok(())
 }
 
 fn or_default(value: &Value, default: Value) -> Value {
@@ -249,32 +364,18 @@ fn cut_off<'a>(
             .filter(|record| sql::py_eq(field(record, "parent_interruption_id"), parent))
             .collect();
     }
-    let key = |record: &Value| {
-        (
-            or_default(field(record, "detected_at"), Value::Int(0.into())),
-            or_default(field(record, "interruption_id"), word("")),
-        )
-    };
-    let mut earliest: Option<(&Value, (Value, Value))> = None;
-    for record in found {
-        let candidate = key(record);
-        earliest = match earliest {
-            None => Some((record, candidate)),
-            Some((held, kept)) => {
-                let first = if sql::py_eq(&candidate.0, &kept.0) {
-                    order(&candidate.1, &kept.1)?
-                } else {
-                    order(&candidate.0, &kept.0)?
-                };
-                if first == Ordering::Less {
-                    Some((record, candidate))
-                } else {
-                    Some((held, kept))
-                }
-            }
-        };
-    }
-    Ok(earliest.map(|(record, _)| record))
+    let mut keyed: Vec<(&Value, (Value, Value))> = found
+        .into_iter()
+        .map(|record| {
+            let key = (
+                or_default(field(record, "detected_at"), Value::Int(0.into())),
+                or_default(field(record, "interruption_id"), word("")),
+            );
+            (record, key)
+        })
+        .collect();
+    sort_keyed(&mut keyed)?;
+    Ok(keyed.first().map(|(record, _)| *record))
 }
 
 fn status_end(status: &Value) -> Result<&'static str, Unreadable> {
