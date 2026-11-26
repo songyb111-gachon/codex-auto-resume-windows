@@ -41,7 +41,7 @@ def main(argv=None) -> int:
         tag = reference.TAG
     paths = ["src/codex_auto_resume/" + each for each in READ]
     changed = subprocess.run(["git", "diff", "--stat", BASE, tag, "--", *paths], cwd=ROOT, capture_output=True,
-                             text=True, creationflags=NO_WINDOW)
+                             encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if changed.returncode != 0:
         print(changed.stderr.strip())
         return 2
