@@ -7,8 +7,8 @@ The surfaces the host draws are C#, not Rust, so their diff is comparison A (tes
 car-harness diff: the C# plans against the Python reference's, exactly, over the fixed matrix (rediff_surface.py is
 car-surface's, S6.0's, the decision half). This says, in order: which of the ported Python files - and the ones the
 matrix's view models are made from - differ between the tag and this checkout (`git diff --stat`, so a change is seen
-even where no case reaches it); then runs test_surface_parity and test_surface_windows (the windows' halves, S6.3c) with
-the tag's own package as the reference (its `src`,
+even where no case reaches it); then runs test_surface_parity and test_surface_windows (the windows' halves, S6.3c-f: the
+icon, its menu, MSAA, the live-path proofs) with the tag's own package as the reference (its `src`,
 taken out of git as tests/released.py takes it, first on the path; this checkout's tests/ and build/ for the matrix).
 Exit 0 only when the comparison is exact; a file that changed is printed, not failed on - the comparison decides.
 """
@@ -29,9 +29,12 @@ PORTED = ("ui/popup/layout.py", "ui/popup/words.py", "ui/popup/fonts.py", "ui/po
           "notice_card.py", "brand", "win/typeface.py", "win/textsize.py", "l10n.py", "ui/popup/light.py",
           "ui/popup/gdiplus.py", "ui/popup/elevation.py", "ui/popup/layers.py", "ui/card/surfaces.py",
           "ui/tray/words.py", "ui/words.py", "tray_place.py", "ui/popup/window.py", "ui/popup/messages.py",
-          "ui/popup/hidden.py", "ui/card/stack.py", "ui/card/win32.py")
+          "ui/popup/hidden.py", "ui/card/stack.py", "ui/card/win32.py",
+          # S6.3e/f: the icon, its menu, its motion, its clicks and cards, MSAA (TrayIcon.cs, TrayMenu.cs, SurfaceAccess.cs).
+          "ui/tray/icon.py", "ui/tray/menu.py", "ui/tray/animation.py", "ui/tray/clicks.py", "ui/tray/cards.py",
+          "ui/tray/win32.py", "ui/tray/__init__.py", "ui/popup/access.py")
 # What the matrix's view models are made from.
-INPUTS = ("ui/popup/model.py", "ui/tray/menu.py", "notifier.py", "notify.py", "locales")
+INPUTS = ("ui/popup/model.py", "notifier.py", "notify.py", "locales")
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
