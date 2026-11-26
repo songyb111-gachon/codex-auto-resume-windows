@@ -28,7 +28,8 @@ PORTED = ("ui/popup/layout.py", "ui/popup/words.py", "ui/popup/fonts.py", "ui/po
           "ui/popup/menuwindow.py", "ui/tray/tipplan.py", "ui/tray/motion.py", "ui/tray/tipcard.py", "ui/card/card.py",
           "notice_card.py", "brand", "win/typeface.py", "win/textsize.py", "l10n.py", "ui/popup/light.py",
           "ui/popup/gdiplus.py", "ui/popup/elevation.py", "ui/popup/layers.py", "ui/card/surfaces.py",
-          "ui/tray/words.py", "ui/words.py", "tray_place.py")
+          "ui/tray/words.py", "ui/words.py", "tray_place.py", "ui/popup/window.py", "ui/popup/messages.py",
+          "ui/popup/hidden.py", "ui/card/stack.py", "ui/card/win32.py")
 # What the matrix's view models are made from.
 INPUTS = ("ui/popup/model.py", "ui/tray/menu.py", "notifier.py", "notify.py", "locales")
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)

@@ -2152,3 +2152,63 @@ calls stood in, the C# over a window never shown, the same script, state and dig
 probe mode as the host's own entry - today the probe is the render mode's `*_window` cases - and the class implementing
 `ISurfaces`), step 3 for the popup, menu and card windows, step 4 (BGRA frames; the retargets, not run). Step 5 is done
 for this head (above).
+
+### S6.3 fifth part (seat S6.3d, 2026-11-26): the decided seam, and the popup, menu and card windows
+
+**The contract change (the main session's decision, DECISIONS.md "The popup's model at the host boundary"), done.**
+car-host `abi.rs`: `EventKind::fields` gives `snapshot` `[snapshot, popup]` and `strings` `[strings, locale, letters]`;
+`Event::Snapshot`/`Event::Strings` carry and write them in that order (an abi unit test writes both). `gui/ISurfaces.cs`:
+`ISurfaces.Snapshot(SnapshotEvent)` and `Strings(StringsEvent)`, whose properties `test_host_contract` holds to abi.rs's
+fields (13 tests). Nothing else in the tables moved. `gui/ISurfaces.cs` is now the `[contract]` group of `gui/host.sources`
+(the surfaces post through `IHostActions` and will implement `ISurfaces`); the comparisons compile `[contract]` first.
+
+**The popup field's shape** (what the core must put in `snapshot.popup`; the host draws from it and computes nothing):
+`{"view": PopupModel.view(now), "menus": [[interruption id, PopupModel.menu_for(id)], ...], "read": <the first read is
+done>, "attention": PopupModel.attention()}`. `read` false makes a first opening wait up to 300 ms (FIRST_READ_WAIT_MS) for
+a snapshot whose `read` is true, as `show` waited for its first read. A click posts `popup {call, args}` with `args` the
+action's own fields after its kind (`["recovery", id, thread, enabled]` -> `set_interruption_recovery` with
+`[id, thread, enabled]`; postpone/unpostpone/release/tier/project/unsay alike; the core rebuilds `(kind, *args)` and runs
+`perform` with the popup's own pending source); the Dashboard's two post `open_dashboard {page: "pending", row: null |
+[dialog, id, thread]}`. Until the first snapshot after the core's answer the window shows the action as under way itself
+(begin's busy: a task's `busy`, `toggle_busy`), as the reference's model does from the click to its outcome; the core's
+own `begin` refuses a second one. The `strings` event's locale/letters are the popup's and the menu's; `Start` has the
+catalog but no locale: until the first `strings` event the surfaces use "en" and no letters (a seam: the core sends
+`strings` right after `surfaces`, or the main session adds the two to `surfaces`).
+
+**The notice event's shape** (CardStack.Show): `{"id", "key", "title", "stays", "view": notice_card.view(notice),
+"letters"}`; a button or the card's face posts `notice_action {uri}`, an ended notice `notice_complete {id, shown}`, each on
+a worker thread.
+
+| C# (`[surface]`) | Python ported | Held by |
+|---|---|---|
+| `SurfaceScreen.cs` | every call by which a window reaches the screen (show, place, fade, `UpdateLayeredWindow(Indirect)`, focus, foreground, timers, posts, DWM, region, class style, TrackMouseEvent, GetKeyState): Windows' on a live host; in the probe a record in the reference's words, not made, and the posts queued for the script. `SurfaceLayers.Update`, `CardLayers.Show/Hide` and `CardLayer.Push` go through it | the records below |
+| `PopupWindow.cs` + `PopupMessages.cs` | `ui/popup/window.py` (`Popup`), `messages.py` (`PopupMessages`), `hidden.py`, `layers.py`'s `PopupCard`; model.py's `select_action`, `busy_key`, `action_for`/`menu_for`/`begin` over the drawn view | `popupwindow/` (7 runs) |
+| `MenuWindow.cs` | `ui/popup/menuwindow.py`'s `Menu` (its drawing was `DrawMenu`): open/close/dismiss, fade in/out, keys, letters, pointer, rest timer, submenus; implements the popup's `IRowMenu` | `menuwindow/` (5 runs) |
+| `CardStack.cs` | `ui/card/stack.py` (`CardStack`, implements `ICardHost`) + `ui/card/win32.py`'s `screen`, `look`, `focus_snapshot`, `taskbar_corner`, `focus_line`, `hold` (SPI_GETMESSAGEDURATION) | compiled; **no comparison yet** |
+
+How they are held (`tests/test_surface_windows.py`, now 5 tests, ~30 s, all exact): the reference's `Popup` and `Menu` are
+driven by a script with every user32 call that would make, show, place, fade, upload or time a window answered by a
+stand-in that records it in the same words `SurfaceScreen` records (`layers.update` too), their clocks, threads and the
+look questions fixed; the C# runs the same script over windows made and never shown. The popup's core half is the
+reference's own `PopupModel`: its view after each answer the reference took is handed to the C# as that snapshot (a
+read's result one snapshot, an action's its answer then a snapshot), and the action the reference performed is compared
+with what the C# posted (`popup {call, args}`, `open_dashboard`). After every step: shown, opening alpha and rise, home,
+frame timer, waiting, hover/press/focus, size, painted plan, the picture's digest and the calls in order; the menu's and
+its submenu's likewise, what was chosen and who was told it closed. `popupwindow/` 7 runs x 125 steps, `menuwindow/` 5 runs
+x 63 steps; the popup's live-path proof (step 3) three times a run: its own `Render()` == a fresh renderer's `Draw` of
+the same view, plan and frame == the reference's `render()`; 0 GDI+ objects left. Mutations (each alone, restored, each
+fails): click-away 0.5 -> 0.1 s, the opening's rise xs + 1, the begun action's busy not drawn, WM_POPUP_PAINT pushing when
+nothing is owed, the menu telling its owner it left when the focus went back to it, the menu's fade frame 16 -> 17 ms.
+Found on the way: the snapshot must bring an open popup up to date whatever changed (the reference's read result always
+does), and the posted strings message must not draw the old view in the new words (AUDIT lines).
+
+**Left, in this order:** a comparison for `CardStack` (the reference's stack driven with `windows=False` cards and its
+`worker`/`clock`/`locate`/`appearance`/`focus` given, as its own tests drive it; the C# with `MakeWindows=false`);
+`TrayIcon.cs` (`ui/tray/icon.py`, `win32.py`, `clicks.py`, `cards.py`, `__init__.py`, `animation.py`) and `TrayMenu.cs`
+(`ui/tray/menu.py`: `menu_items`, the drawn menu through `MenuWindow`, Windows' own as the fallback, `_act` posting
+`toggle`/`stop`/`open_dashboard`/`disarm_power`); `SurfaceAccess.cs` (`ui/popup/access.py`: MSAA, then the hooks already
+in place - `TipCard.Accessible`, `PopupWindow.Accessible`/`Speaking`/`Spoken`, `MenuWindow.Accessible`/`Speaking`/
+`Telling`, `SurfaceAccessHooks.Disconnecting`); step 2 (the probe mode as the host's own entry; the class implementing
+`ISurfaces` over TrayIcon, PopupWindow, MenuWindow, TipCard and CardStack); step 3's live-path proof for the menu and card
+windows (the popup's is in `popupwindow/`: its own `Render()` against a fresh renderer's `Draw` of the same view and plan);
+step 4 (BGRA frames; the retargets, not run); step 5 (one `make_gui.ps1` at the end).

@@ -562,7 +562,8 @@ class WindowJob:
         # What is aimed at the reference's plan at the time ("move", "click", "title", "menu row") becomes the message
         # numbers both are sent.
         script = ([["show", False, True], ["pump"]] + [["clock", 0.05], ["timer", frame], ["pump"]] * 6
-                  + [["move", "toggle"], ["pump"], ["clock", 0.05], ["timer", frame], ["pump"], ["leave"], ["pump"],
+                  + [["move", "toggle"], ["timer", frame], ["pump"], ["clock", 0.05], ["timer", frame], ["pump"], ["leave"],
+                     ["pump"],
                      ["click", "check", 0], ["pump"], ["clock", 1.0], ["proof"], ["result"], ["pump"],
                      ["clock", 0.1], ["timer", frame], ["pump"], ["clock", 0.5], ["timer", frame], ["pump"],
                      ["timer", tick], ["timer", tick], ["timer", tick], ["pump"], ["result"], ["pump"],
