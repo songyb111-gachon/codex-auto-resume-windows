@@ -328,6 +328,6 @@ json.dump(out, sys.stdout, ensure_ascii=False)
             for arguments in lists:
                 seen = probe.ask("echo", argv=[sys.executable, "-X", "utf8", "-c", code, *arguments])
                 own = subprocess.run([sys.executable, "-X", "utf8", "-c", code, *arguments], capture_output=True,
-                                     text=True, creationflags=NO_WINDOW).stdout
+                                     encoding="utf-8", errors="replace", creationflags=NO_WINDOW).stdout
                 self.assertEqual(json.loads(seen["stdout"]), json.loads(own), arguments)
                 self.assertEqual(seen["flags"] & 0x08000000, 0x08000000)

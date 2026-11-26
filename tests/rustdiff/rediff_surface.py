@@ -39,7 +39,7 @@ def main(argv=None) -> int:
     for title, files in (("ported", PORTED), ("read", READ)):
         paths = ["src/codex_auto_resume/" + each for each in files]
         changed = subprocess.run(["git", "diff", "--stat", BASE, tag, "--", *paths], cwd=ROOT, capture_output=True,
-                                 text=True, creationflags=NO_WINDOW)
+                                 encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
         if changed.returncode != 0:
             print(changed.stderr.strip())
             return 2

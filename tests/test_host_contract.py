@@ -195,7 +195,7 @@ class BuildTests(unittest.TestCase):
             done = subprocess.run(
                 [str(CSC), "-nologo", "-target:library", "-platform:x64", "-warnaserror",
                  "-out:" + str(Path(folder) / "HostContract.dll"), str(HOST_CORE), str(SURFACES)],
-                capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                capture_output=True, encoding="locale", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
 

@@ -41,7 +41,7 @@ def main(argv=None) -> int:
     parser.add_argument("--reference", required=True, metavar="TAG", help="the tag to hold the port to (v0.6.26)")
     args = parser.parse_args(argv)
     changed = subprocess.run(["git", "-C", str(ROOT), "diff", "--stat", "%s..%s" % (BASE, args.reference), "--", *FILES],
-                             capture_output=True, text=True, creationflags=NO_WINDOW)
+                             capture_output=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if changed.returncode != 0:
         print(changed.stderr)
         return 2

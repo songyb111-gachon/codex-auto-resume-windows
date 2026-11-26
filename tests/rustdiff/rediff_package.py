@@ -52,7 +52,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     tag = args.reference
     changed = subprocess.run(["git", "diff", "--stat", BASE, tag, "--", *FOLLOWED], cwd=ROOT, capture_output=True,
-                             text=True, creationflags=NO_WINDOW)
+                             encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if changed.returncode != 0:
         print(changed.stderr.strip())
         return 2

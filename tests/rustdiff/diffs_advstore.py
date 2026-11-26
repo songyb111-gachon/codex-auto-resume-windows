@@ -77,7 +77,7 @@ class GeneratedDiff(unittest.TestCase):
         # The store's statements are gen_advstore's; the closed words and the registry it reads are S7.1b's (Integration 5).
         for script in ("gen_advstore.py", "gen_advpolicy.py"):
             done = subprocess.run([sys.executable, "-X", "utf8", str(HERE / script), "--check", "--ref", reference.TAG],
-                                  capture_output=True, text=True)
+                                  capture_output=True, encoding="utf-8", errors="replace")
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         RECORD.append("generated: schema_gen.rs (gen_advstore) and the vocabulary and registry tables (gen_advpolicy) "
                       "match %s" % reference.TAG)
@@ -774,7 +774,7 @@ class LedgerDiff(Base):
                     deadline = time.time() + 60
                     while not all(ready.exists() for _process, ready in processes) and time.time() < deadline:
                         time.sleep(0.01)
-                    go.write_text("go")
+                    go.write_text("go", encoding="utf-8")
                     answers = []
                     for process, _ready in processes:
                         out, err = process.communicate(timeout=120)

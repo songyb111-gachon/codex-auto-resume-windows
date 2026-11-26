@@ -43,7 +43,7 @@ def main(argv=None) -> int:
         from rustdiff import reference
         tag = reference.TAG
     changed = subprocess.run(["git", "diff", "--stat", BASE, tag, "--", *PORTED], cwd=ROOT, capture_output=True,
-                             text=True, creationflags=NO_WINDOW)
+                             encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if changed.returncode != 0:
         print(changed.stderr.strip())
         return 2
