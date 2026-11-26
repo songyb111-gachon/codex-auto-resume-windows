@@ -1954,3 +1954,84 @@ bash advanced/rust/tools/check_rebuild.sh            rc=0, all 8 binaries the sa
 cargo build --locked --release -p car-host, then CAR_CORE_DLL=<target/release/car_core.dll> cargo test -p car-host --test abi_exports
                                                      2 passed: the release DLL exports the same six
 ```
+
+## P6 seat S6.3: the surfaces the C# host draws, their plans (branch `car-v0627-s63`, 2026-11-26)
+
+Cut from `car-v0627-p6abi` `b1761926b` (Integration 7 + P6 step 0). `outputs/plans/v0627-rust/P6-DESIGN.md` 2.3 (the module map),
+3 (the proofs) and 4.1 row 1c, under the owner's Q1 (C# owns layout, motion, stack, shadow and corner), Q8 (the same flat GDI+/GDI
+calls) and Q9 (pictures byte for byte). No Rust changed. No window was shown, nothing was drawn on the screen or captured, no picture
+was made; `gui/window.sources`, every file it lists and `build/make_gui.ps1` are byte-identical to `b1761926b`, so the window both
+editions build is the one the base built. Nothing was pushed.
+
+### What is here: every pure half of the surfaces, ported call for call and held exact
+
+| C# (`gui/host.sources` `[surface]`) | Python ported | State |
+|---|---|---|
+| `SurfaceJson.cs` | `gui/WindowJson.cs`'s `Json`, byte for byte (the window's file needs Windows Forms) | held equal by test |
+| `SurfaceNative.cs` | `ui/popup/win32.py` (+ the tray's and the card's few calls): the declarations, the structures, the scoped Per-Monitor-v2 context, `screen_at`, `gui_resources`, `icon_rect`, `_icon_from_pixels` | compiled |
+| `PopupWords.cs` | `ui/popup/words.py`'s drawing half: `say`, `one_line`, `unbroken`, by code point and on Python's spaces | via the plans |
+| `SurfaceFonts.cs` | `ui/popup/fonts.py`, `win/typeface.py`'s `ui_face`/`lacks`/`face_for`/`letters`, `Renderer.lines`/`measure`, `TipRenderer.metrics`/`ink`; `ITextCalc` (GDI or a job's table) | via the plans |
+| `SurfaceTheme.cs` | `ui/popup/theme.py`, `win/textsize.py`, `brand/colour.py`'s `mix`/`luminance`, `palette(theme, design)[token]` | via the paint |
+| `PopupLayout.cs` | `ui/popup/layout.py` (`layout`, `mirror`, `share_columns`), `brand.day_band`, `glow_extent`; `SurfacePlan`/`PlanItem`/`SurfaceTarget`; `SurfaceMath` (floored `//`, round half even, the C runtime's `cos sin pow atan2 sqrt`) | exact |
+| `PopupPlace.cs`, `PopupMotion.cs` | `ui/popup/placement.py`; `ui/popup/motion.py` (+ `brand.glow`/`glow_phase`) | exact |
+| `MenuPlan.cs`, `TipPlan.cs`, `CardPlan.cs` | `ui/popup/menuplan.py`; `ui/tray/tipplan.py` + `TipRenderer.tip_layout`; `notice_card.py`'s drawing half (Q1: layout, motion, `CardMotion`, stack, float shadows) + `Card.fitting` | exact |
+| `TrayMotion.cs` | `ui/tray/motion.py` + `brand/mark.py`'s rasteriser (`math.hypot` as CPython computes it) | exact, pixels by digest |
+| `SurfaceRenderer.cs` | `Renderer`'s look half: `_theme _design _depth smoothing _radii _corner _control_radius _rgb _argb _colorref face_colours _lifted` | exact (paint) |
+| `SurfaceRender.cs` | P6-DESIGN 3.2's render mode: `CODEX_AR_RENDER_PLAN` names a job, `CODEX_AR_RENDER_OUT` the answer; cases `popup menu tip card card_room card_life place popup_motion icon paint` | the harness |
+
+### Comparison A (`tests/test_surface_parity.py`, standard lane, in-box csc; 12 tests, ~5 s)
+
+The reference lays out every case through a stand-in for `DrawTextW(DT_CALCRECT)` (and the tip's `GetTextMetricsW`/`GetGlyphOutlineW`)
+that answers by arithmetic; every question and answer goes into the job's table, and the C# answers from that table only (a question
+it has no answer for is an error). So fonts drop out and CI can run it. The C# is compiled with a two-line driver and run once as a
+console program with `CREATE_NO_WINDOW`. Cases: popup 4 scales x en/ko/ja/de/ar x 6 views (120); menu 3 lists (60, with places,
+submenu places, steps, Home/End, letters, MSAA children); tip 6 snapshots (120, two special days, chip and meter); card 6 views (120)
++ shadows/stack/text size + 5 lives replayed; placement 720 places, hits, focus; popup motion 16 moments x 9 states x 3 designs;
+icon 6 states x 2 fines x reduce x 17 moments, colours, frames at 16/20/24/32 px; paint: the popup, card, tip and menu plans at 150 %
+and 200 % in en/ko/ar in light/dark x Soft/Classic/Plain x High Contrast off/on (a fixed system-colour table). **All exact.**
+
+* **Found on the way**: .NET Framework's `Math.Cos`/`Math.Pow` are not the C runtime's, which Python's `math` calls: a light frame came
+  out one place off (attention at 2200 ms). `SurfaceMath` calls `ucrtbase.dll`'s. `gui/Brand.cs`'s generated `Glow` and `Mark` (the
+  window's light and taskbar button) use .NET's and are left as they are (AUDIT line).
+* **Mutation checks** (each alone, restored): `SwitchGap` 10->11 (popup), `MenuCheck` 24->25 (menu), `TipPadY` 13->14 (tip), `SwapMs`
+  130->131 (card life), `GlideFrameMs` 31->30 (icon), hover's edge `accent_hover`->`accent` (paint), the nearest-edge tie `<`->`<=`
+  (placement), floored `//` -> truncated (placement; the first run missed it, so the cases gained an anchor left of the primary
+  monitor), `round(x, 4)` away from zero (shadows), a single letter match not chosen (menu keys): each fails its test.
+* **Re-diff**: `python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26` (the ported files that differ from the tag -
+  only `ui/popup/model.py`, the view model's input - then comparison A with the tag's own package as the reference): exact.
+
+### What S6.3 has not done yet (the rest of 2.3)
+
+* **The drawing**: `SurfaceGdip.cs` (`ui/popup/gdiplus.py`), `SurfaceElevation.cs`, `SurfaceLight.cs`, and `SurfaceRenderer.cs`'s
+  drawing half (`_ground`, lifts, wells, switches, meter, buttons, scene, text, halo). Until then the render mode writes plans and their
+  paint, no pixels, and `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions are **not** retargeted
+  (there is no pixel to retarget them to); comparisons B and C wait for it.
+* **The windows and `ISurfaces`**: `PopupWindow.cs`/`PopupMessages.cs` (`layers window messages hidden`), `MenuWindow.cs`, `TrayIcon.cs`
+  (`icon win32 clicks cards __init__`), `TrayMenu.cs`, `TipCard.cs`, `TrayWords.cs`, `TrayPlace.cs`, `CardWindow.cs`/`CardStack.cs`
+  (with the card's corner: `corner_coverage`/`premultiply`, which need `brand/shape.py`), `SurfaceAccess.cs` (MSAA), the probe mode
+  (`--probe <job>`), and the class that implements `ISurfaces` over them. No `ISurfaces` is implemented: a `Start` that posted
+  `tray_started` with no icon would tell the core a lie.
+* **A special day's motif on the icon's badge** (`brand.mark_colour`, `IconFrames(look=...)`): `IconFrames` refuses a look.
+* **The ledger rows** (`tests/rustdiff/surface_ledger.json`, P6-DESIGN 3.4) are S6.4's file (Q5 a); every *drawn* row whose plan
+  half is here is now held by comparison A, the pixel half by nothing yet.
+
+### Seams for the next seats
+
+* **S6.2b (the host shell)**: the host's `Main` asks `SurfaceRender.Run()` first (`int?`: null when no job is named, else the exit
+  code) and loads no DLL when it answers. `gui/host.sources` exists with `[surface]` and `[generated]`; `[host]` goes above
+  `[surface]`. `[shape]` is not in it: `gui/SoftShape.cs` reads the window's `Palette` and `Design` (`Shape.Smoothing`) and does not
+  compile without the window - a decision for the main session (split `Smoothing` out, or the host's own port of `brand/shape.py`).
+  The host's JSON is `gui/SurfaceJson.cs` (`Json`, the window's byte for byte); `HostCore`'s replies can use it.
+* **The core (S6.1/S6.2b)**: the surfaces draw from the reference's view models (`popup_view`, `notice_card.view`,
+  `tooltip_parts`, `menu_items`/`row_menu`) as `Json.Parse` gives them. The event table carries a `snapshot`, not the popup's view: the
+  core must hand the host the popup's view model (car-surface's `PopupModel.view`) and the strings' locale (the host has no
+  `locale_of`), and English for `say`'s fallback (`PopupWords.English`). Named here, not decided: the tables are the main session's.
+* **S6.4 (the UI tests)**: comparison A's job format (`car-surface-job/1`) and `TableTextCalc` are how a *drawn* row is rewritten
+  against the render mode; `test_surface_parity.StandIn` records any reference measure into a table.
+
+### Checks
+
+```
+test_surface_parity (12) + the guards (wait_quiet.sh, one run): see the seat's return
+python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26     exact
+```
