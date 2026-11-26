@@ -245,7 +245,8 @@ fn install_home() -> Option<PathBuf> {
 /// Without `-Handover` nothing is run (the window that would ask first is P6's).
 pub fn setup_main(edition: &str, words: &[String]) -> i32 {
     std::panic::set_hook(Box::new(|_| {}));
-    std::panic::catch_unwind(|| car_machine::stack::run_deep(|| setup(edition, words)))
+    let (edition, words) = (edition.to_owned(), words.to_vec());
+    std::panic::catch_unwind(|| car_machine::stack::run_deep(move || setup(&edition, &words)))
         .unwrap_or(FAILED)
 }
 

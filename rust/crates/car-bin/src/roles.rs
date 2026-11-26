@@ -239,8 +239,9 @@ pub fn system_machine() -> Machine {
 /// `main()`: this process's arguments and streams; the exit code. Panics end as an uncaught exception does (D15).
 pub fn main_with(extra: &[Role]) -> i32 {
     // A thread with the stack for a deeply nested document (car_machine::stack); a panic ends as it did on this one.
+    let extra = extra.to_vec();
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        car_machine::stack::run_deep(|| main_on_this_thread(extra))
+        car_machine::stack::run_deep(move || main_on_this_thread(&extra))
     }))
     .unwrap_or(1)
 }

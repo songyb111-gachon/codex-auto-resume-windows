@@ -13,34 +13,15 @@ use std::thread::JoinHandle;
 /// The stack of a thread that holds parsed documents: 64 MiB, twenty times the deepest value's drop.
 pub const DEEP_STACK_BYTES: usize = 64 * 1024 * 1024;
 
-/// `body` on a thread of [`DEEP_STACK_BYTES`], waited for; its result, or its panic raised again here. Where the thread
-/// cannot be made, `body` runs on this one.
-pub fn run_deep<R: Send>(body: impl FnOnce() -> R + Send) -> R {
-    let cell = Mutex::new(Some(body));
-    let run = || {
-        let body = cell.lock().ok().and_then(|mut held| held.take());
-        body.map(|body| body())
-    };
-    let outcome = std::thread::scope(|scope| {
-        match std::thread::Builder::new()
-            .name("deep-stack".into())
-            .stack_size(DEEP_STACK_BYTES)
-            .spawn_scoped(scope, run)
-        {
-            Ok(handle) => handle.join(),
-            Err(_) => Ok(None),
-        }
-    });
-    match outcome {
-        Ok(Some(answer)) => answer,
-        Ok(None) => {
-            // No thread was made, so the body is still held. (No `expect` here: a panic location is a path string, and
-            // the edition rebuild check scans the standard binaries for the builder's profile path.)
-            let Some(body) = cell.lock().ok().and_then(|mut held| held.take()) else {
-                std::process::abort()
-            };
-            body()
-        }
+/// `body` on a thread of [`DEEP_STACK_BYTES`], waited for; its result, or its panic raised again here. Where that thread
+/// cannot be made, one of the ordinary size runs it (see [`spawn_deep`]).
+///
+/// `body` is `'static` and so is its answer: `std::thread::scope` would take a borrowing body, but it is `#[track_caller]`,
+/// and a panic location is an absolute source path that the advanced workspace's build does not remap for a crate outside
+/// its folder (the edition rebuild check scans the standard binaries for the builder's profile path).
+pub fn run_deep<R: Send + 'static>(body: impl FnOnce() -> R + Send + 'static) -> R {
+    match spawn_deep(body).join() {
+        Ok(answer) => answer,
         Err(panic) => std::panic::resume_unwind(panic),
     }
 }
