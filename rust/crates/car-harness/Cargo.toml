@@ -59,5 +59,7 @@ car-control = { path = "../car-control" }
 car-surface = { path = "../car-surface" }
 # S5.2: car-core-stub runs codex-auto-resume.exe's roles and command line (car-bin) for the CODEX_AR_CORE=rust shim.
 car-bin = { path = "../car-bin" }
+# S6.1: car-watcher's loop over a scripted world and its pieces (src/watcher.rs: `watcher.loop`, `watcher.batch`).
+car-watcher = { path = "../car-watcher" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

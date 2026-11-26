@@ -70,8 +70,9 @@ STANDARD = {
     # S5.1a: it runs car-control's bridge over a scratch home (src/bridge.rs: `bridge.run`);
     # S6.0: it runs car-surface's models and decisions (src/surface.rs: `surface.batch`);
     # S5.2: car-core-stub (the CODEX_AR_CORE=rust shim's program) runs car-bin's roles and command line.
+    # S6.1: it runs car-watcher's loop over a scripted world and its pieces (src/watcher.rs: `watcher.loop`, `watcher.batch`).
     "car-harness": {"car-bin", "car-brand", "car-codex", "car-config", "car-control", "car-engine", "car-machine",
-                    "car-platform", "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
+                    "car-platform", "car-policy", "car-scheduler", "car-store", "car-surface", "car-watcher", "car-words"},
 }
 # The advanced workspace: its three crates, and for car-adv every library of the standard one, the superset the
 # alpha's single advanced crate may reach through the plug; the S7 seats trim it to what is used.

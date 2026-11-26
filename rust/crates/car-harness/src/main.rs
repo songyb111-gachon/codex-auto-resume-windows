@@ -82,6 +82,18 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
                 _ => rejected("cases are required", "request_failed"),
             }
         }
+        // S6.1: car-watcher's loop over a scripted world (src/watcher.rs).
+        (Some("watcher.loop"), _) => ok("value", car_harness::watcher::run_loop(&whole())),
+        (Some("watcher.launcher"), _) => ok("value", car_harness::watcher::launcher(&whole())),
+        (Some("watcher.batch"), _) => {
+            match request.get("cases").and_then(|_| leaves::read(request)) {
+                Some(Value::Object(parsed)) => ok(
+                    "value",
+                    leaves::tag(car_harness::watcher::batch(&parsed["cases"])),
+                ),
+                _ => rejected("cases are required", "request_failed"),
+            }
+        }
         (Some("codex.script"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {
             Some(Value::Object(parsed)) => ok(
