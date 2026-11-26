@@ -2775,3 +2775,103 @@ python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 sta
 bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+## Seat S7.2e2: time, fleet and the weekly look (branch `car-v0627-s72e2`, 2026-11-27)
+
+From `car-v0627-s72a` `8e6362cbf` (Integration 8 + P6 contracts + S7.2a/S7.2a2). Reference: the v0.6.26 final
+(`tests/rustdiff/advref.py`, the tag's advanced edition on `sys.executable`). P7-DESIGN S7.2e2's row, 2.2, 3, 4, 7.
+
+### Ported (module -> crate)
+
+| Python (`advanced/src/codex_auto_resume_advanced/engine/`) | car-adv |
+|---|---|
+| `supervise.py` (crash_restart, P13: SUPERVISE, RESTART, CAP in the HOUR, the stop flag waited on, `restart_gave_up`, `view`) | `engine::supervise` (`CrashRestart`, `Flag` over `win::stopflag::StopFlag`, `view`) - and `Bound`, what every S7.2e2 code is bound to: the runtime's `Binding`, or a harness's own `Scoped` (`Direct`) |
+| `powertasks.py` (power_after_tasks, P21: the list file, `valid`/`read`/`write`/`remove`, `end_of`, `judge`, `PowerAfterTasks`) | `engine::powertasks` (`TurnHistory` over `codex::turns::Turns`; core's records through car-store's `Store::all_records`; the named lock car-platform `sync::Mutex`) |
+| `wake.py` (wake_for_reset, P8: `earliest`, `apply`, `_windows_allows`, the watch) | `engine::wake` (`WakeForReset`, `Timer` over `win::waketimer::WakeTimer`) |
+| `analytics.py` (usage_analytics, P8: the pass over rollouts, `pace`, `route`) | `engine::analytics` (`UsageAnalytics` over `codex::tokens`, `ProjectSource` over car-codex `LocalSource`) |
+| `updatecheck.py` (idle_update_check, P8: `offer`, `said`, `english`, `encode`/`decode`, `run_check`, the kept offer) | `engine::updatecheck` (`IdleUpdateCheck`; `run_check` over car-platform `pwsh::executable` + `spawn::SystemStarter`; `communicate`, shared with the anchor) |
+| `fleet.py` (fleet_view, P8: `clean`, `document`, `shown`, `folder_problem`, `write`, `read_peers`, the seen file, the bounded pass, `bounded` is the Dashboard's and not ported) | `engine::fleet` (`FleetView`, `Worker`, the file calls; statusfile through car-policy `settings::statusfile`) |
+| `anchor.py` (window_anchor, P8: every pure function, `declared_servers` over tomllib, the request, `WindowAnchor`, `view`) | `engine::anchor` (`WindowAnchor`, `RequestBackend` over car-codex `transport::Backend`, `UsageSession`; `anchor::toml` - tomllib's TOML 1.0, written here: no crate in the locks reads TOML and no seat adds one) |
+
+No new dependency, no `mod.rs`/`lib.rs`/`Cargo.toml` touched. Nothing real is armed in a test: the stop flag and the wake
+timer are made over car-platform `wake`'s `System*` only by the product's `make`, lazily, as the reference makes them;
+every diff hands its own.
+
+### Seams left (the product's `make` names a default for each)
+
+* crash_restart `notify` (`gave_up_notice`: `config.load_settings`, `settings.notification_enabled`, `notifier.build` /
+  `deliver`): `no_notice` (not shown) until S6.1/S7.3d hand core's notifier.
+* idle_update_check `installed` (`config.version()`) and `log` (core's logbook): None and not written until the entry
+  points hand them; `managed` reads car-platform's policy places as an installed copy does.
+* fleet_view `status` (`_status_now`: core's store, settings and version through `statusfile.content`): `no_status`
+  (every pass HELD) until the entry points hand it; `guarded` is `guarded_homes` (the home, `inuse.home`, `codex_home`).
+* window_anchor `session` (`protocol.Session` entered), `backend` (`inuse.backend` over the live `Discovery`) and `log`:
+  none until S7.3d (no read: every occasion held `unreadable`; `told` is `inuse.told`).
+* wake_for_reset and window_anchor's watch/wait threads: `thread_start`/`thread_begin`; fleet's `thread_spawn`.
+* `bounded(call, bound)` (fleet.py) is the Dashboard's save (control/fleet, S7.3a): not ported here.
+
+### The proof (`tests/rustdiff/advtime.py` + `diffs_advtime_{supervise,power,wake,analytics,update,fleet,anchor,anchor_code}.py`; example `advtime`)
+
+One request of cases answered by the tag's own classes (the reference script in `advtime.py`) and by car-adv's example
+`advtime`; capability cases bind the code to a real `AdvancedState` on a scratch home through `state.scoped(...)`
+(Rust: `Bound::Direct`), every seam a scripted stand-in that logs its calls, and the harness compares every answer,
+every call in order, every row of advanced.sqlite (dumped by the harness) and every file a case names, byte for byte
+(`Scene`: the same folders, seeded again between the sides; `first_difference` names where two answers part).
+
+All against the v0.6.26 tag, 19 tests, every one OK (scratchpad logs `car-v0627-s72e2-d1..d7.log`):
+
+```
+diffs_advtime_supervise    2 OK: 406 walks of P13 facts (start, ended with every exit code and `clean`, garbage), flag
+                           scripts (hold/signalled/wait answers and raises), restart rows in and out of the HOUR, the notice;
+                           47 `view`s over every shape of unsupervised.txt
+diffs_advtime_power        5 OK: `valid` over ~1,100 documents and mutants; `read`/`write`/`remove` (~95: BOM, not UTF-8,
+                           too large, deep, a folder, the bytes left); `end_of` over 900 generated chains; `judge` 401; P21 300
+diffs_advtime_wake         1 OK: 503 walks (rules, meter pauses, anchor stamps, lead, timer set/cancel/allowed and raises,
+                           the watch's looks past STALE, ASK_EVERY, turned off, window_anchor armed and not)
+diffs_advtime_analytics    2 OK: 250 walks over generated rollouts (pinned mtimes, PASS_SECONDS cuts, MTOK failed, project
+                           keys short/none/raising); 505 `pace`/`route`
+diffs_advtime_update       2 OK: 400 walks (offers kept, dropped by the version installed or put away, LOOK_EVERY, WEEK,
+                           the administrator's switch, a start that raises, a check never run); ~1,250 `offer`/`said`/
+                           `english`/`encode`/`decode`
+diffs_advtime_fleet        3 OK: ~300 pure and file cases (clean/document/shown/within/folder_problem/write/read_peers/
+                           remove_old_name/seen), a junction; 300 walks (LATE past BOUND, held passes, wordings, NOT_OURS)
+diffs_advtime_anchor       1 OK: ~1,450 pure cases under the process's zone, JST-9 and EST5EDT (summer-time changes)
+diffs_advtime_anchor_code  3 OK: 941 config.toml documents (tomllib's every acceptance and refusal), 237 walks of the
+                           capability with 12 whole request paths (a real child of the test's own, its argv compared), 6 views
+```
+
+The first runs differed three times: once in the port (`powertasks::cut_off` took the earliest by a scan, where the
+reference's sort raises TypeError on keys that cannot be ordered - fixed in `5a92ed130` by replaying CPython's sort), and
+twice in the harness (the wake timer stand-in forgot its time before its raise; the junction case's expectation).
+
+### Mutation checks (scratchpad `car-v0627-s72e2-mutate.py`: each alone, `advtime` rebuilt, its diff run, restored)
+
+`CAP` 3 -> 4 (SuperviseDiff), a failed task always counted (PowerTasksDiff.test_judge), the lead a person chose ignored
+(WakeDiff), PASS_SECONDS 2 -> 3 (AnalyticsDiff), a pre-release offered on `current` only (UpdateCheckDiff.test_pure),
+QUIET two passes instead of three (FleetPureDiff), STEADY_GAP 20 -> 10 (AnchorPureDiff), a repeated TOML key accepted
+(AnchorTomlDiff): **8 of 8 caught**, none survived.
+
+### For later seats
+
+* S7.2a / S7.3d: each capability's `make` is in place; hand the seams above where the entry points have the world.
+  `supervise::view`, `anchor::view` take what the runtime knows (armed, the stamps) - S7.3a's surfaces call them.
+* S7.3a: `fleet::{read_seen, waiting_word, shown, clean, alias_valid, folder_problem, remove_old_name}`,
+  `updatecheck::IdleUpdateCheck::offered`, `analytics::{pace, route}`, `powertasks::{read, write, remove}` are the
+  control side's.
+* The proxy (S7.2a3): `tests/rustdiff/advledger_s72e2.py` lists the 24 advanced test files these modules unlock and what
+  each waits for; the classes' seams are the constructors' keyword arguments, one for one.
+* The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72e2.py --reference v0.6.26`.
+
+### Gates (`CARGO_BUILD_JOBS=4`, `. tools/rustflags.sh` first; rustc 1.100.0; code at `03ab637c4`)
+
+```
+## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after 03ab637c4); test --locked
+                   --no-fail-fast rc=0; cargo deny --locked check: all four ok
+## rust            fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0 (73 results, all ok); cargo deny: ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, the standard binaries the same with and without advanced/;
+                                                     profile-path scan: none in any .exe, .dll or .pdb
+after the clippy fix, its paths re-diffed            wake, anchor pure, anchor code (3), update (2): Ran 7, OK
+privacy_scan.py on every file added                  clean
+Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
+```
