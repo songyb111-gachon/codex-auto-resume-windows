@@ -918,11 +918,12 @@ class SurfaceJob:
 
     def bidi(self):
         """l10n.first_strong over a code point of every 173 (no surrogate: the job is UTF-8), each after digits and
-        spaces, and a few texts of the plans' own."""
-        from codex_auto_resume import l10n
+        spaces, and a few texts of the plans' own - as the product's bundled Python (Unicode 16.0.0) answers it, not
+        this interpreter: the host's table is that Python's."""
+        import surfacebidi
         texts = ["", "123 - 4", "abc", "مرحبا", "12 א", " (𝐀)", "𐠀x", "‏‎a"]
         texts += ["1 " + chr(point) for point in range(0, 0x110000, 173) if not 0xD800 <= point <= 0xDFFF]
-        self.add("bidi/all", {"surface": "bidi", "texts": texts}, [l10n.first_strong(text) for text in texts])
+        self.add("bidi/all", {"surface": "bidi", "texts": texts}, surfacebidi.first_strong(texts))
 
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
@@ -1086,13 +1087,12 @@ class SurfaceParityTests(unittest.TestCase):
 
 
 class SurfaceSourceTests(unittest.TestCase):
-    def test_the_hosts_direction_table_is_the_one_python_writes(self):
-        import unicodedata
+    def test_the_hosts_direction_table_is_the_one_the_bundled_python_writes(self):
         import surfacebidi
         written = (ROOT / "gui" / "SurfaceBidi.cs").read_text(encoding="utf-8")
-        if unicodedata.unidata_version not in written:
-            self.skipTest("this Python's Unicode (%s) is not the table's" % unicodedata.unidata_version)
-        self.assertEqual(written, surfacebidi.source(), "run `python -X utf8 tests/surfacebidi.py`")
+        self.assertEqual(surfacebidi.stamp(written), surfacebidi.UNICODE)
+        done = surfacebidi.run(["--check"])
+        self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
 
     def test_the_hosts_json_is_the_windows_json_byte_for_byte(self):
         def body(path):
