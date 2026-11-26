@@ -14,6 +14,8 @@ whether it pools), ["resume", record, thread, still_unloaded] (the route P16 nam
 true | false | "raise" | null). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused, "no"
 Codex's own refusal of that method (RefusedByCodex). A goal is a status or {goal_id, status}; for goal_continuation a list of
 them is read one after another (the last again).
+steer_send's seam (S7.2e1b): `steer` {write: word | "raise", status/started/holders/held: {thread: ...}};
+["steer_add", thread, words, client_id] asks for one as the Dashboard does.
 open_to_send's PC (S7.2e1b): `pc` {idle: seconds | null, handler: bool, running: bool | null, link: bool | "raise",
 holds: {thread: bool | null}}; core's records the view hands `records_in` are `scenario["core_records"]`.
 The continuation family's looks (S7.2e1b): `recent` [thread, ...] | "raise"; `between` {thread: n | "raise"}; `plans`
@@ -178,7 +180,7 @@ class World:
         "compact_continue": "compact", "model_fallback": "fallback", "codex_retry_settings": "retries",
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
         "marker_free_continuation": "markerfree", "goal_continuation": "goal", "queue_for_open": "foropen",
-        "open_to_send": "opentarget",
+        "open_to_send": "opentarget", "steer_send": "steer",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -240,6 +242,39 @@ class World:
                 return module.GoalContinuation(paths, session=lambda: self.open(capability), home="fake-codex-home",
                                                view=lambda: globals()["view"], measured=lambda: globals()["measured"],
                                                clock=lambda: self.clock[0])
+            if capability == "steer_send":
+                world = self
+
+                def seam(name, thread):
+                    return (world.seams.get("steer", {}).get(name) or {}).get(thread)
+
+                def write(thread, words, message=None, gate=None):
+                    world.note("steer", "write", thread, words, message)
+                    found = world.seams.get("steer", {}).get("write")
+                    if found == "raise":
+                        raise RuntimeError("raised")
+                    return found if isinstance(found, str) else "steered"
+
+                def status(home, thread):
+                    world.note("steer", "status", thread)
+                    found = seam("status", thread)
+                    return found if isinstance(found, str) else None
+
+                def started(home, thread):
+                    world.note("steer", "started", thread)
+                    return seam("started", thread)
+
+                def holders(home, thread):
+                    world.note("steer", "holders", thread)
+                    found = seam("holders", thread)
+                    return found if type(found) is int else None
+
+                def held(paths, thread):
+                    world.note("steer", "held", thread)
+                    return seam("held", thread) is True
+                module.latest_started = started
+                return module.SteerSend(paths, steer=write, status=status, count_holders=holders, app_holds=held,
+                                        home="fake-codex-home")
             if capability == "open_to_send":
                 world = self
 
@@ -327,6 +362,8 @@ class World:
             return norm(channel.send(args[1], args[2], client_id=args[3]))
         if op == "override":
             return runtime.state.add_override(args[0], args[1], args[2])
+        if op == "steer_add":
+            return runtime.state.add_steer(args[0], args[1], args[2])
         if op == "keep":
             return runtime.state.set_keep_going(args[0], args[1])
         if op == "kept_used":

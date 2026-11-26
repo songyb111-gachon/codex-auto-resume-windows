@@ -16,6 +16,7 @@ use car_adv::engine::emptyreply::{LookWorld, Looks, Unreadable as LookUnreadable
 use car_adv::engine::goal::{GoalSeen, GoalWorld, m2b_passed};
 use car_adv::engine::headless::{Follows, RunWorld, TurnsReader, Unreadable};
 use car_adv::engine::opentarget::OpenWorld;
+use car_adv::engine::steer::SteerWorld;
 use car_adv::registry::CapabilityDef;
 use car_adv::statement::Catalogs;
 use car_adv::vocabulary::RunEnd;
@@ -523,6 +524,58 @@ impl World {
         }
     }
 
+    /// steer_send's world: the scenario's `steer` seam (write, status, started, holders, held), each look noted.
+    pub fn steer_world(&self) -> SteerWorld {
+        let (write, status, started, holders, held) = (
+            self.0.clone(),
+            self.0.clone(),
+            self.0.clone(),
+            self.0.clone(),
+            self.0.clone(),
+        );
+        SteerWorld {
+            steer: Arc::new(
+                move |thread: &Value, words: &Value, client: &Value, _guards| {
+                    write.note(vec![
+                        text("steer"),
+                        text("write"),
+                        thread.clone(),
+                        words.clone(),
+                        client.clone(),
+                    ]);
+                    match get(&write.seam("steer"), "write") {
+                        found if is_raise(found) => Err(()),
+                        Value::Str(word) => Ok(word.as_str().unwrap_or_default().to_owned()),
+                        _ => Ok("steered".to_owned()),
+                    }
+                },
+            ),
+            status: Arc::new(move |thread: &Value| {
+                status.note(vec![text("steer"), text("status"), thread.clone()]);
+                of_thread(get(&status.seam("steer"), "status"), thread)
+                    .and_then(|found| found.as_text().map(str::to_owned))
+            }),
+            started: Arc::new(move |thread: &Value| {
+                started.note(vec![text("steer"), text("started"), thread.clone()]);
+                of_thread(get(&started.seam("steer"), "started"), thread).unwrap_or(Value::Null)
+            }),
+            holders: Arc::new(move |thread: &Value| {
+                holders.note(vec![text("steer"), text("holders"), thread.clone()]);
+                match of_thread(get(&holders.seam("steer"), "holders"), thread) {
+                    Some(Value::Int(count)) => count.as_i64(),
+                    _ => None,
+                }
+            }),
+            app_holds: Arc::new(move |thread: &Value| {
+                held.note(vec![text("steer"), text("held"), thread.clone()]);
+                matches!(
+                    of_thread(get(&held.seam("steer"), "held"), thread),
+                    Some(Value::Bool(true))
+                )
+            }),
+        }
+    }
+
     /// open_to_send's world: the scenario's PC (`pc`: idle, handler, running, link, holds), each look noted.
     pub fn open_world(&self) -> OpenWorld {
         let (idle, handler, running, link, holds) = (
@@ -580,6 +633,7 @@ impl World {
             "goal_continuation" => engine::goal::make_with(paths, self.goal_world()),
             "queue_for_open" => engine::foropen::make_with(paths, self.goal_world().goal),
             "open_to_send" => engine::opentarget::make_with(paths, self.open_world()),
+            "steer_send" => engine::steer::make_with(paths, self.steer_world()),
             "marker_free_continuation" => {
                 engine::markerfree::make_with(paths, Arc::new(Mutex::new(self.opener())))
             }
@@ -662,6 +716,12 @@ impl World {
                 state
                     .add_override(&arg(0), &arg(1), &arg(2), &Value::Null)
                     .map(Value::Bool)
+                    .map_err(|error| error.class().to_owned()),
+            ),
+            "steer_add" => Some(
+                state
+                    .add_steer(&arg(0), &arg(1), &arg(2), &Value::Null, &Value::Null)
+                    .map(Value::from)
                     .map_err(|error| error.class().to_owned()),
             ),
             "keep" => Some(

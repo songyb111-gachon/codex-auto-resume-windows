@@ -411,9 +411,47 @@ def open_target_corpus() -> list:
     ]
 
 
+STEER = "steer_send"
+
+
+def steer_corpus() -> list:
+    ready = [thread(number) for number in range(91, 100)]
+    running = {each: "inProgress" for each in ready}
+    started = {each: int(NOW) - 50 for each in ready}
+    holders = {each: 1 for each in ready}
+    held = {each: True for each in ready}
+    seam = {"status": dict(running, **{ready[2]: "completed"}),
+            "started": dict(started, **{ready[3]: int(NOW) + 5, ready[4]: None, ready[5]: float(NOW) - 50}),
+            "holders": dict(holders, **{ready[6]: 0, ready[7]: None}), "held": dict(held, **{ready[8]: False})}
+
+    def add(number, words="Also check the tests.", client="0a1b2c3d-0004-4000-8000-%012d"):
+        return ["steer_add", thread(number), words, client % number]
+    return [
+        scenario("steer_each_refusal_and_one_write", [STEER],
+                 [arm(STEER), ["tick"]] + [add(number) for number in range(90, 100)] + [["tick"], ["run"], ["tick"]],
+                 enabled={thread(91): False},
+                 seams={"steer": dict(seam, status=dict(seam["status"], **{thread(90): "inProgress"}),
+                                      started=dict(seam["started"], **{thread(90): int(NOW) - 50}),
+                                      holders=dict(seam["holders"], **{thread(90): 2}),
+                                      held=dict(seam["held"], **{thread(90): True}))}),
+        scenario("steer_expired_and_turned_off", [STEER],
+                 [add(90), arm(STEER), ["clock", NOW + 121], ["tick"], ["run"], add(91),
+                  arm(STEER, "off"), ["tick"], ["run"]],
+                 seams={"steer": {"status": {thread(91): "inProgress"}}}),
+        scenario("steer_pipe_words", [STEER],
+                 [arm(STEER)] + [step for word in ("unconfirmed", "held", "no_pipe", "no_client", "refused",
+                                                   "version_mismatch", "raise")
+                                 for step in (["seam", "steer", {"write": word, "status": {thread(90): "inProgress"},
+                                                                 "started": {thread(90): int(NOW) - 50},
+                                                                 "holders": {thread(90): 1},
+                                                                 "held": {thread(90): True}}],
+                                              add(90), ["tick"], ["run"])]),
+    ]
+
+
 def corpus() -> list:
     return (empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
-            + for_open_corpus() + open_target_corpus())
+            + for_open_corpus() + open_target_corpus() + steer_corpus())
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):
