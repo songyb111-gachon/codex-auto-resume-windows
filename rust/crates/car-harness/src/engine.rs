@@ -403,6 +403,13 @@ impl Backend for AskBackend {
         // write lock, so a launch never uses consent withdrawn a moment before). The stand-in is asked while car-store's
         // write lock is held, told what the guard found, and refuses as SimBackend refuses. A product backend does the
         // same: its launch inside `enter`'s body, never after it.
+        // The stand-in writes the send down where it is called, before its guard is entered, as the reference's
+        // recording backend does: a guard that asks the plug's ledger (a record's `record_guard`, seat S7.2a2) puts
+        // that question after the send in both traces.
+        ask(
+            "backend.send_noted",
+            vec![Value::from(thread_id), Value::Str(prompt.clone())],
+        )?;
         let mut sent: Py<Value> = Ok(Value::Null);
         launch_guard.enter(&mut |permitted| {
             sent = ask(
@@ -411,6 +418,7 @@ impl Backend for AskBackend {
                     Value::from(thread_id),
                     Value::Str(prompt.clone()),
                     Value::Bool(permitted),
+                    Value::Bool(true),
                 ],
             );
             Value::Null

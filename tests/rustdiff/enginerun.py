@@ -191,8 +191,9 @@ class Recorder:
         self.calls.append(["usage"])
         return self.sim.usage()
 
-    def send(self, thread_id, prompt, *, launch_guard=None, permitted=None):
-        self.calls.append(["send", thread_id, prompt])
+    def send(self, thread_id, prompt, *, launch_guard=None, permitted=None, noted=False):
+        if not noted:                       # car-engine's side writes it down before its guard (backend.send_noted)
+            self.calls.append(["send", thread_id, prompt])
         if permitted is False:
             return {"outcome": "not_started", "error_code": "queue_consent_refused"}
         return self.sim.send(thread_id, prompt, launch_guard=launch_guard)
@@ -503,8 +504,12 @@ class RustSide:
                 if hook == "wants":
                     return {"value": self.script.wants(args[0])}
                 return {"value": plain(self.script.answer(hook, args))}
+            if name == "backend.send_noted":
+                self.backend.calls.append(["send", args[0], args[1]])
+                return {"value": None}
             if name == "backend.send":
-                return {"value": plain(self.backend.send(args[0], args[1], permitted=args[2]))}
+                return {"value": plain(self.backend.send(args[0], args[1], permitted=args[2],
+                                                         noted=len(args) > 3 and args[3] is True))}
             if name == "backend.getattr":
                 return {"value": plain(getattr(self.backend, args[0], None))}
             if name == "backend.holder":
