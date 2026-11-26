@@ -497,7 +497,7 @@ fn main() {
                 ))
             }
             _ => world
-                .step(&op, &args)
+                .step(&op, &args, &runtime.state)
                 .ok_or_else(|| "UnknownOp".to_owned())?,
         });
         // `run` goes outside the runtime's lock, as core runs an errand last in the tick.

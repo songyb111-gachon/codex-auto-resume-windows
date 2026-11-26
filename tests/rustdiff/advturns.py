@@ -283,6 +283,9 @@ class AdvTurnsCase:
             self.fail("%s advanced.sqlite: %s" % (made["name"], advdiff.first_difference(want, got)))
 
     def check_all(self, corpus) -> None:
+        only = [name for name in os.environ.get("CODEX_AR_ADVTURNS_ONLY", "").split(",") if name]
         for made in corpus:
+            if only and made["name"] not in only:
+                continue
             with self.subTest(made["name"]):
                 self.check(made)
