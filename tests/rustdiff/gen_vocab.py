@@ -140,8 +140,10 @@ def generate(vocab: dict) -> dict:
 def vocabulary(ref: str) -> dict:
     scratch = ROOT / "rust" / "target" / ("vocab-%s.json" % ref.replace("/", "_"))
     scratch.parent.mkdir(parents=True, exist_ok=True)
-    done = subprocess.run([sys.executable, "-X", "utf8", str(ROOT / "build" / "vocab_export.py"), "--ref", ref,
-                           "--out", str(scratch)], capture_output=True, text=True, encoding="utf-8",
+    sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
+    from rustdiff import reference  # the reference's Python (`--reference-python`), not sys.executable
+    done = subprocess.run(reference.script_command(ROOT / "build" / "vocab_export.py", "--ref", ref, "--out", scratch, paths=[]),
+                          capture_output=True, text=True, encoding="utf-8",
                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), timeout=600)
     if done.returncode != 0:
         raise SystemExit("vocab_export failed:\n" + done.stderr[-3000:])

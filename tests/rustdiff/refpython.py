@@ -220,6 +220,21 @@ def command(script: str, *arguments, paths=(), which: str | None = None) -> list
     return [str(exe), "-X", "utf8", "-c", script, *map(str, arguments)]
 
 
+# A script FILE under a runtime that ignores PYTHONPATH: `boot` has run, `sys.argv` is ['-c', path, *arguments]; the file runs
+# as `__main__` with the argv `python path arguments` gives it (and sys.exit's code is the process's).
+FILE_RUNNER = ("import runpy, sys\npath = sys.argv[1]\nsys.argv[:] = sys.argv[1:]\n"
+               "runpy.run_path(path, run_name='__main__')")
+
+
+def script_command(path, *arguments, paths=(), which: str | None = None) -> list:
+    """The argv that runs the script FILE `path` with `arguments` on the reference Python, `paths` first on its sys.path: what
+    `command` is for a script's text (the generators, and a long script the command line cannot hold)."""
+    exe = interpreter(which)
+    if ignores_environment(exe):
+        return [str(exe), "-X", "utf8", "-c", boot(paths), FILE_RUNNER, str(path), *map(str, arguments)]
+    return [str(exe), "-X", "utf8", str(path), *map(str, arguments)]
+
+
 def describe() -> str:
     """One line for run.py's header and the README's runs: the choice, the version and the exe's kind."""
     exe = interpreter()

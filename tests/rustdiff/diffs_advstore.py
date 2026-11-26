@@ -76,7 +76,7 @@ class GeneratedDiff(unittest.TestCase):
     def test_generated(self):
         # The store's statements are gen_advstore's; the closed words and the registry it reads are S7.1b's (Integration 5).
         for script in ("gen_advstore.py", "gen_advpolicy.py"):
-            done = subprocess.run([sys.executable, "-X", "utf8", str(HERE / script), "--check", "--ref", reference.TAG],
+            done = subprocess.run(reference.script_command(HERE / script, "--check", "--ref", reference.TAG, paths=[]),
                                   capture_output=True, text=True)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         RECORD.append("generated: schema_gen.rs (gen_advstore) and the vocabulary and registry tables (gen_advpolicy) "

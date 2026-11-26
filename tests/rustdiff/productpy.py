@@ -13,25 +13,23 @@ and run themselves under it:
     stale(text, what)             why a generated file is refused (made by another Python or Unicode), or None
     ensure(script, argv)          run `script` again under the bundled interpreter when this one is not it (returns the
                                   exit code), or None when this process already is it
-    interpreter()                 the bundled python.exe, unpacked into a scratch folder of its own
+    interpreter()                 the bundled python.exe (refpython's: the zip of this tree or of a sibling worktree, checked
+                                  by SHA-256, unpacked into a scratch folder of the run and removed at its end)
+    run(argv)                     `-c script args` or a script file on it, through refpython's command / script_command
 
-The runtime is the zip `build/cache/python-<version>-embed-amd64.zip` of this tree or of a sibling worktree (CI downloads
-it the way `make_release.py` does, by SHA-256), unpacked beside the system temp folder, never into the repository's
-build/ and never over a Python someone installed. The embeddable runtime ignores PYTHONPATH (its `._pth` makes it
-isolated), so the copy's `._pth` turns `site` on and a `sitecustomize.py` there gives PYTHONPATH back and then runs the
-tree's own tests/sitecustomize.py (the guards that keep a test off the real toast and the real Codex): a runner started
-by it (`run.py`, with `PYTHONPATH="src;tests"`) runs the reference on it too.
+Follow-3.14 (D): this module no longer unpacks a runtime of its own. The embeddable runtime ignores PYTHONPATH (its `._pth`
+makes it isolated), so `refpython.command` puts the folders on sys.path by a three-line boot, as for the reference. The
+generators are pinned to the bundled runtime whatever `--reference-python` says: a table of Python's Unicode is the
+product's Python's, not the reference's choice (under `system` the diffs that read the reference differ by design; these
+do not).
 """
 from __future__ import annotations
 
-import hashlib
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
-import tempfile
-import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 MAKE_RELEASE = ROOT / "build" / "make_release.py"
@@ -40,27 +38,6 @@ MAKE_RELEASE = ROOT / "build" / "make_release.py"
 UNICODE_OF = {"3.13": "15.1.0", "3.14": "16.0.0"}
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 GUARD = "CAR_UNICODE_REEXEC"
-SITECUSTOMIZE = '''"""PYTHONPATH for the embeddable runtime (its ._pth ignores it), then the tree's own sitecustomize, if any.
-Made by tests/rustdiff/productpy.py; nothing here is the product's."""
-import os as _os
-import sys as _sys
-
-_extra = [entry for entry in _os.environ.get("PYTHONPATH", "").split(_os.pathsep) if entry]
-_sys.path[1:1] = [entry for entry in _extra if entry not in _sys.path]
-for _entry in _extra:
-    _file = _os.path.join(_entry, "sitecustomize.py")
-    if _os.path.isfile(_file) and _os.path.abspath(_file) != _os.path.abspath(__file__):
-        try:
-            import importlib.util as _util
-            _spec = _util.spec_from_file_location("sitecustomize_of_the_tree", _file)
-            _module = _util.module_from_spec(_spec)
-            _spec.loader.exec_module(_module)
-        except Exception as _error:   # never in the way of the interpreter
-            _sys.stderr.write("the tree's sitecustomize did not load (%r)\\n" % (_error,))
-        break
-'''
-
-
 def _pin(name: str) -> str:
     found = re.search(r'^%s\s*=\s*"([^"]+)"' % name, MAKE_RELEASE.read_text(encoding="utf-8"), re.M)
     if found is None:
@@ -116,49 +93,36 @@ def stale(text: str, what: str) -> str | None:
     return None
 
 
-def _archive() -> Path:
-    name = "python-%s-embed-amd64.zip" % version()
-    wanted = _pin("PYTHON_SHA256")
-    named = os.environ.get("CAR_PRODUCT_PYTHON_ZIP")
-    here = [Path(named)] if named else []
-    here += [ROOT / "build" / "cache" / name]
-    here += sorted(ROOT.parent.glob("*/build/cache/" + name))
-    for candidate in here:
-        if candidate.is_file() and hashlib.sha256(candidate.read_bytes()).hexdigest() == wanted:
-            return candidate
-    raise SystemExit("the product's Python %s (%s) is not at build/cache here or in a sibling worktree: run build/make_release.py "
-                     "once, or name the zip in CAR_PRODUCT_PYTHON_ZIP" % (version(), name))
+def _refpython():
+    """refpython.py (the reference's Python: one unpacking of the bundled runtime for the whole run), whether this module is
+    loaded as `rustdiff.productpy` or, by a generator, as the top-level `productpy`."""
+    try:
+        from rustdiff import refpython
+    except ImportError:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import refpython
+    return refpython
 
 
 def interpreter() -> Path:
-    """python.exe of the bundled runtime, unpacked (once) into a folder of its own under the system temp folder."""
-    folder = Path(tempfile.gettempdir()) / ("car-product-python-%s-%s" % (version(), _pin("PYTHON_SHA256")[:8]))
-    exe = folder / "python.exe"
-    marker = folder / "car-product-python.ok"
-    if not (exe.is_file() and marker.is_file()):
-        part = folder.with_name(folder.name + ".part-%d" % os.getpid())
-        part.mkdir(parents=True, exist_ok=False)
-        try:
-            with zipfile.ZipFile(_archive()) as archive:
-                archive.extractall(part)
-            pth = next(part.glob("python3*._pth"))
-            pth.write_text("\n".join([pth.stem + ".zip", ".", "import site", ""]), encoding="utf-8", newline="\n")
-            (part / "sitecustomize.py").write_text(SITECUSTOMIZE, encoding="utf-8", newline="\n")
-            (part / "car-product-python.ok").write_text(version() + "\n", encoding="utf-8")
-            if not folder.exists():
-                part.rename(folder)
-        finally:
-            if part.exists():
-                import shutil
-                shutil.rmtree(part, ignore_errors=True)
-    return exe
+    """python.exe of the bundled runtime: refpython's, pinned to `bundled` whatever `--reference-python` says (the product's
+    Unicode tables are the product's Python's, not the reference's choice)."""
+    return _refpython().interpreter("bundled")
 
 
 def run(argv, *, env=None, cwd=None, capture=False) -> subprocess.CompletedProcess:
-    """`python.exe -X utf8 *argv` of the bundled runtime, no console window."""
+    """`python.exe -X utf8 *argv` of the bundled runtime (`-c script args`, or a script file and its arguments), no console
+    window, through refpython's own command (`command` / `script_command`): an embeddable runtime ignores PYTHONPATH, so the
+    folders the environment names go onto sys.path by the boot."""
     environment = dict(os.environ if env is None else env)
-    return subprocess.run([str(interpreter()), "-X", "utf8", *map(str, argv)], env=environment, cwd=cwd,
-                          creationflags=NO_WINDOW, capture_output=capture)
+    paths = [entry for entry in environment.get("PYTHONPATH", "").split(os.pathsep) if entry]
+    words = [str(each) for each in argv]
+    refpython = _refpython()
+    if words[0] == "-c":
+        command = refpython.command(words[1], *words[2:], paths=paths, which="bundled")
+    else:
+        command = refpython.script_command(words[0], *words[1:], paths=paths, which="bundled")
+    return subprocess.run(command, env=environment, cwd=cwd, creationflags=NO_WINDOW, capture_output=capture)
 
 
 def ensure(script, argv) -> int | None:

@@ -49,8 +49,8 @@ class VocabParity(Leaves):
     def test_the_generated_files_are_what_the_tag_generates(self):
         # The generator's own --check: it runs itself under the product's bundled Python (productpy.py), whose Unicode
         # tables text_tables.rs and unicode_gen.rs hold - generated in this process (3.13.15, say) they would differ.
-        done = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__).resolve().parent / "gen_policy.py"),
-                               "--check", "--ref", reference.TAG], cwd=str(core.ROOT), capture_output=True,
+        done = subprocess.run(reference.script_command(Path(__file__).resolve().parent / "gen_policy.py", "--check", "--ref",
+                                                       reference.TAG, paths=[]), cwd=str(core.ROOT), capture_output=True,
                               creationflags=reference.NO_WINDOW, timeout=900)
         self.assertEqual(done.returncode, 0, "gen_policy.py --check: %s%s" % (
             done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")[-2000:]))

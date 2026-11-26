@@ -46,6 +46,11 @@ def command(script: str, *arguments, paths, which=None) -> list:
     return refpython.command(script, *arguments, paths=paths, which=which)
 
 
+def script_command(path, *arguments, paths, which=None) -> list:
+    """The same for a script FILE (a generator, a script too long for a command line)."""
+    return refpython.script_command(path, *arguments, paths=paths, which=which)
+
+
 def run(script: str, *arguments, profile: Path | None = None, tag: str | None = None,
         stdin: bytes | None = None) -> subprocess.CompletedProcess:
     """Run `script` under the reference tag's package with `arguments` as sys.argv[1:]. Returns the finished

@@ -270,7 +270,7 @@ def run_reference(home: Path, world: dict, argv, *, mode="dispatch", stdin: byte
         (folder / "spec.json").write_text(json.dumps(spec), encoding="utf-8")
         # The world's zone is UTC (car-harness's local clock); `format_local` asks the C runtime's, which TZ sets.
         environment = reference.scratch_environment(home.parent / "profile", PYTHONPATH=str(tree / "src"), TZ="UTC0")
-        done = subprocess.run([sys.executable, "-X", "utf8", "-c", bw.SCRIPT, str(folder / "spec.json")],
+        done = subprocess.run(reference.command(bw.SCRIPT, folder / "spec.json", paths=[tree / "src"]),
                               input=stdin, capture_output=True, env=environment, cwd=str(home.parent),
                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), timeout=600)
         calls = (json.loads((folder / "calls.json").read_text(encoding="utf-8"))

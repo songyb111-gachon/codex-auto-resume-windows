@@ -267,7 +267,7 @@ def reference_process(kind: str, home: Path, profile: Path, **request) -> subpro
     path.write_text(json.dumps(request, ensure_ascii=False), encoding="utf-8")
     source = released.package(reference.TAG)
     environment = reference.scratch_environment(profile, PYTHONPATH=str(source))
-    return subprocess.Popen([sys.executable, "-X", "utf8", "-c", _RUNNER, str(path)], stdout=subprocess.PIPE,
+    return subprocess.Popen(reference.command(_RUNNER, path, paths=[source]), stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, env=environment, cwd=str(profile), creationflags=NO_WINDOW)
 
 
