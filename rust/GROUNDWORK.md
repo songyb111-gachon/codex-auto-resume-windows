@@ -2413,9 +2413,9 @@ exactly the tags that failed. `released.package` now rebuilds what was taken; Th
                    result ok); cargo deny --locked check: advisories, bans, licenses, sources ok
 ## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0 (car-adv 9 + 1); cargo deny: all four ok
 python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
-bash advanced/rust/tools/check_rebuild.sh HEAD       NOT RUN: the disk (838 GB) had 0.2-4.6 GB free during this seat and the
-                                                     check builds three release trees; its scan is proved by --self-test and
-                                                     the planted binaries above
+bash advanced/rust/tools/check_rebuild.sh HEAD       (after the disk was freed, HEAD 100ab5b39) rc=0: all 10 binaries the
+                                                     same with and without advanced/, profile-path scan none, self-test 10
+                                                     cases; its own scratch removed at exit (800e89ac4), no tmp.* of its left
 each merge's own diffs (run.py --build --reference v0.6.26, bundled 3.14.10 unless said)
   fix9        test_review9_install test_rust_install test_rust_release test_installer_v0623_audit: Ran 79, 1 FAIL
               (test_rust_release ...the_handover: 2 findings, not 1) under load; test_rust_release alone: Ran 24, OK
@@ -2432,5 +2432,25 @@ each merge's own diffs (run.py --build --reference v0.6.26, bundled 3.14.10 unle
 Python      test_rust_release test_downgrade test_schema_v4 test_defaults_golden (after released.py, the launcher): Ran 81, OK
 ```
 
-The full runs, the frozen modules and the guards run detached after this commit (scratchpad `long.sh`); their result is
-the seat's report's, and the next integration's to record if this section does not.
+The long checks (detached, after the reboot; HEAD 100ab5b39..12fd020a3):
+
+```
+run.py --build --reference v0.6.26 --reference-python bundled -v   Ran 360 in 8,595 s: 10 FAIL, 1 expected failure, no skip.
+    REFERENCE-314 Finding A (json depth, the owner's decision): appserver_lines.test_next_message, codex_homes
+    test_cloud_tasks_and_global_state / test_rollout_first_lines, leaves_codex.test_root_version_discovery,
+    leaves_domain.test_registry_format, settings_files.test_settings_files (case 232), bridge_commands
+    DamagedDiff.test_failure_seen_files [nested 4096]. The final's fresh home, not ported to car-codex yet (both Pythons):
+    compat_io ProbesDiff.test_source_and_api_checks (history_schema NOT_APPLICABLE vs UNAVAILABLE), codex_homes
+    test_schema_variants (HistoryNotYet vs SourceError). settings_plug.test_generated_files_are_the_tags: fixed (d77a66647).
+run.py --reference v0.6.26 --reference-python system -v            Ran 360 in 8,513 s: 7 FAIL, 1 expected failure. The five
+    Unicode 16 tables by design (classify_vocab/leaves_machine TextTables, codex_pure labels, BidiDiff, review8 EdgeDiff) and
+    the two fresh-home ones above.
+the 15 frozen modules (test_parts --worker; CODEX_AR_CORE=rust)    456 pass on both, 0 differ (Python 371 s, Rust 399 s)
+Python guards (+ test_review9_install)                              Ran 173: 1 FAIL, test_repo_hygiene's UUID rule on
+    diffs_advcodex_tokens.py: fixed (12fd020a3); then test_repo_hygiene 7 OK, -k TokensDiff -k PlugDiff 7 OK
+```
+
+The 7 old-tag diffs of Integration 7 (diffs_store x5, diffs_store_values x2 and diffs_settings_files' old tags) pass in both
+full runs: no ModuleNotFoundError, and `released.package` never had to rebuild a cache (no `released:` line). With the disk
+free, nothing took an old tag's files during the run; the run before the reboot, on a full disk, was where it had
+happened. Cause confirmed by the rule set for it (the 7 pass in the full run): an age-based %TEMP% cleaner on a full disk.
