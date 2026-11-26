@@ -2406,5 +2406,31 @@ exactly the tags that failed. `released.package` now rebuilds what was taken; Th
 
 ### Checks
 
-CHECKS-PENDING (the gates, check_groundwork, check_rebuild, the frozen modules and the two full runs follow in the next
-commit of this section).
+`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 (the final); rustc 1.100.0; HEAD `d51e367bc`.
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0 (every
+                   result ok); cargo deny --locked check: advisories, bans, licenses, sources ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0 (car-adv 9 + 1); cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       NOT RUN: the disk (838 GB) had 0.2-4.6 GB free during this seat and the
+                                                     check builds three release trees; its scan is proved by --self-test and
+                                                     the planted binaries above
+each merge's own diffs (run.py --build --reference v0.6.26, bundled 3.14.10 unless said)
+  fix9        test_review9_install test_rust_install test_rust_release test_installer_v0623_audit: Ran 79, 1 FAIL
+              (test_rust_release ...the_handover: 2 findings, not 1) under load; test_rust_release alone: Ran 24, OK
+  unicode16   -k diffs_unicode16 -k ShippedInterpreterDiff -k TextTables -k BidiDiff -k diffs_codex_pure -k
+              diffs_classify_vocab: Ran 21, test_edges_shipped OK; VocabParity's generated-files check fixed (above);
+              diffs_codex_pure's ENOSPC (disk full) passed again: -k VocabParity -k diffs_codex_pure Ran 12, OK
+  mcp         -k diffs_mcp -k diffs_cli -k diffs_legacy: Ran 20, 1 FAIL (FramingDiff, the boot's frame: fixed above);
+              -k FramingDiff Ran 6 OK; after the seam wiring -k diffs_mcp Ran 12 OK; after uris -k diffs_cli -k diffs_legacy
+              Ran 8 OK
+  adv73c+fold -k diffs_advreport -k diffs_advhook -k OwnReportDiff: Ran 22, OK
+  adv72d      rediff_adv72d.py --reference v0.6.26: Ran 13 OK; rediff_adv72c.py --reference v0.6.26: Ran 17 OK
+  ensure      -k diffs_leaves_config -k diffs_advcodex_autocheck: Ran 8 OK; mutation (the mkdir's error swallowed again):
+              OwnedDiff.test_what_is_owned and AutocheckDiff.test_write both FAIL
+Python      test_rust_release test_downgrade test_schema_v4 test_defaults_golden (after released.py, the launcher): Ran 81, OK
+```
+
+The full runs, the frozen modules and the guards run detached after this commit (scratchpad `long.sh`); their result is
+the seat's report's, and the next integration's to record if this section does not.
