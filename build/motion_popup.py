@@ -42,9 +42,11 @@ for _path in (str(ROOT / "src"), str(ROOT / "build")):
 class PopupFrames:
     """One popup, for one picture: `drawn(frame, closed)` is the picture at the frame's moment.
 
-    Close it when done: the renderer holds GDI+ objects."""
+    `render`, a build/surface_render.py session, draws it through the host's render mode (the C# surfaces) instead of
+    the reference's renderer: the same calls with the same arguments. Close it when done: the renderer holds GDI+
+    objects."""
 
-    def __init__(self, locale: str, *, scale: float, theme: str = "light", design: str | None = None):
+    def __init__(self, locale: str, *, scale: float, theme: str = "light", design: str | None = None, render=None):
         import make_screenshots as shots
         from codex_auto_resume import brand, interface
         from codex_auto_resume.ui import popup as tray_popup
@@ -54,7 +56,7 @@ class PopupFrames:
         self.locale = tray_popup.locale_of(self.strings)
         self.scale = scale
         self.design = design or brand.DEFAULT_DESIGN
-        self.renderer = tray_popup.Renderer()
+        self.renderer = render.renderer() if render is not None else tray_popup.Renderer()
         self.renderer.theme = theme
         self.renderer.design = self.design
         # v0.6.24: the popup is its card alone, with a float shadow under it (the card window and the shadow window);
