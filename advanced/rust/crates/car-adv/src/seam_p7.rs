@@ -337,7 +337,6 @@ pub fn chat_watched(row: &Value, now: f64, stops: &[Value]) -> Option<Value> {
     Some(found)
 }
 
-/// `engine/foropen.watching(record)` (S7.2e1): core asks about a continuation already queued for opening.
-pub fn for_open_watching(record: &Value) -> bool {
-    matches!(record, Value::Object(map) if map.contains_key("queued_since"))
-}
+/// `engine/foropen.watching(record)`: core asks about a continuation already queued for opening (moved into its
+/// module by S7.2e1b; the runtime's name kept).
+pub use crate::engine::foropen::watching as for_open_watching;

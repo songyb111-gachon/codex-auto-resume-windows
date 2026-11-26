@@ -526,6 +526,7 @@ impl World {
             "keep_going" => engine::keepgoing::make_with(paths, self.look_world()),
             "subagent_parent" => engine::subagent::make_with(paths, self.look_world()),
             "goal_continuation" => engine::goal::make_with(paths, self.goal_world()),
+            "queue_for_open" => engine::foropen::make_with(paths, self.goal_world().goal),
             "marker_free_continuation" => {
                 engine::markerfree::make_with(paths, Arc::new(Mutex::new(self.opener())))
             }
@@ -604,6 +605,12 @@ impl World {
                     });
                 Some(Ok(Value::Null))
             }
+            "override" => Some(
+                state
+                    .add_override(&arg(0), &arg(1), &arg(2), &Value::Null)
+                    .map(Value::Bool)
+                    .map_err(|error| error.class().to_owned()),
+            ),
             "keep" => Some(
                 state
                     .set_keep_going(&arg(0), &arg(1), &Value::Null)

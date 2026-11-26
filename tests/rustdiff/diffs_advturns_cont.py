@@ -318,8 +318,47 @@ def goal_corpus() -> list:
     ]
 
 
+FOR_OPEN = "queue_for_open"
+
+
+def for_open_corpus() -> list:
+    from rustdiff.advturns import KEY, OTHER_KEY, record
+
+    def free(key=KEY, number=61, **more):
+        return record(key, thread(number), **dict({"category": "usage_limit", "holder": "app_free"}, **more))
+    third = "c" * 64
+    return [
+        scenario("for_open_queues_once_and_keeps_for_days", [FOR_OPEN],
+                 [["ask", "unloaded", free()], arm(FOR_OPEN), ["ask", "unloaded", free()],
+                  ["ask", "unloaded", free(holder="none")], ["ask", "unloaded", free(category="network_transient")],
+                  ["ask", "unloaded", free(queued_since=NOW)],
+                  ["override", KEY, FOR_OPEN, "queue_for_open"],
+                  ["ask", "unloaded", free()], ["ask", "unloaded", free(queued_since=NOW)],
+                  ["clock", NOW + 3 * 86400 - 1], ["ask", "unloaded", free(queued_since=NOW)],
+                  ["clock", NOW + 3 * 86400], ["ask", "unloaded", free(queued_since=NOW)],
+                  ["choose", FOR_OPEN, "days", 7], ["ask", "unloaded", free(queued_since=NOW)],
+                  ["clock", NOW + 7 * 86400 + 5], ["ask", "unloaded", free(queued_since=NOW)],
+                  ["ask", "unloaded", {"interruption_id": 5, "holder": "app_free"}], ["ask", "unloaded", "a record"],
+                  ["ask", "unloaded", free(OTHER_KEY, queued_since=NOW)]]),
+        scenario("for_open_beside_an_active_goal", [FOR_OPEN, GOAL],
+                 [arm(FOR_OPEN), ["ask", "unloaded", free(number=62)], arm(GOAL),
+                  ["ask", "unloaded", free(number=62)], ["ask", "unloaded", free(number=62)],
+                  ["ask", "unloaded", free(OTHER_KEY, number=63)], ["ask", "unloaded", free(third, number=64)],
+                  ["ask", "unloaded", free(third, number=65)]],
+                 seams={"goals": {thread(62): ACTIVE, thread(63): "paused", thread(64): "raise", thread(65): ACTIVE}}),
+        scenario("for_open_goal_two_turns", [FOR_OPEN, GOAL],
+                 [arm(FOR_OPEN), arm(GOAL), ["ask", "unloaded", free(number=62)]],
+                 measured={"mqg": ["fail", "0.155.0"]}, seams={"goals": {thread(62): ACTIVE}}),
+        scenario("for_open_goal_one_turn_measured", [FOR_OPEN, GOAL],
+                 [arm(FOR_OPEN), arm(GOAL), ["ask", "unloaded", free(number=62)]],
+                 measured={"mqg": ["pass", "0.155.0"]}, seams={"goals": {thread(62): ACTIVE}}),
+        scenario("for_open_watched", [FOR_OPEN], [arm(FOR_OPEN, "shadow"), ["ask", "unloaded", free()]]),
+    ]
+
+
 def corpus() -> list:
-    return empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
+    return (empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
+            + for_open_corpus())
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):

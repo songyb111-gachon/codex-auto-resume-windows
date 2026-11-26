@@ -8,7 +8,7 @@ The seams (`scenario["seams"]`): `turns` {thread: turn | null | "raise"} and `co
 {"open": "raise", "enter": "raise", "answers": {method: [answer | "raise", ...]}}; `unheld`: true | false | "raise".
 The steps: ["live", shown | null], ["told", key, capability, end, model_restored], ["stop_request", key],
 ["retry_settings"], ["flag", "empty_refused", bool], ["seam", name, value] (a seam replaced from here on),
-["keep", thread, count] and ["kept_used", thread] (keep_going's rows, as the Dashboard and a SENT write them),
+["override", key, capability, kind] (an override as a claim writes it), ["keep", thread, count] and ["kept_used", thread] (keep_going's rows, as the Dashboard and a SENT write them),
 ["send", record, thread, prompt, client_id] and ["pools", record] (the channel P5 names, sent through once, or asked
 whether it pools), ["resume", record, thread, still_unloaded] (the route P16 names, resumed once; still_unloaded
 true | false | "raise" | null). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused, "no"
@@ -175,7 +175,7 @@ class World:
         "other_sessions": "sessions", "once_more_when_unsure": "oncemore", "headless_run": "headless",
         "compact_continue": "compact", "model_fallback": "fallback", "codex_retry_settings": "retries",
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
-        "marker_free_continuation": "markerfree", "goal_continuation": "goal",
+        "marker_free_continuation": "markerfree", "goal_continuation": "goal", "queue_for_open": "foropen",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -237,6 +237,9 @@ class World:
                 return module.GoalContinuation(paths, session=lambda: self.open(capability), home="fake-codex-home",
                                                view=lambda: globals()["view"], measured=lambda: globals()["measured"],
                                                clock=lambda: self.clock[0])
+            if capability == "queue_for_open":
+                module.Goals = lambda home: FakeGoals(self)
+                return module.QueueForOpen(paths, home="fake-codex-home")
             if capability == "marker_free_continuation":
                 return module.MarkerFreeContinuation(paths, session=lambda: self.open(capability))
             if capability in self.LOOKING:
@@ -287,6 +290,8 @@ class World:
             if op == "pools":
                 return channel.pools()
             return norm(channel.send(args[1], args[2], client_id=args[3]))
+        if op == "override":
+            return runtime.state.add_override(args[0], args[1], args[2])
         if op == "keep":
             return runtime.state.set_keep_going(args[0], args[1])
         if op == "kept_used":
