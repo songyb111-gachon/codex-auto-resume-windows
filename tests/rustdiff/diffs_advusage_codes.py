@@ -317,8 +317,10 @@ class StopDiff(AdvUsageDiff):
                       ["broken"]):
             ops = read_meter() + [{"make": "usage_pause", "as": "s"}, {"switches": {"armed": {"reset_message": True}}},
                                   {"method": "add_reset_rule", "args": ["reset_message", "codex", 300, 1],
-                                   "kwargs": {"thread_id": THREAD, "words": "My own words after the reset."}}]
-            ops += [hook("s", "tick", None), run("s"), LOG]
+                                   "kwargs": {"thread_id": THREAD, "words": "My own words after the reset.",
+                                              "record_id": "cd" * 32}}]
+            ops += [hook("s", "tick", None), run("s"), LOG,
+                    world(turns=turns([], {THREAD: turn("interrupted", 4)}))]
             ops += [{"method": "change_rule", "args": [1], "kwargs": {"expect": "counting", "state": "ready",
                                                                        "due_at": NOW + 3 * 3600 + 70, "base": 0}}]
             ops += [clock(3 * 3600 + 61), hook("m", "tick", None), run("m"), clock(3 * 3600 + 100),
@@ -378,9 +380,9 @@ class MessageDiff(AdvUsageDiff):
     def test_message(self):
         ops = [{"make": "reset_message", "as": "r"}, {"switches": {"verdict": {"mu": "pass"}}},
                {"method": "add_reset_rule", "args": ["reset_message", "codex", 300, 1],
-                "kwargs": {"thread_id": THREAD, "words": "Hello after the reset."}},
+                "kwargs": {"thread_id": THREAD, "words": "Hello after the reset.", "record_id": "a1" * 32}},
                {"method": "add_reset_rule", "args": ["reset_message", "codex", 10080, 2],
-                "kwargs": {"thread_id": OTHER, "words": "x" * 2100}}]
+                "kwargs": {"thread_id": OTHER, "words": "x" * 2100, "record_id": "b2" * 32}}]
         for at in (0, 301, 3 * 3600 + 61, 3 * 3600 + 400, 3 * 3600 + 2000, 2 * 86400, 9 * 86400):
             ops += [clock(at), hook("r", "tick", None), run("r"), hook("r", "records", None),
                     hook("r", "watched_due", None),
