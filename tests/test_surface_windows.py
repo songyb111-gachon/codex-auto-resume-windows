@@ -935,6 +935,168 @@ class WindowJob:
              theme.apps_use_light_theme, theme.text_scale) = saved
             theme.adopt_settings({})
 
+    def card_stack(self):
+        """The notification cards together: the reference's CardStack driven through a script - notices shown, one
+        replacing another about the same conversation, a fourth pushing the oldest out, the stack's timers, the pointer
+        over a card, a press and a click on its button, on its face, a right click, the focus asked again, the end - with
+        every user32 call that would put a card on the screen recorded by a stand-in and not made, and the C#'s CardStack
+        over windows made and never shown. After each step: each card's phase, place, edge and marks, the stack's frame
+        timer, the calls, and what was posted (notice_action, notice_complete)."""
+        import dataclasses
+        import make_screenshots
+        from codex_auto_resume import notice_card
+        from codex_auto_resume.ui.card import stack as stack_module, win32 as card_win32
+        from codex_auto_resume.ui.popup import fonts, gdiplus, light as light_module, renderer as renderer_module
+        WM_TIMER, WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSELEAVE, WM_RBUTTONUP = 0x0113, 0x0200, 0x0201, 0x0202, 0x02A3, 0x0205
+        TRANSPARENT = 0x20
+        saved = (renderer_module.system_rgb, light_module.system_rgb, card_win32._dll, stack_module.FOCUS_AFTER)
+        real = card_win32._dll
+        state = {}
+
+        def role(hwnd):
+            if hwnd == state.get("stack_hwnd"):
+                return "stack"
+            return state["roles"].get(hwnd, "0x%x" % (hwnd or 0))
+
+        def log(*parts):
+            state["calls"].append(" ".join(str(part) for part in parts))
+
+        def made(style, klass, title, *rest):
+            hwnd = 0x7000 + state["made"]
+            state["made"] += 1
+            if not klass or style == 0:
+                state["stack_hwnd"] = hwnd
+            else:
+                state["roles"][hwnd] = ("shadow:" if style & TRANSPARENT else "body:") + str(title or state["last_title"])
+            return hwnd
+
+        def layered(hwnd, screen, where, size, dc, source, key, blend, flags):
+            log("UpdateLayeredWindow", role(hwnd), where._obj.x, where._obj.y, size._obj.cx, size._obj.cy,
+                blend._obj.SourceConstantAlpha)
+            return 1
+
+        class User32:
+            def __init__(self, inner):
+                self._inner = inner
+
+            def __getattr__(self, name):
+                stand = {
+                    "RegisterClassW": lambda *a: 1, "CreateWindowExW": made, "DestroyWindow": lambda *a: 1,
+                    "UnregisterClassW": lambda *a: 1, "DefWindowProcW": lambda *a: 0,
+                    "ShowWindow": lambda hwnd, cmd: log("ShowWindow", role(hwnd), cmd) or 1,
+                    "SetWindowPos": lambda hwnd, after, x, y, cx, cy, flags: log("SetWindowPos", role(hwnd), x, y, cx, cy,
+                                                                                 flags) or 1,
+                    "SetTimer": lambda hwnd, which, ms, proc: log("SetTimer", role(hwnd), which, ms) or 1,
+                    "KillTimer": lambda hwnd, which: log("KillTimer", role(hwnd), which) or 1,
+                    "UpdateLayeredWindow": layered,
+                    "TrackMouseEvent": lambda track: log("TrackMouseEvent", role(track._obj.hwndTrack)) or 1,
+                }
+                return stand[name] if name in stand else getattr(self._inner, name)
+
+        def centre(card, target=None):
+            if target is None:
+                return (8 << 16) | 8                     # the card's face, away from its buttons
+            for aimed, rect in card.plan["targets"]:
+                if list(aimed) == list(target):
+                    return ((rect[1] + rect[3]) // 2 & 0xFFFF) << 16 | ((rect[0] + rect[2]) // 2 & 0xFFFF)
+            return 0
+
+        script = ([["show", 0, "a"], ["clock", 100], ["timer", 1], ["clock", 200], ["timer", 1], ["show", 1, "b"],
+                   ["clock", 150], ["timer", 1], ["show", 2, "a"], ["clock", 400], ["timer", 1], ["show", 3, "c"],
+                   ["show", 4, "d"], ["clock", 400], ["timer", 1], ["timer", 3], ["card", 0, "move", None],
+                   ["clock", 2000], ["timer", 1], ["card", 0, "leave", None], ["clock", 100], ["timer", 1],
+                   ["card", 0, "press", "button"], ["card", 0, "release", "button"], ["clock", 300], ["timer", 1],
+                   ["card", 0, "face", None], ["clock", 300], ["timer", 1], ["card", 0, "right", None]]
+                  + [["clock", 800], ["timer", 2]] * 4 + [["show", 5, "e"], ["clock", 9000], ["timer", 2],
+                                                          ["clock", 400], ["timer", 1], ["end"]])
+        runs = [("en", {"theme": "light", "design": "soft", "contrast": False, "reduced": False, "text": 1.0}, 144),
+                ("ko", {"theme": "dark", "design": "plain", "contrast": False, "reduced": False, "text": 1.0}, 120),
+                ("ar", {"theme": "light", "design": "classic", "contrast": True, "reduced": False, "text": 1.0}, 144),
+                ("en", {"theme": "dark", "design": "soft", "contrast": False, "reduced": True, "text": 1.5}, 96)]
+        renderer_module.system_rgb = light_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
+        card_win32._dll = lambda name: User32(real(name)) if name == "user32" else real(name)
+        try:
+            with make_screenshots.pinned_face():
+                pinned = fonts._ui_face()
+                for locale, drawn, dpi in runs:
+                    base = make_screenshots.card_notice(locale)
+                    letters = fonts._letters(notice_card.view(base)["locale"])
+                    notices = []
+                    for index in range(6):
+                        notices.append(dataclasses.replace(base, key="conversation-%s" % "aabcde"[index],
+                                                           title="card%d" % index, stays=index == 3))
+                    where = {"anchor": (1800, 1045, 1824, 1069), "dpi": dpi, "work": (0, 0, 1920, 1040),
+                             "monitor": (0, 0, 1920, 1080)}
+                    focuses = [{"front_class": "Shell_TrayWnd", "front_process": "explorer.exe", "focus_class": None},
+                               {"front_class": "Chrome_WidgetWin_1", "front_process": "Codex.exe", "focus_class": "Edit"}]
+                    state.update(clock=1000.0, roles={}, calls=[], made=0, posts=[], focus=0, last_title="")
+                    ids = {}
+                    before = gdiplus.gdiplus_objects()
+                    logged = []
+
+                    def focus():
+                        state["focus"] += 1
+                        return dict(focuses[state["focus"] // 2 % 2])
+                    stack = stack_module.CardStack(
+                        on_action=lambda uri: state["posts"].append(["notice_action", {"uri": uri}]),
+                        on_complete=lambda notice, shown: state["posts"].append(
+                            ["notice_complete", {"id": ids[id(notice)], "shown": shown}]),
+                        log=logged.append, clock=lambda: state["clock"], locate=lambda: dict(where),
+                        appearance=lambda: dict(drawn), worker=lambda target, *values: target(*values), focus=focus)
+                    stack.hold = lambda: float(notice_card.HOLD_MS)
+                    stack.create()
+                    sharp, steps = [], []
+                    try:
+                        for step in script:
+                            op, returned, mapped = step[0], None, list(step)
+                            state["calls"], state["posts"] = [], []
+                            if op == "show":
+                                notice = notices[step[1]]
+                                ids[id(notice)] = step[1]
+                                state["last_title"] = notice.title
+                                stack.show(notice)
+                                mapped = ["show", {"id": step[1], "key": notice.key, "title": notice.title,
+                                                   "stays": notice.stays, "view": plain(notice_card.view(notice)),
+                                                   "letters": letters}]
+                            elif op == "clock":
+                                state["clock"] += step[1]
+                            elif op == "timer":
+                                returned = int(stack._wndproc(stack.hwnd, WM_TIMER, step[1], 0) or 0)
+                                mapped = ["stack", [WM_TIMER, step[1], 0]]
+                            elif op == "card":
+                                card = stack.cards[step[1]] if len(stack.cards) > step[1] else None
+                                kind = step[2]
+                                if card is None or card.body is None:
+                                    mapped = ["none"]
+                                else:
+                                    point = centre(card, ("action", 0) if step[3] == "button" else None)
+                                    message = {"move": WM_MOUSEMOVE, "leave": WM_MOUSELEAVE, "press": WM_LBUTTONDOWN,
+                                               "release": WM_LBUTTONUP, "face": WM_LBUTTONUP, "right": WM_RBUTTONUP}[kind]
+                                    returned = int(stack._wndproc(card.body.hwnd, message, 0, point) or 0)
+                                    mapped = ["card", step[1], [message, 0, point]]
+                            elif op == "end":
+                                stack.destroy()
+                            sharp.append({"op": op, "do": mapped})
+                            steps.append({"op": op, "returned": returned, "frames": stack._frame_running,
+                                          "frame_ms": stack._frame_ms, "calls": list(state["calls"]),
+                                          "posts": list(state["posts"]),
+                                          "cards": [{"id": ids.get(id(card.notice)), "phase": card.motion.phase,
+                                                     "position": plain(card.motion.position), "edge": card.edge,
+                                                     "seen": card.seen, "superseded": card.superseded, "ended": card.ended,
+                                                     "pushed_out": card.pushed_out, "moved_out": card.moved_out,
+                                                     "hover": plain(card.hover), "tracking": card.tracking,
+                                                     "size": plain(card.size)} for card in stack.cards]})
+                    finally:
+                        if stack.hwnd:
+                            stack.destroy()
+                    self.add("cardstack/%s/%s-%s-%s-%s/%d" % (locale, drawn["theme"], drawn["design"], drawn["contrast"],
+                                                             drawn["reduced"], dpi),
+                             {"surface": "card_stack", "where": plain(where), "drawn": drawn, "hold": float(notice_card.HOLD_MS),
+                              "focuses": focuses, "script": sharp, "pinned": pinned, "system": self.SYSTEM},
+                             {"steps": steps, "log": logged, "left": gdiplus.gdiplus_objects() - before})
+        finally:
+            (renderer_module.system_rgb, light_module.system_rgb, card_win32._dll, stack_module.FOCUS_AFTER) = saved
+
     def job(self):
         return {"format": JOB_FORMAT, "tables": {}, "cases": self.cases}
 
@@ -962,6 +1124,7 @@ class SurfaceWindowTests(unittest.TestCase):
         job.tip_window()
         job.popup_window()
         job.menu_window()
+        job.card_stack()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -1006,6 +1169,9 @@ class SurfaceWindowTests(unittest.TestCase):
 
     def test_the_drawn_menu_window_opens_steps_and_closes_as_the_references_offscreen(self):
         self.compare("menuwindow/")
+
+    def test_the_notification_cards_stack_and_end_as_the_references_offscreen(self):
+        self.compare("cardstack/")
 
 
 if __name__ == "__main__":

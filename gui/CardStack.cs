@@ -165,7 +165,17 @@ namespace CodexAutoResume
         /// hold: HOLD_MS, or Windows' own "dismiss notifications after" time when that is longer.
         internal double Hold()
         {
-            return CardPlan.HoldFor(MessageDurationMs());
+            return Holding != null ? Holding() : CardPlan.HoldFor(MessageDurationMs());
+        }
+
+        /// The hold a probe gives the stack in place of Windows' setting (the reference's tests set `hold`), or null.
+        internal Func<double> Holding = null;
+
+        /// The id of the notice a card shows, as the `notice` event gave it.
+        internal object IdOf(NoticeCard card)
+        {
+            Dictionary<string, object> notice;
+            return notices.TryGetValue(card, out notice) ? SurfaceRender.Field(notice, "id") : null;
         }
 
         internal static object MessageDurationMs()

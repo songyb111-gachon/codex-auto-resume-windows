@@ -32,6 +32,9 @@ namespace CodexAutoResume
                 case "menu_window":
                     plan = MenuWindowCase(task);
                     return true;
+                case "card_stack":
+                    plan = CardStackCase(task);
+                    return true;
             }
             plan = null;
             return false;
@@ -599,6 +602,112 @@ namespace CodexAutoResume
                 SurfaceRenderer.SystemColours = null;
                 SurfaceTheme.SetTheme("system");
                 SurfaceTheme.SetDesign(null);
+            }
+            return new Dictionary<string, object> { { "steps", steps }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before } };
+        }
+
+        /// The probe mode for the notification cards together: a CardStack whose cards' windows are made and never shown
+        /// (their pushes recorded by SurfaceScreen.Probe), driven by a script of notices, the stack's timers and the
+        /// pointer on a card (sent to the window procedure); after each step every card's phase, place and marks, the
+        /// frame timer, the calls and what was posted.
+        private static object CardStackCase(Dictionary<string, object> task)
+        {
+            SystemColoursFrom(Field(task, "system"));
+            SurfaceFonts.Pinned = Field(task, "pinned") as string;
+            var whereValue = (Dictionary<string, object>)task["where"];
+            var drawn = (Dictionary<string, object>)task["drawn"];
+            var focuses = (List<object>)task["focuses"];
+            double clock = 1000.0;
+            int asked = 0;
+            var logged = new List<object>();
+            int before = SurfaceGdip.GdipObjects;
+            var steps = new List<object>();
+            var calls = new List<string>();
+            var actions = new ProbeActions();
+            SurfaceScreen.Probe = calls;
+            SurfaceScreen.Posted.Clear();
+            try
+            {
+                var stack = new CardStack();
+                stack.Log = line => logged.Add(line);
+                stack.Actions = actions;
+                stack.Worker = work => work();
+                stack.Clock = () => clock;
+                stack.Holding = () => (double)task["hold"];
+                stack.Locate = () => new CardStack.CardScreen
+                {
+                    Anchor = IntsOrNull(whereValue["anchor"]), Dpi = (double)whereValue["dpi"], Work = Ints(whereValue["work"]),
+                    Monitor = Ints(whereValue["monitor"]),
+                };
+                stack.Appearance = () => new Dictionary<string, object>(drawn);
+                stack.Focus = () =>
+                {
+                    asked += 1;
+                    return new Dictionary<string, object>((Dictionary<string, object>)focuses[asked / 2 % 2]);
+                };
+                IntPtr stackHwnd = IntPtr.Zero;
+                SurfaceScreen.Name = hwnd =>
+                {
+                    if (hwnd == stackHwnd && hwnd != IntPtr.Zero) return "stack";
+                    NoticeCard card;
+                    if (stack.Windows.TryGetValue(hwnd, out card))
+                        return (card.Shadow != null && card.Shadow.Hwnd == hwnd ? "shadow:" : "body:") + card.Title;
+                    return "0x" + hwnd.ToInt64().ToString("x");
+                };
+                stack.Create();
+                stackHwnd = stack.Hwnd;
+                try
+                {
+                    foreach (object entry in (List<object>)task["script"])
+                    {
+                        var described = (Dictionary<string, object>)entry;
+                        string op = (string)described["op"];
+                        var step = (List<object>)described["do"];
+                        calls.Clear();
+                        actions.Posts.Clear();
+                        object returned = null;
+                        string kind = (string)step[0];
+                        if (kind == "show") stack.Show((Dictionary<string, object>)step[1]);
+                        else if (kind == "clock") clock += (double)step[1];
+                        else if (kind == "stack")
+                        {
+                            var sent = (List<object>)step[1];
+                            returned = stack.Message(stack.Hwnd, (int)(double)sent[0], (long)(double)sent[1], (long)(double)sent[2]).ToInt64();
+                        }
+                        else if (kind == "card")
+                        {
+                            var sent = (List<object>)step[2];
+                            NoticeCard card = stack.Cards[(int)(double)step[1]];
+                            returned = stack.Message(card.Body.Hwnd, (int)(double)sent[0], (long)(double)sent[1], (long)(double)sent[2]).ToInt64();
+                        }
+                        else if (kind == "end") stack.Dispose();
+                        var cards = new List<object>();
+                        foreach (NoticeCard card in stack.Cards)
+                            cards.Add(new Dictionary<string, object>
+                            {
+                                { "id", stack.IdOf(card) }, { "phase", card.Motion.Phase }, { "position", card.Motion.Position },
+                                { "edge", card.Edge }, { "seen", card.Seen }, { "superseded", card.Superseded }, { "ended", card.Ended },
+                                { "pushed_out", card.PushedOut }, { "moved_out", card.MovedOut },
+                                { "hover", card.Hover is SurfaceTarget ? ((SurfaceTarget)card.Hover).ToList() : card.Hover },
+                                { "tracking", card.Tracking }, { "size", card.Size },
+                            });
+                        steps.Add(new Dictionary<string, object>
+                        {
+                            { "op", op }, { "returned", returned }, { "frames", stack.FrameRunning }, { "frame_ms", stack.FrameMs },
+                            { "calls", new List<string>(calls) }, { "posts", new List<object>(actions.Posts) }, { "cards", cards },
+                        });
+                    }
+                }
+                finally
+                {
+                    if (stack.Hwnd != IntPtr.Zero) stack.Dispose();
+                }
+            }
+            finally
+            {
+                SurfaceScreen.Probe = null;
+                SurfaceFonts.Pinned = null;
+                SurfaceRenderer.SystemColours = null;
             }
             return new Dictionary<string, object> { { "steps", steps }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before } };
         }

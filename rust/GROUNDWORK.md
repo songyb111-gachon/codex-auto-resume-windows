@@ -2184,9 +2184,9 @@ a worker thread.
 | `SurfaceScreen.cs` | every call by which a window reaches the screen (show, place, fade, `UpdateLayeredWindow(Indirect)`, focus, foreground, timers, posts, DWM, region, class style, TrackMouseEvent, GetKeyState): Windows' on a live host; in the probe a record in the reference's words, not made, and the posts queued for the script. `SurfaceLayers.Update`, `CardLayers.Show/Hide` and `CardLayer.Push` go through it | the records below |
 | `PopupWindow.cs` + `PopupMessages.cs` | `ui/popup/window.py` (`Popup`), `messages.py` (`PopupMessages`), `hidden.py`, `layers.py`'s `PopupCard`; model.py's `select_action`, `busy_key`, `action_for`/`menu_for`/`begin` over the drawn view | `popupwindow/` (7 runs) |
 | `MenuWindow.cs` | `ui/popup/menuwindow.py`'s `Menu` (its drawing was `DrawMenu`): open/close/dismiss, fade in/out, keys, letters, pointer, rest timer, submenus; implements the popup's `IRowMenu` | `menuwindow/` (5 runs) |
-| `CardStack.cs` | `ui/card/stack.py` (`CardStack`, implements `ICardHost`) + `ui/card/win32.py`'s `screen`, `look`, `focus_snapshot`, `taskbar_corner`, `focus_line`, `hold` (SPI_GETMESSAGEDURATION) | compiled; **no comparison yet** |
+| `CardStack.cs` | `ui/card/stack.py` (`CardStack`, implements `ICardHost`) + `ui/card/win32.py`'s `screen`, `look`, `focus_snapshot`, `taskbar_corner`, `focus_line`, `hold` (SPI_GETMESSAGEDURATION) | `cardstack/` (4 runs) |
 
-How they are held (`tests/test_surface_windows.py`, now 5 tests, ~30 s, all exact): the reference's `Popup` and `Menu` are
+How they are held (`tests/test_surface_windows.py`, now 6 tests, ~40 s, all exact): the reference's `Popup` and `Menu` are
 driven by a script with every user32 call that would make, show, place, fade, upload or time a window answered by a
 stand-in that records it in the same words `SurfaceScreen` records (`layers.update` too), their clocks, threads and the
 look questions fixed; the C# runs the same script over windows made and never shown. The popup's core half is the
@@ -2195,16 +2195,18 @@ read's result one snapshot, an action's its answer then a snapshot), and the act
 with what the C# posted (`popup {call, args}`, `open_dashboard`). After every step: shown, opening alpha and rise, home,
 frame timer, waiting, hover/press/focus, size, painted plan, the picture's digest and the calls in order; the menu's and
 its submenu's likewise, what was chosen and who was told it closed. `popupwindow/` 7 runs x 125 steps, `menuwindow/` 5 runs
-x 63 steps; the popup's live-path proof (step 3) three times a run: its own `Render()` == a fresh renderer's `Draw` of
+x 63 steps, `cardstack/` 4 runs x 44 steps (six notices: a replacement about the same
+conversation, a fourth pushing out, one that stays, hover, a press, a button, the face, a right click, the focus asked
+again and its log line, the end; each card's phase, place, edge and marks, the posts); the popup's live-path proof (step 3) three times a run: its own `Render()` == a fresh renderer's `Draw` of
 the same view, plan and frame == the reference's `render()`; 0 GDI+ objects left. Mutations (each alone, restored, each
 fails): click-away 0.5 -> 0.1 s, the opening's rise xs + 1, the begun action's busy not drawn, WM_POPUP_PAINT pushing when
-nothing is owed, the menu telling its owner it left when the focus went back to it, the menu's fade frame 16 -> 17 ms.
+nothing is owed, the menu telling its owner it left when the focus went back to it, the menu's fade frame 16 -> 17 ms,
+the stack not seeing a notice about the same conversation, FOCUS_AFTER 0.6 s. Not caught: the fourth card kept past
+MAX_CARDS - in these runs the work area has room for three cards only, so the room rule retires it the same way.
 Found on the way: the snapshot must bring an open popup up to date whatever changed (the reference's read result always
 does), and the posted strings message must not draw the old view in the new words (AUDIT lines).
 
-**Left, in this order:** a comparison for `CardStack` (the reference's stack driven with `windows=False` cards and its
-`worker`/`clock`/`locate`/`appearance`/`focus` given, as its own tests drive it; the C# with `MakeWindows=false`);
-`TrayIcon.cs` (`ui/tray/icon.py`, `win32.py`, `clicks.py`, `cards.py`, `__init__.py`, `animation.py`) and `TrayMenu.cs`
+**Left, in this order:** `TrayIcon.cs` (`ui/tray/icon.py`, `win32.py`, `clicks.py`, `cards.py`, `__init__.py`, `animation.py`) and `TrayMenu.cs`
 (`ui/tray/menu.py`: `menu_items`, the drawn menu through `MenuWindow`, Windows' own as the fallback, `_act` posting
 `toggle`/`stop`/`open_dashboard`/`disarm_power`); `SurfaceAccess.cs` (`ui/popup/access.py`: MSAA, then the hooks already
 in place - `TipCard.Accessible`, `PopupWindow.Accessible`/`Speaking`/`Spoken`, `MenuWindow.Accessible`/`Speaking`/
