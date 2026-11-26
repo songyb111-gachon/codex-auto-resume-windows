@@ -448,3 +448,738 @@ pub fn hhmm(at: f64, local: &dyn LocalClock) -> Py<String> {
 pub fn make(_paths: &car_config::Paths) -> Option<Box<dyn crate::capabilities::Code>> {
     None
 }
+
+// ---------------------------------------------------------------------------------------------- config.toml
+/// `tomllib.loads` (tomli, TOML 1.0, as the reference interpreter ships it): every acceptance and refusal of the
+/// reference's parser, keeping of a document only what `declared_servers` reads - each table's keys in their first
+/// order, and whether a value is a table, an array, or anything else. No dependency: nothing in the locks reads TOML.
+pub mod toml {
+    /// A TOML value as far as the anchor reads it.
+    #[derive(Debug, Clone)]
+    pub enum Item {
+        Table(Vec<(String, Item)>),
+        Array(Vec<Item>),
+        Other,
+    }
+
+    impl Item {
+        pub fn get(&self, key: &str) -> Option<&Item> {
+            match self {
+                Item::Table(pairs) => pairs.iter().find(|(name, _)| name == key).map(|(_, item)| item),
+                _ => None,
+            }
+        }
+        fn get_mut(&mut self, key: &str) -> Option<&mut Item> {
+            match self {
+                Item::Table(pairs) => pairs.iter_mut().find(|(name, _)| name == key).map(|(_, item)| item),
+                _ => None,
+            }
+        }
+        fn insert(&mut self, key: &str, item: Item) {
+            if let Item::Table(pairs) = self {
+                pairs.push((key.to_owned(), item));
+            }
+        }
+    }
+
+    /// TOML's refusal (`TOMLDecodeError`).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Refused;
+
+    type Parsed<T> = Result<T, Refused>;
+
+    fn ctrl(c: char) -> bool {
+        (c as u32) < 32 || c as u32 == 127
+    }
+    fn bare(c: char) -> bool {
+        c.is_ascii_alphanumeric() || c == '-' || c == '_'
+    }
+
+    #[derive(Default)]
+    struct FlagNode {
+        flags: [bool; 2],
+        recursive: [bool; 2],
+        nested: Vec<(String, FlagNode)>,
+    }
+
+    fn child<'a>(nodes: &'a mut Vec<(String, FlagNode)>, key: &str) -> &'a mut FlagNode {
+        if let Some(index) = nodes.iter().position(|(name, _)| name == key) {
+            return &mut nodes[index].1;
+        }
+        nodes.push((key.to_owned(), FlagNode::default()));
+        &mut nodes.last_mut().expect("pushed").1
+    }
+
+    const FROZEN: usize = 0;
+    const EXPLICIT_NEST: usize = 1;
+
+    #[derive(Default)]
+    struct Flags {
+        root: Vec<(String, FlagNode)>,
+        pending: Vec<(Vec<String>, usize)>,
+    }
+
+    impl Flags {
+        fn finalize_pending(&mut self) {
+            for (key, flag) in std::mem::take(&mut self.pending) {
+                self.set(&key, flag, false);
+            }
+        }
+        fn unset_all(&mut self, key: &[String]) {
+            let mut nodes = &mut self.root;
+            for part in &key[..key.len() - 1] {
+                let Some(index) = nodes.iter().position(|(name, _)| name == part) else {
+                    return;
+                };
+                nodes = &mut nodes[index].1.nested;
+            }
+            nodes.retain(|(name, _)| name != &key[key.len() - 1]);
+        }
+        fn set(&mut self, key: &[String], flag: usize, recursive: bool) {
+            let mut nodes = &mut self.root;
+            for part in &key[..key.len() - 1] {
+                nodes = &mut child(nodes, part).nested;
+            }
+            let node = child(nodes, &key[key.len() - 1]);
+            if recursive {
+                node.recursive[flag] = true;
+            } else {
+                node.flags[flag] = true;
+            }
+        }
+        fn is(&self, key: &[String], flag: usize) -> bool {
+            if key.is_empty() {
+                return false;
+            }
+            let mut nodes = &self.root;
+            for part in &key[..key.len() - 1] {
+                let Some((_, node)) = nodes.iter().find(|(name, _)| name == part) else {
+                    return false;
+                };
+                if node.recursive[flag] {
+                    return true;
+                }
+                nodes = &node.nested;
+            }
+            nodes
+                .iter()
+                .find(|(name, _)| name == &key[key.len() - 1])
+                .is_some_and(|(_, node)| node.flags[flag] || node.recursive[flag])
+        }
+    }
+
+    /// `NestedDict.get_or_create_nest(key, access_lists=...)`.
+    fn nest<'a>(root: &'a mut Item, key: &[String], access_lists: bool) -> Parsed<&'a mut Item> {
+        let mut cont = root;
+        for part in key {
+            if cont.get(part).is_none() {
+                cont.insert(part, Item::Table(Vec::new()));
+            }
+            cont = cont.get_mut(part).ok_or(Refused)?;
+            if access_lists && let Item::Array(items) = cont {
+                cont = items.last_mut().ok_or(Refused)?;
+            }
+            if !matches!(cont, Item::Table(_)) {
+                return Err(Refused);
+            }
+        }
+        Ok(cont)
+    }
+
+    struct Parser {
+        src: Vec<char>,
+        pos: usize,
+    }
+
+    impl Parser {
+        fn at(&self, pos: usize) -> Option<char> {
+            self.src.get(pos).copied()
+        }
+        fn starts(&self, text: &str) -> bool {
+            text.chars().enumerate().all(|(i, c)| self.at(self.pos + i) == Some(c))
+        }
+        fn skip_ws(&mut self) {
+            while matches!(self.at(self.pos), Some(' ' | '\t')) {
+                self.pos += 1;
+            }
+        }
+        fn skip_ws_newline(&mut self) {
+            while matches!(self.at(self.pos), Some(' ' | '\t' | '\n')) {
+                self.pos += 1;
+            }
+        }
+        /// `skip_until(src, pos, expect, error_on=..., error_on_eof=...)`.
+        fn skip_until(&mut self, expect: &str, error_on: impl Fn(char) -> bool, error_on_eof: bool) -> Parsed<usize> {
+            let wanted: Vec<char> = expect.chars().collect();
+            let mut end = None;
+            let mut index = self.pos;
+            while index + wanted.len() <= self.src.len() {
+                if self.src[index..index + wanted.len()] == wanted[..] {
+                    end = Some(index);
+                    break;
+                }
+                index += 1;
+            }
+            let end = match end {
+                Some(end) => end,
+                None if error_on_eof => return Err(Refused),
+                None => self.src.len(),
+            };
+            if self.src[self.pos..end].iter().any(|c| error_on(*c)) {
+                return Err(Refused);
+            }
+            Ok(end)
+        }
+        fn skip_comment(&mut self) -> Parsed<()> {
+            if self.at(self.pos) == Some('#') {
+                self.pos += 1;
+                self.pos = self.skip_until("\n", |c| ctrl(c) && c != '\t', false)?;
+            }
+            Ok(())
+        }
+        fn skip_comments_and_array_ws(&mut self) -> Parsed<()> {
+            loop {
+                let before = self.pos;
+                self.skip_ws_newline();
+                self.skip_comment()?;
+                if self.pos == before {
+                    return Ok(());
+                }
+            }
+        }
+
+        fn key_part(&mut self) -> Parsed<String> {
+            match self.at(self.pos) {
+                Some(c) if bare(c) => {
+                    let start = self.pos;
+                    while self.at(self.pos).is_some_and(bare) {
+                        self.pos += 1;
+                    }
+                    Ok(self.src[start..self.pos].iter().collect())
+                }
+                Some('\'') => self.literal_str(),
+                Some('"') => {
+                    self.pos += 1;
+                    self.basic_str(false)
+                }
+                _ => Err(Refused),
+            }
+        }
+        fn key(&mut self) -> Parsed<Vec<String>> {
+            let mut key = vec![self.key_part()?];
+            self.skip_ws();
+            while self.at(self.pos) == Some('.') {
+                self.pos += 1;
+                self.skip_ws();
+                key.push(self.key_part()?);
+                self.skip_ws();
+            }
+            Ok(key)
+        }
+        fn literal_str(&mut self) -> Parsed<String> {
+            self.pos += 1;
+            let start = self.pos;
+            let end = self.skip_until("'", |c| ctrl(c) && c != '\t', true)?;
+            self.pos = end + 1;
+            Ok(self.src[start..end].iter().collect())
+        }
+        fn hex_char(&mut self, length: usize) -> Parsed<char> {
+            if self.pos + length > self.src.len() {
+                return Err(Refused);
+            }
+            let text: String = self.src[self.pos..self.pos + length].iter().collect();
+            if !text.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(Refused);
+            }
+            self.pos += length;
+            let value = u32::from_str_radix(&text, 16).map_err(|_| Refused)?;
+            char::from_u32(value).ok_or(Refused)
+        }
+        fn escape(&mut self, multiline: bool) -> Parsed<String> {
+            let id: String = self.src[self.pos..(self.pos + 2).min(self.src.len())].iter().collect();
+            self.pos += 2;
+            if multiline && (id == "\\ " || id == "\\\t" || id == "\\\n") {
+                if id != "\\\n" {
+                    self.skip_ws();
+                    match self.at(self.pos) {
+                        None => return Ok(String::new()),
+                        Some('\n') => self.pos += 1,
+                        Some(_) => return Err(Refused),
+                    }
+                }
+                self.skip_ws_newline();
+                return Ok(String::new());
+            }
+            match id.as_str() {
+                "\\u" => Ok(self.hex_char(4)?.to_string()),
+                "\\U" => Ok(self.hex_char(8)?.to_string()),
+                "\\b" => Ok("\u{8}".into()),
+                "\\t" => Ok("\t".into()),
+                "\\n" => Ok("\n".into()),
+                "\\f" => Ok("\u{c}".into()),
+                "\\r" => Ok("\r".into()),
+                "\\\"" => Ok("\"".into()),
+                "\\\\" => Ok("\\".into()),
+                _ => Err(Refused),
+            }
+        }
+        fn basic_str(&mut self, multiline: bool) -> Parsed<String> {
+            let illegal = |c: char| ctrl(c) && c != '\t' && !(multiline && c == '\n');
+            let mut result = String::new();
+            let mut start = self.pos;
+            loop {
+                let Some(c) = self.at(self.pos) else {
+                    return Err(Refused);
+                };
+                if c == '"' {
+                    if !multiline {
+                        result.extend(&self.src[start..self.pos]);
+                        self.pos += 1;
+                        return Ok(result);
+                    }
+                    if self.starts("\"\"\"") {
+                        result.extend(&self.src[start..self.pos]);
+                        self.pos += 3;
+                        return Ok(result);
+                    }
+                    self.pos += 1;
+                    continue;
+                }
+                if c == '\\' {
+                    result.extend(&self.src[start..self.pos]);
+                    let escaped = self.escape(multiline)?;
+                    result.push_str(&escaped);
+                    start = self.pos;
+                    continue;
+                }
+                if illegal(c) {
+                    return Err(Refused);
+                }
+                self.pos += 1;
+            }
+        }
+        fn multiline_str(&mut self, literal: bool) -> Parsed<String> {
+            self.pos += 3;
+            if self.at(self.pos) == Some('\n') {
+                self.pos += 1;
+            }
+            let delim = if literal { '\'' } else { '"' };
+            let mut result = if literal {
+                let end = self.skip_until("'''", |c| ctrl(c) && c != '\t' && c != '\n', true)?;
+                let found: String = self.src[self.pos..end].iter().collect();
+                self.pos = end + 3;
+                found
+            } else {
+                self.basic_str(true)?
+            };
+            for _ in 0..2 {
+                if self.at(self.pos) != Some(delim) {
+                    return Ok(result);
+                }
+                self.pos += 1;
+                result.push(delim);
+            }
+            Ok(result)
+        }
+
+        /// `d(?:_?d)*` at the position: whether it matched (the position after it).
+        fn digits(&mut self, ok: impl Fn(char) -> bool) -> bool {
+            if !self.at(self.pos).is_some_and(&ok) {
+                return false;
+            }
+            self.pos += 1;
+            loop {
+                if self.at(self.pos).is_some_and(&ok) {
+                    self.pos += 1;
+                } else if self.at(self.pos) == Some('_') && self.at(self.pos + 1).is_some_and(&ok) {
+                    self.pos += 2;
+                } else {
+                    return true;
+                }
+            }
+        }
+        fn fixed(&mut self, count: usize) -> Option<u32> {
+            let mut value = 0u32;
+            for _ in 0..count {
+                value = value * 10 + self.at(self.pos)?.to_digit(10)?;
+                self.pos += 1;
+            }
+            Some(value)
+        }
+        /// `_TIME_RE_STR` at the position: Some where it matched (the position after it), else the position kept.
+        fn time(&mut self) -> Option<()> {
+            let start = self.pos;
+            let ok = (|| {
+                let hour = self.fixed(2)?;
+                (self.at(self.pos)? == ':').then_some(())?;
+                self.pos += 1;
+                let minute = self.fixed(2)?;
+                (self.at(self.pos)? == ':').then_some(())?;
+                self.pos += 1;
+                let second = self.fixed(2)?;
+                (hour <= 23 && minute <= 59 && second <= 59).then_some(())?;
+                if self.at(self.pos) == Some('.') && self.at(self.pos + 1).is_some_and(|c| c.is_ascii_digit()) {
+                    self.pos += 1;
+                    while self.at(self.pos).is_some_and(|c| c.is_ascii_digit()) {
+                        self.pos += 1;
+                    }
+                }
+                Some(())
+            })();
+            if ok.is_none() {
+                self.pos = start;
+            }
+            ok
+        }
+        /// RE_DATETIME at the position: Some(valid) where it matched (the position after it), None where not.
+        fn datetime(&mut self) -> Option<bool> {
+            let start = self.pos;
+            let date = (|| {
+                let year = self.fixed(4)?;
+                (self.at(self.pos)? == '-').then_some(())?;
+                self.pos += 1;
+                let month = self.fixed(2)?;
+                (self.at(self.pos)? == '-').then_some(())?;
+                self.pos += 1;
+                let day = self.fixed(2)?;
+                ((1..=12).contains(&month) && (1..=31).contains(&day)).then_some((year, month, day))
+            })();
+            let Some((year, month, day)) = date else {
+                self.pos = start;
+                return None;
+            };
+            let after_date = self.pos;
+            if matches!(self.at(self.pos), Some('T' | 't' | ' ')) {
+                self.pos += 1;
+                if self.time().is_some() {
+                    match self.at(self.pos) {
+                        Some('Z' | 'z') => self.pos += 1,
+                        Some('+' | '-') => {
+                            let mark = self.pos;
+                            self.pos += 1;
+                            let offset = (|| {
+                                let hour = self.fixed(2)?;
+                                (self.at(self.pos)? == ':').then_some(())?;
+                                self.pos += 1;
+                                let minute = self.fixed(2)?;
+                                (hour <= 23 && minute <= 59).then_some(())
+                            })();
+                            if offset.is_none() {
+                                self.pos = mark;
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    self.pos = after_date;
+                }
+            }
+            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+            let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month as usize - 1];
+            // `datetime(year, ...)`: year 0 is no year.
+            Some(year >= 1 && day <= days)
+        }
+        fn number(&mut self) -> bool {
+            let start = self.pos;
+            if self.at(self.pos) == Some('0') {
+                let radix: Option<fn(char) -> bool> = match self.at(self.pos + 1) {
+                    Some('x') => Some(|c: char| c.is_ascii_hexdigit()),
+                    Some('b') => Some(|c: char| c == '0' || c == '1'),
+                    Some('o') => Some(|c: char| ('0'..='7').contains(&c)),
+                    _ => None,
+                };
+                if let Some(radix) = radix {
+                    self.pos += 2;
+                    if self.digits(radix) {
+                        return true;
+                    }
+                    self.pos = start;
+                }
+            }
+            if matches!(self.at(self.pos), Some('+' | '-')) {
+                self.pos += 1;
+            }
+            match self.at(self.pos) {
+                Some('0') => self.pos += 1,
+                Some('1'..='9') => {
+                    self.digits(|c| c.is_ascii_digit());
+                }
+                _ => {
+                    self.pos = start;
+                    return false;
+                }
+            }
+            if self.at(self.pos) == Some('.') {
+                let mark = self.pos;
+                self.pos += 1;
+                if !self.digits(|c| c.is_ascii_digit()) {
+                    self.pos = mark;
+                }
+            }
+            if matches!(self.at(self.pos), Some('e' | 'E')) {
+                let mark = self.pos;
+                self.pos += 1;
+                if matches!(self.at(self.pos), Some('+' | '-')) {
+                    self.pos += 1;
+                }
+                if !self.digits(|c| c.is_ascii_digit()) {
+                    self.pos = mark;
+                }
+            }
+            true
+        }
+
+        fn value(&mut self, depth: usize) -> Parsed<Item> {
+            // CPython's recursion limit stops a nesting deeper than about a thousand levels.
+            if depth > 900 {
+                return Err(Refused);
+            }
+            match self.at(self.pos) {
+                Some('"') => {
+                    if self.starts("\"\"\"") {
+                        self.multiline_str(false)?;
+                    } else {
+                        self.pos += 1;
+                        self.basic_str(false)?;
+                    }
+                    return Ok(Item::Other);
+                }
+                Some('\'') => {
+                    if self.starts("'''") {
+                        self.multiline_str(true)?;
+                    } else {
+                        self.literal_str()?;
+                    }
+                    return Ok(Item::Other);
+                }
+                Some('t') if self.starts("true") => {
+                    self.pos += 4;
+                    return Ok(Item::Other);
+                }
+                Some('f') if self.starts("false") => {
+                    self.pos += 5;
+                    return Ok(Item::Other);
+                }
+                Some('[') => return self.array(depth),
+                Some('{') => return self.inline_table(depth),
+                _ => {}
+            }
+            if let Some(valid) = self.datetime() {
+                return if valid { Ok(Item::Other) } else { Err(Refused) };
+            }
+            if self.time().is_some() || self.number() {
+                return Ok(Item::Other);
+            }
+            for special in ["inf", "nan", "-inf", "+inf", "-nan", "+nan"] {
+                if self.starts(special) {
+                    self.pos += special.chars().count();
+                    return Ok(Item::Other);
+                }
+            }
+            Err(Refused)
+        }
+        fn array(&mut self, depth: usize) -> Parsed<Item> {
+            self.pos += 1;
+            let mut items = Vec::new();
+            self.skip_comments_and_array_ws()?;
+            if self.at(self.pos) == Some(']') {
+                self.pos += 1;
+                return Ok(Item::Array(items));
+            }
+            loop {
+                items.push(self.value(depth + 1)?);
+                self.skip_comments_and_array_ws()?;
+                match self.at(self.pos) {
+                    Some(']') => {
+                        self.pos += 1;
+                        return Ok(Item::Array(items));
+                    }
+                    Some(',') => self.pos += 1,
+                    _ => return Err(Refused),
+                }
+                self.skip_comments_and_array_ws()?;
+                if self.at(self.pos) == Some(']') {
+                    self.pos += 1;
+                    return Ok(Item::Array(items));
+                }
+            }
+        }
+        fn key_value(&mut self, depth: usize) -> Parsed<(Vec<String>, Item)> {
+            let key = self.key()?;
+            if self.at(self.pos) != Some('=') {
+                return Err(Refused);
+            }
+            self.pos += 1;
+            self.skip_ws();
+            let value = self.value(depth + 1)?;
+            Ok((key, value))
+        }
+        fn inline_table(&mut self, depth: usize) -> Parsed<Item> {
+            self.pos += 1;
+            let mut table = Item::Table(Vec::new());
+            let mut flags = Flags::default();
+            self.skip_ws();
+            if self.at(self.pos) == Some('}') {
+                self.pos += 1;
+                return Ok(table);
+            }
+            loop {
+                let (key, value) = self.key_value(depth)?;
+                if flags.is(&key, FROZEN) {
+                    return Err(Refused);
+                }
+                let container = matches!(value, Item::Table(_) | Item::Array(_));
+                let place = nest(&mut table, &key[..key.len() - 1], false)?;
+                if place.get(&key[key.len() - 1]).is_some() {
+                    return Err(Refused);
+                }
+                place.insert(&key[key.len() - 1], value);
+                self.skip_ws();
+                match self.at(self.pos) {
+                    Some('}') => {
+                        self.pos += 1;
+                        return Ok(table);
+                    }
+                    Some(',') => {}
+                    _ => return Err(Refused),
+                }
+                if container {
+                    flags.set(&key, FROZEN, true);
+                }
+                self.pos += 1;
+                self.skip_ws();
+            }
+        }
+    }
+
+    /// `tomllib.loads(text)`: the document, or TOML's refusal.
+    pub fn loads(text: &str) -> Result<Item, Refused> {
+        let src: Vec<char> = text.replace("\r\n", "\n").chars().collect();
+        let mut parser = Parser { src, pos: 0 };
+        let mut data = Item::Table(Vec::new());
+        let mut flags = Flags::default();
+        let mut header: Vec<String> = Vec::new();
+        loop {
+            parser.skip_ws();
+            let Some(c) = parser.at(parser.pos) else {
+                break;
+            };
+            if c == '\n' {
+                parser.pos += 1;
+                continue;
+            }
+            if bare(c) || c == '"' || c == '\'' {
+                let (key, value) = parser.key_value(0)?;
+                let stem = key[key.len() - 1].clone();
+                for i in 1..key.len() {
+                    let mut cont: Vec<String> = header.clone();
+                    cont.extend_from_slice(&key[..i]);
+                    if flags.is(&cont, EXPLICIT_NEST) {
+                        return Err(Refused);
+                    }
+                    flags.pending.push((cont, EXPLICIT_NEST));
+                }
+                let mut parent = header.clone();
+                parent.extend_from_slice(&key[..key.len() - 1]);
+                if flags.is(&parent, FROZEN) {
+                    return Err(Refused);
+                }
+                let container = matches!(value, Item::Table(_) | Item::Array(_));
+                let place = nest(&mut data, &parent, true)?;
+                if place.get(&stem).is_some() {
+                    return Err(Refused);
+                }
+                place.insert(&stem, value);
+                if container {
+                    let mut whole = header.clone();
+                    whole.extend_from_slice(&key);
+                    flags.set(&whole, FROZEN, true);
+                }
+                parser.skip_ws();
+            } else if c == '[' {
+                let list = parser.at(parser.pos + 1) == Some('[');
+                flags.finalize_pending();
+                parser.pos += if list { 2 } else { 1 };
+                parser.skip_ws();
+                let key = parser.key()?;
+                if list {
+                    if flags.is(&key, FROZEN) {
+                        return Err(Refused);
+                    }
+                    flags.unset_all(&key);
+                    flags.set(&key, EXPLICIT_NEST, false);
+                    let place = nest(&mut data, &key[..key.len() - 1], true)?;
+                    let last = &key[key.len() - 1];
+                    match place.get_mut(last) {
+                        Some(Item::Array(items)) => items.push(Item::Table(Vec::new())),
+                        Some(_) => return Err(Refused),
+                        None => place.insert(last, Item::Array(vec![Item::Table(Vec::new())])),
+                    }
+                    if !parser.starts("]]") {
+                        return Err(Refused);
+                    }
+                    parser.pos += 2;
+                } else {
+                    if flags.is(&key, EXPLICIT_NEST) || flags.is(&key, FROZEN) {
+                        return Err(Refused);
+                    }
+                    flags.set(&key, EXPLICIT_NEST, false);
+                    nest(&mut data, &key, true)?;
+                    if parser.at(parser.pos) != Some(']') {
+                        return Err(Refused);
+                    }
+                    parser.pos += 1;
+                }
+                header = key;
+                parser.skip_ws();
+            } else if c != '#' {
+                return Err(Refused);
+            }
+            parser.skip_comment()?;
+            match parser.at(parser.pos) {
+                None => break,
+                Some('\n') => parser.pos += 1,
+                Some(_) => return Err(Refused),
+            }
+        }
+        Ok(data)
+    }
+}
+
+/// `_config(codex_home)`: (config.toml as tomllib reads it, whether it is there and could not be read).
+pub fn config(codex_home: &str) -> (Option<toml::Item>, bool) {
+    let path = std::path::Path::new(codex_home).join("config.toml");
+    let data = match std::fs::read(&path) {
+        Ok(data) => data,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return (None, false),
+        Err(_) => return (None, true),
+    };
+    let Ok(text) = String::from_utf8(data) else {
+        return (None, true);
+    };
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    match toml::loads(text) {
+        Ok(found) => (Some(found), false),
+        Err(_) => (None, true),
+    }
+}
+
+/// `declared_servers(codex_home)`: the MCP servers config.toml declares (a table with `command` or `url`), in order.
+pub fn declared_servers(codex_home: &str) -> Vec<String> {
+    let (found, _unreadable) = config(codex_home);
+    let Some(toml::Item::Table(servers)) = found.as_ref().and_then(|found| found.get("mcp_servers")).cloned() else {
+        return Vec::new();
+    };
+    servers
+        .into_iter()
+        .filter(|(_, value)| {
+            matches!(value, toml::Item::Table(_)) && (value.get("command").is_some() || value.get("url").is_some())
+        })
+        .map(|(name, _)| name)
+        .collect()
+}
+
+/// `config_unreadable(codex_home)`.
+pub fn config_unreadable(codex_home: &str) -> bool {
+    config(codex_home).1
+}
