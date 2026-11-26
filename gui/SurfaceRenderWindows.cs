@@ -26,6 +26,12 @@ namespace CodexAutoResume
                 case "tip_window":
                     plan = TipWindowCase(task);
                     return true;
+                case "popup_window":
+                    plan = PopupWindowCase(task);
+                    return true;
+                case "menu_window":
+                    plan = MenuWindowCase(task);
+                    return true;
             }
             plan = null;
             return false;
@@ -250,6 +256,347 @@ namespace CodexAutoResume
             {
                 { "steps", steps }, { "proofs", proofs }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before },
             };
+        }
+
+        /// What the probe's popup posts: each action and its fields, answered as the core answers a done action.
+        private sealed class ProbeActions : IHostActions
+        {
+            internal readonly List<object> Posts = new List<object>();
+
+            public string Post(string action, IDictionary<string, object> fields)
+            {
+                Posts.Add(new List<object> { action, fields });
+                return "{\"ok\": true}";
+            }
+        }
+
+        /// A row's drawn menu that records what it was asked to open and keeps its run, for the script to choose from.
+        private sealed class ProbeMenu : IRowMenu
+        {
+            internal readonly List<object> Opened = new List<object>();
+            internal Action<int> Run;
+
+            public IntPtr Hwnd { get { return new IntPtr(0x7777); } }
+
+            public bool Open(List<object> entries, Dictionary<string, object> strings, Action<int> run, int[] point, IntPtr owner,
+                             Action onLeave)
+            {
+                Run = run;
+                Opened.Add(new List<object> { Dump(entries), point });
+                return true;
+            }
+
+            public void Close() { Opened.Add("close"); }
+
+            public void Destroy() { Opened.Add("destroy"); }
+        }
+
+        /// The probe mode for the popup: a PopupWindow whose windows are made and never shown (every call that would reach
+        /// the screen recorded by SurfaceScreen.Probe instead), driven by a script of the icon's calls, Windows' messages
+        /// (sent to its window procedure), the clocks, and the core's snapshots and answers where the reference's model
+        /// took them; after each step what it is and the calls it made. And the live-path proof: the window's own picture
+        /// against the render mode's Draw of the same view, plan and frame, byte for byte, with no GDI+ object left.
+        private static object PopupWindowCase(Dictionary<string, object> task)
+        {
+            SystemColoursFrom(Field(task, "system"));
+            SurfaceFonts.Pinned = Field(task, "pinned") as string;
+            var look = (List<object>)task["look"];
+            SurfaceTheme.SetTheme(look[0]);
+            SurfaceTheme.SetDesign(look[1]);
+            SurfaceTheme.SetReduceMotion(false);
+            bool contrast = (bool)look[2];
+            bool reduced = (bool)task["reduced"];
+            var screenValue = (Dictionary<string, object>)task["screen"];
+            var strings = (Dictionary<string, object>)task["strings"];
+            double wall = (double)task["now"];
+            double clock = 1000.0;
+            bool held = false;
+            var logged = new List<object>();
+            int before = SurfaceGdip.GdipObjects;
+            var steps = new List<object>();
+            var proofs = new List<object>();
+            var calls = new List<string>();
+            var works = new List<Action>();
+            var views = new List<Dictionary<string, object>>();
+            var actions = new ProbeActions();
+            var menu = new ProbeMenu();
+            var known = new Dictionary<long, string>();
+            SurfaceScreen.Probe = calls;
+            SurfaceScreen.Posted.Clear();
+            SurfaceScreen.Keys.Clear();
+            try
+            {
+                var popup = new PopupWindow(strings, (string)task["locale"], Field(task, "letters") as string,
+                                            SurfaceMath.Truthy(Field(task, "days")), () => held);
+                popup.Log = line => logged.Add(line);
+                popup.Actions = actions;
+                popup.Worker = work => works.Add(work);
+                popup.MakeMenu = () => menu;
+                popup.Monotonic = () => clock;
+                popup.Now = () => wall;
+                popup.ScreenReader = unused => new PopupWindow.PopupScreen
+                {
+                    Icon = Ints(screenValue["icon"]), Cursor = Ints(screenValue["cursor"]), Work = Ints(screenValue["work"]),
+                    Monitor = Ints(screenValue["monitor"]), Dpi = (double)screenValue["dpi"],
+                };
+                popup.AskContrast = () => contrast;
+                popup.AskReduced = () => reduced;
+                popup.AskAppsLight = () => (string)look[0] == "light";
+                popup.AskTextScale = () => (double)task["text_scale"];
+                SurfaceScreen.Name = hwnd =>
+                {
+                    if (popup.Hwnd != IntPtr.Zero) known[popup.Hwnd.ToInt64()] = "card";
+                    if (popup.Layers != null && popup.Layers.ShadowHwnd != IntPtr.Zero) known[popup.Layers.ShadowHwnd.ToInt64()] = "shadow";
+                    string name;
+                    return known.TryGetValue(hwnd.ToInt64(), out name) ? name : "0x" + hwnd.ToInt64().ToString("x");
+                };
+                Action pump = () =>
+                {
+                    for (int i = 0; i < 100 && SurfaceScreen.Posted.Count > 0; i++)
+                    {
+                        long[] posted = SurfaceScreen.Posted[0];
+                        SurfaceScreen.Posted.RemoveAt(0);
+                        if (posted[1] == -1) popup.Snapshot(views[(int)posted[2]]);
+                        else popup.Message((int)posted[1], posted[2], posted[3], new IntPtr(posted[0]));
+                    }
+                };
+                try
+                {
+                    foreach (object entry in (List<object>)task["script"])
+                    {
+                        var described = (Dictionary<string, object>)entry;
+                        string op = (string)described["op"];
+                        var step = (List<object>)described["do"];
+                        string kind = (string)step[0];
+                        calls.Clear();
+                        menu.Opened.Clear();
+                        actions.Posts.Clear();
+                        object returned = null;
+                        if (kind == "core")
+                        {
+                            popup.Snapshot((Dictionary<string, object>)step[1]);
+                            continue;
+                        }
+                        if (kind == "show") popup.Show((bool)step[1], (bool)step[2]);
+                        else if (kind == "select") popup.OnSelect((bool)step[1]);
+                        else if (kind == "double") popup.OnDoubleClick();
+                        else if (kind == "clock") clock += (double)step[1];
+                        else if (kind == "held") held = (bool)step[1];
+                        else if (kind == "shift") SurfaceScreen.Keys[0x10] = (short)((bool)step[1] ? -128 : 0);
+                        else if (kind == "messages")
+                        {
+                            var answers = new List<object>();
+                            foreach (object sent in (List<object>)step[1])
+                            {
+                                var one = (List<object>)sent;
+                                answers.Add(popup.Message((int)(double)one[0], (long)(double)one[1], (long)(double)one[2]).ToInt64());
+                            }
+                            returned = answers;
+                        }
+                        else if (kind == "pump") pump();
+                        else if (kind == "result")
+                        {
+                            var running = new List<Action>(works);
+                            works.Clear();
+                            int mark = SurfaceScreen.Posted.Count;
+                            foreach (Action work in running) work();
+                            List<long[]> answered = SurfaceScreen.Posted.GetRange(mark, SurfaceScreen.Posted.Count - mark);
+                            SurfaceScreen.Posted.RemoveRange(mark, SurfaceScreen.Posted.Count - mark);
+                            int next = 0;
+                            foreach (object one in (List<object>)step[1])
+                            {
+                                var happened = (Dictionary<string, object>)one;
+                                if (happened.ContainsKey("answer"))
+                                {
+                                    if (next < answered.Count) SurfaceScreen.Posted.Add(answered[next++]);
+                                    else logged.Add("probe: an answer the reference took was never posted");
+                                }
+                                else
+                                {
+                                    views.Add((Dictionary<string, object>)happened["view"]);
+                                    SurfaceScreen.Posted.Add(new long[] { 0, -1, views.Count - 1, 0 });
+                                }
+                            }
+                            while (next < answered.Count) SurfaceScreen.Posted.Add(answered[next++]);
+                            pump();
+                        }
+                        else if (kind == "choose")
+                        {
+                            if (menu.Run != null) menu.Run((int)(double)step[1]);
+                        }
+                        else if (kind == "strings")
+                        {
+                            popup.SetStrings((Dictionary<string, object>)step[1], (string)step[2], (string)step[3]);
+                            popup.Snapshot((Dictionary<string, object>)step[4]);
+                        }
+                        else if (kind == "proof")
+                        {
+                            popup.StaticDirty = true;
+                            byte[] window = popup.Render().Pixels();
+                            using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+                            {
+                                renderer.Theme = popup.Theme;
+                                renderer.Design = popup.Design;
+                                renderer.Contrast = popup.Contrast;
+                                renderer.Lone = popup.Card;
+                                renderer.Letters = popup.Letters;
+                                SurfacePlan plan = renderer.Layout(popup.Vm, popup.Plan.Scale, popup.Locale);
+                                byte[] render = renderer.Draw(plan, popup.Frame(), popup.Hover, popup.Pressed,
+                                                              popup.Keyboard ? popup.Focus : null).Pixels();
+                                proofs.Add(new List<object>
+                                {
+                                    Digest(window), Digest(render), Json.Write(Dump(plan)) == Json.Write(Dump(popup.Plan)),
+                                });
+                            }
+                            continue;
+                        }
+                        var kept = new List<object>();
+                        foreach (string call in calls)
+                            if (!call.StartsWith("PostMessageW card " + SurfaceNative.WM_POPUP_RESULT + " ")) kept.Add(call);
+                        Func<object, object> target = value => value is SurfaceTarget ? ((SurfaceTarget)value).ToList() : value;
+                        steps.Add(new Dictionary<string, object>
+                        {
+                            { "op", op }, { "visible", popup.Visible }, { "alpha", popup.Alpha }, { "below", popup.Below },
+                            { "home", popup.Home }, { "card", popup.Card }, { "frames", popup.FrameRunning },
+                            { "pending", popup.PendingShow != null }, { "hover", target(popup.Hover) },
+                            { "pressed", target(popup.Pressed) }, { "focus", target(popup.Focus) }, { "keyboard", popup.Keyboard },
+                            { "size", popup.Plan != null ? popup.Plan.Size : null },
+                            { "painted", popup.PaintedPlan != null && popup.PaintedPlan == popup.Plan },
+                            { "pixels", popup.Renderer != null && popup.Plan != null ? Digest(popup.Renderer.Canvas.Pixels()) : null },
+                            { "calls", kept }, { "menus", new List<object>(menu.Opened) },
+                            { "posts", new List<object>(actions.Posts) }, { "returned", returned },
+                            { "sweeping", popup.Sweeping() }, { "dpi", popup.Dpi },
+                        });
+                    }
+                }
+                finally
+                {
+                    popup.Dispose();
+                }
+            }
+            finally
+            {
+                SurfaceScreen.Probe = null;
+                SurfaceScreen.Posted.Clear();
+                SurfaceScreen.Keys.Clear();
+                SurfaceFonts.Pinned = null;
+                SurfaceRenderer.SystemColours = null;
+                SurfaceTheme.SetTheme("system");
+                SurfaceTheme.SetDesign(null);
+            }
+            return new Dictionary<string, object>
+            {
+                { "steps", steps }, { "proofs", proofs }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before },
+            };
+        }
+
+        /// The probe mode for the drawn menu: a MenuWindow made and never shown (every call that would reach the screen
+        /// recorded by SurfaceScreen.Probe instead), driven by a script of openings, its timers, keys, letters and the
+        /// pointer (sent to its window procedure, or its submenu's); after each step what it and its submenu are, the
+        /// calls, what was chosen and who was told it closed.
+        private static object MenuWindowCase(Dictionary<string, object> task)
+        {
+            SystemColoursFrom(Field(task, "system"));
+            SurfaceFonts.Pinned = Field(task, "pinned") as string;
+            var look = (List<object>)task["look"];
+            SurfaceTheme.SetTheme(look[0]);
+            SurfaceTheme.SetDesign(look[1]);
+            SurfaceTheme.SetReduceMotion(false);
+            bool contrast = (bool)look[2];
+            bool reduced = (bool)task["reduced"];
+            var strings = (Dictionary<string, object>)task["strings"];
+            double dpi = (double)task["dpi"];
+            int[] work = Ints(task["work"]);
+            var owner = new IntPtr((long)(double)task["owner"]);
+            double clock = 1000.0;
+            var logged = new List<object>();
+            int before = SurfaceGdip.GdipObjects;
+            var steps = new List<object>();
+            var calls = new List<string>();
+            var known = new Dictionary<long, string>();
+            SurfaceScreen.Probe = calls;
+            SurfaceScreen.Posted.Clear();
+            SurfaceScreen.Styles.Clear();
+            SurfaceScreen.Foreground = IntPtr.Zero;
+            SurfaceScreen.Grant = true;
+            try
+            {
+                var menu = new MenuWindow(line => logged.Add(line));
+                menu.Monotonic = () => clock;
+                menu.ScreenReader = at => new MenuWindow.MenuScreen { Cursor = at ?? new[] { 960, 520 }, Dpi = dpi, Work = work };
+                menu.AskContrast = () => contrast;
+                menu.AskReduced = () => reduced;
+                menu.AskAppsLight = () => (string)look[0] == "light";
+                menu.AskTextScale = () => (double)task["text_scale"];
+                SurfaceScreen.Name = hwnd =>
+                {
+                    if (menu.Hwnd != IntPtr.Zero) known[menu.Hwnd.ToInt64()] = "menu";
+                    if (menu.Child != null && menu.Child.Hwnd != IntPtr.Zero) known[menu.Child.Hwnd.ToInt64()] = "child";
+                    string name;
+                    return known.TryGetValue(hwnd.ToInt64(), out name) ? name : "0x" + hwnd.ToInt64().ToString("x");
+                };
+                menu.Telling = (hwnd, winEvent) => calls.Add("NotifyWinEvent " + SurfaceScreen.Name(hwnd) + " " + winEvent);
+                var chosen = new List<object>();
+                var left = new List<object>();
+                Func<MenuWindow, object> described = one =>
+                {
+                    if (one == null) return null;
+                    return new Dictionary<string, object>
+                    {
+                        { "visible", one.Visible }, { "selected", one.Selected }, { "alpha", one.Alpha }, { "below", one.Below },
+                        { "fade", one.FadeWay }, { "origin", one.Origin }, { "size", one.Plan != null ? one.Plan.Size : null },
+                        { "pixels", one.Renderer != null && one.Plan != null ? Digest(one.Renderer.Canvas.Pixels()) : null },
+                    };
+                };
+                try
+                {
+                    foreach (object entry in (List<object>)task["script"])
+                    {
+                        var described_ = (Dictionary<string, object>)entry;
+                        string op = (string)described_["op"];
+                        var step = (List<object>)described_["do"];
+                        calls.Clear();
+                        chosen.Clear();
+                        left.Clear();
+                        object returned = null;
+                        if (op == "open")
+                            returned = menu.Open((List<object>)step[2], strings, (string)task["locale"], Field(task, "letters") as string,
+                                                 id => chosen.Add(id), step[1] == null ? null : Ints(step[1]), owner,
+                                                 () => left.Add(true));
+                        else if (op == "clock") clock += (double)step[1];
+                        else if (op == "grant") SurfaceScreen.Grant = (bool)step[1];
+                        else
+                        {
+                            MenuWindow target = (string)step[1] == "child" ? menu.Child : menu;
+                            var sent = (List<object>)step[2];
+                            if (target != null && target.Hwnd != IntPtr.Zero)
+                                returned = (long)target.Message((int)(double)sent[0], (long)(double)sent[1], (long)(double)sent[2]);
+                        }
+                        steps.Add(new Dictionary<string, object>
+                        {
+                            { "op", op }, { "menu", described(menu) }, { "child", described(menu.Child) },
+                            { "calls", new List<string>(calls) }, { "chosen", new List<object>(chosen) },
+                            { "left", new List<object>(left) }, { "returned", returned },
+                        });
+                    }
+                }
+                finally
+                {
+                    menu.Destroy();
+                }
+            }
+            finally
+            {
+                SurfaceScreen.Probe = null;
+                SurfaceScreen.Styles.Clear();
+                SurfaceScreen.Foreground = IntPtr.Zero;
+                SurfaceScreen.Grant = true;
+                SurfaceFonts.Pinned = null;
+                SurfaceRenderer.SystemColours = null;
+                SurfaceTheme.SetTheme("system");
+                SurfaceTheme.SetDesign(null);
+            }
+            return new Dictionary<string, object> { { "steps", steps }, { "log", logged }, { "left", SurfaceGdip.GdipObjects - before } };
         }
     }
 }
