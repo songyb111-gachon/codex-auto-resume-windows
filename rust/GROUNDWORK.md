@@ -2775,3 +2775,109 @@ Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_cla
   it) and `EngineMaker::engine` gets the plug. car-host's `car_bridge` runs on the host's calling thread: a request line it
   parses should be read on a deep stack (`run_deep`), as follow314's rule asks.
 * The binaries budget is the stub core's plus the merged code; PLAN 6.6 still has P6 set it from its first full build.
+
+## P6 step 2: the host shell (seat S6.2b, branch `car-v0627-s62b`, 2026-11-27)
+
+Cut from Integration 9 (`cfdabfe59`). P6-DESIGN 1 (exports, panics, threads, the closed tables, start/end, no console
+windows, the mutex handover), 4.1 row 2 and 4.2 risk 3, under the owner's answers (Q3 one host exe, Q6 F10 kept). No
+window was shown (every host run has show_tray off; the pump's window is message-only), no picture made, nothing pushed.
+
+### What is here
+
+| Commit | What |
+|---|---|
+| `e44a74af2` | The decided contract taken word for word from car-v0627-s63 (`5fc0226ab`, `874cfd91e`): abi.rs's tables (`surfaces` + `locale`, `letters`; `snapshot` + `popup`; `strings` + `locale`, `letters`), `gui/ISurfaces.cs`, test_host_contract's SurfaceTests, guiscan's `host_group` - identical hunks for Integration 10 |
+| `257973aa6` | car-host's six over car-watcher's `api::Watcher`: `car_start` starts it (project root = the folder above the image's `bin`; a second start `bad_request`), `car_stop` signals its stop (0), `car_bridge` = `Watcher::bridge` on `run_deep`, `car_next_event`/`car_post_action` the watcher's (the abi queue still first, for tests). A caught export panic is also recorded as `App._record_failure` records one (`Watcher::record_failure`: `"<export> failed (panic); no submission was made"`, the detail in `errors.log`). car-watcher `surface` (new): the catalog's locale and letters (`locale_of`, `typeface.letters(l10n.catalog(locale))`), the popup's model read and drawn (`snapshot.popup = {view, menus, read, attention}`), the snapshot's `failure_unseen`, `unconfirmed_unseen`, `power_armed`; a `strings` event, a popup call and a seen failure are each followed by a snapshot at once. `post_action` answers `popup` (`ControlPopup`: car-control with actor `gui` and the popup's names), `failure_seen`/`mark_seen` (`acknowledge_failure()`). Feature `panic-test` (car-host -> car-watcher `trip`): `CAR_CORE_PANIC` trips the tick, the toasts worker or an export once |
+| `793a74402` | `gui/HostMain.cs`, `gui/HostPump.cs`, `gui/HostStandIn.cs`, `gui/SurfaceJson.cs` (s63's, word for word), `gui/host.manifest`, `gui/host.sources` (`[host]`, `[contract]`, `[standin]`); make_gui.ps1 builds `CodexAutoResume.exe` in the standard run (Q3), gui_stamp kind `host`; rust_release `HOST` staged once for both editions; `tests/test_host_shell.py` |
+| `858f8d875` | car-bin `main.rs` -> `main_with(&[])`; the stub is `car-core-proof.exe` (`src/bin/proof.rs`), which the installer proofs and the bootstraps' entry run use |
+
+### Decided here, with the evidence
+
+* **EDITION_BINARIES is not where the host goes.** EDITION_BINARIES is what each edition's workspace builds (cargo's
+  `bins`, the budget test, the audit's `PER_EDITION`, whose entries may differ between archives). The host is C# and the
+  same bytes in both (Q3), so it is `rust_release.HOST`, in `BINARIES` (the audit's (d) reads it) and not in
+  `PER_EDITION`, so the audit's (f) holds the two archives' copies identical. Its subsystem (2) is checked at staging.
+* **The real core and the proofs.** Integration 8 kept the stub as the core because the proofs ran it with the
+  installer's commands, and the real `setup` writes the Run value, the AUMID and the link handler into the real HKCU
+  (a scratch profile does not redirect HKCU). Now the proofs never run the real core: `rust_stage` copies
+  `car-core-proof.exe` over the staged `codex-auto-resume.exe` (test_review9_install shares it), and
+  `rust_legacy_bootstraps.entry_from_archive` takes the stub built beside car-legacy (`rust/target/release`), not the
+  archive's core. The release's own guard is unchanged: a core with the test forward that is not the stub stops it.
+* **The host's surfaces until Integration 10**: `[standin]` (`SurfaceRender.Run/Probe` -> null, `HostSurfaces` with no
+  icon). Integration 10 deletes `gui/HostStandIn.cs` and the `[standin]` group and takes S6.3's `[surface]` and
+  `[generated]` groups; `HostPump.Deliver` already speaks S6.3's `ISurfaces` (SnapshotEvent, StringsEvent).
+* **Numbers from the window's JSON reader are doubles**: the host reads `abi` and `exit_code` as doubles (the first run
+  refused "abi 1" until it did).
+
+### Proofs
+
+* Rust: `car-host` unit 9; `abi_exports` 3 (`the_release_dll_has_no_panic_wire` reads `CAR_CORE_DLL`); `host_watcher`
+  (start, the second start refused, `surfaces` with its seven fields and `locale`/`letters`, a snapshot with `popup` and
+  the three keys, the bridge, a popup `set_enabled` drawn as paused in the next snapshot, `failure_seen`, `open_chat`
+  `not_ported`, stop, `close`, `ended` 0 last); `panic_feature` (feature on: the first tick's panic recorded and the next
+  tick runs, `car_bridge` answers `panic`, is recorded in the log and `errors.log`, and the next call answers);
+  car-watcher `toasts::a_panic_in_the_worker_costs_one_notice` (feature on) and `surface` 3.
+* Python (`wait_quiet.sh`): `test_host_shell test_host_contract test_guiscan` Ran 32, OK - the DLL-load test (no DLL
+  beside the host, a real `car_core.dll` in the current directory and on PATH: exit 1, the launcher's errors.log line,
+  no state made; and its own DLL loaded beside a planted non-DLL), the GUI-subsystem check (subsystem 2, no `dpiAware`),
+  the mutex handover 1.9 (a) host exits 3 with `runtime/loop.py:104`'s line while the v0.6.26 Python watcher runs, (b)
+  the stop event ends Python 0 and the host takes the mutex, (c) the reverse, (d) each killed with a third handle open
+  (a named mutex dies with its last handle, so nothing can be abandoned without one): the next watcher of the other
+  language logs the abandoned-mutex line first.
+* make_gui both editions into scratch folders: window `ec1ae342...`, MCP launcher `382bbb9c...`, advanced window
+  `101f257d...` (unchanged), host `1c202eef...` (37,376 bytes, subsystem 2).
+
+### Not done (and why)
+
+* **The engine join** (`app::EngineMaker` over car-engine, discovery and the evaluator; `Given.plug` taking App's
+  `Arc<Guarded>`): not started - this seat's context went to the done-check. It needs the harness's `EngineStore` moved
+  into a product crate (car-watcher), a `TickEngine` for `car_engine::Engine`, the `Toasts` notifier and `EngineLog`,
+  `discover_codex_exe` with car-codex's checks, the Evaluator and layout watch, `engine_moved`'s stamps; then a diff of
+  the watch loop with the engine over codexsim. The watcher still logs `EngineNotJoined` and sends nothing.
+* `open_dashboard`, `open_chat`, `notice_action`, `notice_complete` answer `not_ported` (the Dashboard opener, cut C6,
+  and the notifier's activation are not in a product crate); the `notice` event is still car-watcher's
+  `{event, detail, final}`, not S6.3's `{id, key, title, stays, view, letters}` (the notifier seam).
+* car-adv-host's `export_core!(<advanced plug factory>)` (with S7.3d): the advanced `car_core.dll` still exports nothing.
+* No re-diff command: the host shell has no reference file of its own beyond what car-watcher's `rediff_watcher.py`
+  covers (the launcher, the loop); the mutex handover runs against this tree's Python, which is the v0.6.26 final's.
+
+### Risk 3 measured (P6-DESIGN 4.2: the CLR in the watcher)
+
+The host (release `car_core.dll`, the stand-in surfaces, show_tray off) beside the v0.6.26 Python watcher (this tree's
+src on Python 3.13), each on its own scratch home, five runs each, medians; private commit 10 s after "watcher started":
+
+| | start to "watcher started" | private commit | working set |
+|---|---|---|---|
+| host (CLR + car_core.dll) | 1.02 s | 10.8 MiB (10.7-10.9) | 20.2 MiB |
+| Python watcher | 3.65 s | 27.8 MiB (27.4-28.3) | 39.7 MiB |
+
+memguard's default limit (1024 MiB, off by default, `memguard.py:31`) fits with room; no re-check with the owner is
+needed on this. The commit with S6.3's surfaces drawing (GDI+, the popup) is the 24-hour soak's (Integration 10).
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `. tools/rustflags.sh`; rustc 1.100.0; code at `858f8d875`)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check: advisories, bans, licenses, sources ok
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+cargo test -p car-host -p car-watcher --features car-host/panic-test     every result ok (panic_feature 1, toasts 8)
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every binary the same with and without advanced/;
+                                                     profile-path scan none
+cargo build --release -p car-host; CAR_CORE_DLL=<release car_core.dll> cargo test -p car-host --test abi_exports
+                                                     3 passed: the six, and no panic wire in the release DLL
+Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan  Ran 32, OK
+```
+
+### For the next seats
+
+* **Integration 10**: drop `[standin]` and `gui/HostStandIn.cs`, take S6.3's host.sources groups; `gui/SurfaceJson.cs`
+  and the contract files are identical on both branches. guiscan's `HOST` is `[host]` + `[contract]`.
+* **The engine join** (above, "Not done"): `Watcher::start_with(.., maker)` is the seam; car-host's `abi::start` calls
+  `Watcher::start` today and would pass the maker.
+* **S8.2**: install.ps1's `Get-OwnedWatcherProcess` must learn `app\bin\CodexAutoResume.exe` (1.9); the archive now
+  carries the host (`rust_release.HOST`).
+* **Mutation checks: NOT run by this seat** (its context ran out after the gates). Proposed for the reviewer, each alone:
+  `abi::start` without the second-start refusal (`host_watcher`); `surface::icon_answers` not called in `update_tray`
+  (`host_watcher`); `locale`/`letters` dropped from `start_surfaces` (`host_watcher`); `Load` by bare name with flags 0
+  (the planted-DLL test); the `tick` trip moved outside `guarded` (`panic_feature`).
