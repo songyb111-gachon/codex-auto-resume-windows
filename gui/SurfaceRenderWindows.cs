@@ -38,6 +38,9 @@ namespace CodexAutoResume
                 case "tray_icon":
                     plan = TrayIconCase(task);
                     return true;
+                case "host_surfaces":
+                    plan = HostSurfacesCase(task);
+                    return true;
             }
             plan = null;
             return false;

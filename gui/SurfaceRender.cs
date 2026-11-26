@@ -39,6 +39,16 @@ namespace CodexAutoResume
             return RunJob(job, string.IsNullOrEmpty(output) ? job + ".out.json" : output);
         }
 
+        /// The probe mode as the host's own entry (P6-DESIGN 3.4): `--probe <job> [<answer>]` runs the job's cases - the
+        /// windows made and never shown, every call that would reach the screen or the shell recorded - and answers in
+        /// `<answer>` (by default `<job>.out.json`). Null when the arguments do not ask for it; the host's Main asks this
+        /// before it loads any DLL, as it asks Run().
+        internal static int? Probe(string[] args)
+        {
+            if (args == null || args.Length < 2 || args[0] != "--probe") return null;
+            return RunJob(args[1], args.Length > 2 ? args[2] : args[1] + ".out.json");
+        }
+
         /// One job from `jobPath` into `outPath`: 0 when every case was laid out, 1 when any case failed (its error is
         /// in the answer), 2 when the job could not be read at all.
         internal static int RunJob(string jobPath, string outPath)

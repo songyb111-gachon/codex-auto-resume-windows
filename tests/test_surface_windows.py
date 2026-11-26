@@ -1587,6 +1587,37 @@ class WindowJob:
                 setattr(module, name, value)
             theme.adopt_settings({})
 
+    def host_surfaces(self):
+        """The class that implements ISurfaces (gui/HostSurfaces.cs), as the host's pump drives it: started from a
+        `surfaces` event in Korean (the first frame in the event's locale, DECISIONS.md's addendum), a snapshot, a tick, a
+        new language, a tick, close. What the shell is told is what the reference's Tray tells it for the same words
+        (ui/tray/icon.py _notify, words.tooltip), and what is posted is the reference App's life of its icon:
+        the cards attached, tray_started, then the cards detached and closed."""
+        from codex_auto_resume import interface
+        from codex_auto_resume.ui.popup import fonts
+        from codex_auto_resume.ui.tray import words as tray_words
+        snapshot = {"enabled": True, "waiting": 2, "running": 0, "held": 0, "unmatched": 0, "next_at": NOW + 300.0,
+                    "failures": None, "blocked": False}
+
+        def shell(action, flags, shown, strings):
+            text = tray_words.tooltip(dict(shown, failed=False, unconfirmed=False), strings, NOW, "standard")
+            return "Shell_NotifyIconW %d %d app %s" % (action, flags, text.replace("\n", "\\n"))
+
+        ko, en = interface.STRINGS["ko"], interface.STRINGS["en"]
+        script = [["start", {"icon": "", "strings": ko, "settings": {"theme": "dark"}, "edition": "standard", "demo": "",
+                             "locale": "ko", "letters": fonts._letters("ko")}],
+                  ["snapshot", snapshot], ["tick"], ["strings", en, "en", fonts._letters("en")], ["tick"], ["close"],
+                  ["posted"]]
+        steps = [{"op": "start", "calls": [shell(0, 135, {}, ko), "Shell_NotifyIconW 4 4", shell(1, 7, {}, ko)],
+                  "posts": [["cards_attached", {}], ["tray_started", {}]]},
+                 {"op": "snapshot", "calls": [], "posts": []},
+                 {"op": "tick", "calls": [shell(1, 7, snapshot, ko)], "posts": []},
+                 {"op": "strings", "calls": [], "posts": []},
+                 {"op": "tick", "calls": [shell(1, 7, snapshot, en)], "posts": []},
+                 {"op": "close", "calls": [], "posts": []},
+                 {"op": "posted", "calls": ["Shell_NotifyIconW 2"], "posts": [["cards_detached", {}], ["closed", {}]]}]
+        self.add("hostsurfaces/ko-en", {"surface": "host_surfaces", "now": NOW, "script": plain(script)}, {"steps": steps})
+
     def job(self):
         return {"format": JOB_FORMAT, "tables": {}, "cases": self.cases}
 
@@ -1616,6 +1647,7 @@ class SurfaceWindowTests(unittest.TestCase):
         job.menu_window()
         job.card_stack()
         job.tray_icon()
+        job.host_surfaces()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -1668,6 +1700,9 @@ class SurfaceWindowTests(unittest.TestCase):
 
     def test_the_icon_lives_ticks_moves_and_answers_the_shell_as_the_references_offscreen(self):
         self.compare("trayicon/")
+
+    def test_the_surfaces_class_starts_in_the_events_language_and_ends_with_closed(self):
+        self.compare("hostsurfaces/")
 
 
 if __name__ == "__main__":

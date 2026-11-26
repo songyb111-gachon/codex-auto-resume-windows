@@ -250,6 +250,87 @@ namespace CodexAutoResume
             return new Dictionary<string, object> { { "steps", steps } };
         }
 
+        /// The probe for the surfaces' class (ISurfaces): HostSurfaces started from a `surfaces` event, ticked, told a new
+        /// language and closed, its icon over a window never shown; the calls and what was posted to the core.
+        private static object HostSurfacesCase(Dictionary<string, object> task)
+        {
+            var calls = new List<string>();
+            var actions = new TrayProbeActions();
+            var record = new List<object>();
+            SurfaceScreen.Probe = calls;
+            SurfaceScreen.Posted.Clear();
+            double now = (double)task["now"];
+            IntPtr window = IntPtr.Zero;
+            TrayIcon made = null;
+            var surfaces = new HostSurfaces { Worker = job => job() };
+            surfaces.MakeTray = () =>
+            {
+                made = new TrayIcon
+                {
+                    Now = () => now, Monotonic = () => 5000.0, PerfCounter = () => 0.0, Metric = unused => 16,
+                    IconRectReader = () => new[] { 1880, 1040, 1904, 1064 }, AskContrast = () => false, AskReduced = () => false,
+                    AskBatterySaver = () => false, AskPlacement = () => false, AskOverflowOpen = () => false,
+                    MakeCards = () => new ProbeCards { Asked = new List<object>() },
+                };
+                made.Epoch = made.StateSince = 5000.0;
+                return made;
+            };
+            SurfaceScreen.Name = hwnd => made != null && hwnd == window ? "tray" : "0x" + hwnd.ToInt64().ToString("x");
+            try
+            {
+                foreach (object entry in (List<object>)task["script"])
+                {
+                    var step = (List<object>)entry;
+                    string op = (string)step[0];
+                    calls.Clear();
+                    actions.Posts.Clear();
+                    if (op == "start")
+                    {
+                        var shown = (Dictionary<string, object>)step[1];
+                        surfaces.Start(new SurfacesEvent
+                        {
+                            Icon = (string)shown["icon"], Strings = (Dictionary<string, object>)shown["strings"],
+                            Settings = shown["settings"] as Dictionary<string, object>, Edition = (string)shown["edition"],
+                            Demo = (string)shown["demo"], Locale = (string)shown["locale"], Letters = (string)shown["letters"],
+                            Actions = actions,
+                        });
+                        if (made != null) window = made.Hwnd;
+                    }
+                    else if (op == "snapshot")
+                        surfaces.Snapshot(new SnapshotEvent { Snapshot = (Dictionary<string, object>)step[1], Popup = null });
+                    else if (op == "strings")
+                        surfaces.Strings(new StringsEvent { Strings = (Dictionary<string, object>)step[1], Locale = (string)step[2],
+                                                            Letters = (string)step[3] });
+                    else if (op == "tick") made.Message(window, TrayIcon.WM_TIMER, TrayIcon.TIMER_TICK, 0);
+                    else if (op == "close") surfaces.Close();
+                    else if (op == "posted")
+                    {
+                        var posted = new List<long[]>(SurfaceScreen.Posted);
+                        SurfaceScreen.Posted.Clear();
+                        foreach (long[] message in posted)
+                            if (message[1] == TrayIcon.WM_CLOSE)
+                            {
+                                made.Message(window, TrayIcon.WM_CLOSE, 0, 0);
+                                made.Message(window, TrayIcon.WM_DESTROY, 0, 0);   // what DestroyWindow sends
+                            }
+                    }
+                    record.Add(new Dictionary<string, object> { { "op", op }, { "calls", calls.FindAll(call => call.StartsWith("Shell_NotifyIconW")) },
+                                                                { "posts", new List<object>(actions.Posts) } });
+                }
+            }
+            finally
+            {
+                SurfaceScreen.Probe = null;
+                SurfaceScreen.Posted.Clear();
+                if (window != IntPtr.Zero) SurfaceNative.DestroyWindow(window);
+                if (made != null) made.Unregister();
+                SurfaceTheme.SetTheme("system");
+                SurfaceTheme.SetDesign(null);
+                SurfaceTheme.SetReduceMotion(false);
+            }
+            return new Dictionary<string, object> { { "steps", record } };
+        }
+
         /// The posts a step queued run within it, as the reference's callbacks ran at once; the frame table's building
         /// stays queued for the script's "work".
         private static void FlushPosts(List<Action> work)
