@@ -37,7 +37,11 @@ pub const MTOK: &str = "mtok";
 
 /// `route(verdict)`: "lifetime" where MTOK failed, else "per_day".
 pub fn route(verdict: &Value) -> &'static str {
-    if *verdict == word("fail") { "lifetime" } else { "per_day" }
+    if *verdict == word("fail") {
+        "lifetime"
+    } else {
+        "per_day"
+    }
 }
 
 /// `round(x, 1)`: CPython's correctly rounded result (the shortest repr of the double nearest x * 10, divided back).
@@ -338,7 +342,11 @@ impl UsageAnalytics {
             let read = tokens::read(&rollout, row.as_ref(), budget, self.inner.local.as_ref())
                 .map_err(Raised::new)?;
             budget -= read.consumed;
-            let Some(thread) = read.thread_id.clone().filter(|_| read.outcome != tokens::UNREADABLE) else {
+            let Some(thread) = read
+                .thread_id
+                .clone()
+                .filter(|_| read.outcome != tokens::UNREADABLE)
+            else {
                 // Tried again once it changes, or at the next pass.
                 unreadable = true;
                 continue;
@@ -378,7 +386,11 @@ impl UsageAnalytics {
             ingested = ingested || !read.days.is_empty();
         }
         stamp_last(&bound)?;
-        for (flag, code) in [(ingested, INGESTED), (capped, CAPPED), (unreadable, UNREADABLE)] {
+        for (flag, code) in [
+            (ingested, INGESTED),
+            (capped, CAPPED),
+            (unreadable, UNREADABLE),
+        ] {
             if flag {
                 let _ = bound.with(|scoped| scoped.count(&word(code)));
             }
@@ -391,7 +403,10 @@ struct AnalyticsErrand(UsageAnalytics);
 
 impl Errand for AnalyticsErrand {
     fn run(&self, _view: &dyn View, _guards: &mut Guards<'_>) -> Result<Value, HookFailed> {
-        self.0.ingest().map(|()| Value::Null).map_err(|_| HookFailed)
+        self.0
+            .ingest()
+            .map(|()| Value::Null)
+            .map_err(|_| HookFailed)
     }
 }
 

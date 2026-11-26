@@ -132,8 +132,8 @@ class FleetPureDiff(unittest.TestCase):
         advtime.Scene(self, "fleet pure").run(cases)
 
     def test_junction(self):
-        """A junction for the folder is LINK, and a peer file that is a link is ignored (made with mklink /J: no
-        privilege needed)."""
+        """A junction for the folder (made with mklink /J: no privilege needed) inside this product's home: INSIDE
+        comes before LINK, on both sides."""
         rng = random.Random(7263)
         cases = [{"op": "fl.pure", "name": "folder_problem", "arguments": ["{home}\\joined"], "dump": False,
                   "files": {"target": {"dir": True}}, "junction": ["joined", "target"]}]
@@ -152,7 +152,7 @@ class FleetPureDiff(unittest.TestCase):
             found = made.run(cases)
         finally:
             advtime.seed = original
-        self.assertEqual(found[0]["result"]["ok"], "link")
+        self.assertEqual(found[0]["result"]["ok"], "inside")
         del rng
 
 

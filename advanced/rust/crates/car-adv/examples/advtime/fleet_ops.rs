@@ -39,7 +39,9 @@ fn pure(case: &Map) -> Value {
         }
         "document" => fleet::document(&at(0), &at(1)).unwrap_or_else(class),
         "shown" => fleet::shown(&at(0), f64_of(&at(1)).unwrap_or(0.0)),
-        "waiting_word" => fleet::waiting_word(&at(0)).map_or(Value::Null, |word| Value::Str(word.into())),
+        "waiting_word" => {
+            fleet::waiting_word(&at(0)).map_or(Value::Null, |word| Value::Str(word.into()))
+        }
         "folder_problem" => fleet::folder_problem(&at(0), &fleet::guarded_homes(&paths))
             .map_or(Value::Null, |word| Value::Str(word.into())),
         "within" => Value::Bool(fleet::within(&text(&at(0)), &text(&at(1)))),
@@ -120,7 +122,10 @@ fn fl(case: &Map) -> Value {
     let code = FleetView::new(
         made.paths.clone(),
         Box::new(move |now| {
-            lock(&status_log).push(Value::Array(vec![Value::Str("status".into()), Value::Float(now)]));
+            lock(&status_log).push(Value::Array(vec![
+                Value::Str("status".into()),
+                Value::Float(now),
+            ]));
             let Value::Object(map) = &status else {
                 return Err(Raised::new("RuntimeError"));
             };
@@ -172,5 +177,8 @@ fn fl(case: &Map) -> Value {
         answers.push(answer);
     }
     made.close();
-    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+    object(vec![
+        ("answers", Value::Array(answers)),
+        ("log", made.log()),
+    ])
 }

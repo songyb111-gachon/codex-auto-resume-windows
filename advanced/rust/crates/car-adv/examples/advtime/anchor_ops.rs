@@ -40,20 +40,36 @@ fn pure(name: &str, arguments: &[Value]) -> Result<Value, String> {
         "encode_time" => int_or_null(anchor::encode_time(&at(0), &at(1))),
         "decode_time" => int_or_null(anchor::decode_time(&at(0))),
         "clock_text" => Value::Str(anchor::clock_text(&at(0)).as_str().into()),
-        "picked" => Value::Array(anchor::picked(&at(0)).into_iter().map(|n| Value::Int(n.into())).collect()),
+        "picked" => Value::Array(
+            anchor::picked(&at(0))
+                .into_iter()
+                .map(|n| Value::Int(n.into()))
+                .collect(),
+        ),
         "after_reset_on" => Value::Bool(anchor::after_reset_on(&at(0))),
         "midnight" => Value::Int(anchor::midnight(now(0)?, &Crt).map_err(fail)?.into()),
         "occurrence" => {
             let days = car_adv::state::py::small(&at(1)).unwrap_or(0);
             let minute = car_adv::state::py::small(&at(2)).unwrap_or(0);
-            Value::Int(anchor::occurrence(now(0)?, days, minute, &Crt).map_err(fail)?.into())
+            Value::Int(
+                anchor::occurrence(now(0)?, days, minute, &Crt)
+                    .map_err(fail)?
+                    .into(),
+            )
         }
         "slot_due" => int_or_null(anchor::slot_due(&at(0), now(1)?, &at(2), &Crt).map_err(fail)?),
-        "reset_due" => int_or_null(anchor::reset_due(&at(0), now(1)?, &at(2), &at(3)).map_err(fail)?),
-        "next_due" => int_or_null(anchor::next_due(&at(0), now(1)?, &at(2), &at(3), &at(4), &Crt).map_err(fail)?),
+        "reset_due" => {
+            int_or_null(anchor::reset_due(&at(0), now(1)?, &at(2), &at(3)).map_err(fail)?)
+        }
+        "next_due" => int_or_null(
+            anchor::next_due(&at(0), now(1)?, &at(2), &at(3), &at(4), &Crt).map_err(fail)?,
+        ),
         "windows_of" => {
             let (five, weekly) = anchor::windows_of(&at(0)).map_err(fail)?;
-            Value::Array(vec![five.unwrap_or(Value::Null), weekly.unwrap_or(Value::Null)])
+            Value::Array(vec![
+                five.unwrap_or(Value::Null),
+                weekly.unwrap_or(Value::Null),
+            ])
         }
         "running_reset" => int_or_null(anchor::running_reset(&at(0), now(1)?).map_err(fail)?),
         "judge" => Value::Str(anchor::judge(&at(0), &at(1)).map_err(fail)?.into()),
@@ -69,7 +85,8 @@ fn pure(name: &str, arguments: &[Value]) -> Result<Value, String> {
         "thread_started" => Value::Bool(anchor::thread_started(&printed(&at(0)))),
         "refused" => Value::Bool(anchor::refused(&printed(&at(0)))),
         "toml_key" => Value::Str(anchor::toml_key(&at(0)).as_str().into()),
-        "servers_off" => anchor::servers_off(&list(&at(0))).map_or(Value::Null, |text| Value::Str(text.as_str().into())),
+        "servers_off" => anchor::servers_off(&list(&at(0)))
+            .map_or(Value::Null, |text| Value::Str(text.as_str().into())),
         "tokens_said" => Value::Str(anchor::tokens_said(&at(0)).as_str().into()),
         "hhmm" => Value::Str(anchor::hhmm(now(0)?, &Crt).map_err(fail)?.as_str().into()),
         other => return Err(format!("unknown function {other}")),
@@ -78,7 +95,10 @@ fn pure(name: &str, arguments: &[Value]) -> Result<Value, String> {
 
 pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
     match op {
-        "an.pure" => Some(pure(&text(get(case, "name")), &list(get(case, "arguments")))),
+        "an.pure" => Some(pure(
+            &text(get(case, "name")),
+            &list(get(case, "arguments")),
+        )),
         "an.toml" => {
             let home = std::path::Path::new(&text(get(case, "home"))).join("codex");
             let home = home.to_string_lossy().into_owned();
@@ -105,7 +125,8 @@ struct StandSession(Arc<Script>);
 
 impl UsageSession for StandSession {
     fn call(&mut self, method: &str, _params: &Value) -> Result<Value, Raised> {
-        self.0.answer(&format!("call:{method}"), Value::Null, vec![])
+        self.0
+            .answer(&format!("call:{method}"), Value::Null, vec![])
     }
 }
 
@@ -124,7 +145,14 @@ impl RequestBackend for StandBackend {
         let mut found: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os()
             .filter(|(name, _)| {
                 let name = name.to_string_lossy().to_uppercase();
-                !["CODEX_HOME", "ADVTIME_ARGV", "ADVTIME_OUT", "ADVTIME_ERR", "ADVTIME_CODE"].contains(&name.as_str())
+                ![
+                    "CODEX_HOME",
+                    "ADVTIME_ARGV",
+                    "ADVTIME_OUT",
+                    "ADVTIME_ERR",
+                    "ADVTIME_CODE",
+                ]
+                .contains(&name.as_str())
             })
             .collect();
         let path = |name: &str| self.home.join(name).into_os_string();
@@ -192,7 +220,10 @@ fn capability(case: &Map) -> Value {
             Ok(())
         }),
         Box::new(move |line: &str| {
-            lock(&line_log).push(Value::Array(vec![Value::Str("log".into()), Value::Str(line.into())]));
+            lock(&line_log).push(Value::Array(vec![
+                Value::Str("log".into()),
+                Value::Str(line.into()),
+            ]));
             Ok(())
         }),
         Box::new(Crt),
@@ -218,9 +249,16 @@ fn capability(case: &Map) -> Value {
                     let mut guards = |body: &mut dyn FnMut(bool) -> Value| {
                         let permitted = {
                             let mut held = lock(&permits);
-                            if held.len() > 1 { held.remove(0) } else { held[0].clone() }
+                            if held.len() > 1 {
+                                held.remove(0)
+                            } else {
+                                held[0].clone()
+                            }
                         };
-                        lock(&log).push(Value::Array(vec![Value::Str("guard".into()), permitted.clone()]));
+                        lock(&log).push(Value::Array(vec![
+                            Value::Str("guard".into()),
+                            permitted.clone(),
+                        ]));
                         Ok(body(matches!(permitted, Value::Bool(true))))
                     };
                     match errand.run(&view, &mut guards) {
@@ -234,7 +272,10 @@ fn capability(case: &Map) -> Value {
         answers.push(answer);
     }
     made.close();
-    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+    object(vec![
+        ("answers", Value::Array(answers)),
+        ("log", made.log()),
+    ])
 }
 
 fn view(case: &Map) -> Value {
@@ -244,7 +285,10 @@ fn view(case: &Map) -> Value {
     let state = &made.held.state;
     let stamped = |option: car_adv::vocabulary::OptionKey| {
         state
-            .stamped(&Value::Str(anchor::CAPABILITY.into()), &Value::Str(option.as_str().into()))
+            .stamped(
+                &Value::Str(anchor::CAPABILITY.into()),
+                &Value::Str(option.as_str().into()),
+            )
             .ok()
     };
     let found = anchor::view(armed, &stamped, now);

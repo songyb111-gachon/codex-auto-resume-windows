@@ -57,7 +57,9 @@ pub fn said(found: Spoke) -> Value {
         Ok(Said::Defer) => Value::Str("DEFER".into()),
         Ok(Said::Word(word)) => object(vec![("word", Value::Str(word.as_str().into()))]),
         Ok(Said::Value(value)) => object(vec![("value", value)]),
-        Ok(Said::Tuple(items)) | Ok(Said::Set(items)) => object(vec![("value", Value::Array(items))]),
+        Ok(Said::Tuple(items)) | Ok(Said::Set(items)) => {
+            object(vec![("value", Value::Array(items))])
+        }
         Ok(Said::Errand(_)) => object(vec![("object", Value::Str("errand".into()))]),
         Ok(_) => object(vec![("object", Value::Str("other".into()))]),
         Err(raised) => error(&raised),
@@ -204,7 +206,9 @@ impl Case {
     pub fn new(case: &Map) -> Case {
         let home = text(get(case, "home"));
         let paths = paths_of(&home);
-        let clock = Arc::new(Mutex::new(f64_of(get(case, "now")).unwrap_or(1_800_000_000.0)));
+        let clock = Arc::new(Mutex::new(
+            f64_of(get(case, "now")).unwrap_or(1_800_000_000.0),
+        ));
         let reading = Arc::clone(&clock);
         let state = AdvancedState::new(
             paths.clone(),

@@ -122,7 +122,10 @@ fn version_valid(value: &Value) -> bool {
         return false;
     };
     let count = text.chars().count();
-    (1..=VERSION_MOST).contains(&count) && text.chars().all(|c| c.is_ascii_alphanumeric() || ".-+".contains(c))
+    (1..=VERSION_MOST).contains(&count)
+        && text
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || ".-+".contains(c))
 }
 
 /// `machine.epoch(value, *EPOCH_CODEX)`: an OverflowError for an int too large to be a float.
@@ -163,16 +166,25 @@ pub fn clean(value: &Value, stem: Option<&str>) -> Result<Value, &'static str> {
         return Err(refused("fleet words"));
     }
     let next = field(value, "next_check_at");
-    if !bounded_time(field(value, "written_at"))? || !(matches!(next, Value::Null) || bounded_time(next)?) {
+    if !bounded_time(field(value, "written_at"))?
+        || !(matches!(next, Value::Null) || bounded_time(next)?)
+    {
         return Err(refused("fleet times"));
     }
     match field(value, "pending") {
-        Value::Int(number) if number.as_i64().is_some_and(|n| (0..=PENDING_MOST).contains(&n)) => {}
+        Value::Int(number)
+            if number
+                .as_i64()
+                .is_some_and(|n| (0..=PENDING_MOST).contains(&n)) => {}
         _ => return Err(refused("fleet pending")),
     }
     let mut status = Map::new();
     for key in statusfile::KEYS {
-        let held = if *key == "format" { word(statusfile::FORMAT) } else { field(value, key).clone() };
+        let held = if *key == "format" {
+            word(statusfile::FORMAT)
+        } else {
+            field(value, key).clone()
+        };
         status.insert((*key).into(), held);
     }
     statusfile::clean(&Value::Object(status))?;
@@ -243,7 +255,11 @@ pub fn shown(found: &Value, now: f64) -> Value {
     row.insert("seen".into(), word(seen));
     row.insert(
         "written_at".into(),
-        if seen == CLOCK { Value::Null } else { field(found, "written_at").clone() },
+        if seen == CLOCK {
+            Value::Null
+        } else {
+            field(found, "written_at").clone()
+        },
     );
     row.insert("next_check_at".into(), next);
     Value::Object(row)
@@ -289,7 +305,10 @@ fn parts_of(text: &str) -> (String, bool, Vec<String>) {
 
 /// `_within(path, root)`: `commonpath((normcase(path), normcase(root))) == normcase(root)`; another drive is not.
 pub fn within(path: &str, root: &str) -> bool {
-    let (path, root) = (car_platform::paths::normcase(path), car_platform::paths::normcase(root));
+    let (path, root) = (
+        car_platform::paths::normcase(path),
+        car_platform::paths::normcase(root),
+    );
     let (drive, rooted, parts) = parts_of(&path);
     let (root_drive, root_rooted, root_parts) = parts_of(&root);
     if drive != root_drive || rooted != root_rooted {
@@ -302,7 +321,11 @@ pub fn within(path: &str, root: &str) -> bool {
         .map(|(a, _)| a)
         .collect();
     let joined: Vec<&str> = common.iter().map(|part| part.as_str()).collect();
-    let made = format!("{drive}{}{}", if rooted { "\\" } else { "" }, joined.join("\\"));
+    let made = format!(
+        "{drive}{}{}",
+        if rooted { "\\" } else { "" },
+        joined.join("\\")
+    );
     made == root
 }
 
@@ -314,7 +337,10 @@ fn share(drive: &str) -> bool {
     }
     let named: String = chars[2..].iter().collect::<String>().replace('/', "\\");
     let parts: Vec<&str> = named.split('\\').collect();
-    parts.len() == 2 && parts.iter().all(|part| !part.trim_matches([' ', '.']).is_empty())
+    parts.len() == 2
+        && parts
+            .iter()
+            .all(|part| !part.trim_matches([' ', '.']).is_empty())
 }
 
 /// `_guarded(paths)`: the folders it may never be inside: this product's home and the Codex homes it knows of.
@@ -365,7 +391,10 @@ fn dirname(path: &str) -> String {
     let cut = rest.rfind(['\\', '/']).map_or(0, |at| at + 1);
     let head = &rest[..cut];
     let stripped = head.trim_end_matches(['\\', '/']);
-    format!("{drive}{}", if stripped.is_empty() { head } else { stripped })
+    format!(
+        "{drive}{}",
+        if stripped.is_empty() { head } else { stripped }
+    )
 }
 
 /// `folder_problem(folder, paths)`: the word for what is wrong with `folder`, or None.
@@ -378,7 +407,9 @@ pub fn folder_problem(folder: &Value, guarded: &[String]) -> Option<&'static str
     };
     if folder.is_empty()
         || folder.chars().count() > FOLDER_MOST
-        || folder.chars().any(|c| (c as u32) < 32 || "<>\"|?*".contains(c))
+        || folder
+            .chars()
+            .any(|c| (c as u32) < 32 || "<>\"|?*".contains(c))
     {
         return Some(INVALID);
     }
@@ -388,7 +419,8 @@ pub fn folder_problem(folder: &Value, guarded: &[String]) -> Option<&'static str
         if !rest.is_empty() && !rest.starts_with(['\\', '/']) {
             return Some(INVALID);
         }
-    } else if drive.chars().count() != 2 || !drive.ends_with(':') || !rest.starts_with(['\\', '/']) {
+    } else if drive.chars().count() != 2 || !drive.ends_with(':') || !rest.starts_with(['\\', '/'])
+    {
         return Some(INVALID);
     }
     for home in guarded {
@@ -411,7 +443,9 @@ pub fn folder_problem(folder: &Value, guarded: &[String]) -> Option<&'static str
             return Some(INSIDE);
         }
     }
-    if (is_share || real.starts_with("\\\\") || real.starts_with("//")) && a_home_holds(&real, guarded) {
+    if (is_share || real.starts_with("\\\\") || real.starts_with("//"))
+        && a_home_holds(&real, guarded)
+    {
         return Some(INSIDE);
     }
     None
@@ -491,7 +525,9 @@ pub fn ours(target: &Path, alias: &str, wrote_before: &Value) -> Result<bool, Ac
     let Some(held) = loads_strict(&raw, false) else {
         return Ok(false);
     };
-    if !matches!(held, Value::Object(_)) || *field(&held, "format") != word(FORMAT) || *field(&held, "alias") != word(alias)
+    if !matches!(held, Value::Object(_))
+        || *field(&held, "format") != word(FORMAT)
+        || *field(&held, "alias") != word(alias)
     {
         return Ok(false);
     }
@@ -522,7 +558,8 @@ pub fn ours(target: &Path, alias: &str, wrote_before: &Value) -> Result<bool, Ac
 /// The text `json.dumps(clean(value), indent=2, allow_nan=False) + "\n"` written in text mode (CRLF line ends).
 fn fleet_text(value: &Value) -> Result<String, &'static str> {
     let cleaned = clean(value, None)?;
-    let text = car_machine::json::to_string(&cleaned, &Options::new().indent(2)).map_err(|_| "ValueError")?;
+    let text = car_machine::json::to_string(&cleaned, &Options::new().indent(2))
+        .map_err(|_| "ValueError")?;
     Ok(format!("{text}\n").replace('\n', "\r\n"))
 }
 
@@ -550,8 +587,14 @@ pub fn write(folder: &str, alias: &str, value: &Value, wrote_before: &Value) -> 
             Err(found) => return Wrote::Access(found),
         },
     }
-    let Some((temporary, mut stream)) = super::powertasks::temporary_in(Path::new(folder), "fleet-", ".tmp") else {
-        return Wrote::Access(if Path::new(folder).is_dir() { Access::Os } else { Access::NotFound });
+    let Some((temporary, mut stream)) =
+        super::powertasks::temporary_in(Path::new(folder), "fleet-", ".tmp")
+    else {
+        return Wrote::Access(if Path::new(folder).is_dir() {
+            Access::Os
+        } else {
+            Access::NotFound
+        });
     };
     let written = stream
         .write_all(text.as_bytes())
@@ -651,7 +694,10 @@ pub fn read_peers(
         }
         looked += 1;
         step();
-        match read_one(&PathBuf::from(car_machine::winpath::join(folder, &name)), &stem) {
+        match read_one(
+            &PathBuf::from(car_machine::winpath::join(folder, &name)),
+            &stem,
+        ) {
             Err(Access::NotFound) => continue,
             Err(_) => held += 1,
             Ok(None) => ignored += 1,
@@ -668,7 +714,13 @@ pub fn seen_path(paths: &Paths) -> PathBuf {
 
 /// `write_seen(paths, now, kept, ignored, held)`: what a pass read, kept whole. A raise (an OSError making the folder
 /// or the temporary file, `clean`'s refusal) is the caller's.
-pub fn write_seen(paths: &Paths, now: f64, kept: &[Value], ignored: usize, held: usize) -> Result<(), &'static str> {
+pub fn write_seen(
+    paths: &Paths,
+    now: f64,
+    kept: &[Value],
+    ignored: usize,
+    held: usize,
+) -> Result<(), &'static str> {
     let mut value = Map::new();
     value.insert("format".into(), word(SEEN_FORMAT));
     value.insert("read_at".into(), Value::Float(now));
@@ -685,8 +737,10 @@ pub fn write_seen(paths: &Paths, now: f64, kept: &[Value], ignored: usize, held:
     if linked(&target) {
         return Ok(());
     }
-    let text = car_machine::json::to_string(&Value::Object(value), &Options::new()).map_err(|_| "ValueError")?;
-    let (temporary, mut stream) = super::powertasks::temporary_in(&folder, "fleet-seen.", ".tmp").ok_or("OSError")?;
+    let text = car_machine::json::to_string(&Value::Object(value), &Options::new())
+        .map_err(|_| "ValueError")?;
+    let (temporary, mut stream) =
+        super::powertasks::temporary_in(&folder, "fleet-seen.", ".tmp").ok_or("OSError")?;
     let written = stream.write_all(text.as_bytes());
     drop(stream);
     if written.is_err() || car_platform::files::replace(&temporary, &target).is_err() {
@@ -706,12 +760,17 @@ pub fn read_seen(paths: &Paths) -> Option<Value> {
     let Value::Object(map) = &value else {
         return None;
     };
-    let order: Vec<&str> = map.keys().map(|key| key.as_str().unwrap_or_default()).collect();
+    let order: Vec<&str> = map
+        .keys()
+        .map(|key| key.as_str().unwrap_or_default())
+        .collect();
     if order != SEEN_KEYS || *field(&value, "format") != word(SEEN_FORMAT) {
         return None;
     }
     let count = |name: &str| match field(&value, name) {
-        Value::Int(number) => number.as_i64().filter(|n| (0..=SCAN_MOST as i64).contains(n)),
+        Value::Int(number) => number
+            .as_i64()
+            .filter(|n| (0..=SCAN_MOST as i64).contains(n)),
         _ => None,
     };
     let (ignored, held) = (count("ignored")?, count("held")?);
@@ -815,7 +874,13 @@ pub struct FleetView {
 }
 
 impl FleetView {
-    pub fn new(paths: Paths, status: Status, spawn: Spawn, clock: Clock, guarded: Guarded) -> FleetView {
+    pub fn new(
+        paths: Paths,
+        status: Status,
+        spawn: Spawn,
+        clock: Clock,
+        guarded: Guarded,
+    ) -> FleetView {
         FleetView {
             inner: Arc::new(Inner {
                 paths,
@@ -843,13 +908,16 @@ impl FleetView {
         };
         let answer = (|| -> Result<Option<(f64, Value, Value)>, Raised> {
             self.take_up(&bound)?;
-            let alive = lock(&self.inner.worker).as_ref().is_some_and(|worker| (worker.0)());
+            let alive = lock(&self.inner.worker)
+                .as_ref()
+                .is_some_and(|worker| (worker.0)());
             if alive {
                 self.give_up_late(&bound)?;
                 return Ok(None);
             }
             let now = bound.now()?;
-            let last = bound.read(|scoped| scoped.stamped(&word(OptionKey::LastFleetWrite.as_str())))?;
+            let last =
+                bound.read(|scoped| scoped.stamped(&word(OptionKey::LastFleetWrite.as_str())))?;
             if let Some(last) = super::supervise::number(&last)
                 && 0.0 <= now - last
                 && now - last < EVERY
@@ -857,8 +925,14 @@ impl FleetView {
                 return Ok(None);
             }
             let words = bound.read(|scoped| scoped.wordings())?;
-            let alias = words.get(WordingKey::FleetAlias.as_str()).cloned().unwrap_or(Value::Null);
-            let folder = words.get(WordingKey::FleetFolder.as_str()).cloned().unwrap_or(Value::Null);
+            let alias = words
+                .get(WordingKey::FleetAlias.as_str())
+                .cloned()
+                .unwrap_or(Value::Null);
+            let folder = words
+                .get(WordingKey::FleetFolder.as_str())
+                .cloned()
+                .unwrap_or(Value::Null);
             if alias_valid(&alias) && car_machine::pyval::truthy(&folder) {
                 Ok(Some((now, alias, folder)))
             } else {
@@ -882,15 +956,23 @@ impl FleetView {
             .clone()
             .ok_or_else(|| Raised::new("AttributeError"))?;
         let whole = super::anchor::whole(now).map_err(Raised::new)?;
-        bound.read(|scoped| scoped.stamp(&word(OptionKey::LastFleetWrite.as_str()), &Value::Int(whole.max(1).into())))?;
-        let wrote_before = bound.read(|scoped| scoped.stamped(&word(OptionKey::FleetWroteAt.as_str())))?;
+        bound.read(|scoped| {
+            scoped.stamp(
+                &word(OptionKey::LastFleetWrite.as_str()),
+                &Value::Int(whole.max(1).into()),
+            )
+        })?;
+        let wrote_before =
+            bound.read(|scoped| scoped.stamped(&word(OptionKey::FleetWroteAt.as_str())))?;
         {
             let mut pass = lock(&self.inner.pass);
             pass.late = false;
             pass.touched = Some((self.inner.clock)());
         }
         let passing = self.clone();
-        let worker = (self.inner.spawn)(Box::new(move || passing.run_pass(now, &alias, &folder, &wrote_before)));
+        let worker = (self.inner.spawn)(Box::new(move || {
+            passing.run_pass(now, &alias, &folder, &wrote_before)
+        }));
         *lock(&self.inner.worker) = worker.ok();
         Ok(())
     }
@@ -904,7 +986,8 @@ impl FleetView {
         let (mut word_found, mut ignored, mut wrote) = (HELD, 0usize, None);
         let outcome = (|| -> Result<(), Access> {
             self.step();
-            word_found = folder_problem(folder, &(self.inner.guarded)(&self.inner.paths)).unwrap_or(OK);
+            word_found =
+                folder_problem(folder, &(self.inner.guarded)(&self.inner.paths)).unwrap_or(OK);
             if word_found == OK {
                 let folder = car_adv_text(folder);
                 let alias_text = car_adv_text(alias);
@@ -924,7 +1007,8 @@ impl FleetView {
                 let (kept, found_ignored, held) = read_peers(&folder, alias, &mut step)?;
                 ignored = found_ignored;
                 if !lock(&self.inner.pass).late {
-                    write_seen(&self.inner.paths, now, &kept, ignored, held).map_err(|_| Access::Other)?;
+                    write_seen(&self.inner.paths, now, &kept, ignored, held)
+                        .map_err(|_| Access::Other)?;
                 }
                 if held > 0 && word_found == OK {
                     word_found = HELD;
@@ -968,11 +1052,25 @@ impl FleetView {
         if found == OK {
             bound.read(|scoped| scoped.unstamp(&word(OptionKey::FleetWaiting.as_str())))?;
         } else {
-            let index = WAITING_WORDS.iter().position(|each| *each == found).unwrap_or(0) as i64 + 1;
-            bound.read(|scoped| scoped.stamp(&word(OptionKey::FleetWaiting.as_str()), &Value::Int(index.into())))?;
+            let index = WAITING_WORDS
+                .iter()
+                .position(|each| *each == found)
+                .unwrap_or(0) as i64
+                + 1;
+            bound.read(|scoped| {
+                scoped.stamp(
+                    &word(OptionKey::FleetWaiting.as_str()),
+                    &Value::Int(index.into()),
+                )
+            })?;
         }
         if let Some(wrote) = wrote {
-            bound.read(|scoped| scoped.stamp(&word(OptionKey::FleetWroteAt.as_str()), &Value::Int(wrote.into())))?;
+            bound.read(|scoped| {
+                scoped.stamp(
+                    &word(OptionKey::FleetWroteAt.as_str()),
+                    &Value::Int(wrote.into()),
+                )
+            })?;
         }
         let changed = {
             let mut memory = lock(&self.inner.memory);

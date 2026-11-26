@@ -37,7 +37,14 @@ pub const FAILED: &str = "failed";
 pub const INTERRUPTED: &str = "interrupted";
 pub const UNKNOWN: &str = "unknown";
 pub const ENDS: [&str; 5] = [RUNNING, COMPLETED, FAILED, INTERRUPTED, UNKNOWN];
-const KEYS: [&str; 6] = ["format", "nonce", "armed_at", "failed", "interrupted", "tasks"];
+const KEYS: [&str; 6] = [
+    "format",
+    "nonce",
+    "armed_at",
+    "failed",
+    "interrupted",
+    "tasks",
+];
 /// A cut-off core gave up because the person (or a newer cut-off) continued the conversation.
 pub const CONTINUED: [&str; 2] = ["superseded_by_user", "superseded"];
 
@@ -131,7 +138,8 @@ pub fn write(paths: &Paths, document: &Value) -> bool {
     let Some(parent) = path.parent().map(Path::to_path_buf) else {
         return false;
     };
-    if std::fs::create_dir_all(&parent).is_err() || car_config::paths::is_link(&parent.to_string_lossy())
+    if std::fs::create_dir_all(&parent).is_err()
+        || car_config::paths::is_link(&parent.to_string_lossy())
     {
         return false;
     }
@@ -271,7 +279,8 @@ fn sort_keyed<T: Clone>(items: &mut Vec<(T, (Value, Value))>) -> Result<(), Unre
         });
         return if failed { Err(Unreadable) } else { Ok(()) };
     }
-    let lt = |items: &Vec<(T, (Value, Value))>, i: usize, j: usize| key_less(&items[i].1, &items[j].1);
+    let lt =
+        |items: &Vec<(T, (Value, Value))>, i: usize, j: usize| key_less(&items[i].1, &items[j].1);
     // count_run
     let mut run = 1;
     while run < n {
@@ -292,13 +301,14 @@ fn sort_keyed<T: Clone>(items: &mut Vec<(T, (Value, Value))>) -> Result<(), Unre
         if descending {
             run += 1;
             let mut neq = 0usize;
-            let reverse_last = |items: &mut Vec<(T, (Value, Value))>, run: usize, neq: &mut usize| {
-                if *neq > 0 {
-                    let count = *neq + 1;
-                    items[run - count..run].reverse();
-                    *neq = 0;
-                }
-            };
+            let reverse_last =
+                |items: &mut Vec<(T, (Value, Value))>, run: usize, neq: &mut usize| {
+                    if *neq > 0 {
+                        let count = *neq + 1;
+                        items[run - count..run].reverse();
+                        *neq = 0;
+                    }
+                };
             while run < n {
                 if lt(items, run, run - 1)? {
                     reverse_last(items, run, &mut neq);
@@ -527,8 +537,9 @@ pub fn core_records(paths: &Paths) -> Result<Vec<Value>, Raised> {
     if !state.join("state.sqlite").is_file() {
         return Ok(Vec::new());
     }
-    let store = car_store::session::Store::open(state, std::sync::Arc::new(car_control::host::Probe))
-        .map_err(|_| Raised::new("StoreError"))?;
+    let store =
+        car_store::session::Store::open(state, std::sync::Arc::new(car_control::host::Probe))
+            .map_err(|_| Raised::new("StoreError"))?;
     let rows = store.all_records().map_err(|_| Raised::new("StoreError"))?;
     Ok(rows.into_iter().map(Value::Object).collect())
 }

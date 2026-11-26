@@ -290,7 +290,9 @@ impl CrashRestart {
         let Value::Int(number) = code else {
             return Ok(Said::Defer);
         };
-        if number.as_i64().is_some_and(|n| NEVER_RESTARTED.contains(&n))
+        if number
+            .as_i64()
+            .is_some_and(|n| NEVER_RESTARTED.contains(&n))
             || matches!(clean, Value::Bool(true))
         {
             return Ok(Said::Defer);

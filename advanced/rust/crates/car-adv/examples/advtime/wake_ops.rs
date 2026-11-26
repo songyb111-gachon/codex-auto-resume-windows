@@ -76,7 +76,10 @@ impl View for StandView {
             .map_err(|raised| ReadFailed(static_class(&raised.class)))
     }
     fn records_in(&self, _states: &[&str]) -> Result<Vec<Value>, ReadFailed> {
-        match self.0.answer("records_in", Value::Array(Vec::new()), vec![]) {
+        match self
+            .0
+            .answer("records_in", Value::Array(Vec::new()), vec![])
+        {
             Ok(Value::Array(items)) => Ok(items),
             Ok(_) => Ok(Vec::new()),
             Err(raised) => Err(ReadFailed(static_class(&raised.class))),
@@ -120,10 +123,7 @@ pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
 }
 
 /// What a tick answered, shown as the reference's `said` shows it; the errand kept for `run`.
-pub fn shown_tick(
-    found: Result<Said, Raised>,
-    errand: &mut Option<Box<dyn Errand>>,
-) -> Value {
+pub fn shown_tick(found: Result<Said, Raised>, errand: &mut Option<Box<dyn Errand>>) -> Value {
     match found {
         Ok(Said::Errand(made)) => {
             *errand = Some(made);
@@ -203,7 +203,10 @@ fn wk(case: &Map) -> Value {
         answers.push(answer);
     }
     made.close();
-    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+    object(vec![
+        ("answers", Value::Array(answers)),
+        ("log", made.log()),
+    ])
 }
 
 struct StandSource {
@@ -263,12 +266,17 @@ fn ua(case: &Map) -> Value {
             Ok(Box::new(StandSource {
                 keys: keys.clone(),
                 log: source_log.clone(),
-            }) as Box<dyn car_adv::engine::analytics::ProjectSource>)
+            })
+                as Box<dyn car_adv::engine::analytics::ProjectSource>)
         }),
         Box::new(move || {
             crate::common::lock(&clock_log).push(Value::Array(vec![Value::Str("clock".into())]));
             let mut held = crate::common::lock(&ticks);
-            let value = if held.len() > 1 { held.remove(0) } else { held[0].clone() };
+            let value = if held.len() > 1 {
+                held.remove(0)
+            } else {
+                held[0].clone()
+            };
             f64_of(&value).unwrap_or(0.0)
         }),
         Box::new(car_platform::localclock::Crt),
@@ -297,5 +305,8 @@ fn ua(case: &Map) -> Value {
         answers.push(answer);
     }
     made.close();
-    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+    object(vec![
+        ("answers", Value::Array(answers)),
+        ("log", made.log()),
+    ])
 }

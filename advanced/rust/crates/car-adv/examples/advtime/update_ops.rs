@@ -26,7 +26,10 @@ fn answered_of(value: &Value) -> Answered {
 
 fn offered(found: Option<(String, bool)>) -> Value {
     found.map_or(Value::Null, |(version, prerelease)| {
-        Value::Array(vec![Value::Str(version.as_str().into()), Value::Bool(prerelease)])
+        Value::Array(vec![
+            Value::Str(version.as_str().into()),
+            Value::Bool(prerelease),
+        ])
     })
 }
 
@@ -36,7 +39,11 @@ fn pure(name: &str, arguments: &[Value]) -> Result<Value, String> {
         "offer" => offered(updatecheck::offer(&at(0), &text(&at(1)))),
         "said" => {
             let why = text(&at(1));
-            let why = if matches!(at(1), Value::Null) { None } else { Some(why.as_str()) };
+            let why = if matches!(at(1), Value::Null) {
+                None
+            } else {
+                Some(why.as_str())
+            };
             Value::Str(updatecheck::said(&answered_of(&at(0)), why).as_str().into())
         }
         "english" => Value::Str(updatecheck::english(&text(&at(0))).as_str().into()),
@@ -49,7 +56,10 @@ fn pure(name: &str, arguments: &[Value]) -> Result<Value, String> {
 pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
     match op {
         "uc" => Some(Ok(uc(case))),
-        "uc.pure" => Some(pure(&text(get(case, "name")), &list(get(case, "arguments")))),
+        "uc.pure" => Some(pure(
+            &text(get(case, "name")),
+            &list(get(case, "arguments")),
+        )),
         _ => None,
     }
 }
@@ -68,7 +78,10 @@ fn uc(case: &Map) -> Value {
     let mut code = IdleUpdateCheck::new(
         made.paths.clone(),
         Some(Box::new(move |place: &std::path::Path, given: &str| {
-            let name = place.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let name = place
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
             lock(&run_log).push(Value::Array(vec![
                 Value::Str("run".into()),
                 Value::Str(name.as_str().into()),
@@ -86,7 +99,10 @@ fn uc(case: &Map) -> Value {
         }),
         Box::new(move || installs.answer("installed", Value::Null, vec![])),
         Box::new(move |line: &str| {
-            lock(&line_log).push(Value::Array(vec![Value::Str("log".into()), Value::Str(line.into())]));
+            lock(&line_log).push(Value::Array(vec![
+                Value::Str("log".into()),
+                Value::Str(line.into()),
+            ]));
             Ok::<(), Raised>(())
         }),
     );
@@ -110,7 +126,9 @@ fn uc(case: &Map) -> Value {
             },
             "offered" => offered(code.offered()),
             "script" => {
-                let folder = std::path::Path::new(&made.paths.home).join("app").join("scripts");
+                let folder = std::path::Path::new(&made.paths.home)
+                    .join("app")
+                    .join("scripts");
                 let _ = std::fs::create_dir_all(&folder);
                 let _ = std::fs::write(folder.join("bootstrap.ps1"), "# stand-in");
                 Value::Null
@@ -120,5 +138,8 @@ fn uc(case: &Map) -> Value {
         answers.push(answer);
     }
     made.close();
-    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+    object(vec![
+        ("answers", Value::Array(answers)),
+        ("log", made.log()),
+    ])
 }

@@ -212,7 +212,8 @@ impl WakeForReset {
                 found.push(positive(&at));
             }
         }
-        let rules = bound.read(|scoped| scoped.state.reset_rules(&Value::Null, &Value::Bool(true)))?;
+        let rules =
+            bound.read(|scoped| scoped.state.reset_rules(&Value::Null, &Value::Bool(true)))?;
         for rule in rules {
             found.push(positive(sql::get(&rule, "due_at")));
         }
@@ -224,13 +225,12 @@ impl WakeForReset {
             }
         }
         found.push(self.anchor_due(&bound, now));
-        Ok(found
-            .into_iter()
-            .flatten()
-            .filter(|when| *when > now)
-            .fold(None, |least: Option<f64>, when| {
+        Ok(found.into_iter().flatten().filter(|when| *when > now).fold(
+            None,
+            |least: Option<f64>, when| {
                 Some(least.map_or(when, |least| if when < least { when } else { least }))
-            }))
+            },
+        ))
     }
 
     /// `_anchor_due(now)`: window_anchor's next occasion while it stands on, and the next look of an occasion it
@@ -406,7 +406,8 @@ impl WakeForReset {
                 let capability = word(CAPABILITY);
                 let standing = scoped.armed(&capability) && scoped.stored_on().ok()?;
                 let now = scoped.now();
-                let fresh = ticked.is_some_and(|ticked| 0.0 <= now - ticked && now - ticked < stale);
+                let fresh =
+                    ticked.is_some_and(|ticked| 0.0 <= now - ticked && now - ticked < stale);
                 Some((standing, fresh))
             })
         });
@@ -428,7 +429,10 @@ struct WakeErrand(WakeForReset);
 
 impl Errand for WakeErrand {
     fn run(&self, view: &dyn View, _guards: &mut Guards<'_>) -> Result<Value, HookFailed> {
-        self.0.run(view).map(|()| Value::Null).map_err(|_| HookFailed)
+        self.0
+            .run(view)
+            .map(|()| Value::Null)
+            .map_err(|_| HookFailed)
     }
 }
 

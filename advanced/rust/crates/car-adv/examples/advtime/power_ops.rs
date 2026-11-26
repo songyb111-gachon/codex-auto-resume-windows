@@ -27,10 +27,16 @@ pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
             let records = list(get(case, "records"));
             let has = turns.has_latest();
             let history = std::cell::RefCell::new(&mut turns);
-            let mut status_of = |thread: &Value, turn: &Value| history.borrow_mut().status(thread, turn);
+            let mut status_of =
+                |thread: &Value, turn: &Value| history.borrow_mut().status(thread, turn);
             let mut latest_of = |thread: &Value| history.borrow_mut().latest(thread);
             let end = if has {
-                powertasks::end_of(get(case, "task"), &records, &mut status_of, Some(&mut latest_of))
+                powertasks::end_of(
+                    get(case, "task"),
+                    &records,
+                    &mut status_of,
+                    Some(&mut latest_of),
+                )
             } else {
                 powertasks::end_of(get(case, "task"), &records, &mut status_of, None)
             };
@@ -41,7 +47,14 @@ pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
         }
         "pt.judge" => {
             let flag = |name: &str| matches!(get(case, name), Value::Bool(true));
-            Value::Str(powertasks::judge(&list(get(case, "ends")), flag("failed"), flag("interrupted")).into())
+            Value::Str(
+                powertasks::judge(
+                    &list(get(case, "ends")),
+                    flag("failed"),
+                    flag("interrupted"),
+                )
+                .into(),
+            )
         }
         "pt.power" => {
             let log = Arc::new(Mutex::new(Vec::new()));
@@ -54,12 +67,16 @@ pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
                 Box::new(move || {
                     lock(&reading).push(Value::Array(vec![Value::Str("records".into())]));
                     match &records {
-                        Value::Str(word) if word.as_str() == Some("raise") => Err(Raised::new("RuntimeError")),
+                        Value::Str(word) if word.as_str() == Some("raise") => {
+                            Err(Raised::new("RuntimeError"))
+                        }
                         Value::Array(items) => Ok(items.clone()),
                         _ => Ok(Vec::new()),
                     }
                 }),
-                Box::new(move || Ok(Box::new(History::new(&made, turning.clone())) as Box<dyn TurnHistory>)),
+                Box::new(move || {
+                    Ok(Box::new(History::new(&made, turning.clone())) as Box<dyn TurnHistory>)
+                }),
             );
             let answer = match code.power(get(case, "facts")) {
                 Ok(said) => said.to_value().unwrap_or(Value::Null),
@@ -107,14 +124,28 @@ impl History {
 
 impl TurnHistory for History {
     fn status(&mut self, thread: &Value, turn: &Value) -> Result<Value, Raised> {
-        lock(&self.log).push(Value::Array(vec![Value::Str("status".into()), thread.clone(), turn.clone()]));
-        self.found("status", &format!("{}|{}", car_adv::state::py::py_str(thread), car_adv::state::py::py_str(turn)))
+        lock(&self.log).push(Value::Array(vec![
+            Value::Str("status".into()),
+            thread.clone(),
+            turn.clone(),
+        ]));
+        self.found(
+            "status",
+            &format!(
+                "{}|{}",
+                car_adv::state::py::py_str(thread),
+                car_adv::state::py::py_str(turn)
+            ),
+        )
     }
     fn has_latest(&self) -> bool {
         self.script.contains_key("latest")
     }
     fn latest(&mut self, thread: &Value) -> Result<Value, Raised> {
-        lock(&self.log).push(Value::Array(vec![Value::Str("latest".into()), thread.clone()]));
+        lock(&self.log).push(Value::Array(vec![
+            Value::Str("latest".into()),
+            thread.clone(),
+        ]));
         self.found("latest", &car_adv::state::py::py_str(thread))
     }
 }

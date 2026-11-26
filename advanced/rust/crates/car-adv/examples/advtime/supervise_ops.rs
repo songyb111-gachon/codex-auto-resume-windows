@@ -22,7 +22,11 @@ impl Flag for Stand {
     }
     fn wait(&mut self, seconds: f64) -> Result<bool, Raised> {
         self.0
-            .answer("wait", Value::Bool(false), vec![Value::Int((seconds as i64).into())])
+            .answer(
+                "wait",
+                Value::Bool(false),
+                vec![Value::Int((seconds as i64).into())],
+            )
             .map(|value| car_machine::pyval::truthy(&value))
     }
 }
@@ -71,7 +75,10 @@ fn sv(case: &Map) -> Value {
         answers.push(said(code.supervise(step.get(1).unwrap_or(&Value::Null))));
     }
     made.close();
-    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+    object(vec![
+        ("answers", Value::Array(answers)),
+        ("log", made.log()),
+    ])
 }
 
 fn view(case: &Map) -> Value {

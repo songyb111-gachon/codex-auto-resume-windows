@@ -35,7 +35,11 @@ pub const KILL_WAIT: f64 = 10.0;
 pub const TIME_OFF: i64 = 1;
 pub const TIME_SHIFT: i64 = 2;
 pub const TIME_RANGE: (i64, i64) = (TIME_OFF, 1439 + TIME_SHIFT);
-pub const TIME_OPTIONS: [OptionKey; 3] = [OptionKey::AnchorAt1, OptionKey::AnchorAt2, OptionKey::AnchorAt3];
+pub const TIME_OPTIONS: [OptionKey; 3] = [
+    OptionKey::AnchorAt1,
+    OptionKey::AnchorAt2,
+    OptionKey::AnchorAt3,
+];
 /// wrapwords' ON: Start right after a reset, on.
 pub const ON: i64 = 1;
 pub const PROMPT: &str = "Reply with OK";
@@ -89,18 +93,23 @@ fn int(value: &Value) -> Option<i64> {
 /// `encode_time(hour, minute)`.
 pub fn encode_time(hour: &Value, minute: &Value) -> Option<i64> {
     let (hour, minute) = (int(hour)?, int(minute)?);
-    ((0..24).contains(&hour) && (0..60).contains(&minute)).then_some(hour * 60 + minute + TIME_SHIFT)
+    ((0..24).contains(&hour) && (0..60).contains(&minute))
+        .then_some(hour * 60 + minute + TIME_SHIFT)
 }
 
 /// `decode_time(value)`: the minute of the day a time option holds, or None.
 pub fn decode_time(value: &Value) -> Option<i64> {
     let value = int(value)?;
-    (TIME_SHIFT..=TIME_RANGE.1).contains(&value).then_some(value - TIME_SHIFT)
+    (TIME_SHIFT..=TIME_RANGE.1)
+        .contains(&value)
+        .then_some(value - TIME_SHIFT)
 }
 
 /// `clock_text(value)`: HH:MM, "" for off.
 pub fn clock_text(value: &Value) -> String {
-    decode_time(value).map_or(String::new(), |minute| format!("{:02}:{:02}", minute / 60, minute % 60))
+    decode_time(value).map_or(String::new(), |minute| {
+        format!("{:02}:{:02}", minute / 60, minute % 60)
+    })
 }
 
 /// `picked(options)`: the minutes of the day of the times picked, each once, in order.
@@ -120,7 +129,10 @@ pub fn after_reset_on(options: &Value) -> bool {
         Value::Object(map) => map.get(OptionKey::AnchorAfterReset.as_str()).cloned(),
         _ => None,
     };
-    sql::py_eq(&found.unwrap_or(Value::Int(ON.into())), &Value::Int(ON.into()))
+    sql::py_eq(
+        &found.unwrap_or(Value::Int(ON.into())),
+        &Value::Int(ON.into()),
+    )
 }
 
 /// `int(now)`: a float truncated toward zero; a NaN is a ValueError, an infinity an OverflowError.
@@ -167,7 +179,12 @@ fn after(found: i64, done: &Value) -> Py<bool> {
 }
 
 /// `slot_due(options, now, done)`: the latest occurrence of a time picked that is due now, or None.
-pub fn slot_due(options: &Value, now: f64, done: &Value, local: &dyn LocalClock) -> Py<Option<i64>> {
+pub fn slot_due(
+    options: &Value,
+    now: f64,
+    done: &Value,
+    local: &dyn LocalClock,
+) -> Py<Option<i64>> {
     let mut due: Option<i64> = None;
     for minute in picked(options) {
         for days in [0, -1] {
@@ -225,7 +242,10 @@ pub fn next_due(
 /// `for window in windows or ()`, the dicts among them; a truthy value that cannot be iterated is a TypeError.
 fn rows(windows: &Value) -> Py<Vec<&Value>> {
     match windows {
-        Value::Array(items) => Ok(items.iter().filter(|each| matches!(each, Value::Object(_))).collect()),
+        Value::Array(items) => Ok(items
+            .iter()
+            .filter(|each| matches!(each, Value::Object(_)))
+            .collect()),
         Value::Object(_) | Value::Str(_) => Ok(Vec::new()),
         other if !sql::truthy(other) => Ok(Vec::new()),
         _ => Err("TypeError"),
@@ -241,7 +261,9 @@ pub fn windows_of(windows: &Value) -> Py<(Option<Value>, Option<Value>)> {
             .copied()
             .filter(|window| *field(window, "bucket") == word(bucket))
             .collect();
-        let minutes = |window: &&Value, wanted: i64| sql::py_eq(field(window, "window_minutes"), &Value::Int(wanted.into()));
+        let minutes = |window: &&Value, wanted: i64| {
+            sql::py_eq(field(window, "window_minutes"), &Value::Int(wanted.into()))
+        };
         if let Some(five) = mine.iter().find(|window| minutes(window, FIVE_HOUR)) {
             let weekly = mine.iter().find(|window| minutes(window, WEEKLY));
             return Ok((Some((*five).clone()), weekly.map(|each| (*each).clone())));
@@ -310,7 +332,8 @@ pub fn judge(first: &Value, second: &Value) -> Py<&'static str> {
     }
     let (at1, five1) = &found[0];
     let (at2, five2) = &found[1];
-    if numeric(item(five1, "used_percent")?)? > 0.0 || numeric(item(five2, "used_percent")?)? > 0.0 {
+    if numeric(item(five1, "used_percent")?)? > 0.0 || numeric(item(five2, "used_percent")?)? > 0.0
+    {
         return Ok(RUNNING);
     }
     let (reset1, reset2) = (item(five1, "reset_at")?, item(five2, "reset_at")?);
@@ -353,9 +376,8 @@ pub fn splitlines(text: &str) -> Vec<&str> {
                     Some(index + 1)
                 }
             }
-            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}' | '\u{2029}' => {
-                Some(index + c.len_utf8())
-            }
+            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
+            | '\u{2029}' => Some(index + c.len_utf8()),
             _ => None,
         };
         if let Some(end) = end {
@@ -390,8 +412,12 @@ pub fn tokens_of(printed: &str) -> [Option<i64>; 3] {
         if !matches!(usage, Value::Object(_)) {
             continue;
         }
-        for (slot, name) in ["input_tokens", "cached_input_tokens", "output_tokens"].iter().enumerate() {
-            found[slot] = int(field(usage, name)).filter(|value| (0..1_000_000_000).contains(value));
+        for (slot, name) in ["input_tokens", "cached_input_tokens", "output_tokens"]
+            .iter()
+            .enumerate()
+        {
+            found[slot] =
+                int(field(usage, name)).filter(|value| (0..1_000_000_000).contains(value));
         }
     }
     found
@@ -448,7 +474,6 @@ pub fn hhmm(at: f64, local: &dyn LocalClock) -> Py<String> {
     Ok(format!("{:02}:{:02}", moment.hour, moment.min))
 }
 
-
 // ---------------------------------------------------------------------------------------------- config.toml
 /// `tomllib.loads` (tomli, TOML 1.0, as the reference interpreter ships it): every acceptance and refusal of the
 /// reference's parser, keeping of a document only what `declared_servers` reads - each table's keys in their first
@@ -465,13 +490,19 @@ pub mod toml {
     impl Item {
         pub fn get(&self, key: &str) -> Option<&Item> {
             match self {
-                Item::Table(pairs) => pairs.iter().find(|(name, _)| name == key).map(|(_, item)| item),
+                Item::Table(pairs) => pairs
+                    .iter()
+                    .find(|(name, _)| name == key)
+                    .map(|(_, item)| item),
                 _ => None,
             }
         }
         fn get_mut(&mut self, key: &str) -> Option<&mut Item> {
             match self {
-                Item::Table(pairs) => pairs.iter_mut().find(|(name, _)| name == key).map(|(_, item)| item),
+                Item::Table(pairs) => pairs
+                    .iter_mut()
+                    .find(|(name, _)| name == key)
+                    .map(|(_, item)| item),
                 _ => None,
             }
         }
@@ -596,7 +627,9 @@ pub mod toml {
             self.src.get(pos).copied()
         }
         fn starts(&self, text: &str) -> bool {
-            text.chars().enumerate().all(|(i, c)| self.at(self.pos + i) == Some(c))
+            text.chars()
+                .enumerate()
+                .all(|(i, c)| self.at(self.pos + i) == Some(c))
         }
         fn skip_ws(&mut self) {
             while matches!(self.at(self.pos), Some(' ' | '\t')) {
@@ -609,7 +642,12 @@ pub mod toml {
             }
         }
         /// `skip_until(src, pos, expect, error_on=..., error_on_eof=...)`.
-        fn skip_until(&mut self, expect: &str, error_on: impl Fn(char) -> bool, error_on_eof: bool) -> Parsed<usize> {
+        fn skip_until(
+            &mut self,
+            expect: &str,
+            error_on: impl Fn(char) -> bool,
+            error_on_eof: bool,
+        ) -> Parsed<usize> {
             let wanted: Vec<char> = expect.chars().collect();
             let mut end = None;
             let mut index = self.pos;
@@ -696,7 +734,9 @@ pub mod toml {
             char::from_u32(value).ok_or(Refused)
         }
         fn escape(&mut self, multiline: bool) -> Parsed<String> {
-            let id: String = self.src[self.pos..(self.pos + 2).min(self.src.len())].iter().collect();
+            let id: String = self.src[self.pos..(self.pos + 2).min(self.src.len())]
+                .iter()
+                .collect();
             self.pos += 2;
             if multiline && (id == "\\ " || id == "\\\t" || id == "\\\n") {
                 if id != "\\\n" {
@@ -818,7 +858,9 @@ pub mod toml {
                 self.pos += 1;
                 let second = self.fixed(2)?;
                 (hour <= 23 && minute <= 59 && second <= 59).then_some(())?;
-                if self.at(self.pos) == Some('.') && self.at(self.pos + 1).is_some_and(|c| c.is_ascii_digit()) {
+                if self.at(self.pos) == Some('.')
+                    && self.at(self.pos + 1).is_some_and(|c| c.is_ascii_digit())
+                {
                     self.pos += 1;
                     while self.at(self.pos).is_some_and(|c| c.is_ascii_digit()) {
                         self.pos += 1;
@@ -875,7 +917,20 @@ pub mod toml {
                 }
             }
             let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-            let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month as usize - 1];
+            let days = [
+                31,
+                if leap { 29 } else { 28 },
+                31,
+                30,
+                31,
+                30,
+                31,
+                31,
+                30,
+                31,
+                30,
+                31,
+            ][month as usize - 1];
             // `datetime(year, ...)`: year 0 is no year.
             Some(year >= 1 && day <= days)
         }
@@ -1167,13 +1222,18 @@ pub fn config(codex_home: &str) -> (Option<toml::Item>, bool) {
 /// `declared_servers(codex_home)`: the MCP servers config.toml declares (a table with `command` or `url`), in order.
 pub fn declared_servers(codex_home: &str) -> Vec<String> {
     let (found, _unreadable) = config(codex_home);
-    let Some(toml::Item::Table(servers)) = found.as_ref().and_then(|found| found.get("mcp_servers")).cloned() else {
+    let Some(toml::Item::Table(servers)) = found
+        .as_ref()
+        .and_then(|found| found.get("mcp_servers"))
+        .cloned()
+    else {
         return Vec::new();
     };
     servers
         .into_iter()
         .filter(|(_, value)| {
-            matches!(value, toml::Item::Table(_)) && (value.get("command").is_some() || value.get("url").is_some())
+            matches!(value, toml::Item::Table(_))
+                && (value.get("command").is_some() || value.get("url").is_some())
         })
         .map(|(name, _)| name)
         .collect()
@@ -1261,7 +1321,9 @@ pub fn start_request(
         .with_env(backend.environment())
         .with_cwd(folder)
         .with_streams(Stream::Null, Stream::Piped, Stream::Piped);
-    SystemStarter.start(&spawn).map_err(|_| Raised::new("OSError"))
+    SystemStarter
+        .start(&spawn)
+        .map_err(|_| Raised::new("OSError"))
 }
 
 /// What `finish_request` answered: `{"end", "code", "input", "cached", "output", "refused"}`.
@@ -1314,9 +1376,21 @@ pub const SLOT: &str = "slot";
 pub const RESET: &str = "reset";
 pub const VERIFY: &str = "verify";
 pub const ACCOUNT_SWITCH: &str = "account_switch";
-pub const WINDOW_STAMPS: [OptionKey; 3] = [OptionKey::AnchorStartedAt, OptionKey::AnchorFixedAt, OptionKey::AnchorSeenReset];
+pub const WINDOW_STAMPS: [OptionKey; 3] = [
+    OptionKey::AnchorStartedAt,
+    OptionKey::AnchorFixedAt,
+    OptionKey::AnchorSeenReset,
+];
 /// The reasons that say nothing lasting of the window: the occasion stays open (`_held`).
-pub const PASSING: [&str; 7] = ["unreadable", "signed_out", "paused", "home", "folder", "state", "failed"];
+pub const PASSING: [&str; 7] = [
+    "unreadable",
+    "signed_out",
+    "paused",
+    "home",
+    "folder",
+    "state",
+    "failed",
+];
 
 /// `_word(reason)`: the journal's word an occasion ends with.
 pub fn skip_word(reason: &str) -> &str {
@@ -1341,7 +1415,11 @@ pub fn per_day() -> i64 {
     *FOUND.get_or_init(|| {
         crate::registry::shipped(false)
             .ok()
-            .and_then(|registry| registry.get(CAPABILITY).and_then(|definition| definition.ceilings.as_ref().map(|c| c.per_day)))
+            .and_then(|registry| {
+                registry
+                    .get(CAPABILITY)
+                    .and_then(|definition| definition.ceilings.as_ref().map(|c| c.per_day))
+            })
             .unwrap_or(5)
     })
 }
@@ -1485,7 +1563,9 @@ impl WindowAnchor {
     }
 
     fn bound(&self) -> Answer<Bound> {
-        lock(&self.inner.bound).clone().ok_or_else(|| Raised::new("AttributeError"))
+        lock(&self.inner.bound)
+            .clone()
+            .ok_or_else(|| Raised::new("AttributeError"))
     }
 
     fn stamped(&self, option: OptionKey) -> Answer<Value> {
@@ -1522,7 +1602,9 @@ impl WindowAnchor {
     }
 
     fn options(&self) -> Answer<Value> {
-        Ok(Value::Object(self.bound()?.read(|scoped| scoped.options())?))
+        Ok(Value::Object(
+            self.bound()?.read(|scoped| scoped.options())?,
+        ))
     }
 
     // ------------------------------------------------------------------ P8
@@ -1536,7 +1618,11 @@ impl WindowAnchor {
             self.account_changed();
             let (ended, running, pending) = {
                 let memory = self.memory();
-                (memory.ended.is_some(), memory.running.is_some(), memory.pending.clone())
+                (
+                    memory.ended.is_some(),
+                    memory.running.is_some(),
+                    memory.pending.clone(),
+                )
             };
             if ended {
                 return Ok(true);
@@ -1556,7 +1642,9 @@ impl WindowAnchor {
                 return Ok(false);
             }
             self.memory().looked = Some(now);
-            Ok(!self.span_over(now).is_empty() || self.open(now)?.is_some() || self.learn_due(now)?)
+            Ok(!self.span_over(now).is_empty()
+                || self.open(now)?.is_some()
+                || self.learn_due(now)?)
         })();
         match due {
             Ok(true) => Ok(Said::Errand(Box::new(AnchorErrand(self.clone())))),
@@ -1573,7 +1661,8 @@ impl WindowAnchor {
             if !scoped.armed(&word(ACCOUNT_SWITCH)) {
                 return Ok(());
             }
-            let changed = scoped.stamped_of(&word(ACCOUNT_SWITCH), &key(OptionKey::AccountChangedAt))?;
+            let changed =
+                scoped.stamped_of(&word(ACCOUNT_SWITCH), &key(OptionKey::AccountChangedAt))?;
             let taken = scoped.stamped(&key(OptionKey::AnchorAccountAt))?;
             let Some(changed_at) = int_value(&changed) else {
                 return Ok(());
@@ -1593,7 +1682,9 @@ impl WindowAnchor {
     fn occasion(&self, now: f64) -> Answer<Option<(&'static str, i64)>> {
         let options = self.options()?;
         let done = self.stamped(OptionKey::AnchorSlotDone)?;
-        if let Some(slot) = slot_due(&options, now, &done, self.inner.local.as_ref()).map_err(Raised::new)? {
+        if let Some(slot) =
+            slot_due(&options, now, &done, self.inner.local.as_ref()).map_err(Raised::new)?
+        {
             return Ok(Some((SLOT, slot)));
         }
         let seen = self.stamped(OptionKey::AnchorSeenReset)?;
@@ -1610,7 +1701,10 @@ impl WindowAnchor {
             return Ok(None);
         };
         let memory = self.memory();
-        let held = memory.held_open.iter().find(|(known, _)| *known == occasion);
+        let held = memory
+            .held_open
+            .iter()
+            .find(|(known, _)| *known == occasion);
         Ok(match held {
             Some((_, held)) if now < held.next => None,
             _ => Some(occasion),
@@ -1729,12 +1823,25 @@ impl WindowAnchor {
             return self.skip(why, occurrence, "unreadable", None);
         }
         if found == WEEKLY_FULL {
-            let basis = if matches!(reading, Value::Null) { pending.first.clone() } else { reading.clone() };
+            let basis = if matches!(reading, Value::Null) {
+                pending.first.clone()
+            } else {
+                reading.clone()
+            };
             let until = self.past_weekly(why, &basis, now)?;
             return self.skip(why, occurrence, "weekly", until);
         }
         if found != IDLE {
-            return self.skip(why, occurrence, if found == RUNNING { "running" } else { "unreadable" }, None);
+            return self.skip(
+                why,
+                occurrence,
+                if found == RUNNING {
+                    "running"
+                } else {
+                    "unreadable"
+                },
+                None,
+            );
         }
         if let Some(reason) = self.before(view, now) {
             return self.skip(why, occurrence, reason, None);
@@ -1763,9 +1870,11 @@ impl WindowAnchor {
         {
             return Some("once");
         }
-        let made = self
-            .bound()
-            .and_then(|bound| bound.read(|scoped| scoped.counted_since(&word("started"), &Value::Float(now - DAY as f64))));
+        let made = self.bound().and_then(|bound| {
+            bound.read(|scoped| {
+                scoped.counted_since(&word("started"), &Value::Float(now - DAY as f64))
+            })
+        });
         match made {
             Err(_) => Some("state"),
             Ok(made) if made >= per_day() => Some("ceiling"),
@@ -1773,7 +1882,13 @@ impl WindowAnchor {
         }
     }
 
-    fn start(&self, why: &'static str, occurrence: i64, guards: &mut Guards<'_>, now: f64) -> Answer<()> {
+    fn start(
+        &self,
+        why: &'static str,
+        occurrence: i64,
+        guards: &mut Guards<'_>,
+        now: f64,
+    ) -> Answer<()> {
         let folder = folder_of(&self.inner.paths);
         if !ready_folder(&folder) {
             return self.skip(why, occurrence, "folder", None);
@@ -1895,7 +2010,10 @@ impl WindowAnchor {
         {
             return Ok(true);
         }
-        for (option, slot) in [(OptionKey::AnchorInputTokens, 0usize), (OptionKey::AnchorOutputTokens, 2)] {
+        for (option, slot) in [
+            (OptionKey::AnchorInputTokens, 0usize),
+            (OptionKey::AnchorOutputTokens, 2),
+        ] {
             match answered.tokens[slot] {
                 Some(value) if value >= 1 => {
                     self.stamp(option, value);
@@ -1905,12 +2023,17 @@ impl WindowAnchor {
         }
         if answered.timed_out {
             self.count("timed_out");
-            self.say(&format!("the request did not finish within {} s and was ended", TIMEOUT as i64));
+            self.say(&format!(
+                "the request did not finish within {} s and was ended",
+                TIMEOUT as i64
+            ));
             return Ok(true);
         }
         if answered.code != Some(0) {
             self.count("failed");
-            let code = answered.code.map_or("unknown".to_owned(), |code| code.to_string());
+            let code = answered
+                .code
+                .map_or("unknown".to_owned(), |code| code.to_string());
             self.say(&format!("the request ended with exit code {code}"));
             return Ok(true);
         }
@@ -1924,7 +2047,10 @@ impl WindowAnchor {
         let tokens = {
             let mut map = car_machine::json::Map::new();
             for (name, value) in ["input", "cached", "output"].iter().zip(answered.tokens) {
-                map.insert((*name).into(), value.map_or(Value::Null, |n| Value::Int(n.into())));
+                map.insert(
+                    (*name).into(),
+                    value.map_or(Value::Null, |n| Value::Int(n.into())),
+                );
             }
             Value::Object(map)
         };
@@ -1981,17 +2107,23 @@ impl WindowAnchor {
         if int_value(&seen) == Some(reset) && matches!(seen, Value::Int(_)) {
             return Ok(());
         }
-        if self.stamp_raising(OptionKey::AnchorSeenReset, reset).is_err() {
+        if self
+            .stamp_raising(OptionKey::AnchorSeenReset, reset)
+            .is_err()
+        {
             return Ok(());
         }
-        self.memory().held_open.retain(|((why, _), _)| *why != RESET);
+        self.memory()
+            .held_open
+            .retain(|((why, _), _)| *why != RESET);
         self.show_retry();
         self.unstamp(OptionKey::AnchorStoppedAt);
         Ok(())
     }
 
     fn stamp_raising(&self, option: OptionKey, value: i64) -> Answer<bool> {
-        self.bound()?.read(|scoped| scoped.stamp(&key(option), &Value::Int(value.into())))
+        self.bound()?
+            .read(|scoped| scoped.stamp(&key(option), &Value::Int(value.into())))
     }
 
     /// `_past_weekly(why, reading, now)`.
@@ -2002,16 +2134,30 @@ impl WindowAnchor {
             _ => return Err(Raised::new("AttributeError")),
         };
         let (_five, weekly) = windows_of(&windows).map_err(Raised::new)?;
-        let reset = weekly.as_ref().map_or(Value::Null, |weekly| field(weekly, "reset_at").clone());
+        let reset = weekly
+            .as_ref()
+            .map_or(Value::Null, |weekly| field(weekly, "reset_at").clone());
         Ok(match int_value(&reset) {
-            Some(reset) if why == RESET && (reset as f64) > now => Some((reset + WINDOW_SECONDS) as f64),
+            Some(reset) if why == RESET && (reset as f64) > now => {
+                Some((reset + WINDOW_SECONDS) as f64)
+            }
             _ => None,
         })
     }
 
     /// `_skip(why, occurrence, reason, until)`.
-    fn skip(&self, why: &'static str, occurrence: i64, reason: &'static str, until: Option<f64>) -> Answer<()> {
-        let until = if reason == "ceiling" && why == RESET { Some((occurrence + DAY) as f64) } else { until };
+    fn skip(
+        &self,
+        why: &'static str,
+        occurrence: i64,
+        reason: &'static str,
+        until: Option<f64>,
+    ) -> Answer<()> {
+        let until = if reason == "ceiling" && why == RESET {
+            Some((occurrence + DAY) as f64)
+        } else {
+            until
+        };
         if (why == SLOT || why == RESET) && (PASSING.contains(&reason) || until.is_some()) {
             return self.held(why, occurrence, reason, until);
         }
@@ -2033,11 +2179,25 @@ impl WindowAnchor {
     }
 
     /// `_held(why, occurrence, reason, longer)`: a passing failure, tried again in RETRY_EVERY while its span lasts.
-    fn held(&self, why: &'static str, occurrence: i64, reason: &'static str, longer: Option<f64>) -> Answer<()> {
+    fn held(
+        &self,
+        why: &'static str,
+        occurrence: i64,
+        reason: &'static str,
+        longer: Option<f64>,
+    ) -> Answer<()> {
         let now = self.now()?;
         let occasion = (why, occurrence);
-        let span = if why == SLOT { SLOT_GRACE } else { WINDOW_SECONDS };
-        let ceiling_wake = if reason == "ceiling" { Some(self.ceiling_frees(now)) } else { None };
+        let span = if why == SLOT {
+            SLOT_GRACE
+        } else {
+            WINDOW_SECONDS
+        };
+        let ceiling_wake = if reason == "ceiling" {
+            Some(self.ceiling_frees(now))
+        } else {
+            None
+        };
         let (first, held) = {
             let mut memory = self.memory();
             let first = !memory.held_open.iter().any(|(known, _)| *known == occasion);
@@ -2054,7 +2214,12 @@ impl WindowAnchor {
                     },
                 ));
             }
-            let held = &mut memory.held_open.iter_mut().find(|(known, _)| *known == occasion).expect("held").1;
+            let held = &mut memory
+                .held_open
+                .iter_mut()
+                .find(|(known, _)| *known == occasion)
+                .expect("held")
+                .1;
             held.next = now + RETRY_EVERY;
             held.reason = reason.to_owned();
             if let Some(longer) = longer {
@@ -2080,10 +2245,18 @@ impl WindowAnchor {
         }
         self.show_next();
         if held.weekly && !held.said_weekly {
-            if let Some((_, kept)) = self.memory().held_open.iter_mut().find(|(known, _)| *known == occasion) {
+            if let Some((_, kept)) = self
+                .memory()
+                .held_open
+                .iter_mut()
+                .find(|(known, _)| *known == occasion)
+            {
                 kept.said_weekly = true;
             }
-            let line = format!("the weekly limit is reached; looking again once it resets, at {}", self.strftime(held.next)?);
+            let line = format!(
+                "the weekly limit is reached; looking again once it resets, at {}",
+                self.strftime(held.next)?
+            );
             self.say(&line);
             self.unstamp(OptionKey::AnchorStoppedAt);
             self.show_retry();
@@ -2131,7 +2304,9 @@ impl WindowAnchor {
 
     /// `_done(why, occurrence)`: what `_stamp` answered, True where there was nothing to stamp.
     fn done(&self, why: &str, occurrence: i64) -> Option<bool> {
-        self.memory().held_open.retain(|((known, at), _)| !(*known == why && *at == occurrence));
+        self.memory()
+            .held_open
+            .retain(|((known, at), _)| !(*known == why && *at == occurrence));
         self.show_retry();
         let option = match why {
             SLOT => Some(OptionKey::AnchorSlotDone),
@@ -2154,7 +2329,9 @@ impl WindowAnchor {
                 .iter()
                 .filter(|(_, held)| held.until != f64::INFINITY && !held.weekly)
                 .map(|(_, held)| held.until)
-                .fold(None, |most: Option<f64>, until| Some(most.map_or(until, |most| most.max(until))))
+                .fold(None, |most: Option<f64>, until| {
+                    Some(most.map_or(until, |most| most.max(until)))
+                })
                 .map(|until| until.trunc() as i64)
         };
         if self.memory().shown == Told2::Told(until) {
@@ -2175,7 +2352,9 @@ impl WindowAnchor {
         let bound = self.bound().ok()?;
         let full = |at: i64| -> Option<bool> {
             let made = bound
-                .with(|scoped| scoped.counted_since(&word("started"), &Value::Int((at - DAY).into())))?
+                .with(|scoped| {
+                    scoped.counted_since(&word("started"), &Value::Int((at - DAY).into()))
+                })?
                 .ok()?;
             Some(made >= most)
         };
@@ -2210,7 +2389,9 @@ impl WindowAnchor {
                     }
                 })
                 .filter(|at| *at != f64::INFINITY && !at.is_nan())
-                .fold(None, |least: Option<f64>, at| Some(least.map_or(at, |least| least.min(at))))
+                .fold(None, |least: Option<f64>, at| {
+                    Some(least.map_or(at, |least| least.min(at)))
+                })
                 .map(|at| at.trunc() as i64)
         };
         if self.memory().shown_next == Told2::Told(found) {
@@ -2239,14 +2420,24 @@ impl WindowAnchor {
             if (self.inner.told)().is_none() {
                 return Err(Raised::new("LookupError"));
             }
-            let opener = self.inner.session.as_ref().ok_or_else(|| Raised::new("LookupError"))?;
+            let opener = self
+                .inner
+                .session
+                .as_ref()
+                .ok_or_else(|| Raised::new("LookupError"))?;
             let mut session = opener()?;
             let signed = if account {
-                signed_in(&session.call("account/read", &Value::Object(car_machine::json::Map::new()))?)
+                signed_in(&session.call(
+                    "account/read",
+                    &Value::Object(car_machine::json::Map::new()),
+                )?)
             } else {
                 None
             };
-            let reply = session.call(crate::codex::credits::READ, &Value::Object(car_machine::json::Map::new()))?;
+            let reply = session.call(
+                crate::codex::credits::READ,
+                &Value::Object(car_machine::json::Map::new()),
+            )?;
             let parsed = crate::codex::credits::parse(&reply).map_err(Raised::new)?;
             Ok((field(&parsed, "windows").clone(), signed))
         })();
@@ -2286,7 +2477,10 @@ struct AnchorErrand(WindowAnchor);
 
 impl Errand for AnchorErrand {
     fn run(&self, view: &dyn View, guards: &mut Guards<'_>) -> Result<Value, HookFailed> {
-        self.0.look(view, guards).map(|()| Value::Null).map_err(|_| HookFailed)
+        self.0
+            .look(view, guards)
+            .map(|()| Value::Null)
+            .map_err(|_| HookFailed)
     }
 }
 
@@ -2319,7 +2513,13 @@ pub fn view(armed: bool, stamped: &dyn Fn(OptionKey) -> Option<Value>, now: f64)
         Some(at) if (at as f64) > now => value.clone(),
         _ => Value::Null,
     };
-    let whole = |value: &Value| if int_value(value).is_some() { value.clone() } else { Value::Null };
+    let whole = |value: &Value| {
+        if int_value(value).is_some() {
+            value.clone()
+        } else {
+            Value::Null
+        }
+    };
     let mut inner = car_machine::json::Map::new();
     inner.insert("started_at".into(), whole(&started));
     inner.insert("fixed_at".into(), ahead(&fixed));

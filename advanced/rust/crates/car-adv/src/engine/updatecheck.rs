@@ -30,9 +30,17 @@ pub const WEEK: i64 = 7 * 86400;
 pub const CHECK_SECONDS: f64 = 120.0;
 pub const LOOK_EVERY: f64 = 60.0;
 /// The answers of `-CheckOnly`: the `update:` line's first word, with the exit code it comes with.
-pub const ANSWERS: [(&str, i64); 4] = [("current", 0), ("available", 10), ("newer-local", 11), ("unavailable", 12)];
+pub const ANSWERS: [(&str, i64); 4] = [
+    ("current", 0),
+    ("available", 10),
+    ("newer-local", 11),
+    ("unavailable", 12),
+];
 pub const HOME_VARIABLE: &str = "CODEX_AUTO_RESUME_PLUGIN_HOME";
-pub const INSTALL_VARIABLES: [&str; 2] = ["CODEX_AUTO_RESUME_UPDATING_DASHBOARD", "CODEX_AUTO_RESUME_PROGRESS_LINES"];
+pub const INSTALL_VARIABLES: [&str; 2] = [
+    "CODEX_AUTO_RESUME_UPDATING_DASHBOARD",
+    "CODEX_AUTO_RESUME_PROGRESS_LINES",
+];
 pub const MISSING: &str = "missing";
 pub const NOT_STARTED: &str = "not_started";
 pub const RUNNING: &str = "running";
@@ -53,7 +61,11 @@ pub const COULD_NOT: [(&str, &str, &str); 4] = [
         "diag.update_running",
         "It is taking longer than usual and is still working. It carries on in the background; look at this page again in a few minutes.",
     ),
-    ("failed", "diag.update_failed", "The update check did not finish."),
+    (
+        "failed",
+        "diag.update_failed",
+        "The update check did not finish.",
+    ),
 ];
 pub const LOG_PREFIX: &str = "weekly update check: ";
 
@@ -64,7 +76,10 @@ fn number_part(text: &str) -> Option<(i64, &str)> {
     if bytes.first() == Some(&b'0') {
         return Some((0, &text[1..]));
     }
-    let digits = bytes.iter().take_while(|byte| byte.is_ascii_digit()).count();
+    let digits = bytes
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
     if digits == 0 || bytes[0] == b'0' {
         return None;
     }
@@ -127,12 +142,17 @@ pub fn last(printed: &str, name: &str) -> Option<String> {
 }
 
 fn answer_code(said: &str) -> Option<i64> {
-    ANSWERS.iter().find(|(word, _)| *word == said).map(|(_, code)| *code)
+    ANSWERS
+        .iter()
+        .find(|(word, _)| *word == said)
+        .map(|(_, code)| *code)
 }
 
 /// `str.split(" ")` of the `update:` line, or nothing where there is none.
 fn words_of(printed: &str) -> Vec<String> {
-    last(printed, "update: ").map_or_else(Vec::new, |line| line.split(' ').map(str::to_owned).collect())
+    last(printed, "update: ").map_or_else(Vec::new, |line| {
+        line.split(' ').map(str::to_owned).collect()
+    })
 }
 
 /// `offer(code, printed)`: (version, False) for a newer release, (version, True) for a newer pre-release, or None.
@@ -165,7 +185,12 @@ pub fn english(why: &str) -> String {
         .unwrap_or(&COULD_NOT[3]);
     let mut text = car_words::l10n::text(key, "en", &[]).unwrap_or_else(|| (*fallback).to_owned());
     if why == RUNNING {
-        let head = text.split(';').next().unwrap_or("").trim_end_matches('.').to_owned();
+        let head = text
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim_end_matches('.')
+            .to_owned();
         text = head + ".";
     }
     text
@@ -177,7 +202,9 @@ pub type Answered = Option<(Value, String)>;
 /// `said(answered, why)`: the watcher's log line for a check that ended - versions only.
 pub fn said(answered: &Answered, why: Option<&str>) -> String {
     let Some((code, printed)) = answered else {
-        let why = why.filter(|why| *why == MISSING || *why == RUNNING).unwrap_or("failed");
+        let why = why
+            .filter(|why| *why == MISSING || *why == RUNNING)
+            .unwrap_or("failed");
         return format!("{LOG_PREFIX}could not check: {}", english(why));
     };
     if let Some((version, prerelease)) = offer(code, printed) {
@@ -197,7 +224,13 @@ pub fn said(answered: &Answered, why: Option<&str>) -> String {
         .iter()
         .skip(1)
         .take(2)
-        .map(|word| if release(word).is_some() { word.as_str() } else { "?" })
+        .map(|word| {
+            if release(word).is_some() {
+                word.as_str()
+            } else {
+                "?"
+            }
+        })
         .collect();
     shown.extend(["?", "?"]);
     match answer {
@@ -220,7 +253,10 @@ fn parts(version: &str) -> Option<[i64; 4]> {
         Some(numbers) => (numbers, 9999),
         None => {
             let (numbers, stage, number) = prerelease(version)?;
-            (numbers, if stage == "alpha" { 1000 } else { 2000 } + number.unwrap_or(1))
+            (
+                numbers,
+                if stage == "alpha" { 1000 } else { 2000 } + number.unwrap_or(1),
+            )
         }
     };
     numbers
@@ -259,7 +295,11 @@ pub fn decode(value: &Value) -> Option<(String, bool)> {
     } else if (1001..=1999).contains(&stage) || (2001..=2999).contains(&stage) {
         let number = stage % 1000;
         let name = if stage < 2000 { "-alpha" } else { "-beta" };
-        let tail = if number == 1 { String::new() } else { format!(".{number}") };
+        let tail = if number == 1 {
+            String::new()
+        } else {
+            format!(".{number}")
+        };
         (format!("{base}{name}{tail}"), true)
     } else {
         return None;
@@ -269,7 +309,10 @@ pub fn decode(value: &Value) -> Option<(String, bool)> {
 
 /// `script_of(paths)`: `<home>\app\scripts\bootstrap.ps1`.
 pub fn script_of(paths: &Paths) -> PathBuf {
-    Path::new(&paths.home).join("app").join("scripts").join("bootstrap.ps1")
+    Path::new(&paths.home)
+        .join("app")
+        .join("scripts")
+        .join("bootstrap.ps1")
 }
 
 // ---------------------------------------------------------------------------------------------- the check
@@ -300,8 +343,18 @@ pub(crate) fn communicate(
         });
         (kept, handle)
     };
-    let out = reader(child.stdout.take().map(|s| Box::new(s) as Box<dyn Read + Send>));
-    let err = reader(child.stderr.take().map(|s| Box::new(s) as Box<dyn Read + Send>));
+    let out = reader(
+        child
+            .stdout
+            .take()
+            .map(|s| Box::new(s) as Box<dyn Read + Send>),
+    );
+    let err = reader(
+        child
+            .stderr
+            .take()
+            .map(|s| Box::new(s) as Box<dyn Read + Send>),
+    );
     let started = Instant::now();
     loop {
         match child.try_wait() {
@@ -345,7 +398,12 @@ impl ReadBack {
 /// `run_check(script, home, seconds, said)`: the check run as the Dashboard runs it; None, with why on `said`, where
 /// Windows PowerShell or the script is not there, it could not be started, or it has not finished - then it is left to
 /// finish on its own, never killed.
-pub fn run_check(script: &Path, home: &str, seconds: f64, said: &mut Vec<&'static str>) -> Answered {
+pub fn run_check(
+    script: &Path,
+    home: &str,
+    seconds: f64,
+    said: &mut Vec<&'static str>,
+) -> Answered {
     let powershell = car_platform::pwsh::executable();
     if !script.is_file() {
         said.push(MISSING);
@@ -383,9 +441,10 @@ pub fn run_check(script: &Path, home: &str, seconds: f64, said: &mut Vec<&'stati
         return None;
     };
     match communicate(child, seconds) {
-        Ok((code, printed, _errors)) => {
-            Some((Value::Int(code.into()), String::from_utf8_lossy(&printed).into_owned()))
-        }
+        Ok((code, printed, _errors)) => Some((
+            Value::Int(code.into()),
+            String::from_utf8_lossy(&printed).into_owned(),
+        )),
         Err((child, back)) => {
             // Left to finish, as the window leaves a check it calls "running": what it prints is read and dropped.
             std::thread::spawn(move || {
@@ -546,7 +605,10 @@ impl IdleUpdateCheck {
         let bound = self.bound()?;
         let whole = super::anchor::whole(now).map_err(Raised::new)?;
         let kept = bound.read(|scoped| {
-            scoped.stamp(&word(OptionKey::LastCheck.as_str()), &Value::Int(whole.into()))
+            scoped.stamp(
+                &word(OptionKey::LastCheck.as_str()),
+                &Value::Int(whole.into()),
+            )
         })?;
         if !kept {
             return Ok(());
@@ -570,7 +632,12 @@ impl IdleUpdateCheck {
         let paths = &self.inner.paths;
         let mut why: Vec<&'static str> = Vec::new();
         let answered = match &self.inner.run {
-            None => Ok(run_check(&script_of(paths), &paths.home, CHECK_SECONDS, &mut why)),
+            None => Ok(run_check(
+                &script_of(paths),
+                &paths.home,
+                CHECK_SECONDS,
+                &mut why,
+            )),
             Some(run) => run(&script_of(paths), &paths.home),
         };
         let (found, word_said, line) = match answered {
@@ -620,7 +687,11 @@ impl IdleUpdateCheck {
         if said_word == Some("offered") {
             if let Some(found) = found {
                 let now = bound.now()?;
-                self.keep(bound, found, super::anchor::whole(now).map_err(Raised::new)?)?;
+                self.keep(
+                    bound,
+                    found,
+                    super::anchor::whole(now).map_err(Raised::new)?,
+                )?;
             }
         } else if said_word == Some("checked") {
             self.drop_offer(bound)?;
@@ -632,7 +703,9 @@ impl IdleUpdateCheck {
             first
         };
         if first {
-            let kept = decode(&bound.read(|scoped| scoped.stamped(&word(OptionKey::OfferedVersion.as_str())))?);
+            let kept = decode(
+                &bound.read(|scoped| scoped.stamped(&word(OptionKey::OfferedVersion.as_str())))?,
+            );
             let at = bound.read(|scoped| scoped.stamped(&word(OptionKey::OfferedAt.as_str())))?;
             if let (Some(kept), Value::Int(at)) = (kept, at)
                 && let Some(at) = at.as_i64()
@@ -650,7 +723,8 @@ impl IdleUpdateCheck {
             return Ok(());
         };
         let installed = encode(&(self.inner.installed)()?);
-        let reached = installed.is_some_and(|installed| installed >= encode(&word(&offered.0)).unwrap_or(0));
+        let reached =
+            installed.is_some_and(|installed| installed >= encode(&word(&offered.0)).unwrap_or(0));
         let since = bound.read(|scoped| scoped.since())?;
         let put_away = match (super::supervise::number(&since), at) {
             (Some(since), Some(at)) => (at as f64) < since,
@@ -670,8 +744,18 @@ impl IdleUpdateCheck {
             held.offered_at = Some(now);
         }
         if let Some(code) = code {
-            bound.read(|scoped| scoped.stamp(&word(OptionKey::OfferedVersion.as_str()), &Value::Int(code.into())))?;
-            bound.read(|scoped| scoped.stamp(&word(OptionKey::OfferedAt.as_str()), &Value::Int(now.into())))?;
+            bound.read(|scoped| {
+                scoped.stamp(
+                    &word(OptionKey::OfferedVersion.as_str()),
+                    &Value::Int(code.into()),
+                )
+            })?;
+            bound.read(|scoped| {
+                scoped.stamp(
+                    &word(OptionKey::OfferedAt.as_str()),
+                    &Value::Int(now.into()),
+                )
+            })?;
         }
         Ok(())
     }
@@ -713,7 +797,10 @@ struct CheckErrand(IdleUpdateCheck, f64);
 
 impl Errand for CheckErrand {
     fn run(&self, _view: &dyn View, _guards: &mut Guards<'_>) -> Result<Value, HookFailed> {
-        self.0.start(self.1).map(|()| Value::Null).map_err(|_| HookFailed)
+        self.0
+            .start(self.1)
+            .map(|()| Value::Null)
+            .map_err(|_| HookFailed)
     }
 }
 

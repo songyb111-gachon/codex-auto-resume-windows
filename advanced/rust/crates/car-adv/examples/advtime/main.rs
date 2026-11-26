@@ -29,7 +29,8 @@ fn main() {
 fn run() {
     let path = std::env::args().nth(1).expect("a request file");
     let request = std::fs::read_to_string(path).expect("the request");
-    let Value::Object(request) = car_machine::compat::loads(&request).expect("a JSON request") else {
+    let Value::Object(request) = car_machine::compat::loads(&request).expect("a JSON request")
+    else {
         panic!("the request is an object");
     };
     let cases = match get(&request, "cases") {
@@ -50,8 +51,9 @@ fn run() {
         });
     }
     let out = object(vec![("results", Value::Array(results))]);
-    let text = car_machine::json::to_string(&out, &car_machine::json::Options::new().ensure_ascii(false))
-        .expect("the answer");
+    let text =
+        car_machine::json::to_string(&out, &car_machine::json::Options::new().ensure_ascii(false))
+            .expect("the answer");
     print!("{text}");
 }
 
