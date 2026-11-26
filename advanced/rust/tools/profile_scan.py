@@ -67,17 +67,17 @@ def scan(work: Path, user: str) -> int:
 
 
 # (what is planted, the user name scanned for, whether it must be found). The user is a fixture that, like the real
-# one, is the start of the handle; no real name is written here.
+# one, sits inside the handle (here its last part, so no part of a real user name is written here).
 PLANTED = (
-    (b"publisher songyb111-gachon\x00", "songyb", False),
-    ("publisher songyb111-gachon".encode("utf-16-le"), "songyb", False),
-    (b"SongYB111-Gachon", "songyb", False),
-    (b"C:\\Users\\songyb\\.cargo\\registry", "songyb", True),
-    ("C:\\Users\\songyb\\AppData".encode("utf-16-le"), "songyb", True),
-    (b"songyb111-gachon then C:\\Users\\songyb\\x", "songyb", True),
-    (b"songyb alone", "songyb", True),
-    (b"songyb111 without the rest", "songyb", True),
-    (b"songyb111-gachox", "songyb", True),
+    (b"publisher songyb111-gachon\x00", "gachon", False),
+    ("publisher songyb111-gachon".encode("utf-16-le"), "gachon", False),
+    (b"SongYB111-Gachon", "gachon", False),
+    (b"C:\\Users\\gachon\\.cargo\\registry", "gachon", True),
+    ("C:\\Users\\gachon\\AppData".encode("utf-16-le"), "gachon", True),
+    (b"songyb111-gachon then C:\\Users\\gachon\\x", "gachon", True),
+    (b"gachon alone", "gachon", True),
+    (b"songyb111_gachon, a near handle", "gachon", True),
+    (b"gachon-songyb111, the parts swapped", "gachon", True),
     (b"C:\\Users\\ExampleUser\\x", "ExampleUser", True),
 )
 
