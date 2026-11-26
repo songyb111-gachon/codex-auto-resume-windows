@@ -374,6 +374,121 @@ class SurfaceJob:
         self.add("motion/popup", {"surface": "popup_motion", "moments": moments, "states": states, "designs": designs},
                  result)
 
+    def card(self):
+        from codex_auto_resume import notice_card
+        from codex_auto_resume.ui.card import card as card_module
+        from codex_auto_resume.ui.popup import renderer as renderer_module
+        import make_screenshots
+        for scale in SCALES:
+            for locale in LOCALES:
+                base = make_screenshots.card_view(locale)
+                one = [dict(base["actions"][1], target=["action", 0])]
+                three = base["actions"] + [dict(base["actions"][0], label=base["actions"][0]["label"] * 2,
+                                                target=["action", 2])]
+                views = [("picture", base), ("no-chip", dict(base, chip="", actions=one)),
+                         ("three", dict(base, actions=three, line="", origin="")),
+                         ("long", dict(base, chip=base["chip"] * 5, title=base["title"] * 4, line=base["line"] * 3,
+                                       actions=[dict(action, label=action["label"] * 4) for action in base["actions"]])),
+                         ("scene", dict(base, scene="chuseok")), ("bare", dict(base, actions=[], chip=None))]
+                for name, vm in views:
+                    renderer = renderer_for(renderer_module.Renderer, self.stand_in, vm["locale"], scale)
+                    with standing_in(self.stand_in, renderer_module):
+                        plan = notice_card.layout(vm, scale, renderer.measure)
+                    self.add("card/%s/%s/%r" % (name, locale, scale),
+                             {"surface": "card", "vm": plain(vm), "scale": scale, "locale": vm["locale"],
+                              "table": self.stand_in.name}, {"plan": plan})
+        depths = [0.0, 0.1, 0.5, 0.77, 1.0, 1.5, -0.2]
+        themes, designs = ["light", "dark"], ["soft", "classic", "plain"]
+        stacks = [[[[320, 200], [320, 260], [320, 180]], [0, 0, 1920, 1040], [0, 0, 1920, 1080], [1800, 1045, 1824, 1069]],
+                  [[[320, 500], [320, 500], [320, 500]], [0, 0, 1366, 728], [0, 0, 1366, 768], None],
+                  [[[300, 200], [310, 220]], [0, 40, 1920, 1080], [0, 0, 1920, 1080], [900, 3, 924, 27]],
+                  [[[300, 200], [310, 220], [290, 100]], [60, 0, 1920, 1080], [0, 0, 1920, 1080], [5, 100, 29, 124]],
+                  [[[300, 200], [310, 220]], [0, 0, 1860, 1080], [0, 0, 1920, 1080], [1880, 900, 1904, 924]],
+                  [[], [0, 0, 1920, 1040], [0, 0, 1920, 1080], None]]
+        fits = [[96.0, [0, 0, 1920, 1040], 1.5], [192.0, [0, 0, 1366, 728], 2.25], [144.0, None, 2.0], [96.0, [0, 0, 800, 600], 1.0],
+                [96.0, [0, 0, 800, 600], None]]
+        holds = [None, 100.0, 6000.0, 25000.0, True]
+        edges = ["bottom", "top", "left", "right", None, "middle"]
+        result = {"shadows": [], "levels": [notice_card.depth_level(depth) for depth in depths]}
+        for theme in themes:
+            for design in designs:
+                found = notice_card.float_shadows(theme, design)
+                result["shadows"].append({"shadows": [list(s) for s in found],
+                                          "at": [[list(s) for s in notice_card.shadow_at(found, depth)] for depth in depths],
+                                          "margins": [notice_card.shadow_margin(found, scale) for scale in SCALES]})
+        result["stacks"] = []
+        for sizes, work, monitor, anchor in stacks:
+            positions, edge = notice_card.stack_positions([tuple(size) for size in sizes], tuple(work), tuple(monitor),
+                                                          tuple(anchor) if anchor else None, gap=12, spacing=10)
+            result["stacks"].append([positions, edge])
+        result["fits"] = [card_module.Card.fitting({"dpi": dpi, "work": tuple(work) if work else None}, {"text": text})
+                          for dpi, work, text in fits]
+        result["holds"] = [notice_card.hold_ms(value) for value in holds]
+        result["rises"] = [notice_card.rise_vector(edge) for edge in edges]
+        self.add("cardroom/all", {"surface": "card_room", "themes": themes, "designs": designs, "depths": depths,
+                                  "scales": list(SCALES), "stacks": stacks, "fits": fits, "holds": holds, "edges": edges},
+                 result)
+        lives = {
+            "plain": [["new", 1000.0, 6000.0, False, None], ["frame", 1000.0], ["frame", 1100.0], ["frame", 1340.0],
+                      ["frame", 4000.0], ["wait", 4000.0], ["pause", 4500.0, True], ["frame", 9000.0], ["wait", 9000.0],
+                      ["pause", 9100.0, False], ["wait", 9200.0], ["frame", 11000.0], ["frame", 11100.0],
+                      ["pause", 11150.0, True], ["frame", 11200.0], ["frame", 11400.0], ["pause", 11500.0, False],
+                      ["frame", 13500.0], ["frame", 13600.0], ["frame", 14000.0], ["moving", 14000.0]],
+            "retire": [["new", 0.0, 6000.0, False, [10, 20]], ["delay", 120.0], ["frame", 50.0], ["retire", 60.0, False],
+                       ["frame", 100.0], ["frame", 400.0], ["new", 0.0, 6000.0, False, [10, 20]], ["frame", 200.0],
+                       ["retire", 200.0, True], ["frame", 250.0], ["retire", 260.0, True], ["frame", 300.0]],
+            "slide": [["new", 0.0, 6000.0, False, [100, 900]], ["move", 10.0, [100, 600], 120.0], ["place", 50.0],
+                      ["moving", 50.0], ["place", 200.0], ["place", 300.0], ["place", 409.0], ["place", 410.0],
+                      ["move", 500.0, [100, 600], 0.0], ["place", 500.0], ["move", 600.0, [80, 300], 0.0],
+                      ["move", 700.0, [80, 100], 0.0], ["place", 800.0], ["place", 2000.0]],
+            "reduced": [["new", 0.0, 2000.0, True, [5, 5]], ["frame", 0.0], ["move", 10.0, [9, 9], 0.0], ["place", 11.0],
+                        ["moving", 20.0], ["wait", 30.0], ["frame", 2500.0], ["pause", 2600.0, True], ["retire", 2700.0, False],
+                        ["frame", 2800.0]],
+            "forever": [["new", 0.0, "inf", False, None], ["frame", 400.0], ["wait", 400.0], ["restart", 500.0],
+                        ["frame", 600.0], ["frame", 1e9], ["entrance", 100.0, False], ["entrance", 100.0, True],
+                        ["leaving", 50.0, 0.8, False, 220.0], ["leaving", 300.0, 0.8, False, 220.0],
+                        ["leaving", 50.0, 0.8, True, 220.0]],
+        }
+        for name, steps in lives.items():
+            self.add("cardlife/%s" % name, {"surface": "card_life", "steps": steps}, self.replay(steps))
+
+    @staticmethod
+    def replay(steps):
+        from codex_auto_resume import notice_card
+        motion, answers = None, []
+        for step in steps:
+            verb, now = step[0], step[1] if len(step) > 1 and isinstance(step[1], float) else 0.0
+            answer = None
+            if verb == "new":
+                motion = notice_card.CardMotion(now, hold_ms=float(step[2]), reduced=step[3],
+                                                position=tuple(step[4]) if step[4] else None)
+            elif verb == "frame":
+                answer = motion.frame(now)._asdict()
+            elif verb == "pause":
+                motion.pause(now, step[2])
+            elif verb == "retire":
+                motion.retire(now, quick=step[2])
+            elif verb == "move":
+                motion.move_to(now, step[2], step[3])
+            elif verb == "place":
+                answer = motion.place(now)
+            elif verb == "moving":
+                answer = motion.moving(now)
+            elif verb == "wait":
+                answer = motion.wait_ms(now)
+            elif verb == "restart":
+                motion.restart(now)
+            elif verb == "delay":
+                motion.delay(now)
+            elif verb == "entrance":
+                answer = notice_card.entrance(now, reduced=step[2])._asdict()
+            elif verb == "leaving":
+                answer = notice_card.leaving(now, step[2], reduced=step[3], duration=step[4])
+            state = [None] * 7 if motion is None else [motion.phase, motion.since, motion.hold_left, motion.from_alpha,
+                                                       motion.exit_ms, motion.paused, motion.final]
+            answers.append([answer] + state)
+        return answers
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -427,6 +542,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.tip()
         job.place()
         job.popup_motion()
+        job.card()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -471,6 +587,15 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_popups_motion_is_the_references_frame_for_frame(self):
         self.compare("motion/popup")
+
+    def test_the_card_is_laid_out_as_the_reference_lays_it_out(self):
+        self.compare("card/")
+
+    def test_the_cards_stack_shadow_and_text_size_are_the_references(self):
+        self.compare("cardroom/")
+
+    def test_a_cards_life_is_the_references_step_for_step(self):
+        self.compare("cardlife/")
 
 
 class SurfaceSourceTests(unittest.TestCase):

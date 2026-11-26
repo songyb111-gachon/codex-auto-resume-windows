@@ -28,6 +28,7 @@ gui/PopupPlace.cs
 gui/PopupMotion.cs
 gui/MenuPlan.cs
 gui/TipPlan.cs
+gui/CardPlan.cs
 gui/SurfaceRender.cs
 
 [generated]

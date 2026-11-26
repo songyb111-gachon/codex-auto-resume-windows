@@ -128,6 +128,12 @@ namespace CodexAutoResume
                     return Place(task);
                 case "popup_motion":
                     return PopupMotionCase(task);
+                case "card":
+                    return Card(task, measure);
+                case "card_room":
+                    return CardRoom(task);
+                case "card_life":
+                    return CardLife(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -308,6 +314,119 @@ namespace CodexAutoResume
                                                     { "lengths", lengths } };
         }
 
+        /// The card: its plan, and the arithmetic round it (the stack, the floating shadow, the text size) over the
+        /// inputs asked.
+        private static Dictionary<string, object> Card(Dictionary<string, object> task, SurfaceText measure)
+        {
+            var result = new Dictionary<string, object>();
+            result["plan"] = CardPlan.Layout((Dictionary<string, object>)task["vm"], Number(task, "scale"), measure);
+            return result;
+        }
+
+        private static List<object> Shadows(List<FloatShadow> shadows)
+        {
+            var listed = new List<object>();
+            foreach (FloatShadow s in shadows) listed.Add(new List<object> { s.Dx, s.Dy, s.Blur, s.Colour, s.Alpha });
+            return listed;
+        }
+
+        /// The card's floating shadows per theme and design, at each depth, and their levels and margins; the stack's
+        /// places; the text size it fits.
+        private static Dictionary<string, object> CardRoom(Dictionary<string, object> task)
+        {
+            var result = new Dictionary<string, object>();
+            var shadows = new List<object>();
+            foreach (object theme in (List<object>)task["themes"])
+                foreach (object design in (List<object>)task["designs"])
+                {
+                    List<FloatShadow> found = CardPlan.FloatShadows((string)theme, (string)design);
+                    var at = new List<object>();
+                    foreach (object depth in (List<object>)task["depths"]) at.Add(Shadows(CardPlan.ShadowAt(found, (double)depth)));
+                    var margins = new List<object>();
+                    foreach (object scale in (List<object>)task["scales"]) margins.Add(CardPlan.ShadowMargin(found, (double)scale));
+                    shadows.Add(new Dictionary<string, object> { { "shadows", Shadows(found) }, { "at", at }, { "margins", margins } });
+                }
+            result["shadows"] = shadows;
+            var levels = new List<object>();
+            foreach (object depth in (List<object>)task["depths"]) levels.Add(CardPlan.DepthLevel((double)depth));
+            result["levels"] = levels;
+            var stacks = new List<object>();
+            foreach (object entry in (List<object>)task["stacks"])
+            {
+                var five = (List<object>)entry;
+                var sizes = new List<int[]>();
+                foreach (object size in (List<object>)five[0]) sizes.Add(Ints(size));
+                string edge;
+                List<int[]> positions = CardPlan.StackPositions(sizes, Ints(five[1]), Ints(five[2]), IntsOrNull(five[3]), 12, 10, out edge);
+                stacks.Add(new List<object> { positions, edge });
+            }
+            result["stacks"] = stacks;
+            var fits = new List<object>();
+            foreach (object entry in (List<object>)task["fits"])
+            {
+                var three = (List<object>)entry;
+                fits.Add(CardPlan.Fitting((double)three[0], IntsOrNull(three[1]), three[2]));
+            }
+            result["fits"] = fits;
+            var holds = new List<object>();
+            foreach (object value in (List<object>)task["holds"]) holds.Add(CardPlan.HoldFor(value));
+            result["holds"] = holds;
+            var rises = new List<object>();
+            foreach (object edge in (List<object>)task["edges"]) rises.Add(CardPlan.RiseVector(edge as string));
+            result["rises"] = rises;
+            return result;
+        }
+
+        private static Dictionary<string, object> FrameOf(CardFrame frame)
+        {
+            return new Dictionary<string, object> { { "alpha", frame.Alpha }, { "offset", frame.Offset }, { "scale", frame.Scale },
+                                                    { "depth", frame.Depth } };
+        }
+
+        /// A card's life replayed step by step: each step's answer, and the motion's state after it.
+        private static List<object> CardLife(Dictionary<string, object> task)
+        {
+            var answers = new List<object>();
+            CardMotion motion = null;
+            foreach (object entry in (List<object>)task["steps"])
+            {
+                var step = (List<object>)entry;
+                string verb = (string)step[0];
+                double now = step.Count > 1 && step[1] is double ? (double)step[1] : 0.0;
+                object answer = null;
+                switch (verb)
+                {
+                    case "new":
+                        motion = new CardMotion(now, step[2] is string && (string)step[2] == "inf" ? double.PositiveInfinity : (double)step[2],
+                                                (bool)step[3], IntsOrNull(step[4]));
+                        break;
+                    case "frame": answer = FrameOf(motion.Frame(now)); break;
+                    case "pause": motion.Pause(now, (bool)step[2]); break;
+                    case "retire": motion.Retire(now, (bool)step[2]); break;
+                    case "move": motion.MoveTo(now, Ints(step[2]), (double)step[3]); break;
+                    case "place": answer = motion.Place(now); break;
+                    case "moving": answer = motion.Moving(now); break;
+                    case "wait":
+                        double? wait = motion.WaitMs(now);
+                        answer = wait.HasValue ? (object)wait.Value : null;
+                        break;
+                    case "restart": motion.Restart(now); break;
+                    case "delay": motion.Delay(now); break;
+                    case "entrance": answer = FrameOf(CardPlan.Entrance(now, (bool)step[2])); break;
+                    case "leaving": answer = CardPlan.Leaving(now, (double)step[2], (bool)step[3], (double)step[4]); break;
+                    default: throw new NotSupportedException(verb);
+                }
+                answers.Add(new List<object> { answer, motion == null ? null : (object)motion.Phase,
+                                               motion == null ? null : (object)motion.Since,
+                                               motion == null ? null : (object)motion.HoldLeft,
+                                               motion == null ? null : (object)motion.FromAlpha,
+                                               motion == null ? null : (object)motion.ExitMs,
+                                               motion == null ? null : (object)motion.Paused,
+                                               motion == null ? null : (object)motion.Final });
+            }
+            return answers;
+        }
+
         // ----------------------------------------------------------------------------- the dump
 
         /// Any plan value as Json.Write takes it: numbers as doubles, arrays and tuples as lists, a plan as the Python's
@@ -320,6 +439,7 @@ namespace CodexAutoResume
             if (value is uint) return (double)(uint)value;
             if (value is float) return (double)(float)value;
             if (value is int?) return (double)((int?)value).Value;
+            if (value is CardFrame) return Dump(FrameOf((CardFrame)value));
             var target = value as SurfaceTarget;
             if (target != null) return Dump(target.ToList());
             var plan = value as SurfacePlan;
