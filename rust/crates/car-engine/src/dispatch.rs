@@ -648,9 +648,14 @@ impl Engine {
             // `try: response = sender.send(...) except Exception: response = {"outcome": "unknown"}`: a panic too.
             let sent = car_scheduler::caught(|| match &sender {
                 Sender::Backend => self.backend.send(&claimed_thread, &words, &guard),
-                Sender::Channel { channel, .. } => {
-                    Ok(channel.send(&claimed_thread, &words, client.as_deref()))
-                }
+                // `plughands.Channel.send`: the launch guard entered first, the channel called only where it held.
+                Sender::Channel { channel, .. } => crate::plugrecords::guarded_send(
+                    channel.as_ref(),
+                    &claimed_thread,
+                    &words,
+                    client.as_deref(),
+                    &guard,
+                ),
             });
             match sent {
                 Ok(Value::Object(response)) => response,

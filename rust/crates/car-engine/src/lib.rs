@@ -17,7 +17,7 @@
 //! | `guard.py`, `relaxed.py`, `resend.py` | [`guard`], [`relaxed`], [`resend`] |
 //! | `plugrecords.py`, `notices.py`, `storeview.py` | [`plugrecords`], [`notices`], [`storeview`] |
 //! | `impossible.py` | [`impossible`] (pure: the watcher's judge) |
-//! | `launches.py`, `recordchannel.py` | not ported (P12's pool and P2's channel: the advanced plug's alone; see GROUNDWORK) |
+//! | `launches.py`, `recordchannel.py` | [`launches`] (P12's pool), [`recordchannel`] (P2's marker-free channel) |
 //!
 //! What the engine is handed is [`seam`]'s: its store, its reader, its backend (S3.3's seam) and the watcher's
 //! questions. The plug is car-policy's [`Guarded`]; the standard edition's is `Guarded::null()`.
@@ -43,6 +43,7 @@ pub mod options;
 pub mod outcome;
 pub mod plugrecords;
 pub mod py;
+pub mod recordchannel;
 pub mod relaxed;
 pub mod resend;
 pub mod routes;
@@ -171,6 +172,12 @@ pub struct Engine {
     pub(crate) loaded_since: HashMap<String, f64>,
     pub(crate) for_open_seen: HashMap<String, f64>,
     pub(crate) wrap_ups: HashMap<String, BTreeSet<String>>,
+    /// `_records_flying`: the plug's records watched in flight, by id, in the order first seen.
+    pub(crate) records_flying: Map,
+    /// `_back_refused`: the plug's records Codex would not give back out of its queue.
+    pub(crate) back_refused: HashSet<String>,
+    /// `_records_noted`: the plug's records whose would-send line was written.
+    pub(crate) records_noted: HashSet<String>,
 }
 
 /// The uncertain submissions a look found no trace of, in the order found (`_no_trace`, a `dict`).
@@ -270,6 +277,9 @@ impl Engine {
             loaded_since: HashMap::new(),
             for_open_seen: HashMap::new(),
             wrap_ups: HashMap::new(),
+            records_flying: Map::new(),
+            back_refused: HashSet::new(),
+            records_noted: HashSet::new(),
         }
     }
 
