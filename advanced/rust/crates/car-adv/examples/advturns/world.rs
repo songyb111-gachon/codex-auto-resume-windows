@@ -9,10 +9,13 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use car_adv::capabilities::Code;
 use car_adv::codex::headless::{AppLook, Ended, Follower, HeadlessRun, Opener, Shown};
+use car_adv::codex::lineage::Child;
 use car_adv::codex::session::{Channel, SessionError};
 use car_adv::codex::turns::Turn;
+use car_adv::engine::emptyreply::{LookWorld, Looks, Unreadable as LookUnreadable, Words};
 use car_adv::engine::headless::{Follows, RunWorld, TurnsReader, Unreadable};
 use car_adv::registry::CapabilityDef;
+use car_adv::statement::Catalogs;
 use car_adv::vocabulary::RunEnd;
 use car_config::Paths;
 use car_machine::json::Value;
@@ -45,13 +48,14 @@ fn number(value: &Value) -> f64 {
 }
 
 struct Inner {
-    seams: Value,
+    seams: Mutex<Value>,
     asked: Asked,
     clock: Arc<Mutex<f64>>,
     calls: Mutex<HashMap<String, usize>>,
     shown: Mutex<Option<Shown>>,
     ends: Mutex<Vec<Ended>>,
     real: Arc<Follower>,
+    catalogs: Arc<Catalogs>,
 }
 
 impl Inner {
@@ -62,8 +66,12 @@ impl Inner {
             .push(Value::Array(entry));
     }
 
-    fn seam(&self, name: &str) -> &Value {
-        get(&self.seams, name)
+    fn seam(&self, name: &str) -> Value {
+        get(
+            &self.seams.lock().unwrap_or_else(PoisonError::into_inner),
+            name,
+        )
+        .clone()
     }
 }
 
@@ -110,47 +118,18 @@ impl TurnsReader for FakeTurns {
         self.0
             .note(vec![text("turns"), text("latest"), thread_id.clone()]);
         let found = match thread_id {
-            Value::Str(thread) => get(self.0.seam("turns"), thread.as_str().unwrap_or_default()),
-            _ => &Value::Null,
+            Value::Str(thread) => {
+                get(&self.0.seam("turns"), thread.as_str().unwrap_or_default()).clone()
+            }
+            _ => Value::Null,
         };
-        if is_raise(found) {
+        if is_raise(&found) {
             return Err(Unreadable);
         }
         if matches!(found, Value::Null) {
             return Ok(None);
         }
-        let kinds = match get(found, "kinds") {
-            Value::Array(pairs) => pairs
-                .iter()
-                .filter_map(|pair| match pair {
-                    Value::Array(pair) => Some((
-                        pair.first()?.as_text()?.to_owned(),
-                        pair.get(1).map_or(0, |count| number(count) as i64),
-                    )),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        };
-        Ok(Some(Turn {
-            turn_id: get(found, "turn_id")
-                .as_text()
-                .unwrap_or_default()
-                .to_owned(),
-            status: get(found, "status")
-                .as_text()
-                .unwrap_or_default()
-                .to_owned(),
-            errored: car_machine::pyval::truthy(get(found, "errored")),
-            completed_at: match get(found, "completed_at") {
-                Value::Null => None,
-                other => Some(number(other) as i64),
-            },
-            final_agent: car_machine::pyval::truthy(get(found, "final_agent")),
-            ordinal: number(get(found, "ordinal")) as i128,
-            kinds,
-            started_at: None,
-        }))
+        Ok(Some(turn_of(&found)))
     }
 
     fn turn_code(&self, thread_id: &Value, turn_id: &Value) -> Result<Value, Unreadable> {
@@ -161,11 +140,47 @@ impl TurnsReader for FakeTurns {
             turn_id.clone(),
         ]);
         let name = format!("{} {}", python_str(thread_id), python_str(turn_id));
-        let found = get(self.0.seam("codes"), &name);
-        if is_raise(found) {
+        let found = get(&self.0.seam("codes"), &name).clone();
+        if is_raise(&found) {
             return Err(Unreadable);
         }
         Ok(found.clone())
+    }
+}
+
+/// A turn of the scenario's (`turns`), as the reference's fake makes it.
+fn turn_of(found: &Value) -> Turn {
+    let kinds = match get(found, "kinds") {
+        Value::Array(pairs) => pairs
+            .iter()
+            .filter_map(|pair| match pair {
+                Value::Array(pair) => Some((
+                    pair.first()?.as_text()?.to_owned(),
+                    pair.get(1).map_or(0, |count| number(count) as i64),
+                )),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    Turn {
+        turn_id: get(found, "turn_id")
+            .as_text()
+            .unwrap_or_default()
+            .to_owned(),
+        status: get(found, "status")
+            .as_text()
+            .unwrap_or_default()
+            .to_owned(),
+        errored: car_machine::pyval::truthy(get(found, "errored")),
+        completed_at: match get(found, "completed_at") {
+            Value::Null => None,
+            other => Some(number(other) as i64),
+        },
+        final_agent: car_machine::pyval::truthy(get(found, "final_agent")),
+        ordinal: number(get(found, "ordinal")) as i128,
+        kinds,
+        started_at: None,
     }
 }
 
@@ -179,12 +194,122 @@ fn python_str(value: &Value) -> String {
     }
 }
 
+/// The continuation family's looks of the scenario's (`recent`, `between`, `plans`, `goals`, `own`, `children`).
+struct FakeLooks(Arc<Inner>);
+
+fn raise_or<T>(found: &Value, then: impl FnOnce(&Value) -> T) -> Result<T, LookUnreadable> {
+    if is_raise(found) {
+        Err(LookUnreadable)
+    } else {
+        Ok(then(found))
+    }
+}
+
+fn of_thread(map: &Value, thread: &Value) -> Option<Value> {
+    match (map, thread) {
+        (Value::Object(map), Value::Str(thread)) => {
+            map.get(thread.as_str().unwrap_or_default()).cloned()
+        }
+        _ => None,
+    }
+}
+
+impl Looks for FakeLooks {
+    fn recent(&self, since: f64) -> Result<Vec<Value>, LookUnreadable> {
+        self.0
+            .note(vec![text("turns"), text("recent"), Value::Float(since)]);
+        raise_or(&self.0.seam("recent"), |found| match found {
+            Value::Array(items) => items.clone(),
+            _ => Vec::new(),
+        })
+    }
+    fn latest(&self, thread_id: &Value) -> Result<Option<Turn>, LookUnreadable> {
+        FakeTurns(self.0.clone())
+            .latest(thread_id)
+            .map_err(|_| LookUnreadable)
+    }
+    fn between(
+        &self,
+        thread_id: &Value,
+        after: &Value,
+        before: &Value,
+    ) -> Result<i64, LookUnreadable> {
+        self.0.note(vec![
+            text("turns"),
+            text("between"),
+            thread_id.clone(),
+            after.clone(),
+            before.clone(),
+        ]);
+        let found = of_thread(&self.0.seam("between"), thread_id).unwrap_or(Value::from(0));
+        raise_or(&found, |found| number(found) as i64)
+    }
+    fn plan_statuses(&self, thread_id: &Value) -> Result<Option<Vec<String>>, LookUnreadable> {
+        self.0.note(vec![
+            text("turns"),
+            text("plan_statuses"),
+            thread_id.clone(),
+        ]);
+        let found = of_thread(&self.0.seam("plans"), thread_id).unwrap_or(Value::Null);
+        raise_or(&found, |found| match found {
+            Value::Array(items) => Some(
+                items
+                    .iter()
+                    .map(|item| item.as_text().unwrap_or_default().to_owned())
+                    .collect(),
+            ),
+            _ => None,
+        })
+    }
+    fn goal(&self, thread_id: &Value) -> Result<Option<String>, LookUnreadable> {
+        self.0
+            .note(vec![text("goals"), text("read"), thread_id.clone()]);
+        let found = of_thread(&self.0.seam("goals"), thread_id).unwrap_or(Value::Null);
+        raise_or(&found, |found| found.as_text().map(str::to_owned))
+    }
+    fn own(&self, thread_id: &Value, widened: bool) -> Result<bool, LookUnreadable> {
+        let words = if widened {
+            vec![text("every_desktop")]
+        } else {
+            Vec::new()
+        };
+        self.0.note(vec![
+            text("source"),
+            text("latest"),
+            thread_id.clone(),
+            Value::Array(words),
+        ]);
+        let found = of_thread(&self.0.seam("own"), thread_id).unwrap_or(Value::Bool(true));
+        raise_or(&found, car_machine::pyval::truthy)
+    }
+    fn children(&self, parent: &Value) -> Result<Vec<Child>, LookUnreadable> {
+        self.0
+            .note(vec![text("lineage"), text("children"), parent.clone()]);
+        let found = of_thread(&self.0.seam("children"), parent).unwrap_or(Value::Array(Vec::new()));
+        raise_or(&found, |found| match found {
+            Value::Array(items) => items
+                .iter()
+                .map(|child| Child {
+                    thread_id: get(child, "thread_id")
+                        .as_text()
+                        .unwrap_or_default()
+                        .to_owned(),
+                    turn_id: get(child, "turn_id").clone(),
+                    status: get(child, "status").clone(),
+                    category: get(child, "category").clone(),
+                })
+                .collect(),
+            _ => Vec::new(),
+        })
+    }
+}
+
 struct FakeSession(Arc<Inner>);
 
 impl Channel for FakeSession {
     fn enter(&mut self) -> Result<(), SessionError> {
         self.0.note(vec![text("session"), text("enter")]);
-        if is_raise(get(self.0.seam("session"), "enter")) {
+        if is_raise(get(&self.0.seam("session"), "enter")) {
             return Err(SessionError::Raised("RuntimeError"));
         }
         Ok(())
@@ -201,7 +326,7 @@ impl Channel for FakeSession {
             text(method),
             params.unwrap_or(Value::Null),
         ]);
-        let answers = match get(get(self.0.seam("session"), "answers"), method) {
+        let answers = match get(get(&self.0.seam("session"), "answers"), method) {
             Value::Array(answers) if !answers.is_empty() => answers.clone(),
             _ => vec![Value::Null],
         };
@@ -227,15 +352,16 @@ impl Channel for FakeSession {
 }
 
 impl World {
-    pub fn new(seams: Value, asked: Asked, clock: Arc<Mutex<f64>>) -> World {
+    pub fn new(seams: Value, asked: Asked, clock: Arc<Mutex<f64>>, catalogs: &str) -> World {
         World(Arc::new(Inner {
-            seams,
+            seams: Mutex::new(seams),
             asked,
             clock,
             calls: Mutex::new(HashMap::new()),
             shown: Mutex::new(None),
             ends: Mutex::new(Vec::new()),
             real: Follower::new(Arc::new(|| 0.0), 0.5),
+            catalogs: Arc::new(Catalogs::new(catalogs, Box::new(|| "en".to_owned()))),
         }))
     }
 
@@ -243,7 +369,7 @@ impl World {
         let inner = self.0.clone();
         Box::new(move |capability: &str| -> Result<Box<dyn Channel>, ()> {
             inner.note(vec![text("session"), text("open"), text(capability)]);
-            if is_raise(get(inner.seam("session"), "open")) {
+            if is_raise(get(&inner.seam("session"), "open")) {
                 return Err(());
             }
             Ok(Box::new(FakeSession(inner.clone())))
@@ -268,7 +394,7 @@ impl World {
             unheld_now: Arc::new(move |thread: &Value| {
                 unheld.note(vec![text("unheld"), thread.clone()]);
                 let found = unheld.seam("unheld");
-                if is_raise(found) {
+                if is_raise(&found) {
                     return Err(());
                 }
                 Ok(if matches!(found, Value::Null) {
@@ -289,11 +415,26 @@ impl World {
         }
     }
 
+    /// The continuation family's world: the scenario's looks and the shipped catalogs' words (in English).
+    pub fn look_world(&self) -> LookWorld {
+        let catalogs = self.0.catalogs.clone();
+        let words: Words = Arc::new(
+            move |key: &str, locale: Option<&str>, fields: &[(&str, String)]| {
+                catalogs.text(key, locale, fields).ok().flatten()
+            },
+        );
+        LookWorld {
+            looks: Arc::new(FakeLooks(self.0.clone())),
+            words,
+        }
+    }
+
     /// `definition.make(paths)`: the edition's own code, with the scenario's fakes where it takes them.
     pub fn make(&self, definition: &CapabilityDef, paths: &Paths) -> Option<Box<dyn Code>> {
         use car_adv::engine;
         match definition.id.as_str() {
             "headless_run" => engine::headless::make_with(paths, self.run_world()),
+            "empty_response" => engine::emptyreply::make_with(paths, self.look_world()),
             "compact_continue" => engine::compact::make_with(paths, self.run_world()),
             "model_fallback" => engine::fallback::make_with(paths, self.run_world()),
             "codex_retry_settings" => {
@@ -317,6 +458,17 @@ impl World {
     ) -> Option<Result<Value, String>> {
         let arg = |index: usize| args.get(index).cloned().unwrap_or(Value::Null);
         match op {
+            "seam" => {
+                let name = arg(0).as_text().unwrap_or_default().to_owned();
+                let mut seams = self.0.seams.lock().unwrap_or_else(PoisonError::into_inner);
+                if !matches!(*seams, Value::Object(_)) {
+                    *seams = Value::Object(car_machine::json::Map::new());
+                }
+                if let Value::Object(map) = &mut *seams {
+                    map.insert(name.as_str().into(), arg(1));
+                }
+                Some(Ok(Value::Null))
+            }
             "flag" => {
                 if arg(0).as_text() == Some("empty_refused") {
                     car_adv::codex::headless::EMPTY_REFUSED

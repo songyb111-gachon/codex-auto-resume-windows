@@ -127,6 +127,7 @@ impl car_adv::state::seam::Tokens for Counter {
 struct TraceView {
     now: f64,
     core: Value,
+    enabled: Value,
 }
 
 impl View for TraceView {
@@ -135,6 +136,13 @@ impl View for TraceView {
     }
     fn get(&self, interruption_id: &str) -> Result<Value, ReadFailed> {
         Ok(get(&self.core, interruption_id).clone())
+    }
+    fn thread_enabled(&self, thread_id: &str) -> Result<bool, ReadFailed> {
+        match get(&self.enabled, thread_id) {
+            Value::Null => Ok(true),
+            Value::Str(word) if word.as_str() == Some("raise") => Err(ReadFailed("RuntimeError")),
+            found => Ok(car_machine::pyval::truthy(found)),
+        }
     }
 }
 
@@ -232,6 +240,7 @@ fn main() {
         get(&scenario, "seams").clone(),
         asked.clone(),
         clock.clone(),
+        &catalogs_dir,
     );
     let maker_world = world.clone();
     let mut table = Table::new();
@@ -316,6 +325,7 @@ fn main() {
     };
     let shared: Arc<Shared> = Shared::new(paths, options);
     let core = get(&scenario, "core").clone();
+    let enabled = get(&scenario, "enabled").clone();
     let now = || *clock.lock().unwrap_or_else(PoisonError::into_inner);
     let mut results = Vec::new();
     let mut last: Option<car_adv::runtime::tick::Errands> = None;
@@ -335,6 +345,7 @@ fn main() {
         let view = || TraceView {
             now: now(),
             core: core.clone(),
+            enabled: enabled.clone(),
         };
         let out: Result<Value, String> = shared.enter(|runtime| match op.as_str() {
             "clock" => {

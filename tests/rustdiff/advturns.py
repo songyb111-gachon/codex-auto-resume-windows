@@ -84,6 +84,11 @@ class View:
         self.now, self._core = clock[0], core
     def get(self, key):
         return self._core.get(key)
+    def thread_enabled(self, thread_id):
+        found = scenario.get("enabled", {}).get(thread_id, True)
+        if found == "raise":
+            raise RuntimeError("raised")
+        return found
 
 def said(value):
     if value is DEFER:
