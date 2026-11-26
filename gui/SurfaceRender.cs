@@ -64,6 +64,15 @@ namespace CodexAutoResume
                 Write(outPath, new Dictionary<string, object> { { "error", exc.GetType().Name + ": " + exc.Message } });
                 return 2;
             }
+            if (Equals(Field(job, "serve"), true))
+            {
+                // The picture maker's calls, one per line, until the input ends (gui/SurfaceRenderServe.cs).
+                var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+                var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+                int served = Serve(job, input, output);
+                Write(outPath, new Dictionary<string, object> { { "format", Format }, { "served", (double)served } });
+                return 0;
+            }
             var tables = new Dictionary<string, TableTextCalc>();
             object tableValue;
             if (job.TryGetValue("tables", out tableValue) && tableValue != null)
