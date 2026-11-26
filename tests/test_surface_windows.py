@@ -83,6 +83,131 @@ class WindowJob:
                       "meter_line": None})
             assert shared.countdown(value) in self.expected["traywords/countdown/%r" % value]["tooltip"]
 
+    def tray_place(self):
+        """IconPlacement over runs of registry states and clock readings, _same_path, and overflow_open over windows."""
+        from codex_auto_resume import tray_place
+        settings, notify = tray_place.NOTIFY_ICON_SETTINGS, tray_place.TRAY_NOTIFY
+        exe = r"C:\Program Files\Codex Auto Resume\CodexAutoResume.exe"
+        folders = {"{6D809377-6AF0-444B-8957-A3773F02200E}": r"C:\Program Files",
+                   "{F1B32785-6FBA-4FCF-9D55-7B8E7F157091}": r"C:\Users\ExampleUser\AppData\Local", "{BAD}": None}
+
+        def entry(path, uid=1, promoted=1, guid=None):
+            values = {"ExecutablePath": path, "UID": uid, "IsPromoted": promoted}
+            if guid is not None:
+                values["IconGuid"] = guid
+            return {"values": values}
+
+        def state(*entries, chevron=None, extra=None, subkeys=True):
+            keys = {notify: {"values": {} if chevron is None else {"SystemTrayChevronVisibility": chevron}}}
+            names = []
+            for index, one in enumerate(entries):
+                name = "%d" % (1000 + index)
+                names.append(name)
+                keys[settings + "\\" + name] = one
+            if subkeys:
+                keys[settings] = {"subkeys": names + ["9999"], "values": {}}
+            keys.update(extra or {})
+            return keys
+
+        ours, theirs = entry(exe), entry(r"C:\Other\app.exe")
+        known = entry("{6D809377-6AF0-444B-8957-A3773F02200E}\\Codex Auto Resume\\CodexAutoResume.exe", promoted=0)
+        runs = {
+            "promoted": [(0, state(theirs, ours)), (1, state(theirs, ours)), (2, state(theirs, entry(exe, promoted=0)))],
+            "overflow": [(0, state(known)), (5, state(known))],
+            "chevron": [(0, state(ours, chevron=0)), (1, state(ours, chevron=1)), (2, state(ours, chevron=False)),
+                        (3, state(ours, chevron="0"))],
+            "missing": [(0, state(theirs)), (10, state(theirs, ours)), (29.9, state(ours)), (30, state(ours)),
+                        (31, state(ours))],
+            "gone": [(0, state(ours)), (1, state(theirs)), (2, state(theirs)), (40, state(theirs, entry(exe, promoted=0)))],
+            "no_keys": [(0, state(ours, subkeys=False)), (40, state(ours))],
+            "broken": [(0, state(ours, extra={notify: {"broken": True}})), (1, state(ours))],
+            "uid": [(0, state(entry(exe, uid=2), entry(exe, uid="1"), entry(exe, uid=True)))],
+            "guid": [(0, state(entry(exe, guid="{X}"), entry(exe, promoted=0)))],
+            "case": [(0, state(entry(exe.upper().replace("\\", "/"), promoted=0)))],
+            "dots": [(0, state(entry(r"C:\Program Files\.\x\..\Codex Auto Resume\\CodexAutoResume.exe")))],
+            "bad_folder": [(0, state(entry("{BAD}\\CodexAutoResume.exe"), entry("{NONE}\\x.exe"), entry("{only")))],
+            "two": [(0, state(entry(exe, promoted=0), entry(exe, promoted=1)))],
+            "two_back": [(0, state(entry(exe, promoted=1), entry(exe, promoted=0)))],
+            "promoted_odd": [(0, state(entry(exe, promoted="")))],
+        }
+
+        class Keys:
+            current = {}
+
+            def subkeys(self, path):
+                key = self.current.get(path)
+                if not isinstance(key, dict) or "subkeys" not in key:
+                    raise FileNotFoundError(path)
+                return list(key["subkeys"])
+
+            def value(self, path, name):
+                key = self.current.get(path)
+                if key is None:
+                    return None
+                if key.get("broken"):
+                    raise PermissionError(path)
+                return key.get("values", {}).get(name)
+
+        paths = [exe, "c:/program files/x/../y/./z.exe", r"\\server\share\a\..\..\b", "\\\\?\\UNC\\s\\h\\x",
+                 "\\\\?\\C:\\a\\..\\b", r"\\.\pipe\x", "C:relative\\..\\..\\x", r"\rooted\..\..\x", "a/b/../../..",
+                 "", ".", "..", "C:", "C:\\", "//", r"\\server", r"\\server\share", "ÄÖÜ\\İı\\ΣΑΣ\\Straße",
+                 "C:\\x\\...\\y", "x\\..\\..\\..\\y", "\\\\?\\unc\\a", "C:/a//b///c/"]
+        for name, steps in runs.items():
+            keys = Keys()
+            clock = [0.0]
+            placement = tray_place.IconPlacement(exe, 1, reader=keys, folders=folders.get, clock=lambda: clock[0])
+            answers = []
+            for moment, current in steps:
+                clock[0], keys.current = float(moment), current
+                answers.append(placement.overflowed())
+            self.add("trayplace/%s" % name,
+                     {"surface": "tray_place", "executable": exe, "uid": 1, "folders": folders,
+                      "steps": [{"clock": float(moment), "keys": current} for moment, current in steps],
+                      "paths": paths if name == "promoted" else [], "overflow": []},
+                     {"answers": answers, "executable": placement.executable,
+                      "paths": [tray_place._same_path(path) for path in paths] if name == "promoted" else [],
+                      "open": []})
+
+        class Function:
+            """A stand-in for a ctypes function: callable, and argtypes/restype can be set on it."""
+
+            def __init__(self, body):
+                self.body = body
+
+            def __call__(self, *arguments):
+                return self.body(*arguments)
+
+        def overflow(windows):
+            def find(parent, after, name, title):
+                for index in range(after or 0, len(windows)):
+                    if windows[index][0] == name:
+                        return index + 1
+                return None
+
+            def attribute(hwnd, what, pointer, size):
+                cloaked = windows[hwnd - 1][2]
+                if cloaked is None:
+                    return -2147467259
+                pointer._obj.value = cloaked
+                return 0
+
+            class Library:
+                FindWindowExW = Function(find)
+                IsWindowVisible = Function(lambda hwnd: windows[hwnd - 1][1])
+                DwmGetWindowAttribute = Function(attribute)
+            return tray_place.overflow_open(lambda name: Library)
+
+        win11, win10 = tray_place.OVERFLOW_WINDOWS
+        sets = [[], [[win11, False, 0]], [[win11, True, 0]], [[win11, True, 1]], [[win11, True, None]],
+                [[win11, True, 1], [win10, True, 0]], [["Other", True, 0], [win10, False, 0], [win10, True, 2]],
+                [[win10, True, 0]] * 3, [[win11, True, 1]] * 20 + [[win10, True, 0]], [[win11, True, 1]] * 17,
+                [[win11, True, 1]] * 15 + [[win11, True, 0]], [[win11, True, 1]] * 16 + [[win11, True, 0]]]
+        self.add("trayplace/overflow",
+                 {"surface": "tray_place", "executable": exe, "uid": 1, "folders": {}, "steps": [], "paths": [],
+                  "overflow": sets},
+                 {"answers": [], "executable": tray_place._same_path(exe), "paths": [],
+                  "open": [overflow(windows) for windows in sets]})
+
     def job(self):
         return {"format": JOB_FORMAT, "tables": {}, "cases": self.cases}
 
@@ -105,6 +230,7 @@ class SurfaceWindowTests(unittest.TestCase):
             raise AssertionError("the surfaces do not compile:\n%s" % built.stdout.decode("utf-8", "replace"))
         job = WindowJob()
         job.tray_words()
+        job.tray_place()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -135,6 +261,10 @@ class SurfaceWindowTests(unittest.TestCase):
 
     def test_the_icons_words_are_the_references_in_every_language(self):
         self.compare("traywords/")
+
+
+    def test_where_windows_keeps_the_icon_is_read_as_the_reference_reads_it(self):
+        self.compare("trayplace/")
 
 
 if __name__ == "__main__":
