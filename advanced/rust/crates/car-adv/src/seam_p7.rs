@@ -28,7 +28,7 @@
 //! The pure functions S7.2a's runtime needs now (`*_handed`, `chat_watched`, `for_open_watching`) are ported here,
 //! faithfully, so the runtime's P2 is equal before their owners exist; the owner moves each into its module.
 
-use car_machine::json::Value;
+use car_machine::json::{Map, Value};
 
 /// `engine/chat.CAPABILITY`.
 pub const CHAT: &str = "codex_chat";
@@ -67,38 +67,277 @@ pub trait AccountReply {
     fn parse(&self, reply: &Value) -> Value;
 }
 
-/// `engine/continued.answer_key(*parts)` (S7.2d): 64 hex digits of what a continuation answers. Filled by S7.2a's
-/// next commit.
-pub fn answer_key(_parts: &[String]) -> String {
-    String::new()
+// ------------------------------------------------------------------ the pure functions S7.2a's runtime needs now
+
+fn is(value: Option<&Value>, word: &str) -> bool {
+    matches!(value, Some(Value::Str(text)) if text.as_str() == Some(word))
 }
 
-/// `engine/continued.words_pass(words)` (S7.2d). Filled by S7.2a's next commit.
-pub fn words_pass(_words: &Value) -> bool {
-    false
+fn get<'a>(row: &'a Value, name: &str) -> Option<&'a Value> {
+    match row {
+        Value::Object(map) => map.get(name),
+        _ => None,
+    }
 }
 
-/// `engine/continued.handed(row)` (S7.2d). Filled by S7.2a's next commit.
-pub fn continued_handed(_row: &Value) -> Option<Value> {
+fn null(value: Option<&Value>) -> bool {
+    matches!(value, None | Some(Value::Null))
+}
+
+fn or_null(value: Option<&Value>) -> Value {
+    value.cloned().unwrap_or(Value::Null)
+}
+
+fn truthy(value: Option<&Value>) -> bool {
+    value.is_some_and(car_machine::pyval::truthy)
+}
+
+/// `row.get(a) or row.get(b)`.
+fn either(row: &Value, first: &str, second: &str) -> Value {
+    match get(row, first) {
+        Some(found) if car_machine::pyval::truthy(found) => found.clone(),
+        _ => or_null(get(row, second)),
+    }
+}
+
+fn marker(key: &Value) -> Value {
+    match key {
+        Value::Str(text) => Value::Str(
+            car_machine::domain::ids::short_marker(text.as_str().unwrap_or_default()).into(),
+        ),
+        _ => Value::Null,
+    }
+}
+
+/// `dict(own, **more)`: `own`'s keys first, then the rest, a key already there replaced in its place.
+fn with(own: &[(&str, Value)], more: Vec<(&str, Value)>) -> Value {
+    let mut pairs: Vec<(&str, Value)> = own.to_vec();
+    for (name, value) in more {
+        match pairs.iter_mut().find(|(held, _)| *held == name) {
+            Some(held) => held.1 = value,
+            None => pairs.push((name, value)),
+        }
+    }
+    let mut map = Map::new();
+    for (name, value) in pairs {
+        map.insert(name.into(), value);
+    }
+    Value::Object(map)
+}
+
+fn word(text: &str) -> Value {
+    Value::Str(text.into())
+}
+
+/// The keys of one in flight.
+fn in_flight(own: &[(&str, Value)], sent_at: Value, queue_id: Value, withdraw: bool) -> Value {
+    with(
+        own,
+        vec![
+            ("state", word("in_flight")),
+            ("words", Value::Null),
+            ("sent_at", sent_at),
+            ("queue_id", queue_id),
+            ("withdraw", Value::Bool(withdraw)),
+        ],
+    )
+}
+
+/// The keys of one waiting, with its words.
+fn waiting(own: &[(&str, Value)], words: Value) -> Value {
+    with(
+        own,
+        vec![
+            ("state", word("waiting")),
+            ("words", words),
+            ("sent_at", Value::Null),
+            ("queue_id", Value::Null),
+            ("withdraw", Value::Bool(false)),
+        ],
+    )
+}
+
+/// `engine/continued.answer_key(*parts)` (S7.2d): 64 hex digits of what a continuation answers -
+/// `sha256(json.dumps([str(part) ...], separators=(",", ":")))`.
+pub fn answer_key(parts: &[String]) -> String {
+    let list = Value::Array(parts.iter().map(|part| word(part)).collect());
+    let options = car_machine::json::Options::new().separators(",", ":");
+    let text = car_machine::json::to_string(&list, &options).unwrap_or_default();
+    car_machine::hash::sha256(text.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// `engine/continued.words_pass(words)` (S7.2d): words core sends as a continuation.
+pub fn words_pass(words: &Value) -> bool {
+    car_policy::classify::continuation::validate_continuation(words).is_ok()
+}
+
+/// `engine/continued.handed(row)` (S7.2d): what core is handed of one continuation - one waiting, with its words; one in
+/// flight, to be watched - or None.
+pub fn continued_handed(row: &Value) -> Option<Value> {
+    let key = get(row, "record_id")?;
+    if null(Some(key)) || !null(get(row, "finished_at")) {
+        return None;
+    }
+    // A wrap-up (v0.6.16-beta.3, engine/usage.py) is core's WRAP_UP: sent only while its turn still runs.
+    let purpose = if is(get(row, "kind"), "wrap_up") {
+        "wrap_up"
+    } else {
+        "continuation"
+    };
+    let own = [
+        ("record_id", key.clone()),
+        ("thread_id", or_null(get(row, "thread_id"))),
+        ("marker", marker(key)),
+        ("purpose", word(purpose)),
+        ("ordinal", or_null(get(row, "ordinal"))),
+    ];
+    if is(get(row, "record_state"), "in_flight") {
+        let sent_at = either(row, "launching_at", "claimed_at");
+        return Some(in_flight(
+            &own,
+            sent_at,
+            or_null(get(row, "queue_id")),
+            truthy(get(row, "withdraw")),
+        ));
+    }
+    if is(get(row, "record_state"), "waiting") && truthy(get(row, "words")) {
+        return Some(waiting(&own, or_null(get(row, "words"))));
+    }
     None
 }
 
-/// `engine/resetmessage.handed(rule)` (S7.2d). Filled by S7.2a's next commit.
-pub fn reset_message_handed(_rule: &Value) -> Option<Value> {
+/// `engine/resetmessage.handed(rule)` (S7.2d): what core is handed of one message, or None.
+pub fn reset_message_handed(rule: &Value) -> Option<Value> {
+    let key = or_null(get(rule, "record_id"));
+    let own = [
+        ("record_id", key.clone()),
+        ("thread_id", or_null(get(rule, "thread_id"))),
+        ("marker", marker(&key)),
+        ("purpose", word("message")),
+        ("ordinal", Value::Null),
+    ];
+    if is(get(rule, "record_state"), "in_flight") {
+        let sent_at = or_null(get(rule, "sent_at"));
+        return Some(in_flight(
+            &own,
+            sent_at,
+            or_null(get(rule, "queue_id")),
+            truthy(get(rule, "withdraw")),
+        ));
+    }
+    if is(get(rule, "state"), "ready")
+        && is(get(rule, "record_state"), "waiting")
+        && truthy(get(rule, "words"))
+    {
+        return Some(waiting(&own, or_null(get(rule, "words"))));
+    }
     None
 }
 
-/// `engine/promptqueue.handed(row)` (S7.2e1). Filled by S7.2a's next commit.
-pub fn prompt_handed(_row: &Value) -> Option<Value> {
+/// `engine/promptqueue.handed(row)` (S7.2e1): what core is handed of one prompt's occurrence, or None.
+pub fn prompt_handed(row: &Value) -> Option<Value> {
+    let key = get(row, "record_id")?;
+    if null(Some(key)) || !is(get(row, "state"), "ready") {
+        return None;
+    }
+    let own = [
+        ("record_id", key.clone()),
+        ("thread_id", or_null(get(row, "thread_id"))),
+        ("marker", marker(key)),
+        ("purpose", word("message")),
+        ("ordinal", Value::Null),
+    ];
+    if is(get(row, "record_state"), "in_flight") {
+        let sent_at = either(row, "sent_at", "launching_at");
+        return Some(in_flight(
+            &own,
+            sent_at,
+            or_null(get(row, "queue_id")),
+            truthy(get(row, "withdraw")),
+        ));
+    }
+    if is(get(row, "record_state"), "waiting") && truthy(get(row, "words")) {
+        return Some(waiting(&own, or_null(get(row, "words"))));
+    }
     None
 }
 
-/// `engine/chat.watched(row, now, stops)` (S7.2e1). Filled by S7.2a's next commit.
-pub fn chat_watched(_row: &Value, _now: f64, _stops: &[Value]) -> Option<Value> {
+/// `engine/chat.handed(row)` (S7.2e1): one message as core is handed it, marked `pause_keeps` (v0.6.23).
+pub fn chat_handed(row: &Value) -> Option<Value> {
+    let key = get(row, "record_id")?;
+    if !matches!(key, Value::Str(text) if text.len() == 64) {
+        return None;
+    }
+    let own = [
+        ("record_id", key.clone()),
+        ("thread_id", or_null(get(row, "thread_id"))),
+        ("marker", marker(key)),
+        ("purpose", word("message")),
+        ("ordinal", Value::Null),
+        ("pause_keeps", Value::Bool(true)),
+    ];
+    if is(get(row, "state"), "in_flight") {
+        return Some(in_flight(
+            &own,
+            or_null(get(row, "sent_at")),
+            Value::Null,
+            false,
+        ));
+    }
+    if is(get(row, "state"), "waiting") && truthy(get(row, "words")) {
+        return Some(waiting(&own, or_null(get(row, "words"))));
+    }
     None
 }
 
-/// `engine/foropen.watching(record)` (S7.2e1). Filled by S7.2a's next commit.
-pub fn for_open_watching(_record: &Value) -> bool {
-    false
+/// `engine/chat.TAKEN_WITHIN`: how long Codex has to take a message it holds in its queue before it is taken back.
+pub const TAKEN_WITHIN: f64 = 180.0;
+
+fn number(value: Option<&Value>) -> Option<f64> {
+    match value {
+        Some(Value::Int(int)) => int.as_i64().map(|n| n as f64),
+        Some(Value::Float(number)) => Some(*number),
+        Some(Value::Bool(flag)) => Some(f64::from(u8::from(*flag))),
+        _ => None,
+    }
+}
+
+/// `engine/chat.paused_by_stop(row, stops)`: whether a message in flight sat in a queue usage_pause stopped.
+pub fn paused_by_stop(row: &Value, stops: &[Value]) -> bool {
+    stops.iter().any(|stop| {
+        let ended = match (
+            number(get(stop, "finished_at")),
+            number(get(row, "sent_at")),
+        ) {
+            (Some(end), Some(sent)) => end >= sent,
+            _ => false,
+        };
+        is(get(stop, "capability"), USAGE_PAUSE)
+            && is(get(stop, "kind"), "after_reset")
+            && get(stop, "thread_id") == get(row, "thread_id")
+            && (null(get(stop, "finished_at")) || ended)
+    })
+}
+
+/// `engine/chat.watched(row, now, stops)` (S7.2e1): a message in flight as core watches it, asked back out of Codex's
+/// queue once TAKEN_WITHIN has passed - never one in a queue the forced stop paused (v0.6.26, M1).
+pub fn chat_watched(row: &Value, now: f64, stops: &[Value]) -> Option<Value> {
+    let mut found = chat_handed(row)?;
+    let sent = number(get(&found, "sent_at"));
+    if let Some(sent) = sent
+        && now - sent >= TAKEN_WITHIN
+        && !paused_by_stop(row, stops)
+        && let Value::Object(map) = &mut found
+    {
+        map.insert("withdraw".into(), Value::Bool(true));
+    }
+    Some(found)
+}
+
+/// `engine/foropen.watching(record)` (S7.2e1): core asks about a continuation already queued for opening.
+pub fn for_open_watching(record: &Value) -> bool {
+    matches!(record, Value::Object(map) if map.contains_key("queued_since"))
 }

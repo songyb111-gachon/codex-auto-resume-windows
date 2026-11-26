@@ -20,22 +20,50 @@ use std::sync::Weak;
 
 use car_config::Paths;
 use car_machine::json::Value;
-use car_policy::plug::{Channel, Errand, Point, Route, StartRoute, View};
+use car_policy::plug::{Alternative, Channel, Errand, Point, Route, StartRoute, View};
 
 use crate::registry::CapabilityDef;
 use crate::state::scoped::Scoped;
 
 /// A hook that raised (Python: any exception out of a capability's code). It costs its own answer and trips its
-/// capability (or, kept on, passes it over for that record: K8).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Raised;
+/// capability (or, kept on, passes it over for that record: K8). `class` is the exception's type, `cause` the type it
+/// was raised from and `at` the edition's frames it passed (`file:line function < ...`), as the watcher's log line
+/// says them (`runtime._said_raised`); a Rust code says what it knows of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Raised {
+    pub class: String,
+    pub cause: Option<String>,
+    pub at: Option<String>,
+}
+
+impl Raised {
+    /// An exception of `class`, from nothing, passing no frame of the edition's.
+    pub fn new(class: &str) -> Raised {
+        Raised {
+            class: class.to_owned(),
+            cause: None,
+            at: None,
+        }
+    }
+
+    /// What a code that has no hook at a point raises when asked there (Python's AttributeError).
+    pub fn missing() -> Raised {
+        Raised::new("AttributeError")
+    }
+}
 
 /// What a hook said.
 pub enum Said {
     /// DEFER.
     Defer,
-    /// A plain value: a word, a text, a number, a list (records at P2, words at P18/P19), an object.
+    /// An answer word (`Alternative.X`): equal to its text, and the only answer the reference's `is` checks take.
+    Word(Alternative),
+    /// A plain value: a text, a number, a list (`Value::Array` is a Python list), an object.
     Value(Value),
+    /// A tuple: what P2 takes as a list, and P18/P19 as a set of words.
+    Tuple(Vec<Value>),
+    /// A set or a frozenset: what P18/P19 take (P2 does not).
+    Set(Vec<Value>),
     /// P5: the hook handed `backend` (core's BACKEND) back - core's own send.
     Backend,
     /// P5: a channel core sends through.
@@ -49,9 +77,41 @@ pub enum Said {
 }
 
 impl Said {
-    /// A word (`Alternative`) or any other plain value.
+    /// A plain value.
     pub fn value(value: impl Into<Value>) -> Said {
         Said::Value(value.into())
+    }
+
+    /// `answer == word`: the word a hook said, as a word or a text equal to one.
+    pub fn text(&self) -> Option<&str> {
+        match self {
+            Said::Word(word) => Some(word.as_str()),
+            Said::Value(Value::Str(text)) => text.as_str(),
+            _ => None,
+        }
+    }
+
+    /// `answer is word`.
+    pub fn is(&self, word: Alternative) -> bool {
+        matches!(self, Said::Word(said) if *said == word)
+    }
+
+    /// What core is handed of a plain answer: a word as its text, a value as it is; None for an object.
+    pub fn to_value(&self) -> Option<Value> {
+        match self {
+            Said::Word(word) => Some(Value::Str(word.as_str().into())),
+            Said::Value(value) => Some(value.clone()),
+            _ => None,
+        }
+    }
+
+    /// `bool(answer)` as Python reads it: DEFER and every object true; a value by its own truth.
+    pub fn truthy(&self) -> bool {
+        match self {
+            Said::Value(value) => car_machine::pyval::truthy(value),
+            Said::Tuple(items) | Said::Set(items) => !items.is_empty(),
+            _ => true,
+        }
     }
 
     /// `answer is DEFER`.
@@ -102,75 +162,75 @@ pub trait Code {
     // ------------------------------------------------------------------ the points (HOOKS)
     /// P2: records of the edition's own due now (a list), or DEFER.
     fn records(&mut self, _view: &dyn View) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P3.
     fn gate(&mut self, _name: &Value, _record: &Value, _facts: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P4: words, or DEFER.
     fn text(&mut self, _record: &Value, _text: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P5: a channel, [`Said::Backend`], or DEFER.
     fn sender(&mut self, _record: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P6.
     fn outcome(&mut self, _record: &Value, _outcome: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P7.
     fn schedule(&mut self, _record: &Value, _due: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P8: an errand, or DEFER.
     fn tick(&mut self, _view: &dyn View) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P9: a start route, or DEFER.
     fn start_route(&mut self, _request: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P12: a number of workers, or DEFER.
     fn partition(&mut self, _records: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P13.
     fn supervise(&mut self, _facts: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P15.
     fn delivery(&mut self, _record: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P16: a route, QUEUE_FOR_OPEN or TO_SESSION, or DEFER.
     fn unloaded(&mut self, _record: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P17.
     fn admission(&mut self, _failure: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P18: SessionKind words.
     fn sessions(&mut self) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P19: Widening words.
     fn eligibility(&mut self) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P20: a notice core raised; the answer is not read.
     fn notice(&mut self, _facts: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P21.
     fn power(&mut self, _facts: &Value) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
     /// P22: an errand that sends nothing, or DEFER.
     fn resident(&mut self, _view: &dyn View) -> Spoke {
-        Err(Raised)
+        Err(Raised::missing())
     }
 
     // ------------------------------------------------------------------ the optional hooks (`_own`)
@@ -204,7 +264,7 @@ pub trait Code {
         None
     }
     /// `watched_due(view)`: the keys of its rows that would be handed core now, for a watched capability.
-    fn watched_due(&mut self, _view: &dyn View) -> Option<Result<Value, Raised>> {
+    fn watched_due(&mut self, _view: &dyn View) -> Option<Spoke> {
         None
     }
     /// `words_sent(record)`: a claim that carried its words committed.
@@ -220,7 +280,12 @@ pub trait Code {
         None
     }
     /// `images_of(record)`: the prompt queue's pictures of a scheduled message (empty: none).
-    fn images_of(&mut self, _record: &Value) -> Option<Result<Value, Raised>> {
+    fn images_of(&mut self, _record: &Value) -> Option<Spoke> {
+        None
+    }
+
+    /// The code itself, for the surface that reaches an action's own type (the report's flow, S7.3a).
+    fn as_any(&mut self) -> Option<&mut dyn std::any::Any> {
         None
     }
 }
