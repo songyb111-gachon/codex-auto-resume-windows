@@ -6,3 +6,6 @@
 //! no named object of the product's, no timer, no window.
 
 pub mod setaside;
+pub mod fail;
+pub mod plugnotices;
+pub mod toasts;
