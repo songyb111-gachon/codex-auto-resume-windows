@@ -2966,4 +2966,28 @@ ConfigError line), the tick's trip moved outside `guarded` (panic_feature: the l
   car-control's prune (the reference writes nothing when `keep` raises inside the change); the engine's `language` and
   the notifier's locale read the environment's language (Windows' preferred languages are not in car-platform yet, as
   for the icon's strings).
-* The release and install proofs and the gates of this part: in the checks below.
+* **`test_rust_release` fails on both lanes, one test**: `EntryRunTests.test_every_bootstrap_line_reaches_the_core` -
+  "does not reach the core: missing the core" (car-legacy's exit 1). It came with the first part's `858f8d875`
+  (the entry run now takes `car-core-proof.exe` from rust/target/release), which never ran it (both proofs timed out
+  there); this part touched neither car-legacy, car-bin nor `build/rust_legacy_bootstraps.py`, and the stub itself,
+  run directly in a scratch profile as `<home>ppin\codex-auto-resume.exe setup`, answers 3 (NOT_PORTED). Left
+  for the main session: why car-legacy's runtime python.exe does not find the stub at `appin` in the entry run.
+
+### Checks of the second part (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10; code at `ec4cfa3a2`)
+
+```
+Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan    Ran 32 in 168 s, OK
+test_rust_release, standard and advanced lanes (detached)                   Ran 25, FAILED (failures=1, skipped=1) each:
+                                                                            test_every_bootstrap_line_reaches_the_core
+test_rust_install, standard and advanced lanes (detached)                   Ran 11, OK (skipped=7) each
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check rc=0
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0 (its lock learned the
+                   car-watcher -> car-scheduler edge, `507aa8366`)
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates) after EXPECTED learned
+                                                     car-watcher -> car-scheduler (`c170c6c73`)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every binary the same with and without advanced/;
+                                                     profile-path scan none
+run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher -k diffs_bridge_acting
+                                                     Ran 29 in 1104 s, OK
+```
