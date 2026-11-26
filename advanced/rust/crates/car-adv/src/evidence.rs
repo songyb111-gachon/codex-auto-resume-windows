@@ -390,9 +390,7 @@ pub fn complete(
     let Value::Object(mut record) = record else {
         return Err(Fault::Evidence("the file is not a measurement record"));
     };
-    let is = |record: &Map, name: &str, wanted: &str| {
-        matches!(record.get(&Str::new(name)), Some(Value::Str(found)) if found.as_bytes() == wanted.as_bytes())
-    };
+    let is = |record: &Map, name: &str, wanted: &str| matches!(record.get(&Str::new(name)), Some(Value::Str(found)) if found.as_bytes() == wanted.as_bytes());
     if !is(&record, "format", MEASUREMENT_FORMAT) {
         return Err(Fault::Evidence("the file is not a measurement record"));
     }
@@ -442,12 +440,13 @@ pub fn outcome(record: &Value) -> Option<(Verdict, String)> {
     }
     let mut verdict = get("verdict").cloned().unwrap_or(Value::Null);
     if matches!(&verdict, Value::Str(found) if found.as_bytes() == b"blocked")
-        && let Some(Value::Object(completion)) = get("completion") {
-            verdict = completion
-                .get(&Str::new("verdict"))
-                .cloned()
-                .unwrap_or(Value::Null);
-        }
+        && let Some(Value::Object(completion)) = get("completion")
+    {
+        verdict = completion
+            .get(&Str::new("verdict"))
+            .cloned()
+            .unwrap_or(Value::Null);
+    }
     let verdict = match &verdict {
         Value::Str(found) if found.as_bytes() == b"pass" => Verdict::Pass,
         Value::Str(found) if found.as_bytes() == b"fail" => Verdict::Fail,

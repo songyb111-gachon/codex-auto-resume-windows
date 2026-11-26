@@ -24,6 +24,9 @@ use crate::codex::session::SessionError;
 use crate::evidence::{self, Envelope, Fault};
 use crate::vocabulary::{Measurement, Verdict};
 
+#[path = "measure_usage.rs"]
+mod usage;
+
 // ------------------------------------------------------------------------------------------------ the raised
 /// A Python exception out of a probe or a seam, by what the reference does with it.
 #[derive(Clone, Debug, PartialEq)]
@@ -246,7 +249,7 @@ pub const MQP_MOST: usize = 4;
 /// `Context`: what one measurement is run with.
 pub struct Context<'w> {
     pub measurement: Measurement,
-    pub seams: Seams,
+    pub seams: &'w mut Seams,
     pub versions: Map,
     pub thread_given: bool,
     pub probe_threads: Vec<String>,
@@ -405,9 +408,10 @@ pub fn completed_status(events: &[Value], thread: &str, turn_id: Option<&str>) -
             continue;
         };
         if let Some(wanted) = turn_id
-            && !is_str_eq(get(turn, "id"), wanted) {
-                continue;
-            }
+            && !is_str_eq(get(turn, "id"), wanted)
+        {
+            continue;
+        }
         return Some(match as_text(get(turn, "status")) {
             Some(status) => core_status(&status).to_owned(),
             None => "other".to_owned(),
@@ -440,9 +444,9 @@ fn await_taken(
             Err(raised) => return Err(raised),
         };
         if let Some(Value::Array(items)) = get(&listed, "data") {
-            let waiting = items
-                .iter()
-                .any(|item| is_dict(item) && is_str_eq(get(item, "clientUserMessageId"), client_id));
+            let waiting = items.iter().any(|item| {
+                is_dict(item) && is_str_eq(get(item, "clientUserMessageId"), client_id)
+            });
             if !waiting {
                 return Ok(true);
             }
@@ -820,6 +824,12 @@ pub fn ported() -> Vec<Measurement> {
         M::Mq,
         M::Mt,
         M::Mw,
+        M::Mp1,
+        M::Mp2,
+        M::Mp3,
+        M::Mu,
+        M::Mn,
+        M::Mr,
     ]
 }
 
@@ -839,6 +849,12 @@ fn dispatch(ctx: &mut Context<'_>) -> Res<Found> {
         M::Mq => mq(ctx),
         M::Mt => mt(ctx),
         M::Mw => mw(ctx),
+        M::Mp1 => usage::mp1(ctx),
+        M::Mp2 => usage::mp2(ctx),
+        M::Mp3 => usage::mp3(ctx),
+        M::Mu => usage::mu(ctx),
+        M::Mn => usage::mn(ctx),
+        M::Mr => usage::mr(ctx),
         other => Err(Raised::Unported(other)),
     }
 }
@@ -894,9 +910,10 @@ pub fn versions(
 ) -> Map {
     let mut codex = "unknown".to_owned();
     if let Some(backend) = backend
-        && car_machine::pyval::truthy(&backend.engine_version) {
-            codex = py_str(&backend.engine_version);
-        }
+        && car_machine::pyval::truthy(&backend.engine_version)
+    {
+        codex = py_str(&backend.engine_version);
+    }
     observed(vec![
         ("product_version", text(product_version)),
         ("codex_version", text(&codex)),
@@ -913,7 +930,12 @@ pub fn iso(now: f64) -> Res<String> {
     let seconds = now.floor();
     if !(0.0..=32_536_850_399.0).contains(&seconds) {
         return Err(Raised::Other(
-            if seconds.is_finite() { "OSError" } else { "OverflowError" }.into(),
+            if seconds.is_finite() {
+                "OSError"
+            } else {
+                "OverflowError"
+            }
+            .into(),
         ));
     }
     let seconds = seconds as i64;
@@ -952,7 +974,7 @@ pub struct Request<'a> {
 /// `run(measurement, ...)`'s answer: `{"measurement", "verdict", "recorded", "observed"}`.
 pub fn run(
     measurement: Measurement,
-    seams: Seams,
+    seams: &mut Seams,
     request: Request<'_>,
     world: &mut dyn World,
 ) -> Res<Map> {
@@ -967,11 +989,12 @@ pub fn run(
     } = request;
     let defaults = (product_version, windows_build);
     if let Some(thread) = thread
-        && !threads_valid(measurement, thread) {
-            return Err(Raised::Unavailable(
-                "the conversation id is not a Codex thread id",
-            ));
-        }
+        && !threads_valid(measurement, thread)
+    {
+        return Err(Raised::Unavailable(
+            "the conversation id is not a Codex thread id",
+        ));
+    }
     let versions_found = match versions_given {
         Some(given) if !given.is_empty() => given,
         _ => versions(seams.backend.as_ref(), defaults.0, defaults.1),
@@ -996,7 +1019,9 @@ pub fn run(
         measurement,
         seams,
         versions: versions_found.clone(),
-        thread_given: thread_text.as_deref().is_some_and(|found| !found.is_empty()),
+        thread_given: thread_text
+            .as_deref()
+            .is_some_and(|found| !found.is_empty()),
         probe_thread: probe_threads[0].clone(),
         probe_threads,
         may_spend,
