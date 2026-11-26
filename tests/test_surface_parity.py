@@ -743,6 +743,16 @@ class SurfaceJob:
                     "scene_ms": 0.0})
             renderer.draw_halo(plan, frame(1700))
             record({"do": "halo", "frame": frame(1700)})
+            if lone:
+                still_width, still_height, still = tray_popup.card_still(renderer, plan)
+                layers = tray_popup.layers.CardLayers(None)
+                try:
+                    layers.shade(renderer, plan)
+                    shade = hashlib.sha256(layers.picture.pixels()).hexdigest() if layers.shadows else None
+                    digests.append([still_width, still_height, hashlib.sha256(still).hexdigest(), layers.margin, shade])
+                finally:
+                    layers.close()
+                steps.append({"do": "still"})
             if any(item["kind"] == "scene" for item in items):
                 renderer.draw_scene(plan, 1234.5)
                 record({"do": "scene", "ms": 1234.5})

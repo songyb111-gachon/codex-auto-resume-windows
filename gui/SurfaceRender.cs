@@ -799,6 +799,17 @@ namespace CodexAutoResume
                             case "scene":
                                 renderer.DrawScene(plan, (double)step["ms"]);
                                 break;
+                            case "still":
+                            {
+                                object[] still = SurfaceLayers.CardStill(renderer, plan);
+                                using (var layers = new CardLayers(IntPtr.Zero))
+                                {
+                                    layers.Shade(renderer, plan);
+                                    digests.Add(new List<object> { still[0], still[1], Digest((byte[])still[2]), layers.Margin,
+                                                                   layers.Shadows.Count > 0 ? Digest(layers.Picture.Pixels()) : null });
+                                }
+                                continue;
+                            }
                             case "sweep":
                                 renderer.SweepMs = (double)step["ms"];
                                 renderer.DrawHalo(plan, FrameFrom(Field(step, "frame")));

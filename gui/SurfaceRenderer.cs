@@ -269,6 +269,9 @@ namespace CodexAutoResume
         private string groundKey;
         private byte[] groundPixels;
 
+        /// The ground last drawn, kept for the next frame and for the card's shadow cut (_ground_pixels).
+        internal byte[] GroundPixels { get { return groundPixels; } }
+
         /// One whole frame into the canvas; returns the canvas (draw). `glides` is {switch target: how far on} for the
         /// switches part way through a glide; `faces` {button target: (fill and edge it left from, how far on)} for the
         /// buttons part way through a change of face.

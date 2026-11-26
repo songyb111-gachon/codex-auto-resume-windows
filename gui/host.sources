@@ -30,6 +30,7 @@ gui/SurfaceElevation.cs
 gui/SurfaceDays.cs
 gui/SurfaceRenderer.cs
 gui/SurfaceLight.cs
+gui/SurfaceLayers.cs
 gui/PopupLayout.cs
 gui/PopupPlace.cs
 gui/PopupMotion.cs
