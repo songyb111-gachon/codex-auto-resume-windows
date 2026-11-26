@@ -146,6 +146,8 @@ namespace CodexAutoResume
                     return ElevationCase(task);
                 case "days":
                     return DaysCase(task);
+                case "pixels":
+                    return PixelsCase(task);
                 case "bidi":
                     return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
             }
@@ -728,6 +730,94 @@ namespace CodexAutoResume
             }
             return new Dictionary<string, object> { { "scenes", scenes }, { "specks", specks }, { "reach", SurfaceDays.SpeckReach(look) },
                                                     { "marks", marks }, { "paths", paths } };
+        }
+
+        private static LightFrame FrameFrom(object value)
+        {
+            var map = value as Dictionary<string, object>;
+            if (map == null) return null;
+            object arc = Field(map, "arc");
+            return new LightFrame { Dim = (double)map["dim"], Opacity = (double)map["opacity"], Spread = (double)map["spread"],
+                                    Arc = arc == null ? (double?)null : (double)arc };
+        }
+
+        /// A view drawn into memory by the renderer's own fonts, step after step as the popup draws it - whole frames
+        /// with a hover, a press, a focus, glides and faces part way, the light alone, the day alone, the seventh
+        /// press's sweep - each step's pixels by digest; the plan its fonts laid out; and how many GDI+ objects were
+        /// left once the renderer closed (Renderer.draw, draw_halo, draw_scene; comparison A's pixel half).
+        private static Dictionary<string, object> PixelsCase(Dictionary<string, object> task)
+        {
+            object system = Field(task, "system");
+            SurfaceRenderer.SystemColours = null;
+            if (system != null)
+            {
+                SurfaceRenderer.SystemColours = new Dictionary<string, int[]>();
+                foreach (KeyValuePair<string, object> pair in (Dictionary<string, object>)system)
+                    SurfaceRenderer.SystemColours[pair.Key] = Ints(pair.Value);
+            }
+            SurfaceFonts.Pinned = Field(task, "pinned") as string;
+            int before = SurfaceGdip.GdipObjects;
+            var digests = new List<object>();
+            SurfacePlan plan;
+            try
+            {
+                using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+                {
+                    var look = (List<object>)task["look"];
+                    renderer.Theme = (string)look[0];
+                    renderer.Design = (string)look[1];
+                    renderer.Contrast = (bool)look[2];
+                    renderer.Lone = (bool)task["lone"];
+                    renderer.Letters = Field(task, "letters") as string;
+                    plan = renderer.Layout((Dictionary<string, object>)task["vm"], Number(task, "scale"), (string)task["locale"]);
+                    foreach (object entry in (List<object>)task["steps"])
+                    {
+                        var step = (Dictionary<string, object>)entry;
+                        switch ((string)step["do"])
+                        {
+                            case "draw":
+                            {
+                                var glides = new Dictionary<object, double>();
+                                foreach (object glide in (List<object>)step["glides"])
+                                {
+                                    var pair = (List<object>)glide;
+                                    glides[TargetOf(pair[0])] = (double)pair[1];
+                                }
+                                var faces = new Dictionary<object, ButtonFace>();
+                                foreach (object face in (List<object>)step["faces"])
+                                {
+                                    var four = (List<object>)face;
+                                    faces[TargetOf(four[0])] = new ButtonFace(Ints(four[1]), Ints(four[2]), (double)four[3]);
+                                }
+                                renderer.Draw(plan, FrameFrom(Field(step, "frame")), TargetOf(Field(step, "hover")), TargetOf(Field(step, "pressed")),
+                                              TargetOf(Field(step, "focus")), glides, (double)step["scene_ms"], faces);
+                                break;
+                            }
+                            case "halo":
+                                renderer.DrawHalo(plan, FrameFrom(Field(step, "frame")));
+                                break;
+                            case "scene":
+                                renderer.DrawScene(plan, (double)step["ms"]);
+                                break;
+                            case "sweep":
+                                renderer.SweepMs = (double)step["ms"];
+                                renderer.DrawHalo(plan, FrameFrom(Field(step, "frame")));
+                                renderer.SweepMs = null;
+                                break;
+                            default:
+                                throw new NotSupportedException((string)step["do"]);
+                        }
+                        SurfaceNative.GdiFlush();
+                        digests.Add(new List<object> { Digest(renderer.Canvas.Pixels()), renderer.HaloRows });
+                    }
+                }
+            }
+            finally
+            {
+                SurfaceFonts.Pinned = null;
+                SurfaceRenderer.SystemColours = null;
+            }
+            return new Dictionary<string, object> { { "plan", plan }, { "pixels", digests }, { "left", SurfaceGdip.GdipObjects - before } };
         }
 
         // ----------------------------------------------------------------------------- the dump

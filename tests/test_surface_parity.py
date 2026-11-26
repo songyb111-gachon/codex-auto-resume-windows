@@ -687,6 +687,86 @@ class SurfaceJob:
             self.add("days/" + look, {"surface": "days", "look": look, "moments": self.DAY_MOMENTS, "within": self.DAY_WITHIN,
                                       "points": points, "paths": self.DAY_PATHS}, result)
 
+    PIXEL_LOOKS = [["light", "soft", False], ["dark", "classic", False], ["dark", "plain", False], ["light", "soft", True]]
+
+    def pixels(self):
+        """The popup drawn into memory by the reference's own Renderer and fonts (offscreen, as make_screenshots draws
+        it, the UI face pinned): whole frames with a hover, a press, a focus, a glide and a face part way, the light
+        alone, the day alone and the seventh press's sweep, each step's pixels by digest, and no GDI+ object left."""
+        import hashlib
+        import make_screenshots
+        from codex_auto_resume.ui import popup as tray_popup
+        from codex_auto_resume.ui.popup import fonts, gdiplus, light as light_module, renderer as renderer_module, win32
+        saved = renderer_module.system_rgb, light_module.system_rgb
+        renderer_module.system_rgb = light_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
+        try:
+            with make_screenshots.pinned_face():
+                pinned = fonts._ui_face()
+                for locale in ("en", "ko", "ar"):
+                    for name, vm in popup_views(locale):
+                        scales = (1.25, 2.0) if name in ("picture", "scene") else (1.5,)
+                        looks = self.LOOKS if name == "picture" else self.PIXEL_LOOKS
+                        for scale in scales:
+                            for index, (theme, design, contrast) in enumerate(looks):
+                                lone = index % 2 == 0
+                                self._pixels(tray_popup, gdiplus, fonts, win32, hashlib, name, vm, locale, scale, theme, design,
+                                             contrast, lone, pinned)
+        finally:
+            renderer_module.system_rgb, light_module.system_rgb = saved
+
+    def _pixels(self, tray_popup, gdiplus, fonts, win32, hashlib, name, vm, locale, scale, theme, design, contrast, lone, pinned):
+        before = gdiplus.gdiplus_objects()
+        renderer = tray_popup.Renderer()
+        steps, digests = [], []
+        try:
+            renderer.theme, renderer.design, renderer.contrast, renderer.lone = theme, design, contrast, lone
+            plan = renderer.layout(vm, scale, locale)
+            items = plan["items"]
+            buttons = [item["target"] for item in items if item["kind"] == "button"]
+            focusable = [item["target"] for item in items if item["kind"] == "focusable"]
+            switches = [item["target"] for item in items if item["kind"] == "switch"]
+            state = vm["light"]
+
+            def frame(moment):
+                return tray_popup.halo(state, moment, moment, design=design)
+
+            def record(step):
+                win32._dll("gdi32").GdiFlush()
+                digests.append([hashlib.sha256(renderer.canvas.pixels()).hexdigest(),
+                                list(renderer.halo_rows) if renderer.halo_rows is not None else None])
+                steps.append(step)
+
+            renderer.draw(vm, plan, frame=frame(0))
+            record({"do": "draw", "frame": frame(0), "hover": None, "pressed": None, "focus": None, "glides": [], "faces": [],
+                    "scene_ms": 0.0})
+            renderer.draw_halo(plan, frame(1700))
+            record({"do": "halo", "frame": frame(1700)})
+            if any(item["kind"] == "scene" for item in items):
+                renderer.draw_scene(plan, 1234.5)
+                record({"do": "scene", "ms": 1234.5})
+            hover = buttons[0] if buttons else None
+            focus = focusable[-1] if focusable else None
+            glides = {switches[0]: 0.4} if switches else {}
+            faces = {buttons[-1]: ((renderer._rgb("accent"), renderer._rgb("line")), 0.3)} if len(buttons) > 1 else {}
+            renderer.draw(vm, plan, frame=frame(2600), hover=hover, focus=focus, glides=glides, scene_ms=500.0, faces=faces)
+            record({"do": "draw", "frame": frame(2600), "hover": hover, "pressed": None, "focus": focus,
+                    "glides": [[target, amount] for target, amount in glides.items()],
+                    "faces": [[target, fill, edge, amount] for target, ((fill, edge), amount) in faces.items()], "scene_ms": 500.0})
+            pressed = buttons[0] if buttons else None
+            renderer.draw(vm, plan, frame=None, pressed=pressed)
+            record({"do": "draw", "frame": None, "hover": None, "pressed": pressed, "focus": None, "glides": [], "faces": [],
+                    "scene_ms": 0.0})
+            renderer.sweep_ms = 900.0
+            renderer.draw_halo(plan, frame(300))
+            renderer.sweep_ms = None
+            record({"do": "sweep", "ms": 900.0, "frame": frame(300)})
+        finally:
+            renderer.close()
+        self.add("pixels/%s/%s/%r/%s-%s-%s-%s" % (name, locale, scale, theme, design, contrast, lone),
+                 {"surface": "pixels", "vm": plain(vm), "scale": scale, "locale": locale, "letters": fonts._letters(locale),
+                  "look": [theme, design, contrast], "lone": lone, "pinned": pinned, "system": self.SYSTEM, "steps": plain(steps)},
+                 {"plan": plan, "pixels": digests, "left": gdiplus.gdiplus_objects() - before})
+
     def bidi(self):
         """l10n.first_strong over a code point of every 173 (no surrogate: the job is UTF-8), each after digits and
         spaces, and a few texts of the plans' own."""
@@ -756,6 +836,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.elevation()
         job.days()
         job.bidi()
+        job.pixels()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -824,6 +905,12 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_a_special_days_pieces_and_the_icons_mark_are_the_references_frame_for_frame(self):
         self.compare("days/")
+
+    def test_the_popup_is_drawn_into_memory_as_the_reference_draws_it_byte_for_byte(self):
+        self.compare("pixels/")
+        for case_id, found in self.found.items():
+            if case_id.startswith("pixels/") and "plan" in found:
+                self.assertEqual(found["plan"]["left"], 0, case_id)
 
     def test_the_first_strong_direction_is_the_references_over_the_whole_code_space(self):
         self.compare("bidi/")
