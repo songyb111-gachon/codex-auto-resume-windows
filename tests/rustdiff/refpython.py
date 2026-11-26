@@ -202,9 +202,12 @@ def ignores_environment(exe: Path) -> bool:
 
 def boot(paths) -> str:
     """The program text that runs `script` (argv[1]) with `paths` on sys.path, for a runtime that ignores PYTHONPATH.
-    `sys.argv` is what `-c script args` would have given: ['-c', *args]. It runs in __main__, as -c does."""
-    return ("import sys\nsys.path[0:0] = %r\nexec(compile(sys.argv.pop(1), '<string>', 'exec'))\n"
-            % ([str(each) for each in paths],))
+    `sys.argv` is what `-c script args` would have given: ['-c', *args]. It runs in __main__, as -c does. The script runs
+    one Python frame deeper than under -c (this boot's own module frame), so the recursion limit is raised by that one
+    frame: a recursion the product's entry points (`-c`, no exec) stop at depth N stops at N here too (Integration 8:
+    the MCP server's batch depth, RecursionError at 995 under -c, came at 994 under this boot)."""
+    return ("import sys\nsys.path[0:0] = %r\nsys.setrecursionlimit(sys.getrecursionlimit() + 1)\n"
+            "exec(compile(sys.argv.pop(1), '<string>', 'exec'))\n" % ([str(each) for each in paths],))
 
 
 def command(script: str, *arguments, paths=(), which: str | None = None) -> list:
