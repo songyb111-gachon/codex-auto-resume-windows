@@ -1,12 +1,30 @@
-//! Seat S7.2e1: `engine/everyconversation.py` (P7-DESIGN 2.2). Empty until that seat ports it; the skeleton (S7.2a) made the file
-//! so no seat edits a `mod.rs`, `lib.rs` or `Cargo.toml` (P7-DESIGN 2.1).
+//! `every_conversation`'s code (seat S7.2e1; `engine/everyconversation.py`): every desktop conversation but Codex's
+//! own kinds taken up (P19). It answers one closed word, EVERY_DESKTOP (`Widening`), and decides nothing else.
 
 use car_config::Paths;
+use car_machine::json::Value;
 
-use crate::capabilities::Code;
+use crate::capabilities::{Code, Said, Spoke};
 
-/// `make(paths)`: the capability's code, as `registry.py` names it. None until S7.2e1 ports it: the
-/// runtime then treats the capability as one whose code could not be made (it trips at its first hook).
-pub fn make(_paths: &Paths) -> Option<Box<dyn Code>> {
-    None
+pub const CAPABILITY: &str = "every_conversation";
+/// `Widening.EVERY_DESKTOP`.
+pub const EVERY_DESKTOP: &str = "every_desktop";
+
+/// `EveryConversation(paths)`: its answer at P19.
+pub struct EveryConversation {
+    pub paths: Paths,
+}
+
+impl Code for EveryConversation {
+    /// P19: `frozenset({Widening.EVERY_DESKTOP})`.
+    fn eligibility(&mut self) -> Spoke {
+        Ok(Said::Set(vec![Value::Str(EVERY_DESKTOP.into())]))
+    }
+}
+
+/// `make(paths)`.
+pub fn make(paths: &Paths) -> Option<Box<dyn Code>> {
+    Some(Box::new(EveryConversation {
+        paths: paths.clone(),
+    }))
 }
