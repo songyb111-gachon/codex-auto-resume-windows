@@ -64,7 +64,9 @@ pub fn core_stub(words: &[String]) -> i32 {
 /// The whole of `codex-auto-resume.exe`'s `main`: a panic is caught (D15) and ends with 1.
 pub fn core_main() -> i32 {
     std::panic::set_hook(Box::new(|_| {}));
-    std::panic::catch_unwind(|| core_stub(&arguments())).unwrap_or(1)
+    // A thread with the stack for a deeply nested document (car_machine::stack): the panic it ends with is caught here.
+    std::panic::catch_unwind(|| car_machine::stack::run_deep(|| core_stub(&arguments())))
+        .unwrap_or(1)
 }
 
 /// The command handed to the test double, waited for, its code answered; `None` where no double is named.
@@ -243,7 +245,8 @@ fn install_home() -> Option<PathBuf> {
 /// Without `-Handover` nothing is run (the window that would ask first is P6's).
 pub fn setup_main(edition: &str, words: &[String]) -> i32 {
     std::panic::set_hook(Box::new(|_| {}));
-    std::panic::catch_unwind(|| setup(edition, words)).unwrap_or(FAILED)
+    std::panic::catch_unwind(|| car_machine::stack::run_deep(|| setup(edition, words)))
+        .unwrap_or(FAILED)
 }
 
 fn setup(edition: &str, words: &[String]) -> i32 {

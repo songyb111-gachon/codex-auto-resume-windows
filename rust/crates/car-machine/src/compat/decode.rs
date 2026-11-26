@@ -5,13 +5,16 @@
 //! parse_float=...)`; serde_json refuses a lone surrogate escape and nests no deeper than 128, so this reads
 //! the same grammar by hand (iteratively, so a nesting of thousands costs no stack), in the order Python's
 //! scanner meets things: the first problem it meets decides the code.
+//!
+//! How deep a document may nest is the bundled Python 3.14.10's: a stack budget that a list's level and an object's
+//! level spend differently ([`crate::json::depth`] holds the measurement and the rule), and, for `decode`, the room its
+//! hooks need at the deepest point.
 
+use crate::json::depth::{self, Budget, Hooks};
 use crate::json::{Int, Map, Str, Value};
 use crate::vocab_gen::compat_model::IMPORT_REASONS;
 
-/// The deepest nesting `json.loads` takes before its RecursionError, measured on the reference interpreter
-/// (CPython 3.13, 2998 on a shallow stack): a document nested deeper is `too_deep`.
-pub const MAX_NESTING: usize = 2998;
+pub use crate::json::depth::{LOADS_LIST_LEVELS, LOADS_OBJECT_LEVELS};
 /// Python's limit on the digits of an integer literal.
 const MAX_INT_DIGITS: usize = 4300;
 pub const MAX_DOCUMENT_BYTES: usize = 256 * 1024;
@@ -173,9 +176,6 @@ impl Scanner<'_> {
         let literal: String = self.chars[start..i].iter().collect();
         if real {
             let value: f64 = literal.parse().map_err(|_| Failure::Syntax)?;
-            if self.strict && !value.is_finite() {
-                return Err(Failure::Code("not_finite"));
-            }
             return Ok((Value::Float(value), i));
         }
         if literal.trim_start_matches('-').len() > MAX_INT_DIGITS {
@@ -198,6 +198,30 @@ impl Scanner<'_> {
         Ok((key, self.skip_ws(colon + 1)))
     }
 
+    /// `object_pairs_hook`, called when an object closes (`{}` too): a Python call made from the scanner, which needs
+    /// room on the stack at the deepest point (`decode` passes one; the plain reader has none).
+    fn object_hook(&self, budget: &Budget) -> Result<(), Failure> {
+        if self.strict && !budget.room_for_object_levels(Hooks::OBJECT_PAIRS_OBJECT_LEVELS) {
+            return Err(Failure::TooDeep);
+        }
+        Ok(())
+    }
+
+    /// `NaN`, `Infinity`, `-Infinity`: `decode`'s `parse_constant` hook (a Python call, which then refuses it) or the
+    /// plain reader's own table (a little room too).
+    fn constant(&self, budget: &Budget) -> Result<(), Failure> {
+        if self.strict {
+            if !budget.room_for_list_levels(Hooks::PARSE_CONSTANT_LIST_LEVELS) {
+                return Err(Failure::TooDeep);
+            }
+            return Err(Failure::Code("not_finite"));
+        }
+        if !budget.room_for_list_levels(Hooks::PLAIN_CONSTANT_LIST_LEVELS) {
+            return Err(Failure::TooDeep);
+        }
+        Ok(())
+    }
+
     fn parse(&self) -> Result<Value, Failure> {
         self.parse_at(self.skip_ws(0), true).map(|(value, _)| value)
     }
@@ -206,16 +230,18 @@ impl Scanner<'_> {
     /// only white space may follow it.
     fn parse_at(&self, start: usize, whole: bool) -> Result<(Value, usize), Failure> {
         let mut stack: Vec<Frame> = Vec::new();
+        let mut budget = depth::loads();
         let mut i = start;
         loop {
             let mut done = match self.at(i).ok_or(Failure::Syntax)? {
                 '[' => {
-                    if stack.len() >= MAX_NESTING {
+                    if !budget.enter_list() {
                         return Err(Failure::TooDeep);
                     }
                     i = self.skip_ws(i + 1);
                     if self.at(i) == Some(']') {
                         i += 1;
+                        budget.leave_list();
                         Value::Array(Vec::new())
                     } else {
                         stack.push(Frame::Array(Vec::new()));
@@ -223,12 +249,14 @@ impl Scanner<'_> {
                     }
                 }
                 '{' => {
-                    if stack.len() >= MAX_NESTING {
+                    if !budget.enter_object() {
                         return Err(Failure::TooDeep);
                     }
                     i = self.skip_ws(i + 1);
                     if self.at(i) == Some('}') {
                         i += 1;
+                        self.object_hook(&budget)?;
+                        budget.leave_object();
                         Value::Object(Map::new())
                     } else {
                         let (key, value_at) = self.key(i)?;
@@ -255,29 +283,35 @@ impl Scanner<'_> {
                     Value::Bool(false)
                 }
                 'N' if self.word(i, "NaN") => {
-                    if self.strict {
-                        return Err(Failure::Code("not_finite"));
-                    }
+                    self.constant(&budget)?;
                     i += 3;
                     Value::Float(f64::NAN)
                 }
                 'I' if self.word(i, "Infinity") => {
-                    if self.strict {
-                        return Err(Failure::Code("not_finite"));
-                    }
+                    self.constant(&budget)?;
                     i += 8;
                     Value::Float(f64::INFINITY)
                 }
                 '-' if self.word(i, "-Infinity") => {
-                    if self.strict {
-                        return Err(Failure::Code("not_finite"));
-                    }
+                    self.constant(&budget)?;
                     i += 9;
                     Value::Float(f64::NEG_INFINITY)
                 }
                 _ => {
                     let (value, after) = self.number(i)?;
                     i = after;
+                    if self.strict
+                        && let Value::Float(x) = value
+                    {
+                        // `parse_float` is a Python call from the scanner: it needs room, and then refuses what is
+                        // not finite.
+                        if !budget.room_for_list_levels(Hooks::PARSE_FLOAT_LIST_LEVELS) {
+                            return Err(Failure::TooDeep);
+                        }
+                        if !x.is_finite() {
+                            return Err(Failure::Code("not_finite"));
+                        }
+                    }
                     value
                 }
             };
@@ -302,6 +336,7 @@ impl Scanner<'_> {
                                 i += 1;
                                 done = Value::Array(std::mem::take(items));
                                 stack.pop();
+                                budget.leave_list();
                             }
                             _ => return Err(Failure::Syntax),
                         }
@@ -318,6 +353,7 @@ impl Scanner<'_> {
                             }
                             Some('}') => {
                                 i += 1;
+                                self.object_hook(&budget)?;
                                 let mut map = Map::with_capacity(pairs.len());
                                 for (key, item) in std::mem::take(pairs) {
                                     if map.insert(key, item).is_some() && self.strict {
@@ -326,6 +362,7 @@ impl Scanner<'_> {
                                 }
                                 done = Value::Object(map);
                                 stack.pop();
+                                budget.leave_object();
                             }
                             _ => return Err(Failure::Syntax),
                         }
@@ -418,7 +455,10 @@ mod tests {
         assert!(loads("[NaN, Infinity, -Infinity, 1e999]").is_ok());
         assert!(loads("{\"a\": 1, \"a\": 2}").is_ok());
         assert_eq!(loads("[1,]"), Err(LoadsError::Value));
-        assert_eq!(loads(&"[".repeat(5000)), Err(LoadsError::Recursion));
+        assert_eq!(
+            loads(&"[".repeat(LOADS_LIST_LEVELS as usize + 1)),
+            Err(LoadsError::Recursion)
+        );
     }
 
     #[test]
@@ -429,7 +469,10 @@ mod tests {
         assert_eq!(code("[1e999]"), "not_finite");
         assert_eq!(code("[1,]"), "not_json");
         assert_eq!(code(""), "not_json");
-        assert_eq!(code(&"[".repeat(5000)), "too_deep");
+        assert_eq!(
+            code(&"[".repeat(LOADS_LIST_LEVELS as usize + 1)),
+            "too_deep"
+        );
         assert!(decode("[[], {\"a\": [1.5, \"\\ud83d\\ude00\"]}]".as_bytes(), 1000).is_ok());
         assert!(
             decode(

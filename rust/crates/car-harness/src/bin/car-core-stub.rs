@@ -29,6 +29,11 @@ fn project_root() -> String {
 }
 
 fn main() {
+    // A thread with the stack for a deeply nested document (car_machine::stack).
+    car_machine::stack::run_deep(run);
+}
+
+fn run() {
     let arguments: Vec<String> = std::env::args_os()
         .skip(1)
         .map(|each| each.to_string_lossy().into_owned())

@@ -640,7 +640,9 @@ impl Case {
                     match message {
                         Ok(appserver::Message::End) => break,
                         Ok(appserver::Message::Skipped) => found.push(Value::from("skipped")),
-                        Ok(appserver::Message::Value(map)) => found.push(Value::Object(map)),
+                        Ok(appserver::Message::Value(map)) => {
+                            found.push(crate::leaves::shallow(Value::Object(map)))
+                        }
                         Ok(appserver::Message::TooDeep) => {
                             found.push(Value::from("RecursionError"));
                             break;

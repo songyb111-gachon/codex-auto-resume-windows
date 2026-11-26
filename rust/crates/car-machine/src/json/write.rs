@@ -2,17 +2,19 @@
 
 use std::fmt;
 
+use super::depth::{self, Budget};
 use super::float::push_repr;
-use super::value::{Int, Map, Str, Value, decode};
+use super::value::{Int, Str, Value, decode};
 
 /// Python's limit on an int's decimal digits (`sys.int_info.default_max_str_digits`): past it
 /// `int.__repr__`, and so `json.dumps`, raises ValueError.
 pub const MAX_INT_DIGITS: usize = 4300;
 
-/// How deep arrays and objects may nest before the writer refuses, as Python raises
-/// RecursionError. Python's own depth is not one number: about 1000-3000 on 3.13 and
-/// 5000-20000 on 3.14, by the stack. Nothing the product writes nests past ten.
-pub const MAX_DEPTH: usize = 1000;
+// How deep arrays and objects may nest before the writer refuses, as Python raises RecursionError, is the bundled
+// 3.14.10's C encoder: a stack budget that lists and dicts spend differently, `depth.rs` (DUMPS_LIST_LEVELS,
+// DUMPS_OBJECT_LEVELS). `json.dump` to a stream runs the pure-Python encoder, whose limit is the interpreter's frame
+// count (994-995 levels on 3.14.10, both kinds): nothing the product writes nests past ten, so this one writer takes the
+// C encoder's (AUDIT-v0628).
 
 /// How a value is written: the keyword arguments of `json.dumps`, with `allow_nan=False`
 /// always. [`Options::new`] is `json.dumps`'s defaults; each place's options are in the table
@@ -104,7 +106,8 @@ pub enum Error {
     NotFinite,
     /// An int past [`MAX_INT_DIGITS`]: Python's ValueError "Exceeds the limit (4300 digits)".
     IntTooLong { digits: usize },
-    /// Nested past [`MAX_DEPTH`]: Python's RecursionError.
+    /// Nested past [`DUMPS_LIST_LEVELS`](super::DUMPS_LIST_LEVELS) lists or [`DUMPS_OBJECT_LEVELS`](super::DUMPS_OBJECT_LEVELS)
+    /// objects, or a mix of them that spends as much of the stack: Python's RecursionError.
     TooDeep,
     /// A surrogate code point to be written as itself (`ensure_ascii=False`). Python's
     /// `json.dumps` writes it into its `str`; the product's every way out of that - stdout
@@ -150,10 +153,10 @@ pub fn to_string(value: &Value, options: &Options) -> Result<String, Error> {
     let mut writer = Writer {
         out: String::new(),
         options,
-        depth: 0,
+        budget: depth::dumps(),
         surrogate: false,
     };
-    writer.value(value)?;
+    writer.run(value)?;
     if writer.surrogate {
         return Err(Error::Surrogate);
     }
@@ -163,28 +166,122 @@ pub fn to_string(value: &Value, options: &Options) -> Result<String, Error> {
 struct Writer<'a> {
     out: String,
     options: &'a Options,
-    depth: usize,
+    budget: Budget,
     surrogate: bool,
 }
 
-impl Writer<'_> {
-    fn value(&mut self, value: &Value) -> Result<(), Error> {
-        match value {
-            Value::Null => self.out.push_str("null"),
-            Value::Bool(true) => self.out.push_str("true"),
-            Value::Bool(false) => self.out.push_str("false"),
-            Value::Int(int) => self.int(int)?,
-            Value::Float(x) => {
-                if !x.is_finite() {
-                    return Err(Error::NotFinite);
+/// A container being written: what is left of it.
+enum Frame<'v> {
+    Array {
+        items: &'v [Value],
+        next: usize,
+    },
+    Object {
+        entries: Vec<(&'v Str, &'v Value)>,
+        next: usize,
+    },
+}
+
+impl<'v> Writer<'_> {
+    /// Writes `root` with an explicit stack of the containers it is inside, so a document nested thousands deep costs
+    /// no Rust stack (Python's own limit is the nesting `depth.rs` records, far past what a thread's stack holds as
+    /// recursion).
+    fn run(&mut self, root: &'v Value) -> Result<(), Error> {
+        let mut stack: Vec<Frame<'v>> = Vec::new();
+        let mut value = root;
+        loop {
+            // One value: a scalar is written; a container that holds something opens, and its first item comes next.
+            let mut descended = true;
+            while descended {
+                descended = false;
+                match value {
+                    Value::Null => self.out.push_str("null"),
+                    Value::Bool(true) => self.out.push_str("true"),
+                    Value::Bool(false) => self.out.push_str("false"),
+                    Value::Int(int) => self.int(int)?,
+                    Value::Float(x) => {
+                        if !x.is_finite() {
+                            return Err(Error::NotFinite);
+                        }
+                        push_repr(&mut self.out, *x);
+                    }
+                    Value::Str(text) => self.string(text),
+                    Value::Array(items) => {
+                        // The C encoder checks the depth before it looks inside: an empty list counts too.
+                        if !self.budget.enter_list() {
+                            return Err(Error::TooDeep);
+                        }
+                        if items.is_empty() {
+                            self.budget.leave_list();
+                            self.out.push_str("[]");
+                        } else {
+                            self.out.push('[');
+                            stack.push(Frame::Array { items, next: 1 });
+                            self.break_line(stack.len());
+                            value = &items[0];
+                            descended = true;
+                        }
+                    }
+                    Value::Object(map) => {
+                        if !self.budget.enter_object() {
+                            return Err(Error::TooDeep);
+                        }
+                        if map.is_empty() {
+                            self.budget.leave_object();
+                            self.out.push_str("{}");
+                        } else {
+                            let mut entries: Vec<(&Str, &Value)> = map.iter().collect();
+                            if self.options.sort_keys {
+                                entries.sort_by(|a, b| a.0.cmp(b.0));
+                            }
+                            self.out.push('{');
+                            self.break_line(stack.len() + 1);
+                            let (key, first) = entries[0];
+                            self.key(key);
+                            value = first;
+                            stack.push(Frame::Object { entries, next: 1 });
+                            descended = true;
+                        }
+                    }
                 }
-                push_repr(&mut self.out, *x);
             }
-            Value::Str(text) => self.string(text),
-            Value::Array(items) => self.array(items)?,
-            Value::Object(map) => self.object(map)?,
+            // A value is written: the next item of the container it is in, or the end of that container, upward.
+            loop {
+                let Some(top) = stack.last_mut() else {
+                    return Ok(());
+                };
+                match top {
+                    Frame::Array { items, next } => {
+                        if *next < items.len() {
+                            value = &items[*next];
+                            *next += 1;
+                            self.out.push_str(self.options.item_separator());
+                            self.break_line(stack.len());
+                            break;
+                        }
+                        stack.pop();
+                        self.budget.leave_list();
+                        self.break_line(stack.len());
+                        self.out.push(']');
+                    }
+                    Frame::Object { entries, next } => {
+                        if *next < entries.len() {
+                            let (key, item) = entries[*next];
+                            *next += 1;
+                            value = item;
+                            self.out.push_str(self.options.item_separator());
+                            self.break_line(stack.len());
+                            self.key(key);
+                            break;
+                        }
+                        stack.pop();
+                        self.budget.leave_object();
+                        self.break_line(stack.len());
+                        self.out.push('}');
+                    }
+                }
+            }
         }
-        Ok(())
     }
 
     fn int(&mut self, int: &Int) -> Result<(), Error> {
@@ -197,71 +294,21 @@ impl Writer<'_> {
         Ok(())
     }
 
-    fn enter(&mut self) -> Result<(), Error> {
-        if self.depth >= MAX_DEPTH {
-            return Err(Error::TooDeep);
-        }
-        self.depth += 1;
-        Ok(())
-    }
-
     /// Between two items, and after the opening bracket when indenting: the line break and
-    /// this level's indent.
-    fn break_line(&mut self) {
+    /// the indent of the level the items are at (`depth` containers deep).
+    fn break_line(&mut self, depth: usize) {
         if let Some(level) = &self.options.indent {
             self.out.push('\n');
-            for _ in 0..self.depth {
+            for _ in 0..depth {
                 self.out.push_str(level);
             }
         }
     }
 
-    fn array(&mut self, items: &[Value]) -> Result<(), Error> {
-        if items.is_empty() {
-            self.out.push_str("[]");
-            return Ok(());
-        }
-        self.enter()?;
-        self.out.push('[');
-        self.break_line();
-        for (index, item) in items.iter().enumerate() {
-            if index > 0 {
-                self.out.push_str(self.options.item_separator());
-                self.break_line();
-            }
-            self.value(item)?;
-        }
-        self.depth -= 1;
-        self.break_line();
-        self.out.push(']');
-        Ok(())
-    }
-
-    fn object(&mut self, map: &Map) -> Result<(), Error> {
-        if map.is_empty() {
-            self.out.push_str("{}");
-            return Ok(());
-        }
-        self.enter()?;
-        self.out.push('{');
-        self.break_line();
-        let mut entries: Vec<(&Str, &Value)> = map.iter().collect();
-        if self.options.sort_keys {
-            entries.sort_by(|a, b| a.0.cmp(b.0));
-        }
-        for (index, (key, item)) in entries.into_iter().enumerate() {
-            if index > 0 {
-                self.out.push_str(self.options.item_separator());
-                self.break_line();
-            }
-            self.string(key);
-            self.out.push_str(self.options.key_separator());
-            self.value(item)?;
-        }
-        self.depth -= 1;
-        self.break_line();
-        self.out.push('}');
-        Ok(())
+    /// An object's key and the separator after it.
+    fn key(&mut self, key: &Str) {
+        self.string(key);
+        self.out.push_str(self.options.key_separator());
     }
 
     /// A string as `encode_basestring` (or `encode_basestring_ascii`) writes it.

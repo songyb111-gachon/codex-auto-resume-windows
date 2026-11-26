@@ -183,6 +183,11 @@ fn server(script: &Value, folder: &Path) -> i32 {
 }
 
 fn main() {
+    // A thread with the stack for a deeply nested document (car_machine::stack).
+    car_machine::stack::run_deep(run);
+}
+
+fn run() {
     let folder = beside();
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let cwd = std::env::current_dir()

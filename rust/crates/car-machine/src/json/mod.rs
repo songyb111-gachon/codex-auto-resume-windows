@@ -35,11 +35,13 @@
 //! `json.dump` to a stream (compat/files.py, seen.py, oncewords.py, poweraction.py) runs
 //! Python's pure-Python encoder rather than the C one; their bytes are the same.
 
+pub(crate) mod depth;
 mod float;
 mod read;
 mod value;
 mod write;
 
+pub use depth::{DUMPS_LIST_LEVELS, DUMPS_OBJECT_LEVELS};
 pub use read::{ReadError, from_slice, from_str};
 pub use value::{Int, Map, Str, Value};
-pub use write::{Error, MAX_DEPTH, MAX_INT_DIGITS, Options, to_string};
+pub use write::{Error, MAX_INT_DIGITS, Options, to_string};
