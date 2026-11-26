@@ -17,6 +17,9 @@ use car_policy::plug::{
 
 use crate::wire::{self, field, text, word};
 
+/// A code's `told` callable, held until the test calls it.
+pub type Told = Box<dyn FnOnce() + Send>;
+
 thread_local! {
     /// The view ids of the calls in progress, innermost last: the view a hook of theirs is handed.
     pub static VIEWS: RefCell<Vec<Value>> = const { RefCell::new(Vec::new()) };
@@ -25,7 +28,7 @@ thread_local! {
     /// A code's binding, by (session, capability): what its `Scoped` calls are answered through.
     pub static BINDINGS: RefCell<HashMap<(i64, String), Binding>> = RefCell::new(HashMap::new());
     /// `acted_when_told`'s `told`, by number, until the test calls it.
-    pub static TOLD: RefCell<(i64, HashMap<i64, Box<dyn FnOnce() + Send>>)> = RefCell::new((0, HashMap::new()));
+    pub static TOLD: RefCell<(i64, HashMap<i64, Told>)> = RefCell::new((0, HashMap::new()));
 }
 
 pub fn int(number: i64) -> Value {

@@ -2884,3 +2884,14 @@ these files, since `check` refuses first.
   `reserve_ledgered` without a ledger (S7.2a2's seams left).
 * The 25 "ready" files (no advancedcase, nothing they import waits) have not been run; most reach no forwarded code and
   will go to RUN_WAITS with their module's seat.
+
+### Gates (`CARGO_BUILD_JOBS=4`, `. tools/rustflags.sh` first, rustc 1.100.0)
+
+```
+## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after the `Told` alias); test --locked --no-fail-fast rc=0; cargo deny: all four ok
+## rust            fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
+Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
+privacy_scan.py on every file added                   clean
+```
