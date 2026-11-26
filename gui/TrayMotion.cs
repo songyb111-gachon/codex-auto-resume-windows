@@ -9,8 +9,8 @@
 // generated, at its 24 positions and with .NET's own cosine; the icon's frames here run on `fine` steps and the C
 // runtime's functions, as the Python's do.
 //
-// Not here yet: a special day's motif on the badge (brand.mark_colour and the day looks' bodies, IconFrames' `look`):
-// IconFrames refuses a look rather than drawing a day it does not know.
+// A special day's look (IconFrames' `look`) is the day's body in place of the badge's two colours and, from MOTIF_LEAST
+// px, its mark laid over the badge (_mark_cover, _marked, gui/SurfaceDays.cs's MarkColour).
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -279,12 +279,18 @@ namespace CodexAutoResume
         }
 
         /// The mark's samples, pixel by pixel (icon_samples): rows of (covered, heads, red, green, blue).
-        internal static int[][][] Samples(int size, double rim = 0.0, double? headAngle = null, bool head = true, int[] box = null)
+        internal static int[][][] Samples(int size, double rim = 0.0, double? headAngle = null, bool head = true, int[] box = null,
+                                          string[] body = null)
         {
             int steps = Supersample;
             int scale = size * steps;
             double radius = size >= CornerThreshold ? CornerLarge : CornerSmall;
             int[] topColour = Rgb(Top), bottomColour = Rgb(Bottom), mark = Rgb(Mark);
+            if (body != null)
+            {
+                topColour = SurfaceTheme.Rgb(System.Drawing.ColorTranslator.FromHtml(body[0]));
+                bottomColour = SurfaceTheme.Rgb(System.Drawing.ColorTranslator.FromHtml(body[1]));
+            }
             double start = Radians(ArcStart), end = Radians(ArcEnd);
             double[] centre = HeadCentre(headAngle);
             double headX = centre[0], headY = centre[1];
@@ -358,17 +364,27 @@ namespace CodexAutoResume
         internal IconFrames(int size, int fine = 1, string look = null)
         {
             if (size <= 0 || fine < 1) throw new ArgumentException("an icon has a size, and a position at least one step");
-            if (look != null) throw new NotSupportedException("a special day's mark is not drawn by the host yet: " + look);
             Size = size;
             Fine = fine;
             Look = look;
             int positions = TrayMotion.Positions * Fine;
+            string[] body = null;
+            if (!string.IsNullOrEmpty(look))
+            {
+                string unused, top, bottom;
+                Brand.DayGround(look, out unused, out top, out bottom);
+                if (top == null) throw new KeyNotFoundException(look);
+                body = new[] { top, bottom };
+            }
+            mark = !string.IsNullOrEmpty(look) && size >= MotifLeast ? MarkCover(size, look) : new Dictionary<int, int[]>();
             var ground = new byte[size * size * 4];
-            int[][][] rows = IconMark.Samples(size, 0.0, null, false);
+            int[][][] rows = IconMark.Samples(size, 0.0, null, false, null, body);
             for (int y = 0; y < rows.Length; y++)
                 for (int x = 0; x < rows[y].Length; x++)
                 {
                     int[] pixel = IconMark.Pixel(rows[y][x], new[] { 0, 0, 0 });
+                    int[] cover;
+                    if (pixel[3] != 0 && mark.TryGetValue(y * size + x, out cover)) Marked(pixel, cover);
                     int index = (y * size + x) * 4;
                     ground[index] = (byte)pixel[2];
                     ground[index + 1] = (byte)pixel[1];
@@ -380,8 +396,46 @@ namespace CodexAutoResume
             {
                 double angle = IconMark.ArcEnd - 360.0 * position / positions;
                 int[] box = IconMark.HeadBox(size, angle);
-                heads.Add(new KeyValuePair<int[], int[][][]>(box, IconMark.Samples(size, 0.0, angle, true, box)));
+                heads.Add(new KeyValuePair<int[], int[][][]>(box, IconMark.Samples(size, 0.0, angle, true, box, body)));
             }
+        }
+
+        /// brand.MOTIF_LEAST: the least icon size a day's mark is laid over.
+        internal const int MotifLeast = 24;
+
+        private readonly Dictionary<int, int[]> mark;
+
+        /// {y * size + x: (hits, red, green, blue)} for the pixels `look`'s mark falls on, at an icon this size (_mark_cover).
+        private static Dictionary<int, int[]> MarkCover(int size, string look, int steps = 4)
+        {
+            var cover = new Dictionary<int, int[]>();
+            double unit = 32.0 / size;
+            for (int py = 0; py < size; py++)
+                for (int px = 0; px < size; px++)
+                {
+                    int hits = 0, red = 0, green = 0, blue = 0;
+                    for (int sy = 0; sy < steps; sy++)
+                        for (int sx = 0; sx < steps; sx++)
+                        {
+                            int[] hit = SurfaceDays.MarkColour(look, (px + (sx + 0.5) / steps) * unit, (py + (sy + 0.5) / steps) * unit);
+                            if (hit == null) continue;
+                            hits++;
+                            red += hit[0];
+                            green += hit[1];
+                            blue += hit[2];
+                        }
+                    if (hits > 0) cover[py * size + px] = new[] { hits, red, green, blue };
+                }
+            return cover;
+        }
+
+        /// (red, green, blue) of `pixel` under `cover`'s share of the mark, in place (_marked).
+        private static void Marked(int[] pixel, int[] cover, int steps = 4)
+        {
+            int total = steps * steps, hits = cover[0];
+            pixel[0] = SurfaceMath.Div(pixel[0] * (total - hits) + cover[1], total);
+            pixel[1] = SurfaceMath.Div(pixel[1] * (total - hits) + cover[2], total);
+            pixel[2] = SurfaceMath.Div(pixel[2] * (total - hits) + cover[3], total);
         }
 
         internal int Count { get { return heads.Count; } }
@@ -400,6 +454,8 @@ namespace CodexAutoResume
                 for (int x = 0; x < rows[y].Length; x++)
                 {
                     int[] pixel = IconMark.Pixel(rows[y][x], head);
+                    int[] cover;
+                    if (pixel[3] != 0 && rows[y][x][1] == 0 && mark.TryGetValue((box[1] + y) * Size + box[0] + x, out cover)) Marked(pixel, cover);
                     int index = ((box[1] + y) * Size + box[0] + x) * 4;
                     pixels[index] = (byte)pixel[2];
                     pixels[index + 1] = (byte)pixel[1];

@@ -523,6 +523,20 @@ class SurfaceJob:
                   "lights": [motion.ICON_FOR_LIGHT.get(word, "idle") for word in words]}
         self.add("icon/all", {"surface": "icon", "states": states, "fines": fines, "moments": moments, "sizes": sizes,
                               "stride": stride, "words": words}, result)
+        for look in ("birthday", "new_year", "christmas", "seollal", "chuseok"):
+            pictures = []
+            for size in (16, 24, 32, 48):
+                made = motion.IconFrames(size, 1, look)
+                composed = [hashlib.sha256(made.compose(position, motion.icon_level_colour(motion.icon_head_colour(state),
+                                                                                           position % 24))).hexdigest()
+                            for state in states for position in range(0, len(made.heads), stride)]
+                pictures.append([hashlib.sha256(made.ground).hexdigest(), composed])
+            shown = {"surface": "icon", "states": states, "fines": [1], "moments": [0.0], "sizes": [16, 24, 32, 48],
+                     "stride": stride, "words": words, "look": look}
+            frames_here = [[list(motion.icon_frame(state, 0.0, None, reduced=reduced, fine=1)),
+                            motion.icon_frame_ms(state, 0.0, None, reduced=reduced, fine=1), motion.icon_turn(state, 0.0)]
+                           for state in states for reduced in (False, True)]
+            self.add("icon/" + look, shown, dict(result, frames=frames_here, pictures=pictures))
 
     # High Contrast's system colours, fixed so the paint is the same on every machine (a black scheme's).
     SYSTEM = {"Window": [0, 0, 0], "WindowFrame": [255, 255, 255], "WindowText": [255, 255, 255],

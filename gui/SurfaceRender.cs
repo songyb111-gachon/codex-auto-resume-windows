@@ -486,7 +486,7 @@ namespace CodexAutoResume
             foreach (object size in (List<object>)task["sizes"])
                 foreach (object fine in (List<object>)task["fines"])
                 {
-                    var made = new IconFrames((int)(double)size, (int)(double)fine);
+                    var made = new IconFrames((int)(double)size, (int)(double)fine, Field(task, "look") as string);
                     var composed = new List<object>();
                     foreach (object state in (List<object>)task["states"])
                         for (int position = 0; position < made.Count; position += (int)(double)task["stride"])
