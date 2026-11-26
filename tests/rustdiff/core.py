@@ -51,7 +51,7 @@ def build_rest() -> None:
     advanced examples were built only when missing, and an advstore.exe from before a merge differed): the standard
     workspace's release binaries (car-legacy's python.exe, car-bin's codex-auto-resume.exe, which diffs_review4 runs),
     and, where advanced/ is in the checkout, car-adv's `advprobe`, `advstore`, `advcodex`, `advfake`, `advreport` and
-    `advhook` examples."""
+    `advhook` examples, and S7.2a's `advtrace`."""
     environment = dict(os.environ)
     environment.setdefault("CARGO_BUILD_JOBS", "4")
     subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path", str(CRATE.parents[1] / "Cargo.toml")],
@@ -60,7 +60,7 @@ def build_rest() -> None:
     if advanced.is_file():
         subprocess.run(["cargo", "build", "--release", "--locked", "-p", "car-adv", "--example", "advprobe",
                         "--example", "advstore", "--example", "advcodex", "--example", "advfake", "--example", "advreport",
-                        "--example", "advhook", "--manifest-path", str(advanced)],
+                        "--example", "advhook", "--example", "advtrace", "--manifest-path", str(advanced)],
                        env=environment, check=True, creationflags=NO_WINDOW, timeout=3600)
 
 

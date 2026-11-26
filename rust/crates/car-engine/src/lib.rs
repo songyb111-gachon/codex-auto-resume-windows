@@ -329,16 +329,25 @@ impl Engine {
         self.off_told = false;
         // P19 and P18: which conversations detection takes up from here on (engine/kinds.py).
         self.session_kinds()?;
-        let view = storeview::StoreView;
-        let errand = self.plug.tick(&view);
-        let result = self.tick_recover(&view);
+        // The view is made, its moment read from the clock, where the reference makes it.
+        let now = self.now();
+        let errand = {
+            let view = self.view(now);
+            self.plug.tick(&view)
+        };
+        let result = self.tick_recover(now);
         if let Answer::Is(errand) = errand {
-            self.errand(errand);
+            self.errand(errand, now);
         }
         result
     }
 
-    fn tick_recover(&mut self, view: &storeview::StoreView) -> Py<()> {
+    /// `StoreView(self.store, now, self.last_usage, home_key=self.home_key)`.
+    pub(crate) fn view(&self, now: f64) -> storeview::StoreView<'_> {
+        storeview::StoreView::new(self.store.as_ref(), now, self.last_usage(), &self.home_key)
+    }
+
+    fn tick_recover(&mut self, now: f64) -> Py<()> {
         if self.collect().is_err() {
             self.detection_failed = Some(true);
             self.log(None, "detection_unavailable_no_submission", Value::Null);
@@ -363,8 +372,8 @@ impl Engine {
         if !self.plug.is_null() {
             self.resend_uncertain();
         }
-        // P2: the records of the advanced store that are due (engine/plugrecords.py).
-        self.plug_records(view);
+        // P2: the records of the advanced store that are due (engine/plugrecords.py), on the tick's view.
+        self.plug_records(now);
         Ok(())
     }
 
@@ -373,15 +382,36 @@ impl Engine {
         if self.plug.is_null() || !self.plug.wants(Point::Resident) {
             return;
         }
-        if let Answer::Is(errand) = self.plug.resident(&storeview::StoreView) {
-            self.errand(errand);
+        let now = self.now();
+        let errand = {
+            let view = self.view(now);
+            self.plug.resident(&view)
+        };
+        if let Answer::Is(errand) = errand {
+            self.errand(errand, now);
         }
     }
 
-    /// `_errand(errand)` (P8, v0.6.14): run once, last in the tick. The errand's guards (store/claims.py
-    /// `errand_guard`) are the advanced store's and not ported (S7.2): an errand here is one that raised.
-    fn errand(&mut self, _errand: Box<dyn car_policy::plug::Errand>) {
-        self.log(None, "plug_errand_failed", Value::Null);
+    /// `_errand(errand)` (P8, v0.6.14): run once, last in the tick, handed a way to ask for the store's errand guards
+    /// (`store.errand_guard(held=self.errand_held)`), each of which also asks what the engine knows and the store does
+    /// not (`errand_held`). One that raises - or panics (D15) - is logged from the fixed table and costs itself alone.
+    fn errand(&mut self, errand: Box<dyn car_policy::plug::Errand>, now: f64) {
+        let ran = {
+            let engine = &*self;
+            let view = engine.view(now);
+            let mut guards = |body: &mut dyn FnMut(bool) -> Value| {
+                engine
+                    .store
+                    .errand_guard(&mut || engine.errand_held(), body)
+                    .map_err(|_| car_policy::plug::HookFailed)
+            };
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                errand.run(&view, &mut guards)
+            }))
+        };
+        if !matches!(ran, Ok(Ok(_))) {
+            self.log(None, "plug_errand_failed", Value::Null);
+        }
     }
 
     /// `_records(states)`: this engine's own home's records in `states` (v0.6.15-beta): never another home's.

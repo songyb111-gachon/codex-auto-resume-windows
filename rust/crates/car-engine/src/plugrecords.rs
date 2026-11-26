@@ -12,15 +12,18 @@ use car_machine::json::{Map, Value};
 
 use crate::Engine;
 use crate::py::{get, text_of};
-use crate::storeview::StoreView;
 
 /// The most wrap-ups, flying records and noted records kept (`NOTED_LIMIT`).
 pub const NOTED_LIMIT: usize = 4096;
 
 impl Engine {
     /// `plug_records(view)`: P2 - every record the plug hands over, each costing only itself.
-    pub fn plug_records(&mut self, view: &StoreView) {
-        let Ok(records) = self.plug.records(view) else {
+    pub fn plug_records(&mut self, now: f64) {
+        let records = {
+            let view = self.view(now);
+            self.plug.records(&view)
+        };
+        let Ok(records) = records else {
             return;
         };
         for record in records {

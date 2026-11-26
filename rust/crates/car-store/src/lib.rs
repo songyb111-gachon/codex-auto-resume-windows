@@ -36,6 +36,7 @@ pub mod legacy;
 pub mod machine;
 pub mod migrations;
 pub mod open;
+pub mod plugclaims;
 pub mod policy;
 pub mod records;
 pub mod schedule;

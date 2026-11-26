@@ -172,6 +172,13 @@ impl car_engine::Store for EngineStore {
     ) -> Py<Value> {
         py(self.0.submission_guard(interruption_id, body))
     }
+    fn errand_guard(
+        &self,
+        held: &mut dyn FnMut() -> Py<bool>,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        py(self.0.errand_guard(Some(held), body))
+    }
     fn recent_claims(&self, thread_id: &str, since: f64) -> Py<Vec<Value>> {
         py(self.0.recent_claims(thread_id, since))
     }

@@ -116,6 +116,16 @@ pub trait Store: car_scheduler::Store {
     ) -> Py<Option<Row>>;
     fn early_check_asked(&self, now: f64) -> Py<bool>;
     fn early_check_taken(&self) -> Py<()>;
+    /// `with store.errand_guard(held=held) as permitted:` (P8's errand, store/plugclaims.py): `body` runs inside the
+    /// write lock; `held` is asked there only where the store permits. A store that has none raises AttributeError,
+    /// which the errand meets as the reference's raise.
+    fn errand_guard(
+        &self,
+        _held: &mut dyn FnMut() -> Py<bool>,
+        _body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        Err("AttributeError")
+    }
 }
 
 /// The engine's reader of Codex: `LocalSource`'s methods the engine calls, beyond the watch's.

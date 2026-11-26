@@ -60,6 +60,13 @@ impl car_scheduler::Store for Caught<dyn Store> {
 }
 
 impl Store for Caught<dyn Store> {
+    fn errand_guard(
+        &self,
+        held: &mut dyn FnMut() -> Py<bool>,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        car_scheduler::caught(|| self.0.errand_guard(held, body))
+    }
     fn record_gates(&self, interruption_id: &str, gates: &Vector, now: f64) -> Py<()> {
         car_scheduler::caught(|| self.0.record_gates(interruption_id, gates, now))
     }
