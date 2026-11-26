@@ -550,3 +550,17 @@ The reference is the v0.6.26 final (`--reference v0.6.26`).
 | `diffs_watcher_check.py` | the Diagnostics check's `lines` in all 22 languages over generated results, `_summary`, `_usage`, `_ago`, `_within`, `_reason`; Rescan's `proofs` and `judge` over a scripted engine (retired, rechecked, every unresolved reason, a call that raises at each step, out of time) |
 
 The re-diff: `python -X utf8 tests/rustdiff/rediff_watcher.py --reference v0.6.26`.
+
+## The final-port seat (FINAL-DELTA.md, the v0.6.26 final)
+
+The rows of the v0.6.26 final whose crates existed, ported from the tag itself. The reference is the v0.6.26 final
+(`--reference v0.6.26`).
+
+| Module | Proves |
+|---|---|
+| `diffs_codex_homes.py` (`history-absent-*`), `diffs_codex_compat_io.py` (`schema_variants`) | `HistoryNotYet` (`codex/errors.py`, `schema.py` `resolve`, `_history_not_made`, `history.py` `_no_conversation`) and `source_checks`' three-way `threads`: a home with no history whose state holds no conversation, one, a queue beside it, a state of a refused schema, no threads table, not a database, none at all, an empty newer state beside an older one with a conversation |
+| `diffs_review6.py` (`r6_fresh_home_*`) | engine/detect's catch: a fresh home detects nothing and says no failure; then Codex makes its history and the first failure is detected |
+| `diffs_finalport.py` StatusMeterDiff | `get_status`'s usage rule over 5 stored readings x 32 plugs (a `status_plug` the reference's `edition.plug` and car-harness's `StatusPlug` both add): newer, older, the same time, read_at of every type, windows core cannot keep, a band, three of a bucket, `added` that is no dict |
+| `diffs_finalport.py` PackageEnginesDiff | `package_engines`, `_package_engines` and `_binding_holds` over a scratch WindowsApps: the world's `packages` (appserverdiff's `fake_packages` and car-harness's `World::package_roots`, never this PC's), roots of 17 kinds x signed or not x the app open, closed or refused, then the engine replaced and gone |
+
+The re-diff: `python -X utf8 tests/rustdiff/rediff_finalport.py --reference v0.6.26`.
