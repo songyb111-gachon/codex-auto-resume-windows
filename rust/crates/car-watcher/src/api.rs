@@ -231,7 +231,7 @@ impl LauncherWorld for SystemLauncher {
             car_platform::spawn::Stream::Null,
         );
         car_platform::spawn::SystemStarter
-            .start(&spawn)
+            .start_guarded(&spawn, cfg!(test))
             .map(|child| Box::new(Process(child)) as Box<dyn Child>)
             .map_err(|error| error.to_string())
     }
@@ -250,7 +250,7 @@ impl LauncherWorld for SystemLauncher {
                 car_platform::spawn::Stream::Null,
             );
         car_platform::spawn::SystemStarter
-            .start(&spawn)
+            .start_guarded(&spawn, cfg!(test))
             .map(|_| ())
             .map_err(|error| error.to_string())
     }

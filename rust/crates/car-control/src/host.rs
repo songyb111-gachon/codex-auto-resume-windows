@@ -688,7 +688,7 @@ impl Host for SystemHost {
             .with_flags(flags)
             .with_streams(Stream::Null, Stream::Null, Stream::Null)
             .with_cwd(cwd);
-        match SystemStarter.start(&request) {
+        match SystemStarter.start_guarded(&request, cfg!(test)) {
             Ok(child) => Ok(Box::new(Started(child))),
             Err(car_platform::spawn::SpawnError::Os(error)) => {
                 Err(Raised::new("OSError", os_error_text(&error)))
@@ -797,5 +797,8 @@ pub fn path_of(text: &str) -> PathBuf {
 impl car_config::Links for Probe {
     fn is_symlink(&self, path: &Path) -> bool {
         car_platform::links::is_symlink(path)
+    }
+    fn engine_refused(&self, path: &str) -> bool {
+        car_platform::realengine::refused(cfg!(test), path)
     }
 }

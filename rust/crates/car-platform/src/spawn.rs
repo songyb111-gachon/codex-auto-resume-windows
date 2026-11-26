@@ -155,12 +155,24 @@ pub struct SystemStarter;
 impl SystemStarter {
     /// Start without waiting: the child is the caller's (a watcher left running, a Codex server).
     pub fn start(&self, spawn: &Spawn) -> Result<Child, SpawnError> {
+        self.start_guarded(spawn, false)
+    }
+
+    /// [`SystemStarter::start`] with the caller's own `cfg!(test)` given as `test`: where the real-engine guard is on
+    /// (`test`, this crate's tests or `CAR_NO_REAL_ENGINE`), this PC's Codex engine or app is refused as a program
+    /// that is not there (`realengine`).
+    pub fn start_guarded(&self, spawn: &Spawn, test: bool) -> Result<Child, SpawnError> {
         let (program, rest) = spawn.argv.split_first().ok_or_else(|| {
             SpawnError::Os(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "no program",
             ))
         })?;
+        // The real-engine guard: this PC's Codex is never started from a test (`realengine`).
+        let on = test || cfg!(test) || crate::realengine::switched();
+        if crate::realengine::start_refused(on, &spawn.argv) {
+            return Err(SpawnError::Os(std::io::Error::from_raw_os_error(2)));
+        }
         // The one `Command::new` of the core (PLAN 6.7).
         let mut command = Command::new(program);
         if !rest.is_empty() {

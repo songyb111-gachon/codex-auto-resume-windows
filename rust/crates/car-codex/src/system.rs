@@ -83,6 +83,9 @@ impl car_config::Links for Links {
     fn is_symlink(&self, path: &std::path::Path) -> bool {
         car_platform::links::is_symlink(path)
     }
+    fn engine_refused(&self, path: &str) -> bool {
+        car_platform::realengine::refused(cfg!(test), path)
+    }
 }
 
 fn started() -> &'static Instant {
@@ -97,8 +100,21 @@ impl System for Platform {
 
     fn processes_named(&self, names: &[&str], families: &[&str]) -> Result<Vec<Value>> {
         let rows = car_platform::kernel::processes_named(names, families)?;
+        // The real-engine guard (car-platform `realengine`): in this crate's tests too, this PC's Codex is not listed.
+        let guarded = cfg!(test) || car_platform::realengine::switched();
         Ok(rows
             .into_iter()
+            .filter(|row| {
+                !(guarded
+                    && (row
+                        .path
+                        .as_deref()
+                        .is_some_and(car_platform::realengine::is_real_engine)
+                        || row
+                            .family
+                            .as_deref()
+                            .is_some_and(car_platform::realengine::is_real_family)))
+            })
             .map(|row| {
                 object(vec![
                     ("pid", Value::from(i64::from(row.pid))),

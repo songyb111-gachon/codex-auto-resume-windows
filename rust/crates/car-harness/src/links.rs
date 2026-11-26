@@ -22,6 +22,9 @@ impl car_config::Links for Probe {
     fn find_first_file(&self, path: &str) -> Result<String, i32> {
         car_platform::paths::find_first_file(path)
     }
+    fn engine_refused(&self, path: &str) -> bool {
+        car_platform::realengine::refused(cfg!(test), path)
+    }
 }
 
 /// The probe, for car-store.

@@ -159,7 +159,9 @@ class Scratch:
                         APPDATA=str(base / "local"), CODEX_HOME=str(base / "codex"), PYTHONPATH=str(ROOT / "src"),
                         # Both watchers discover codex.exe at their first tick: a named engine that is not there ends
                         # discovery before any candidate - this PC's, or one the ChatGPT app runs - is started.
-                        CODEX_AUTO_RESUME_CODEX_EXE=str(base / "no-codex" / "codex.exe"))
+                        CODEX_AUTO_RESUME_CODEX_EXE=str(base / "no-codex" / "codex.exe"),
+                        # And the core's real-engine guard (car-platform realengine), whatever the test names.
+                        CAR_NO_REAL_ENGINE="1")
 
     def host(self, cwd: Path | None = None, env: dict | None = None) -> subprocess.Popen:
         return self.keep(subprocess.Popen([str(self.bin / "CodexAutoResume.exe"), "--home", str(self.home), "run"],

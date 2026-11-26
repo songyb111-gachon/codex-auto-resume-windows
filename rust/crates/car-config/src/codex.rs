@@ -189,7 +189,13 @@ pub fn candidate_codex_exes(env: Env, os: &Os) -> Result<Vec<String>, ConfigErro
                 && !os.links.is_symlink(Path::new(&exe))
                 && let Ok(real) = os.resolve(&exe)
             {
-                found.push(winpath::path_str(&real));
+                let real = winpath::path_str(&real);
+                // The real-engine guard: this PC's own build is not found where the guard is on.
+                if !crate::paths::engine_refused(os, &exe)
+                    && !crate::paths::engine_refused(os, &real)
+                {
+                    found.push(real);
+                }
             }
         }
     }
@@ -280,7 +286,11 @@ pub fn discover_codex_exe(
             .resolve(&expanded)
             .map(|found| winpath::path_str(&found))
             .map_err(|code| ConfigError(format!("OSError {code}")))?;
-        if !Path::new(&path).is_file() {
+        // The real-engine guard: a named build that is this PC's own is as if it were not there.
+        if !Path::new(&path).is_file()
+            || crate::paths::engine_refused(os, &expanded)
+            || crate::paths::engine_refused(os, &path)
+        {
             return Err(ConfigError("Configured codex.exe does not exist".into()).into());
         }
         compatible(&path).map_err(DiscoverError::Check)?;
@@ -297,6 +307,8 @@ pub fn discover_codex_exe(
             .unwrap_or_default()
             .iter()
             .map(|path| winpath::path_str(path))
+            // The real-engine guard: what the app runs on this PC is not listed where the guard is on.
+            .filter(|path| !crate::paths::engine_refused(os, path))
             .collect();
         let known: BTreeSet<String> = candidates.iter().map(|path| normcase(path)).collect();
         let extra: Vec<String> = listed

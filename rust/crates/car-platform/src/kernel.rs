@@ -420,7 +420,15 @@ pub fn processes_named(
             && family
                 .as_ref()
                 .is_some_and(|f| kinds.contains(&f.to_lowercase()));
-        if named || by_family {
+        // The real-engine guard: where it is on, the Codex app's processes and engines are not listed (`realengine`).
+        let hidden = (cfg!(test) || crate::realengine::switched())
+            && (path
+                .as_deref()
+                .is_some_and(crate::realengine::is_real_engine)
+                || family
+                    .as_deref()
+                    .is_some_and(crate::realengine::is_real_family));
+        if (named || by_family) && !hidden {
             found.push(NamedProcess {
                 pid,
                 parent,

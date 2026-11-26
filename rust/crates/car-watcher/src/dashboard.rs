@@ -80,7 +80,7 @@ pub fn open_dashboard(
     if let Some(asked) = &asked {
         arguments.push(format!("--dialog={asked}"));
     }
-    let _ = SystemStarter.start(&Spawn::new(arguments).with_cwd(home));
+    let _ = SystemStarter.start_guarded(&Spawn::new(arguments).with_cwd(home), cfg!(test));
     Ok(true)
 }
 
@@ -103,6 +103,6 @@ pub fn open_chat(home: &Path, thread_id: &Value) -> Result<bool, ValueError> {
         "--capability=codex_chat".into(),
         format!("--chat={thread}"),
     ];
-    let _ = SystemStarter.start(&Spawn::new(arguments).with_cwd(home));
+    let _ = SystemStarter.start_guarded(&Spawn::new(arguments).with_cwd(home), cfg!(test));
     Ok(true)
 }

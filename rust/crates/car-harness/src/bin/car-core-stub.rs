@@ -29,6 +29,9 @@ fn project_root() -> String {
 }
 
 fn main() {
+    // The real-engine guard (car-platform `realengine`): a test-only binary never finds, lists or starts this PC's
+    // installed Codex engine or app. SAFETY: the first statement of main, before any thread exists.
+    unsafe { std::env::set_var("CAR_NO_REAL_ENGINE", "1") };
     // A thread with the stack for a deeply nested document (car_machine::stack).
     car_machine::stack::run_deep(run);
 }

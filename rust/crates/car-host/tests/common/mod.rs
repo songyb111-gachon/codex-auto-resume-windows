@@ -56,6 +56,8 @@ pub fn scratch(name: &str, settings: Option<&str>) -> Scratch {
             base.join("no-codex").join("codex.exe"),
         );
         std::env::set_var("LANG", "en_US.UTF-8");
+        // The real-engine guard (car-platform `realengine`): no engine or app of this PC is found, listed or started.
+        std::env::set_var("CAR_NO_REAL_ENGINE", "1");
         for name in [
             "CODEX_AUTO_RESUME_HOME",
             "CODEX_AUTO_RESUME_RELAUNCHED",
