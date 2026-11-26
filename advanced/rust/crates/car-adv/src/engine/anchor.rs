@@ -308,7 +308,9 @@ pub fn running_reset(reading: &Value, now: f64) -> Py<Option<i64>> {
     let Some(reset) = int(field(&five, "reset_at")) else {
         return Ok(None);
     };
-    if !(numeric(item(&five, "used_percent")?)? > 0.0) {
+    // `not five["used_percent"] > 0`: a NaN is not above it either.
+    if numeric(item(&five, "used_percent")?)?.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater)
+    {
         return Ok(None);
     }
     Ok(((reset as f64) > now).then_some(reset))
@@ -1348,7 +1350,8 @@ pub fn finish_request(child: std::process::Child, timeout: f64) -> Finished {
                 refused: code != 0 && !thread_started(&printed) && refused(&errors),
             }
         }
-        Err((mut child, back)) => {
+        Err(late) => {
+            let super::updatecheck::Late { mut child, back } = *late;
             let _ = child.kill();
             let started = std::time::Instant::now();
             while started.elapsed().as_secs_f64() < KILL_WAIT {

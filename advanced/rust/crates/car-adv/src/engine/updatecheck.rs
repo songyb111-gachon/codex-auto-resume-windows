@@ -323,10 +323,7 @@ fn returncode(status: std::process::ExitStatus) -> i64 {
 
 /// `process.communicate(timeout=seconds)`: (exit code, stdout, stderr), or the child back where it has not ended
 /// in time (its pipes still drained by threads of their own, as `communicate` after a TimeoutExpired would).
-pub(crate) fn communicate(
-    mut child: Child,
-    seconds: f64,
-) -> Result<(i64, Vec<u8>, Vec<u8>), (Child, ReadBack)> {
+pub(crate) fn communicate(mut child: Child, seconds: f64) -> Result<Ended, Box<Late>> {
     let reader = |stream: Option<Box<dyn Read + Send>>| {
         let kept = Arc::new(Mutex::new(Vec::new()));
         let writing = kept.clone();
@@ -370,12 +367,26 @@ pub(crate) fn communicate(
             Ok(None) if started.elapsed().as_secs_f64() < seconds => {
                 std::thread::sleep(Duration::from_millis(20));
             }
-            _ => return Err((child, ReadBack { out, err })),
+            _ => {
+                return Err(Box::new(Late {
+                    child,
+                    back: ReadBack { out, err },
+                }));
+            }
         }
     }
 }
 
 type Drain = (Arc<Mutex<Vec<u8>>>, Option<std::thread::JoinHandle<()>>);
+
+/// A child that ended: its exit code, what it printed, and what it wrote on stderr.
+pub(crate) type Ended = (i64, Vec<u8>, Vec<u8>);
+
+/// A child that has not ended in time, and its pipes still drained.
+pub(crate) struct Late {
+    pub(crate) child: Child,
+    pub(crate) back: ReadBack,
+}
 
 /// The pipes of a child that has not ended in time, still drained.
 pub(crate) struct ReadBack {
@@ -445,7 +456,8 @@ pub fn run_check(
             Value::Int(code.into()),
             String::from_utf8_lossy(&printed).into_owned(),
         )),
-        Err((child, back)) => {
+        Err(late) => {
+            let Late { child, back } = *late;
             // Left to finish, as the window leaves a check it calls "running": what it prints is read and dropped.
             std::thread::spawn(move || {
                 let mut child = child;

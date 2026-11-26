@@ -320,7 +320,12 @@ impl WakeForReset {
             Some(due) => Some(due - 60.0 * self.lead()?),
         };
         // `wake_at is None or wake_at <= now` (a NaN goes on, as in the reference).
-        let Some(wake_at) = wake_at.filter(|at| !(*at <= now)) else {
+        let Some(wake_at) = wake_at.filter(|at| {
+            !matches!(
+                at.partial_cmp(&now),
+                Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+            )
+        }) else {
             if self.with_timer(|timer| timer.cancel())? {
                 self.count(&bound, "cancelled")?;
             }
