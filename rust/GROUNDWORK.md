@@ -1820,3 +1820,137 @@ extracted by `diffs_bridge_commands` about an hour before `diffs_settings_files`
   them that edits those places conflicts there. unicode16's S1 turns `ShippedInterpreterDiff` green.
 * **Any new D15 boundary**: car-machine `caught` (`catch`, `caught`, `class_of`, `Raised`/`raised`), not a new `catch_unwind`.
 * **S6.1 (car-watcher)**: unchanged from Integration 6's notes; car-surface's popup reads `car_machine::domain::usage::newest`.
+
+## P6 step 0: the host contracts (seat S6.2, branch `car-v0627-p6abi`, 2026-11-26)
+
+Cut from `car-v0627-rust` `ac3a8d612` (Integration 7). `outputs/plans/v0627-rust/P6-DESIGN.md` 1.2 (the exports), 1.3 (panics), 1.5
+(the closed tables) and 4.1 step 0, under the owner's answers Q1-Q10 (section 6). Nothing is ported: these are the shapes S6.1,
+S6.2a, S6.2b and S6.3 build on. No window was shown, no shipped window source changed (`gui/window.sources` and `build/make_gui.ps1`
+are as they were), nothing was pushed.
+
+### What is here
+
+| Path | What |
+|---|---|
+| `rust/crates/car-host/src/abi.rs` | `ABI = 1`; `EXPORTS` (the six, in 1.2's order); `Factory = fn() -> Guarded`; the event table `EventKind` (8: `surfaces snapshot strings settings notice demo close ended`, each with its `fields()`), `Event` (+ `Surfaces`), `Event::to_json`; the action table `ActionKind` (14: `tray_started closed cards_attached cards_detached toggle stop open_dashboard open_chat notice_action notice_complete popup disarm_power mark_seen failure_seen`, each with its `fields()`), `POPUP_CALLS` (= `CONTROL_CALLS`, ui/popup/model.py:34-35), `Action::parse`; `Refusal` (`bad_request unknown_action not_ported not_started panic`); the six bodies over the empty core; `queue(Event)`, `panics()`, `is_live(ptr)`; and `export_core!($factory)`, the macro that makes the six `#[unsafe(no_mangle)] extern "C"` functions |
+| `rust/crates/car-host/src/lib.rs` | `export_core!(car_policy::plug::Guarded::null)` under the feature `exports` (default on) |
+| `gui/HostCore.cs` | the six `DllImport`s (`Cdecl`, `ExactSpelling = true`, `EntryPoint` named) and the wrappers `Start`, `Stop`, `Bridge`, `NextEvent`, `PostAction`; `Take` copies a reply out with `Marshal.Copy` and calls `car_free` in a `finally` |
+| `gui/ISurfaces.cs` | `HostEvents` and `HostActions` (+ `PopupCalls`): the tables' words as constants and `All` arrays in the tables' order; `IHostActions.Post(action, fields)` (a worker thread's way back); `SurfacesEvent` (`Icon Strings Settings Edition Demo`, + `Actions`, set by the pump); `ISurfaces`: `Start(SurfacesEvent)`, `Snapshot`, `Strings`, `Settings`, `Notice`, `Demo`, `Close` (one per event but `ended`, which is the pump's) |
+| `rust/crates/car-host/tests/abi_exports.rs` | the export-table test (the built DLL's PE export directory, never loaded) and the six's fn types pinned |
+| `tests/test_host_contract.py` | the `DllImport` test, the names test, the compile check (standard lane; needs the in-box csc) |
+
+Beside them: car-host depends on car-machine (the JSON writer and reader, D5/D12) and car-policy (`Guarded`), so check_groundwork's
+`EXPECTED` row says so and both locks list the two; check_groundwork's D3 rule gains `EXPORTERS = {"car-host"}`, where an
+`extern "C" fn` **definition** (an export of the DLL) passes and an `extern "C" { ... }` import block still fails;
+`advanced/rust/crates/car-adv-host/Cargo.toml` takes car-host with `default-features = false` (inert today: its `lib.rs` is empty);
+`tests/guiscan.py` lists the two C# files as `HOST`, inside `SEPARATE`, so `test_guiscan` knows them.
+
+### The contracts
+
+**These change only by the main session's word, and the change goes to every P6 seat** (P6-DESIGN 4.1).
+
+* **The six** (`abi.rs`, `export_core!`; `gui/HostCore.cs`):
+
+  | Rust (`extern "C"`) | C# | Empty core |
+  |---|---|---|
+  | `car_start(*const u8, usize, *mut usize) -> *mut u8` | `IntPtr car_start(byte[], UIntPtr, out UIntPtr)` | `{"abi": 1, "ok": false, "error": "bad_request"}` unless the request is an object whose `argv` is a list of texts; then `{"abi": 1, "ok": false, "error": "not_ported"}`. S6.1/S6.2b: `{"abi": 1, "ok": true}` |
+  | `car_stop() -> i32` | `int car_stop()` | 0 (nothing to stop is stopped at once); -1 after a caught panic |
+  | `car_bridge(*const u8, usize, *mut usize) -> *mut u8` | `IntPtr car_bridge(byte[], UIntPtr, out UIntPtr)` | `bad_request` for bytes it cannot read, else `{"ok": false, "error": "not_started"}`. S6.2b: the bytes `bridge serve` writes (car-control `bridge`) |
+  | `car_next_event(u32, *mut usize) -> *mut u8` | `IntPtr car_next_event(uint, out UIntPtr)` | NULL with `*out_len = 0` once `timeout_ms` passed (it waits on a condvar, it does not spin); an event queued with `abi::queue` comes out at once as `{"kind": ..., <fields>}` |
+  | `car_post_action(*const u8, usize, *mut usize) -> *mut u8` | `IntPtr car_post_action(byte[], UIntPtr, out UIntPtr)` | `bad_request` (not an object with a text `action`), `unknown_action` (a name outside the 14, or `popup` whose `call` is not a text in `POPUP_CALLS`), else `not_started` |
+  | `car_free(*mut u8, usize)` | `void car_free(IntPtr, UIntPtr)` | frees a reply it handed out with that length, once; NULL, a pointer it never made, a wrong length or a second free frees nothing |
+
+* **The wire.** UTF-8 JSON both ways; replies are car-machine's `Options::wire()` (`json.dumps(..., ensure_ascii=False)`: `", "` and
+  `": "`), keys in the order the tables write them. A request field left out reads as null. Field types are not checked at the
+  boundary: each action reads its fields as the reference reads them (`bool(paused)`), so the boundary is never stricter.
+* **One allocator.** Every reply is a leaked `Box<[u8]>` whose address and length the core records; `car_free` takes back only a
+  recorded pair. A null `out_len` makes the call do nothing and answer NULL (a reply the host cannot measure, it cannot free).
+* **Panics (D15).** Every export body runs inside `catch_unwind` (car-machine's `caught::catch`); a caught panic answers
+  `{"ok": false, "error": "panic"}` (`car_start`'s with `"abi": 1` first, `car_stop` -1, `car_free` nothing) and counts in
+  `abi::panics()`. The exports are `extern "C"`, so anything that escapes aborts rather than unwinding into the CLR. The tests trip
+  a panic inside each real body through a `#[cfg(test)]` thread-local (`abi::trip`): nothing of it is in a built DLL.
+* **One generic entry (Q3; P7-DESIGN 2.4).** `export_core!(factory)` is the whole difference between the editions' DLLs. The
+  standard build is car-host's own (`exports` on). The advanced build is car-adv-host: car-host with `default-features = false`,
+  and `car_host_lib::export_core!(<its plug factory>)` in its `lib.rs` (S6.2b with S7.3d). Until that line is written the advanced
+  `car_core.dll` exports nothing; the two editions' six never meet in one DLL, which a duplicate symbol would refuse anyway.
+
+### How the two C# files are compiled without changing the window
+
+They are on no compile list the product reads. `tests/test_host_contract.py` `BuildTests` compiles them alone with the in-box csc
+(`-target:library -platform:x64 -warnaserror`, into a temporary folder; nothing is run or loaded) and checks they are neither on
+`gui/window.sources` nor named in `build/make_gui.ps1`. When S6.2b writes `gui/host.sources` (`[host]`), it takes them there, and in
+the same commit turns `BuildTests.test_the_shipped_window_does_not_compile_them` into "on host.sources, not on window.sources"
+and moves `guiscan.HOST` from `SEPARATE` to the second list guiscan learns (P6-DESIGN 1.7).
+
+### Proofs
+
+* **car-host's unit tests** (`abi.rs`, 8): each export's reply on the empty core, byte for byte (`start`: `not_ported`, nine
+  `bad_request` shapes, bytes that are not UTF-8, a null pointer with a length; `stop` 0; `bridge` `not_started`/`bad_request`;
+  `next_event` NULL after its timeout and at 0, and a queued `ended` that wakes a pull already waiting); every one of the 14 actions
+  and the ten popup calls `not_started`, six names outside the table `unknown_action`, five shapes `bad_request`; `car_free` once
+  (a wrong length, an inner pointer, NULL and a second free leave or free nothing); a panic tripped inside each of the six real
+  bodies is answered as above, counted, and the next call runs.
+* **`tests/abi_exports.rs`** (2): the built DLL's export directory is exactly the six, no ordinal-only and no forwarded export, its
+  DLL name `car_core.dll`; and the six are pinned to their fn types and called through the rlib. Run on the debug DLL and, with
+  `CAR_CORE_DLL`, on the release one (`lto = "fat"`, stripped): the same six. `CAR_CORE_DLL` naming a missing file fails the test.
+* **`tests/test_host_contract.py`** (11; the compile test needs the in-box csc).
+* **Mutation checks** (each alone, restored after): a seventh export `car_send` in car-host -> `abi_exports` fails (the table lists
+  it); `car_next_event(int ...)` in HostCore.cs -> `test_host_contract` 2 fails (the type, and csc); `CallingConvention.StdCall` on
+  the imports -> 6 fails; `"disarm_power"` renamed in ISurfaces.cs -> fails; an eleventh popup call -> fails; an
+  `unsafe extern "C" { fn GetTickCount() -> u32; }` block in car-host -> check_groundwork's D3 FAIL.
+* **The window unchanged**: `build/make_gui.ps1` run on `git archive` trees of `ac3a8d612` and of this branch's head, both
+  editions, into scratch folders: every `.exe` byte-identical (standard `CodexAutoResumeSettings.exe` `ec1ae342...`,
+  `codex-auto-resume-mcp.exe` `382bbb9c...`; advanced `CodexAutoResumeSettings.exe` `101f257d...`).
+* **The Python guards** (standard lane, `wait_quiet.sh`, one run): `test_host_contract test_guiscan test_consumer_fields
+  test_gui_chrome_sources test_gui_scrollbar_no_light test_l10n test_managed test_release_list_bound test_rtl_values_kept
+  test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_srcscan test_structural_invariants test_rust_release
+  test_rust_install`, and the source-scan classes of the window modules that glob `gui/*.cs` (`test_gui_dialog_icons.DialogIconTests`,
+  `test_gui_v0624_dialog_corner.SourceTests`, `test_gui_v0624_setup_corner.SourceTests`, `test_gui_v065_controls.SourceRuleTests`,
+  `test_gui_window_corner.SwitchTests.test_every_hook_is_behind_the_corner_the_switch_makes`, `test_setup_words.EnglishLookTests
+  .test_the_installer_and_the_bootstrap_ask_for_english_and_nothing_else_does`, `test_chosen_runtime.StandardEditionTests`,
+  `test_no_console_windows.WindowStartTests`, `test_remote_debug_off.StaticTests`): Ran 264, one red, `test_privacy_bare_hosts`
+  (the comments' `abi.rs` read as a host; reworded, `93657f2ad`), then `test_privacy_bare_hosts test_host_contract` Ran 15 OK;
+  8 skips, none in `test_host_contract`. No module that opens a window was run (this step shows none); the window's own sources
+  did not change, so the GUI set's compiled windows are the ones `ac3a8d612` had (the make_gui comparison above).
+
+### What step 0 did not do
+
+* **Risk 3 of P6-DESIGN 4.2** (the CLR's private commit and start time, "measured in step 0 on the stub core") needs a host
+  process that loads the DLL, and the host's `Main` is S6.2b's (`gui/HostMain.cs`). Not measured: it moves to S6.2b's first
+  build, against this empty core (which answers `not_ported`, so the host exits 1 at once; a measuring host waits instead).
+* No diff and no re-diff command: the six are a new wire with no reference to compare (D12 keeps the bridge's, which `car_bridge`
+  will carry unchanged). The one reference value in the tables, `POPUP_CALLS`, is held to the tree's `CONTROL_CALLS` by
+  `test_host_contract` (the v0.6.26 final's: nothing in `ui/popup/model.py`'s list moved after beta.2).
+* Nothing for AUDIT-v0628.md: no reference behaviour was kept or changed.
+
+### For the next seats
+
+* **S6.1 (car-watcher)**: the watcher is built at `car_start` with `factory()` (`abi::start` holds the place) and speaks through
+  `abi::queue(Event::...)`, the table's fields in order; `ended` is queued last, always. Nothing else of `abi.rs` is yours: a new
+  event, field or refusal word goes to the main session first.
+* **S6.2b (the host shell)**: fills the bodies (`start` -> `{"abi": 1, "ok": true}`, a second start's answer, `stop` -> the
+  in-process `StopEvent`, `bridge` -> car-control's `bridge` answer, actions -> car-surface's seam traits over car-control's
+  `Control`, each action name one trait method with a test listing both sides, P6-DESIGN 1.5); records every caught panic as
+  `App._record_failure` does once there is a home; writes `HostMain.cs` (the `LoadLibraryExW` by full path, the `abi` check) and
+  `HostPump.cs` (`HostCore.NextEvent(250)`, a `ConcurrentQueue`, one `PostMessage` per event, a reply without `kind` is a failed
+  pull); `gui/host.sources` with HostCore.cs and ISurfaces.cs in `[host]` (and `test_host_contract.BuildTests` and `guiscan`
+  moved with them, as above); 1.3's test-only panic feature and the check that the release DLL has none; runs `abi_exports` with
+  `CAR_CORE_DLL` on both editions' release DLLs.
+* **S6.3 (the designer)**: implements `ISurfaces`; posts through `SurfacesEvent.Actions` (`IHostActions.Post`) on worker threads,
+  never the UI thread; reads every event's values as `Json.Parse` gives them (`Dictionary<string, object>`). The names to use are
+  `HostEvents`/`HostActions`, never a literal.
+* **car-adv-host (S6.2b with S7.3d)**: `car_host_lib::export_core!(<the advanced plug factory, fn() -> Guarded>)` in its
+  `lib.rs`; car-host is already taken without its `exports` feature. Then `abi_exports` with `CAR_CORE_DLL` on the advanced DLL.
+
+### Checks (`CARGO_BUILD_JOBS=4`, `. tools/rustflags.sh` first; rustc 1.100.0; code at `93657f2ad`)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0 (car-host 8 + abi_exports 2);
+                   cargo deny --locked check rc=0
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, all 8 binaries the same with and without advanced/ (car_core.dll cfb2d29a...);
+                                                     profile-path scan: none
+cargo build --locked --release -p car-host, then CAR_CORE_DLL=<target/release/car_core.dll> cargo test -p car-host --test abi_exports
+                                                     2 passed: the release DLL exports the same six
+```
