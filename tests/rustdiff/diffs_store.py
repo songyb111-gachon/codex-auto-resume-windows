@@ -909,7 +909,7 @@ class ClaimRaceDiff(StoreBase):
                 deadline = time.time() + 120
                 while not all(ready.exists() for _thread, ready in started) and time.time() < deadline:
                     time.sleep(0.005)
-                (home / "go").write_text("go")
+                (home / "go").write_text("go", encoding="utf-8")
                 for thread, _ready in started:
                     thread.join(300)
                 answers = [results[index]["results"][0] for index in (0, 1)]
@@ -954,7 +954,7 @@ class BusyDiff(StoreBase):
                 while not ready.exists() and time.time() < deadline:
                     time.sleep(0.005)
                 timer = self.hold(home, hold)
-                (home / "go").write_text("go")
+                (home / "go").write_text("go", encoding="utf-8")
                 thread.join(300)
                 timer.join(30)
                 answers.append(results[0])

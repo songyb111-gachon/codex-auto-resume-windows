@@ -136,7 +136,9 @@ jobs:
       - name: Build both Rust archives and their Setup exes
         run: |
           python build/rust_release.py --edition standard --version 0.6.27-alpha --setup
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python build/rust_release.py --edition advanced --version 0.6.27-alpha --setup
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Prove the standard archive and Setup exe hold none of the advanced edition
         run: python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha --setups
       - name: Check every published bootstrap takes the archives

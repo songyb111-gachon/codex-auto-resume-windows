@@ -222,8 +222,8 @@ class Twin(unittest.TestCase):
         os.environ[reftwin.LOG_VARIABLE] = str(self.scratch / "log")
         done = self.twinned()
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual((self.home / "made.txt").read_text(), "python %d.%d" % sys.version_info[:2])
-        self.assertEqual((self.home / "given.txt").read_text(), "laid down by the case")
+        self.assertEqual((self.home / "made.txt").read_text(encoding="utf-8"), "python %d.%d" % sys.version_info[:2])
+        self.assertEqual((self.home / "given.txt").read_text(encoding="utf-8"), "laid down by the case")
         self.assertFalse((self.scratch / "log" / "calls.jsonl").exists())
 
     @unittest.skipUnless(find_zip(), "the bundled runtime's zip is in no build/cache here (CI's lanes fetch none)")
@@ -232,7 +232,7 @@ class Twin(unittest.TestCase):
         os.environ[reftwin.LOG_VARIABLE] = str(self.scratch / "log")
         done = self.twinned("version")
         self.assertIn("(%d, %d)" % sys.version_info[:2], done.stdout.decode())
-        self.assertEqual((self.home / "made.txt").read_text(), "python %d.%d" % sys.version_info[:2],
+        self.assertEqual((self.home / "made.txt").read_text(encoding="utf-8"), "python %d.%d" % sys.version_info[:2],
                          "the twin's file must not be what is left")
         import json
 

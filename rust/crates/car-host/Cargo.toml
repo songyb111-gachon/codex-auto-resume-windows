@@ -12,6 +12,16 @@ workspace = true
 name = "car_core"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# The standard edition's six exports, `export_core!(Guarded::null)` (src/lib.rs). The other edition's host crate
+# depends on car-host with `default-features = false` and exports the same six over its own plug (P6-DESIGN Q3).
+default = ["exports"]
+exports = []
+
 [dependencies]
 car-control = { path = "../car-control" }
+# P6 step 0: the replies are written and the requests read by car-machine's JSON (D5, D12), and an edition's
+# `Factory` makes car-policy's `Guarded`.
+car-machine = { path = "../car-machine" }
+car-policy = { path = "../car-policy" }
 car-watcher = { path = "../car-watcher" }

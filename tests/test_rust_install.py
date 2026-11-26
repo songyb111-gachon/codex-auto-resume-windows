@@ -381,11 +381,14 @@ class InstallerProofs(unittest.TestCase):
         self.assertEqual(leftovers, [])
         self.assertFalse((home / "runtimes").exists(), "D8: the chosen Pythons go")
         registry = self.scratch.registered()
-        # Every word quoted, as v0.6.26's startup.quote_argument writes a Run value.
-        host = '"%s" "--home" "%s" "run"' % (home / "app" / "bin" / "CodexAutoResume.exe", home)
+        # Every word quoted, as v0.6.26's startup.quote_argument writes a Run value, with the home as v0.6.26's
+        # plugin_setup.runtime_home and the core's setup spell it: Path.resolve()'s, so a TEMP given in 8.3 form
+        # (a CI runner's) is written long.
+        spelled = home.resolve()
+        host = '"%s" "--home" "%s" "run"' % (spelled / "app" / "bin" / "CodexAutoResume.exe", spelled)
         self.assertEqual(registry["run"], host)
         self.assertEqual(registry["protocol"], '"%s" "--home" "%s" "activate" "%%1"'
-                         % (home / "app" / "bin" / "codex-auto-resume.exe", home))
+                         % (spelled / "app" / "bin" / "codex-auto-resume.exe", spelled))
         self.assertIn(ENTRY[edition], registry["entries"])
         self.assertEqual(self.scratch.running_as(), "rust")
 

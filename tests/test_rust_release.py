@@ -345,6 +345,30 @@ class AuditTests(unittest.TestCase):
         self.assertEqual([line for line in found if line.startswith("(d)")],
                          ["(d) payload/runtime/pythonw.exe holds %s" % rust_edition_audit.audit.PACKAGE])
 
+    def test_the_mcp_launcher_is_read_as_every_other_rust_binary(self):
+        # D18: the launcher is car-bin's, and carries the standard library's messages ("capacity overflow") as the core
+        # does. A one-plain-word literal of the advanced window is left out of both; any other literal and any advanced
+        # name is still found in the launcher, which no allowance covers.
+        audit = rust_edition_audit.audit
+        self.assertIn(rust_release.MCP_LAUNCHER, rust_edition_audit.RUST_EXECUTABLES)
+        self.assertIn(rust_release.MCP_LAUNCHER, rust_release.RUST_BUILT)
+        words = sorted(literal for literal in self.tree.literals if rust_edition_audit.plain_word(literal))[:5]
+        other = next(literal for literal in sorted(self.tree.literals)
+                     if literal.isascii() and " " in literal.strip() and not rust_edition_audit.plain_word(literal))
+        std = " ".join(words).encode("ascii")
+        standard = build(self.folder / "launcher", "standard",
+                         extra={"codex-auto-resume.exe": std, "launcher.exe": std})
+        found, _ = rust_edition_audit.check_executables(audit.entries(standard), self.tree)
+        self.assertEqual([line for line in found if line.startswith("(d)")], [])
+        planted = build(self.folder / "launcher-planted", "standard",
+                        extra={"launcher.exe": std + b" " + other.encode("ascii") + b" " + audit.PACKAGE.encode("ascii")})
+        found, used = rust_edition_audit.check_executables(audit.entries(planted), self.tree)
+        launcher = [line for line in found if line.startswith("(d) %s " % rust_release.MCP_LAUNCHER)]
+        self.assertIn("(d) %s holds %s" % (rust_release.MCP_LAUNCHER, audit.PACKAGE), launcher)
+        self.assertIn("(d) %s holds the literal %r" % (rust_release.MCP_LAUNCHER, other), launcher)
+        self.assertFalse([line for line in launcher for word in words if line.endswith("literal %r" % word)], launcher)
+        self.assertNotIn((rust_release.MCP_LAUNCHER, audit.PACKAGE), used)
+
     def test_the_sentinel_anywhere_in_the_standard_archive_is_found(self):
         def leak(stage):
             target = stage / "payload" / "app" / "src" / "codex_auto_resume" / "data" / "extra.json"

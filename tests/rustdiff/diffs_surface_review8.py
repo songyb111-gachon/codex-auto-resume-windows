@@ -197,7 +197,7 @@ def shipped_interpreter() -> str | None:
         return named
     try:
         found = subprocess.run(["py", "-3.14", "-c", "import sys; print(sys.executable)"], capture_output=True,
-                               text=True, timeout=60, creationflags=reference.NO_WINDOW)
+                               encoding="utf-8", errors="replace", timeout=60, creationflags=reference.NO_WINDOW)
     except OSError:
         return None
     return found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else None

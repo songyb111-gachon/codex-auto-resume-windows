@@ -304,14 +304,14 @@ class AutocheckDiff(AdvCodexDiff):
     def test_write(self):
         for label, prepare in (("fresh", lambda home: None),
                                ("marked", lambda home: ((home / "config" / "advanced").mkdir(parents=True),
-                                                        (home / "config" / "advanced" / ".owned-by-codex-auto-resume").write_text("x"))),
+                                                        (home / "config" / "advanced" / ".owned-by-codex-auto-resume").write_text("x", encoding="utf-8"))),
                                ("a file", lambda home: ((home / "config").mkdir(parents=True),
-                                                        (home / "config" / "advanced").write_text("x"))),
+                                                        (home / "config" / "advanced").write_text("x", encoding="utf-8"))),
                                # config/ a file: Paths.ensure() raises FileExistsError at its mkdir and makes no logs/
                                # (car-config since Integration 8, as the reference's).
-                               ("config is a file", lambda home: (home / "config").write_text("x")),
+                               ("config is a file", lambda home: (home / "config").write_text("x", encoding="utf-8")),
                                ("over a record", lambda home: ((home / "config" / "advanced").mkdir(parents=True),
-                                                               (home / "config" / "advanced" / "autocheck.json").write_text("{}")))):
+                                                               (home / "config" / "advanced" / "autocheck.json").write_text("{}", encoding="utf-8")))):
             home = self.root / ("write-%s" % label.replace(" ", "-"))
 
             def setup(home=home, prepare=prepare):

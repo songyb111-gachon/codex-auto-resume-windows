@@ -14,4 +14,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 car-adv = { path = "../car-adv" }
-car_host_lib = { package = "car-host", path = "../../../../rust/crates/car-host" }
+# P6 step 0: without car-host's own (standard) exports; this crate makes the six over the advanced plug
+# (`car_host_lib::export_core!(...)`, S6.2b/S7.3d).
+car_host_lib = { package = "car-host", path = "../../../../rust/crates/car-host", default-features = false }

@@ -98,6 +98,8 @@ name = "car-host"
 version = "0.0.0"
 dependencies = [
  "car-control",
+ "car-machine",
+ "car-policy",
  "car-watcher",
 ]
 

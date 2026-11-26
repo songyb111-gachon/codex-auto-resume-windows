@@ -29,7 +29,7 @@ def without_guard(**extra) -> dict:
 
 
 def seen(code: str, environment: dict) -> str:
-    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=environment,
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, encoding="utf-8", errors="replace", env=environment,
                           cwd=str(ROOT), creationflags=NO_WINDOW, timeout=120)
     if done.returncode != 0:
         raise AssertionError(done.stderr)
@@ -44,7 +44,7 @@ class PowerGuardTests(unittest.TestCase):
     def test_an_interpreter_with_tests_on_its_path_sets_it_for_its_children(self):
         code = SHOW + "; import subprocess; subprocess.run([sys.executable, '-c', %r])" % SHOW
         environment = without_guard(PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT / "tests")]))
-        done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=environment,
+        done = subprocess.run([sys.executable, "-c", code], capture_output=True, encoding="utf-8", errors="replace", env=environment,
                               cwd=str(ROOT), creationflags=NO_WINDOW, timeout=120)
         self.assertEqual(done.stdout, "'1''1'", done.stderr)
 
