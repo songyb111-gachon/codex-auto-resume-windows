@@ -2970,8 +2970,8 @@ ConfigError line), the tick's trip moved outside `guarded` (panic_feature: the l
   "does not reach the core: missing the core" (car-legacy's exit 1). It came with the first part's `858f8d875`
   (the entry run now takes `car-core-proof.exe` from rust/target/release), which never ran it (both proofs timed out
   there); this part touched neither car-legacy, car-bin nor `build/rust_legacy_bootstraps.py`, and the stub itself,
-  run directly in a scratch profile as `<home>ppin\codex-auto-resume.exe setup`, answers 3 (NOT_PORTED). Left
-  for the main session: why car-legacy's runtime python.exe does not find the stub at `appin` in the entry run.
+  run directly in a scratch profile as `<home>\app\bin\codex-auto-resume.exe setup`, answers 3 (NOT_PORTED). Left
+  for the main session: why car-legacy's runtime python.exe does not find the stub at `app\bin` in the entry run.
 
 ### Checks of the second part (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10; code at `ec4cfa3a2`)
 
