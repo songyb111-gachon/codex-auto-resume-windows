@@ -184,6 +184,13 @@ class AnchorCodeDiff(unittest.TestCase):
         cases += [self.full(), self.full(code=1), self.full(permitted=[False]),
                   self.full(files={"out.txt": "", "err.txt": "Error: Unknown feature flag apps"}, code=2),
                   self.full(view={"settings": [{"enabled": True, "observe_only": True}]})]
+        quiet = '[mcp_servers."a.b"]\nurl = "u"\n[mcp_servers.c]\ncommand = "x"\n'
+        for config in ("", quiet, "broken = ", "﻿" + quiet):
+            cases.append(self.full(files={"out.txt": json.dumps({"type": "thread.started"}), "err.txt": "",
+                                          "codex/config.toml": config}))
+        cases.append(self.full(files={"out.txt": "", "err.txt": "Error loading config.toml: invalid transport",
+                                      "codex/config.toml": quiet}, code=1))
+        cases.append(self.full(begin_runs=False))
         found = advtime.Scene(self, "anchor code").run(cases)
         fixed = sum(1 for each in found for row in (each["dump"] or {}).get("journal", ()) if "anchor.fixed" in row)
         started = sum(1 for each in found if each["left"].get("argv.txt"))
