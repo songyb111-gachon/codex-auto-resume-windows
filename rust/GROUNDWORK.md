@@ -3098,3 +3098,85 @@ bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 privacy_scan.py on every file added                   clean
 ```
+
+## Seat S7.3b: the courier and the remote reach (branch `car-v0627-s73b`, 2026-11-27)
+
+From `car-v0627-s72a` `d70ef6bbf` (the S7.2a skeleton). Reference: the v0.6.26 final on the bundled Python 3.14.10.
+`outputs/plans/v0627-rust/P7-DESIGN.md` S7.3b, 2.2, 3, 4, 6, 7 (the owner's Q4 (a) WinHTTP + `schannel`, Q5 (a) a hand-written
+HTTP/1.1 server, Q3 (c) the proxy).
+
+### Ported (module -> crate)
+
+| Python | here |
+|---|---|
+| `courier/address.py` | car-adv `courier::address` (with `urlsplit` and `ipaddress` as these checks read them: 3.14's bracketed-netloc and NFKC checks, IPv6's 45-character limit) |
+| `courier/keep.py`, `outbox.py`, `feed.py` | car-adv `courier::{keep, outbox, feed}`; `Scoped::outbox()` / `Scoped::feed()` in `state/scoped.rs` |
+| `courier/http.py` (but `stream`, D8) | car-adv `courier::http` (`Opener` = urllib's opener seam, `Failure`, `request`/`post`/`get`, `SystemOpener` over WinHTTP) |
+| `courier/channels.py` | car-adv `courier::channels` (`lines`, `webhook_body`, `send`, `mail`, `test`, `drain`, `pair`), `channels::mime` (set_content's transfer encoding, quoted-printable, base64, the flattened message, HMAC-MD5), `channels::smtp` (smtplib's dialogue; `Wire` = socket + Schannel) |
+| `courier/telegram.py` | car-adv `courier::telegram` (`parse`, `readable`, `first_update_id`, `Poller` with `once`/`answer`/the commands, `run`, `Stop`) |
+| `courier/api.py`, `page.py` | car-adv `courier::{api, page}` (routes, Host gate, `Gate`, http.server's request reading and refusals, `Service`, `start_on`/`Running`; the page template byte for byte in `page_template.html`) |
+| `courier/resident.py` | car-adv `courier::resident` (`Roles`, `serve`, the mutex name, `running`) |
+| `courier/launch.py` | car-adv `courier::launch` (`codex-auto-resume.exe courier --home H ...`, suspended, adopted into the job) |
+| `courier/__main__.py` | car-adv `courier::main` (`parse`, `main_with` over a `World`, `work`, `check`; `Runtime` = what the parts ask of the runtime, implemented for `runtime::Runtime` and, across threads, `SharedAdapter` over `runtime::Shared`) |
+| `control/courier.py`, `control/remote.py` | car-adv `control::{courier, remote}` (`remote::Layer` = core's Control as these use it) |
+| `engine/{feed, push, remote}.py` | car-adv `engine::{feed, push, remote}`; their `make` in the table now answers a code |
+| (Windows) | car-platform `winhttp` (`send`, `exclusive_listener`), `tls` (`client` over the `schannel` crate 0.1.26, MIT, in both locks with windows-sys 0.59), `job` (`adopt`: KILL_ON_JOB_CLOSE + NtResumeProcess; `mutex_exists`) |
+
+### The proof (`tests/rustdiff/advcourier.py`, `diffs_advcourier_{pure,state}.py`, example `advcourier`)
+
+Run with the tag v0.6.26 on the bundled 3.14.10 (each case's request and answer both sides; both advanced.sqlite files table by
+table where a case has a home): addresses 160 cases (urls, tokens in three shapes, mailboxes, SMTP blobs, hosts, web view);
+chat names, digests, 20 status-page bodies, 13 e-mail messages flattened against BytesGenerator byte for byte; 27 Telegram
+texts, update ids, readable replies, remote listing/resolve/acts/metrics, 20 routes, 12 Host headers, 9 clients, 13 header
+blocks against `http.client.parse_headers`, the Gate over 274 steps (lock, expiry, 256-client eviction), dates, push events
+and constants; the outbox over 38 steps; 120 sends (every channel x rows x two languages, 12 scripted replies, 8 kept-secret
+shapes) compared at the opener byte for byte; push lines in five locales; 3 drains (sent, refused, tls, dropped, expired,
+tripwire); 6 pairings (code found, five bad codes tripping telegram_remote, 409 then 401, no token, no code, expiry); the
+loopback API over 44 raw requests (every route, 401/403/404/405/409/413/421/431/400/501/505, HEAD, bodies, the lock after
+ten wrong tokens, lan Host) with the Date masked. **All equal: Ran 8, OK.** Found and fixed by them: 3.14's bracketed-netloc
+check, urllib's `full_url` keeping the fragment, KeyError for a record without its ids, NaN/infinite times, http.server's own
+answers (headers on every refusal; nothing for an HTTP/0.9 GET).
+
+Mutation checks (each alone, the example rebuilt, its diff run, the source restored; scratchpad `car-v0627-s73b-mutate.py`):
+HOURLY 30 -> 31 (test_outbox), a label of 64 characters (test_addresses), LOCK_AFTER 10 -> 11 (the Gate), a task number with
+a leading zero (Telegram parse), TRIPWIRE 20 -> 21 (test_drain), BAD_CODES 5 -> 6 (test_pair), two Host headers taken
+(test_loopback_api): see the RETURN for the counts.
+
+Unit tests: car-platform `winhttp` 4 (address parts, loopback-only plain HTTP, a loopback request's headers/body/cap, the
+exclusive listener), `tls` 1 (a server that speaks no TLS is refused), `job` 1 (a throwaway cmd.exe adopted, exit code read);
+car-adv `address` 2, `mime` 2 (MD5/HMAC RFC vectors, base64).
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv73b.py --reference v0.6.26`.
+The ledger of the 25 test files: `python -X utf8 tests/rustdiff/advledger_s73b.py --markdown`.
+
+### Not done, and why (exactly what is left)
+
+* **The advanced proxy** (Q3 (c)) does not exist yet (S7.2a's note): none of the 23 courier/remote test files runs unedited on
+  Rust. `advledger_s73b.py` names, for each, the diff that holds its rules now and what it waits for.
+* **The courier role of car-adv-bin**: `courier::main::main_with(argv, &dyn World)` is the role's body, but the product's
+  `World` (the runtime over the home with the real maker, policy and catalogs - `runtime::Options`, the integration's Edges -
+  the Credential Manager backend, `SystemOpener`, a `TcpWire` with the FQDN, `report::reading::paused`, the two mutexes, the
+  resident's server over a core-Control `Layer`) is not written, and car-adv-bin's `main` still calls `core_main`. S7.3d:
+  write `SystemWorld`, then `main_with(&[Role { word: "courier", run }])` in car-adv-bin.
+* **`remote::Layer` over core's `Control`** (status document from `statusfile::content`, pending rows, set_enabled, cancel,
+  release, watcher_running) is the trait only; the diffs use a scripted layer. S7.3d/S7.3a writes `CoreLayer`.
+* **Not diffed** (written, unit-tested or not): `Poller::once` scenarios, `resident::Roles` follow/unreadable, the SMTP dialogue
+  on a loopback wire (smtplib with an identity TLS on the reference side), `control::courier` and the cards of
+  `control::remote` over a runtime, `engine::{push, feed, remote}` through the runtime's points (S7.2a's advtrace with the
+  real codes), `courier::main::work`.
+
+### Seams left
+
+* `courier::main::World` (above); `courier::http::Opener` (`SystemOpener` is the product's); `channels::smtp::Wire`
+  (`TcpWire::new(fqdn, None, MAIL_SECONDS)` is the product's); `control::remote::Layer`; `resident::{ServerFactory, Poller}`;
+  `engine::push::{Paused, Launch}`, `engine::feed::Launch`, `engine::remote::{Running, Launch}` (defaults wired to
+  `report::reading::paused`, `courier::launch`, `courier::resident::running`).
+
+### For later seats
+
+* S7.3a: the courier's and remote's bridge commands call `control::courier::{view, save, forget, test, feed_refresh}` and
+  `control::remote::{api_view, api_token_new, pair_state, pair_start}` with a `Runtime` (the bridge's `runtime::Runtime`
+  is one) and the seams; `Refusal` words are the tag's.
+* S7.3c: `report::github::Jobs` can be `car_platform::job::adopt` (a `std::process::Child` started with `CREATE_SUSPENDED`).
+* The import-table test (P7-DESIGN 3.5): car-platform now holds WinHTTP, WinSock and Schannel calls; only `courier::*` calls
+  them, so the standard binaries must still import none (dead code) - check_rebuild's run below says they are unchanged.

@@ -4,8 +4,8 @@
 //!
 //! Reads always; writes only while the runtime has the capability on (`on() is True`), and some only for the one
 //! capability whose table it is. Held by reference, as the reference holds the state in a closure: against a
-//! capability's mistakes, not its intent. Not here, and why: Scoped's `outbox` and `feed` are the courier's
-//! (`courier/outbox.py`, `courier/feed.py`, seat S7.3).
+//! capability's mistakes, not its intent. Scoped's `outbox` and `feed` are the courier's (`courier/outbox.py`,
+//! `courier/feed.py`, seat S7.3b): push_notices' outbox, written only while it is on, and the feed's last reading.
 
 use car_machine::json::Value;
 
@@ -163,6 +163,20 @@ impl<'a> Scoped<'a> {
                 }
                 _ => false,
             }))
+    }
+
+    /// `outbox`: push_notices' view of the outbox (`courier/outbox.OutboxHandle`).
+    pub fn outbox(&self) -> crate::courier::outbox::OutboxHandle<'_> {
+        crate::courier::outbox::OutboxHandle {
+            state: self.state,
+            capability: &self.capability,
+            on: self.on,
+        }
+    }
+
+    /// `feed()`: the status feed's last reading (`courier/feed.read`), read always.
+    pub fn feed(&self) -> Result<Option<Row>> {
+        crate::courier::feed::read(self.state)
     }
 
     pub fn journal_times(&self, other: &Value, word: &Value, since: &Value) -> Result<Vec<Value>> {
