@@ -3180,3 +3180,102 @@ The ledger of the 25 test files: `python -X utf8 tests/rustdiff/advledger_s73b.p
 * S7.3c: `report::github::Jobs` can be `car_platform::job::adopt` (a `std::process::Child` started with `CREATE_SUSPENDED`).
 * The import-table test (P7-DESIGN 3.5): car-platform now holds WinHTTP, WinSock and Schannel calls; only `courier::*` calls
   them, so the standard binaries must still import none (dead code) - check_rebuild's run below says they are unchanged.
+
+## Seat S7.2b: the saved accounts - the account switch and its Windows acts (branch `car-v0627-s72b`, 2026-11-27)
+
+From `car-v0627-s72a` `8e6362cbf`. Reference: the v0.6.26 final on the bundled Python 3.14.10 (the diffs start it
+through `refpython.command`, so `--reference-python` decides). `P7-DESIGN.md` S7.2b's row, 2.2, 3, 4, 7.
+
+### Ported (module -> crate)
+
+| Python | here |
+|---|---|
+| `codex/authfile.py` | car-adv `codex::authfile` (`store_mode`, `usable`, `check`, `read`, `write_atomic`, `replace`, `own_folder`, `confined`, `private`/`private_dacl`, `remove_tree`, `sweep`, `Scratch`; `Fault`, the reference's exception by class) and `codex::authfile::toml` (Python 3.14's `tomllib` whole: statements, keys and their flags, nests and arrays of tables, strings and escapes, numbers, dates checked as `date()` checks them, times, inline arrays/tables, and every Python frame counted so a document nested past the recursion limit is the RecursionError the reference lets out) |
+| `codex/account.py` | car-adv `codex::account` (`plan_word`, `parse`, `identity`, `digest` - HMAC-SHA256 over car-machine's SHA-256, `bytes.fromhex` as CPython reads it -, `new_salt`, `mask`, `read`, `run_codex`, `switch`; the seams `Session`/`Opener`, `Backend`, `Runner`; `Live`: the product's own sessions through `inuse.backend` or core's Backend on a scratch home, `ProcessRunner` over report/github's runner) |
+| `codex/restart.py` | car-adv `codex::restart` (`busy`, `restart`, the `Hands`, `BusyStore`, `Activity` seams; `LiveHands`: core's process list read afresh, Windows' process identity, `win::appclose`, the newest own conversation, `codex_link.open_in_codex`) |
+| `codex/swap.py` | car-adv `codex::swap` (`other_engines`, `engines_gone`, `meters`, `usage_of`, `has_room`, `read_profile`, `switch`, `recover`, `unwind`, `save_current`, `add_by_login`, `known`, `read_answer`, `put_back`, `previous_of`, `is_in_place`; `World` - the module's own seams; `Live`) |
+| `win/appclose.py` | car-adv `win::appclose` (`ask_close`, `end_process`, the reference's checks and its masking of a pid and a FILETIME as ctypes masks them) over car-platform `restart` (`Manager`: RmStartSession, RmRegisterResources, RmShutdown, RmEndSession; `Kernel`: OpenProcess, WaitForSingleObject, GetProcessTimes, TerminateProcess, CloseHandle; `private_folder`: the folder's DACL `D:P(A;OICI;FA;;;<sid>)`) |
+| `engine/account.py` | car-adv `engine::account` (`AccountWatch`: P8's errand, the look, `_hold_waiting`, `_hold_rules`, `notice_view` for the surfaces; `forget`; `SaltStore` over `credentials::Secrets`; `live_seams`) |
+| `engine/autoswitch.py` | car-adv `engine::autoswitch` (`AutoSwitch`: P8's look, P7's `schedule`, `tend`/`settle`, `put_in` (the person's own switch), `choose`, `best`, `seen`, the 24-hour ceiling, the told list; `live_seams`, `live_busy` over car-store and car-codex's LocalSource) |
+| `profiles.py`'s `_seal`, `_open`, `_mutex`, `authfile.private`, `authfile.sweep`, `swap.unwind` (S7.1a's `Host`) | car-adv `state::seam::accounts::Windows` (DPAPI with the product's label, car-platform's named mutex `account-switch:<normcase(folder)>`, the private DACL, the sweep, the put-back over the live world) and `live_profiles(home)` |
+
+How a code is held: `AccountWatch` and `AutoSwitch` keep their state in an `Arc<Mutex<_>>` the P8 errand shares
+(the errand runs outside the tick, as the reference's `_Errand` holds the code); each look takes the capability's own
+`Scoped` through its `Binding`, so a probe hands a `Scoped` over a real advanced state and drives the same function.
+
+### The proof (`tests/rustdiff/advaccount.py`, `diffs_advaccount_{pure,files,swap,engines}.py`, example `advaccount`)
+
+* 11 test classes, **1,538 cases**, every answer, every call a stand-in was asked, and every file left (profiles sealed with
+  S7.1a's stand-in, the intent, Codex's sign-in file, scratch homes; the advanced state as its SQL dump) equal to the
+  v0.6.26 tag on the bundled 3.14.10: account pure 166, sessions and switch 171, Restart Manager and kernel32 141, busy
+  129, restart 60, checks and names 31, store_mode 386 config files (a corpus of TOML edges, nesting at the recursion
+  limit both ways, 200 random documents), usable 8, swap readings 39, other engines / engines gone / read answer 159,
+  owned folder 13, read/replace 16, scratch home 60, sweep 10, read_profile 17, save_current/add_by_login 16, recover 22,
+  unwind 9, switch 32, the watch 20, autoswitch 33. Each side runs on its own copy of the folders the test made;
+  junctions are the test's own.
+* Found and fixed by the diffs: none in the port after the first full run (the reds were the harness: the boot's own
+  argv, surrogates in the request, a cwd written two ways, a case-insensitive name twice in a setup) - and one that
+  mattered: the reference's `account.switch` with no backend fell into core's real discovery and asked this PC's
+  installed engine for its version (`codex.exe --version`, once, read-only, under scratch homes; nothing else ran: the
+  runner was the stand-in). The reference script now replaces `inuse.backend`, `pairing.processes_named`,
+  `resource_users` and `process_identity` with refusals before anything runs.
+* The first mutation round caught 5 of 9 and the 4 survivors showed the swap and engine families hollow: their saved
+  accounts were seeded as hex text (refused by `check` on both sides) and the watch's arming seed used an actor that is
+  no word, so every case of those families raised the same error before it reached the code. Seeds fixed; `same()` now
+  fails a family whose every case raised; a survey of the reference's answers per family (switch: 13 outcomes over 28
+  cases, recover: 9 over 22) is in the commit's run.
+* `engine/account.forget` let every exception go as false; the reference lets anything but SecretError, StateError and
+  OSError out: fixed (it returns a Result now; `Edges::account_forget` reads false for a caught one, as before).
+* **Mutation checks** (scratchpad `car-v0627-s72b-mutate.py`, each alone, `advaccount` rebuilt, its family run, the
+  file restored): a date the month has not taken as a date (tomllib), an address of 321 characters kept
+  (`account.parse`), an app that closed unasked not seen closed (`restart`), a window at 95 with room (`has_room`),
+  another account signed in meanwhile saved back (`swap.switch`), a reused id ended (`appclose.end_process`), a switch
+  of the edition's own holding core's waits (engine/account), eleven switches a day (engine/autoswitch), a put-back over
+  a file the switch did not put there (`swap.recover`): **9 of 9 caught** (after the seed fix above; 4 had survived the
+  hollow families).
+* Unit tests: car-platform `restart` 3 (a throwaway `cmd.exe` child of the test's own: its handle, its creation time,
+  TerminateProcess; the Restart Manager registered with that child alone; a scratch folder made private and its DACL
+  read back), car-adv `codex::account` 1 (RFC 4231 HMAC vector).
+* The ledger: `python -X utf8 tests/rustdiff/advledger_s72b.py` - 23 advanced test files import this seat's modules;
+  all wait for the advanced proxy (S7.2a3), and 14 of them also for S7.2d, S7.2e1, S7.2e2, S7.3a, S7.3b or S7.4.
+* The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72b.py --reference v0.6.26`.
+
+### Seams left
+
+* `pairing._OWN`: car-codex keeps the app servers this process holds but has no reader of their pids, so
+  `swap::Live::world().own` is empty: an app server of our own counts as another engine (ENGINE_ALIVE, nothing written)
+  until car-codex gives one (`pub fn own_pids()` beside `own_server`, the integration's to add).
+* `seam_p7::ResetWatch`: `engine::account::TagCount` is the tag's two-line `count`; the integration points it at S7.2d's
+  `resetwatch`. `seam_p7::OpenTarget` (idle seconds) is not used: `live_seams` reads car-platform's `idle_seconds`, which is
+  what `opentarget.idle_seconds` itself calls.
+* `account::Live::product_version` is `config.version()` of the folder holding the running exe; the entry point (S7.3d)
+  may hand the installation's own.
+* `state::seam::accounts::Host::unwind` answers a bool, so a put-back that raised what the reference lets out of
+  `delete_all` (a RecursionError of a crafted sign-in file) is a put-back that waits (PutBackWaits) here.
+* `Edges::account_forget` (arming's sweep) is the integration's to point at `engine::account::forget` with
+  `credentials::Secrets::windows`.
+* The surfaces (S7.3a) read each code's `notice()` through `Code::as_any` downcast to `AccountWatch`/`AutoSwitch` and
+  `notice_view()`; `control/autoswitch.switch` calls `AutoSwitch::put_in(target, now, true)`.
+
+### For later seats
+
+* S7.3a: `engine::autoswitch::best` is the card's next candidate; `swap::read_profile` the card's Read usage (it holds
+  the saved accounts' lock itself); `codex::account::switch` with `account::Live` and `ProcessRunner` is the card's
+  Switch; `swap::add_by_login` and `swap::save_current` the card's Add and Save.
+* S7.4: the measurement hands (`MPROFILE`, `MSWAP`, `MALR`) take `swap::World`, `restart::Hands` and `account::Opener`
+  as their seams; `account::Live::for_capability` makes a session of a capability's own, a measurement's is S7.4's.
+
+### Gates
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast: every crate ok
+                   after 71c00e4e9 (car-platform's golden test had caught the restart tests' own Command::new; car-platform
+                   rerun alone: all ok); cargo deny: all four ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0 at 71c00e4e9: every standard binary the same with and without advanced/;
+                                                     profile-path scan: none
+diffs (wait_quiet.sh)                                diffs_advaccount_{pure,files,swap,engines}: 22 tests, 1,538 cases, OK
+Python (standard lane, wait_quiet.sh)                test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
+privacy_scan.py on every file added                  clean
+```
