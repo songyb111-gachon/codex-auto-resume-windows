@@ -1,10 +1,13 @@
-//! SEAM (seat S7.1a): what the saved accounts (`profiles.py`) read of `codex/authfile.py`, `codex/account.py` and
-//! `codex/swap.py` (seat S7.2) and of Windows (DPAPI, the named mutex: car-platform's).
+//! What the saved accounts (`profiles.py`) read of `codex/authfile.py`, `codex/account.py` and `codex/swap.py` and of
+//! Windows (S7.1a's seam, filled by seat S7.2b).
 //!
 //! The pure halves are written here as the tag has them - `authfile.check`, `authfile.confined`, the plain part of
-//! `authfile.own_folder` and `authfile.write_atomic`, `account.mask` - so the profiles can be held to the reference
-//! now; what needs another seat or Windows is the [`Host`] a caller hands in: the seal and its opening (DPAPI for the
-//! current user), the saved accounts' lock, the folder's private access list, `authfile.sweep` and `swap.unwind`.
+//! `authfile.own_folder` and `authfile.write_atomic`, `account.mask` - and `codex::authfile` builds on them. What
+//! needs Windows or the switch is the [`Host`] a caller hands in: the seal and its opening (DPAPI for the current
+//! user), the saved accounts' lock, the folder's private access list, `authfile.sweep` and `swap.unwind`. [`Windows`]
+//! is the product's own (S7.2b): `win::dpapi`, car-platform's named mutex `account-switch:<folder>`, the private
+//! access list, `codex::authfile::sweep` and `codex::swap::unwind` over the live world; [`live_profiles`] the saved
+//! accounts of one product home with it. The diffs hand a stand-in seal instead (S7.1a's, never a real blob).
 
 use std::path::{Path, PathBuf};
 
@@ -177,4 +180,90 @@ pub fn mask(email: &Value) -> Option<Str> {
         shown.extend(labels[labels.len() - 1]);
     }
     Str::from_code_points(shown)
+}
+
+// ------------------------------------------------------------------------------------------------ the product's host
+/// `os.path.normcase(str(Path(directory).absolute()))`: joined to the working folder where relative, pathlib's
+/// separators, then lower case.
+pub fn mutex_folder(directory: &Path) -> String {
+    let joined = if directory.is_absolute() {
+        directory.to_path_buf()
+    } else {
+        std::env::current_dir().unwrap_or_default().join(directory)
+    };
+    let text = joined.to_string_lossy().replace('/', "\\");
+    let mut parts: Vec<&str> = Vec::new();
+    for (index, part) in text.split('\\').enumerate() {
+        if index > 0 && (part.is_empty() || part == ".") {
+            continue;
+        }
+        parts.push(part);
+    }
+    let mut kept = parts.join("\\");
+    if kept.ends_with(':') {
+        kept.push('\\');
+    }
+    kept.to_lowercase()
+}
+
+/// The named mutex held for as long as this lives (`held.__exit__` on drop).
+struct Held(car_platform::sync::Mutex);
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        self.0.exit();
+    }
+}
+
+/// The product's saved accounts' host for the folder `directory`: DPAPI with the product's label, the named mutex,
+/// the private access list, and the switch's own sweep and put-back.
+#[derive(Clone)]
+pub struct Windows {
+    pub directory: PathBuf,
+}
+
+impl Host for Windows {
+    fn seal(&self, data: &[u8]) -> Result<Vec<u8>, Failure> {
+        crate::win::dpapi::protect(data).map_err(|error| Failure(format!("{error:?}")))
+    }
+    fn open(&self, blob: &[u8]) -> Result<Vec<u8>, Failure> {
+        crate::win::dpapi::unprotect(blob).map_err(|error| Failure(format!("{error:?}")))
+    }
+    fn lock(&self, directory: &Path, seconds: f64) -> Result<Box<dyn std::any::Any>, Failure> {
+        let name = format!("account-switch:{}", mutex_folder(directory));
+        let mut mutex = car_platform::sync::Mutex::new(&name, seconds)
+            .map_err(|error| Failure(error.0.to_owned()))?;
+        mutex.enter().map_err(|error| Failure(error.0.to_owned()))?;
+        Ok(Box::new(Held(mutex)))
+    }
+    fn private(&self, directory: &Path) {
+        crate::codex::authfile::private_dacl(directory);
+    }
+    fn sweep(&self, directory: &Path, codex_home: Option<&Path>) {
+        crate::codex::authfile::sweep(directory, codex_home, crate::state::session::wall_clock(), 0.0);
+    }
+    fn unwind(&self, _intent: &Value, codex_home: Option<&Path>) -> bool {
+        let store = crate::profiles::Profiles {
+            directory: self.directory.clone(),
+            host: std::sync::Arc::new(self.clone()),
+            clock: Box::new(crate::state::session::wall_clock),
+        };
+        let live = crate::codex::swap::Live::new();
+        // A put-back that raised what the reference lets go on is a put-back that waits: nothing is deleted.
+        crate::codex::swap::unwind(&live.world(), &store, codex_home).unwrap_or(false)
+    }
+    fn token(&self, count: usize) -> String {
+        use super::Tokens;
+        crate::credentials::SystemTokens.hex(count)
+    }
+}
+
+/// `Profiles(home)`: the saved accounts of the product home `home`, with the product's own host and the wall clock.
+pub fn live_profiles(home: &Path) -> crate::profiles::Profiles {
+    let directory = home.join(crate::profiles::FOLDER);
+    crate::profiles::Profiles {
+        directory: directory.clone(),
+        host: std::sync::Arc::new(Windows { directory }),
+        clock: Box::new(crate::state::session::wall_clock),
+    }
 }
