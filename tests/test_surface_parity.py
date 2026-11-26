@@ -703,7 +703,9 @@ class SurfaceJob:
             with make_screenshots.pinned_face():
                 pinned = fonts._ui_face()
                 for locale in ("en", "ko", "ar"):
-                    for name, vm in popup_views(locale):
+                    views = popup_views(locale)
+                    views += [("day-" + look, dict(views[0][1], scene=look)) for look in ("new_year", "christmas", "seollal", "chuseok")]
+                    for name, vm in views:
                         scales = (1.25, 2.0) if name in ("picture", "scene") else (1.5,)
                         looks = self.LOOKS if name == "picture" else self.PIXEL_LOOKS
                         for scale in scales:
