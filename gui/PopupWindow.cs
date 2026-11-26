@@ -136,7 +136,6 @@ namespace CodexAutoResume
         private object rowMenu;                       // null, an IRowMenu, or false once it broke
         // The core's popup (the shape above), the actions under way here and those the core has answered.
         private Dictionary<string, object> core;
-        private string coreText;
         private readonly List<List<object>> begun = new List<List<object>>();
         private readonly List<List<object>> answered = new List<List<object>>();
         // What the last view drew: interruption id -> (thread id, checked), its tasks, and paused.
@@ -299,16 +298,14 @@ namespace CodexAutoResume
         internal void Snapshot(Dictionary<string, object> popup)
         {
             if (popup == null) return;
-            bool cleared = answered.Count > 0;
             foreach (List<object> key in answered) Remove(begun, key);
             answered.Clear();
-            string written = Json.Write(popup);
-            bool changed = written != coreText;
             core = popup;
-            coreText = written;
             if (!SurfaceMath.Truthy(SurfaceRender.Field(popup, "read"))) return;
+            // As the reference's read result does (_finished): a first opening waiting for it opens, an open popup is
+            // brought up to date, whether or not anything in the view changed.
             if (PendingShow != null) Present((bool)PendingShow[0], (int[])PendingShow[1]);
-            else if (Visible && (changed || cleared)) Update();
+            else if (Visible) Update();
         }
 
         /// model.view as the core gave it, with what is under way here shown as busy (begin's set), and what was drawn kept
@@ -812,6 +809,9 @@ namespace CodexAutoResume
             Rows = Rows != null ? new[] { Math.Min(Rows[0], top), Math.Max(Rows[1], bottom) } : new[] { top, bottom };
             return renderer.DrawScene(Plan, SceneMs(false, sceneSince));
         }
+
+        /// How far on the day's scene a whole frame drawn now has it (render's scene_ms), for the live-path proof.
+        internal double SceneNowMs() { return SceneMs(Holds(), sceneSince); }
 
         /// motion.scene_ms: how far on the day's scene is - at its first instant, and still, while held.
         private double SceneMs(bool reduced, double since)

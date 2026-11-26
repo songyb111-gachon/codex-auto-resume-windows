@@ -359,14 +359,15 @@ class WindowJob:
         from codex_auto_resume import brand, interface
         from codex_auto_resume.ui.popup import (access, fonts, gdiplus, layers, light as light_module, messages,
                                                 renderer as renderer_module, theme, window, words as popup_words)
-        from codex_auto_resume.ui.popup import hidden as hidden_module
+        from codex_auto_resume.ui.popup import hidden as hidden_module, motion as motion_module
         WM_TIMER, WM_KEYDOWN, WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP = 0x0113, 0x0100, 0x0200, 0x0201, 0x0202
         WM_CONTEXTMENU, WM_ACTIVATE, WM_SETTINGCHANGE, WM_DPICHANGED, WM_MOUSELEAVE = 0x007B, 0x0006, 0x001A, 0x02E0, 0x02A3
         RESULT, TRANSPARENT = 0x8002, 0x20
         tick, frame = window.TIMER_TICK, window.TIMER_FRAME
         saved = (renderer_module.system_rgb, light_module.system_rgb, window._dll, messages._dll, layers._dll, layers.update,
                  window.time, messages.time, hidden_module.time, messages.threading, access.announce, access.answer,
-                 access.disconnect, theme.high_contrast, theme.reduced_motion, theme.apps_use_light_theme, theme.text_scale)
+                 access.disconnect, theme.high_contrast, theme.reduced_motion, theme.apps_use_light_theme, theme.text_scale,
+                 motion_module.time)
         real = window._dll
         state = {}
 
@@ -592,7 +593,7 @@ class WindowJob:
         renderer_module.system_rgb = light_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
         window._dll = messages._dll = layers._dll = lambda name: User32(real(name)) if name == "user32" else real(name)
         layers.update = recorded_update
-        window.time = messages.time = hidden_module.time = Clock
+        window.time = messages.time = hidden_module.time = motion_module.time = Clock
         messages.threading = Threading
         access.announce = lambda *unused: None
         access.answer = lambda *unused, **more: 0
@@ -734,7 +735,7 @@ class WindowJob:
             (renderer_module.system_rgb, light_module.system_rgb, window._dll, messages._dll, layers._dll, layers.update,
              window.time, messages.time, hidden_module.time, messages.threading, access.announce, access.answer,
              access.disconnect, theme.high_contrast, theme.reduced_motion, theme.apps_use_light_theme,
-             theme.text_scale) = saved
+             theme.text_scale, motion_module.time) = saved
             theme.adopt_settings({})
 
     def menu_window(self):
@@ -875,7 +876,8 @@ class WindowJob:
                     try:
                         for step in script:
                             op, mapped, returned = step[0], list(step), None
-                            state["calls"], state["chosen"], state["left"] = [], [], []
+                            state["calls"], state["left"] = [], []
+                            del state["chosen"][:]                  # the list each opening hands its choices to
                             rtl = bool((menu._plan or {}).get("rtl"))
                             if op == "open":
                                 returned = menu.open(entries, strings, state["chosen"].append, point=step[1], owner=OWNER,

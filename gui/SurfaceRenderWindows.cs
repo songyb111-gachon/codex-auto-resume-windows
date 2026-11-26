@@ -426,8 +426,12 @@ namespace CodexAutoResume
                         }
                         else if (kind == "strings")
                         {
+                            // The core's snapshot in the new words comes before the window turns to its posted strings, as
+                            // the reference's model has the new words by the time that message is handled.
                             popup.SetStrings((Dictionary<string, object>)step[1], (string)step[2], (string)step[3]);
-                            popup.Snapshot((Dictionary<string, object>)step[4]);
+                            views.Add((Dictionary<string, object>)step[4]);
+                            SurfaceScreen.Posted.Insert(Math.Max(0, SurfaceScreen.Posted.Count - 1),
+                                                        new long[] { 0, -1, views.Count - 1, 0 });
                         }
                         else if (kind == "proof")
                         {
@@ -442,7 +446,7 @@ namespace CodexAutoResume
                                 renderer.Letters = popup.Letters;
                                 SurfacePlan plan = renderer.Layout(popup.Vm, popup.Plan.Scale, popup.Locale);
                                 byte[] render = renderer.Draw(plan, popup.Frame(), popup.Hover, popup.Pressed,
-                                                              popup.Keyboard ? popup.Focus : null).Pixels();
+                                                              popup.Keyboard ? popup.Focus : null, null, popup.SceneNowMs()).Pixels();
                                 proofs.Add(new List<object>
                                 {
                                     Digest(window), Digest(render), Json.Write(Dump(plan)) == Json.Write(Dump(popup.Plan)),

@@ -82,7 +82,12 @@ namespace CodexAutoResume
             }
             if (message == SurfaceNative.WM_POPUP_STRINGS)
             {
-                if (Visible) Update();
+                // The core hands the view in the new words in the snapshot it sends right after the `strings` event; one
+                // that came first has taken the strings up already, and the window is brought up to date once, as the
+                // reference's one message does.
+                bool pending;
+                lock (guard) pending = pendingStrings != null;
+                if (Visible && pending) Update();
                 return zero;
             }
             if (message == SurfaceNative.WM_ACTIVATE)
