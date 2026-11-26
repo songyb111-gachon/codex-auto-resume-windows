@@ -67,7 +67,10 @@ fn get<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 fn number(value: Option<&Value>) -> bool {
-    matches!(value, Some(Value::Int(_) | Value::Float(_) | Value::Bool(_)))
+    matches!(
+        value,
+        Some(Value::Int(_) | Value::Float(_) | Value::Bool(_))
+    )
 }
 
 fn state_fault(error: crate::state::errors::Error) -> Fault {
@@ -76,7 +79,8 @@ fn state_fault(error: crate::state::errors::Error) -> Fault {
 
 /// What `restart(between)` is: codex/restart.restart's shape.
 pub type RestartSeam = Box<
-    dyn FnMut(&mut dyn FnMut() -> Result<(), Fault>) -> Result<Option<(Value, Value)>, Fault> + Send,
+    dyn FnMut(&mut dyn FnMut() -> Result<(), Fault>) -> Result<Option<(Value, Value)>, Fault>
+        + Send,
 >;
 
 /// The world of `swap` as this code holds it (its own, or a test's).
@@ -174,7 +178,12 @@ impl AutoSwitch {
     }
 
     /// `put_in(target, now, manual=)`: (the switch's outcome, how it closed the Codex app each time it did).
-    pub fn put_in(&self, target: &Value, now: f64, manual: bool) -> Result<(&'static str, Vec<Value>), Fault> {
+    pub fn put_in(
+        &self,
+        target: &Value,
+        now: f64,
+        manual: bool,
+    ) -> Result<(&'static str, Vec<Value>), Fault> {
         put_in(&mut lock(&self.inner), target, now, manual)
     }
 
@@ -200,7 +209,10 @@ impl AutoSwitch {
             Str::new("switched_at"),
             inner.switched_at.map_or(Value::Null, Value::Float),
         );
-        found.insert(Str::new("notice"), inner.notice.clone().unwrap_or(Value::Null));
+        found.insert(
+            Str::new("notice"),
+            inner.notice.clone().unwrap_or(Value::Null),
+        );
         found.insert(Str::new("others"), Value::from(inner.others));
         found.insert(
             Str::new("told"),
@@ -209,7 +221,13 @@ impl AutoSwitch {
                     .told
                     .iter()
                     .map(|(word, from, to, put_in, step)| {
-                        Value::Array(vec![text(word), from.clone(), to.clone(), put_in.clone(), step.clone()])
+                        Value::Array(vec![
+                            text(word),
+                            from.clone(),
+                            to.clone(),
+                            put_in.clone(),
+                            step.clone(),
+                        ])
                     })
                     .collect(),
             ),
@@ -240,7 +258,11 @@ fn restart_now(
     if (seams.busy)()? {
         return Ok(None);
     }
-    let idle = if away { (seams.idle)() } else { Value::Float(IDLE) };
+    let idle = if away {
+        (seams.idle)()
+    } else {
+        Value::Float(IDLE)
+    };
     if !number(Some(&idle)) || pyval::less(&idle, &Value::Float(IDLE)).unwrap_or(true) {
         return Ok(None);
     }
@@ -267,14 +289,21 @@ pub fn waiting(view: &dyn View, now: f64) -> Result<Vec<Value>, Fault> {
                 && !get(row, "hold").is_some_and(pyval::truthy)
                 && !get(row, "cancel_requested").is_some_and(pyval::truthy)
                 && number(get(row, "detected_at"))
-                && pyval::minus(&Value::Float(now), get(row, "detected_at").unwrap_or(&Value::Null))
-                    .is_ok_and(|waited| waited >= SETTLE)
+                && pyval::minus(
+                    &Value::Float(now),
+                    get(row, "detected_at").unwrap_or(&Value::Null),
+                )
+                .is_ok_and(|waited| waited >= SETTLE)
         })
         .collect())
 }
 
 /// `_why_not(view, rows)`.
-fn why_not(inner: &mut Inner, view: &dyn View, rows: &[Value]) -> Result<Option<&'static str>, Fault> {
+fn why_not(
+    inner: &mut Inner,
+    view: &dyn View,
+    rows: &[Value],
+) -> Result<Option<&'static str>, Fault> {
     let settings = view.settings().unwrap_or(Value::Null);
     if !matches!(settings, Value::Object(_))
         || !matches!(get(&settings, "enabled"), Some(Value::Bool(true)))
@@ -325,7 +354,11 @@ fn recent(inner: &mut Inner, scoped: &Scoped<'_>, now: f64) -> Result<Option<Vec
             let legacy = scoped
                 .stamped(&text(OptionKey::AutoSwitchCount.as_str()))
                 .map_err(state_fault)?;
-            let legacy = if pyval::truthy(&legacy) { legacy } else { Value::from(0) };
+            let legacy = if pyval::truthy(&legacy) {
+                legacy
+            } else {
+                Value::from(0)
+            };
             let same_day = pyval::eq(
                 &scoped
                     .stamped(&text(OptionKey::AutoSwitchDay.as_str()))
@@ -341,7 +374,13 @@ fn recent(inner: &mut Inner, scoped: &Scoped<'_>, now: f64) -> Result<Option<Vec
                 .map(|_| Value::from(now.trunc() as i64))
                 .collect();
             if !made.is_empty() {
-                keep(inner, &made.iter().filter_map(crate::state::py::small).collect::<Vec<_>>());
+                keep(
+                    inner,
+                    &made
+                        .iter()
+                        .filter_map(crate::state::py::small)
+                        .collect::<Vec<_>>(),
+                );
             }
             made
         }
@@ -350,8 +389,7 @@ fn recent(inner: &mut Inner, scoped: &Scoped<'_>, now: f64) -> Result<Option<Vec
         times
             .iter()
             .filter(|value| {
-                pyval::minus(&Value::Float(now), value)
-                    .is_ok_and(|age| (0.0..DAY).contains(&age))
+                pyval::minus(&Value::Float(now), value).is_ok_and(|age| (0.0..DAY).contains(&age))
             })
             .filter_map(crate::state::py::small)
             .collect(),
@@ -448,10 +486,23 @@ fn intent_of(inner: &Inner) -> Result<Value, Fault> {
 
 /// `swap.recover(paths, store, home, read_real=, restart=_restart_now)`.
 fn recover_now(inner: &mut Inner, home: &std::path::Path) -> Result<Option<&'static str>, Fault> {
-    let Seams { store, world, read_real, hands, .. } = &mut inner.seams;
-    let mut restart = |between: &mut dyn FnMut() -> Result<(), Fault>| restart_now(hands, between, true);
+    let Seams {
+        store,
+        world,
+        read_real,
+        hands,
+        ..
+    } = &mut inner.seams;
+    let mut restart =
+        |between: &mut dyn FnMut() -> Result<(), Fault>| restart_now(hands, between, true);
     let world = world.world();
-    swap::recover(&world, store, home, &|| read_real(), Some(&mut restart as &mut swap::Restart))
+    swap::recover(
+        &world,
+        store,
+        home,
+        &|| read_real(),
+        Some(&mut restart as &mut swap::Restart),
+    )
 }
 
 /// `look(view, now)`: one look; see the module. What it did is in the journal and the stamps.
@@ -500,7 +551,10 @@ fn look(inner: &mut Inner, scoped: &Scoped<'_>, view: &dyn View, now: f64) -> Re
         }
     }
     let same = inner.episode.as_ref().is_some_and(|kept| {
-        kept.len() == episode.len() && kept.iter().all(|each| episode.iter().any(|other| pyval::eq(each, other)))
+        kept.len() == episode.len()
+            && kept
+                .iter()
+                .all(|each| episode.iter().any(|other| pyval::eq(each, other)))
     });
     if same {
         return Ok(()); // one attempt for each set of waiting records
@@ -524,7 +578,13 @@ fn look(inner: &mut Inner, scoped: &Scoped<'_>, view: &dyn View, now: f64) -> Re
             .iter()
             .filter_map(|row| get(row, "detected_at"))
             .cloned()
-            .reduce(|low, each| if pyval::less(&each, &low).unwrap_or(false) { each } else { low })
+            .reduce(|low, each| {
+                if pyval::less(&each, &low).unwrap_or(false) {
+                    each
+                } else {
+                    low
+                }
+            })
             .unwrap_or(Value::Null);
         let at = car_machine::pytext::to_float(&first).unwrap_or(0.0).trunc() as i64;
         let mut notice = Map::new();
@@ -553,10 +613,21 @@ fn look(inner: &mut Inner, scoped: &Scoped<'_>, view: &dyn View, now: f64) -> Re
 }
 
 /// `put_in(target, now, manual=)`: the switch itself through this capability's restart hands.
-fn put_in(inner: &mut Inner, target: &Value, now: f64, manual: bool) -> Result<(&'static str, Vec<Value>), Fault> {
+fn put_in(
+    inner: &mut Inner,
+    target: &Value,
+    now: f64,
+    manual: bool,
+) -> Result<(&'static str, Vec<Value>), Fault> {
     let home = (inner.seams.home)()?;
     let mut closed: Vec<Value> = Vec::new();
-    let Seams { store, world, read_real, hands, .. } = &mut inner.seams;
+    let Seams {
+        store,
+        world,
+        read_real,
+        hands,
+        ..
+    } = &mut inner.seams;
     let mut restart = |between: &mut dyn FnMut() -> Result<(), Fault>| {
         let found = restart_now(hands, between, !manual)?;
         if let Some((_, how)) = &found
@@ -567,7 +638,15 @@ fn put_in(inner: &mut Inner, target: &Value, now: f64, manual: bool) -> Result<(
         Ok(found)
     };
     let world = world.world();
-    let outcome = swap::switch(&world, store, &home, target, &mut restart, &|| read_real(), Some(now))?;
+    let outcome = swap::switch(
+        &world,
+        store,
+        &home,
+        target,
+        &mut restart,
+        &|| read_real(),
+        Some(now),
+    )?;
     Ok((outcome, closed))
 }
 
@@ -593,9 +672,16 @@ fn choose(inner: &mut Inner, now: f64) -> Result<Option<Value>, Fault> {
         };
         let email = match profile.get("email") {
             Some(found) if pyval::truthy(found) => match found {
-                Value::Str(email) => Str::from_code_points(car_policy::classify::text::lower(email))
-                    .map_or(Value::Null, Value::Str),
-                _ => return Err(Fault::new("AttributeError", "object has no attribute 'lower'")),
+                Value::Str(email) => {
+                    Str::from_code_points(car_policy::classify::text::lower(email))
+                        .map_or(Value::Null, Value::Str)
+                }
+                _ => {
+                    return Err(Fault::new(
+                        "AttributeError",
+                        "object has no attribute 'lower'",
+                    ));
+                }
             },
             _ => text(""),
         };
@@ -646,7 +732,10 @@ pub fn best(candidates: &[(Value, Value, Value)]) -> Result<Option<Value>, Fault
         } else {
             Value::from(0)
         };
-        let rank = (get(found, "most_used").cloned().unwrap_or(Value::Null), used);
+        let rank = (
+            get(found, "most_used").cloned().unwrap_or(Value::Null),
+            used,
+        );
         let better = match &picked {
             None => true,
             Some((held, _)) => tuple_less(&rank, held)?,
@@ -851,7 +940,9 @@ pub fn live_seams(paths: &Paths) -> Seams {
         world: Box::new(swap::Live::new()),
         hands: Hands {
             restart: None,
-            idle: Box::new(|| car_platform::powerdown::idle_seconds().map_or(Value::Null, Value::Float)),
+            idle: Box::new(|| {
+                car_platform::powerdown::idle_seconds().map_or(Value::Null, Value::Float)
+            }),
             busy: Box::new(move || Ok(!live_busy(&busying).is_empty())),
             paths: paths.clone(),
         },
@@ -902,8 +993,14 @@ pub fn live_busy(paths: &Paths) -> Vec<&'static str> {
                 .map_err(|error| Fault::new("OSError", &format!("{error:?}")))
         });
     restart::busy(
-        store.as_ref().map(|store| store as &dyn BusyStore).map_err(Clone::clone),
-        source.as_ref().map(|source| source as &dyn Activity).map_err(Clone::clone),
+        store
+            .as_ref()
+            .map(|store| store as &dyn BusyStore)
+            .map_err(Clone::clone),
+        source
+            .as_ref()
+            .map(|source| source as &dyn Activity)
+            .map_err(Clone::clone),
         &Value::Float(crate::state::session::wall_clock()),
         true,
     )

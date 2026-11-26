@@ -240,7 +240,12 @@ impl Host for Windows {
         crate::codex::authfile::private_dacl(directory);
     }
     fn sweep(&self, directory: &Path, codex_home: Option<&Path>) {
-        crate::codex::authfile::sweep(directory, codex_home, crate::state::session::wall_clock(), 0.0);
+        crate::codex::authfile::sweep(
+            directory,
+            codex_home,
+            crate::state::session::wall_clock(),
+            0.0,
+        );
     }
     fn unwind(&self, _intent: &Value, codex_home: Option<&Path>) -> bool {
         let store = crate::profiles::Profiles {

@@ -178,7 +178,10 @@ pub fn identity(found: &Value) -> Result<Option<Value>, Fault> {
     if let Some(email) = get(found, "email").filter(|email| car_machine::pyval::truthy(email)) {
         return match email {
             Value::Str(found) => Ok(Some(from_points(car_policy::classify::text::lower(found)))),
-            _ => Err(Fault::new("AttributeError", "object has no attribute 'lower'")),
+            _ => Err(Fault::new(
+                "AttributeError",
+                "object has no attribute 'lower'",
+            )),
         };
     }
     match get(found, "kind").filter(|kind| car_machine::pyval::truthy(kind)) {
@@ -198,8 +201,16 @@ pub fn identity(found: &Value) -> Result<Option<Value>, Fault> {
 /// `bytes.fromhex(text)`: two hexadecimal digits a byte, ASCII white space between the bytes skipped; ValueError
 /// otherwise.
 pub fn from_hex(text: &Str) -> Result<Vec<u8>, Fault> {
-    let refused = || Fault::new("ValueError", "non-hexadecimal number found in fromhex() arg");
-    let bytes = text.as_str().filter(|text| text.is_ascii()).ok_or_else(refused)?;
+    let refused = || {
+        Fault::new(
+            "ValueError",
+            "non-hexadecimal number found in fromhex() arg",
+        )
+    };
+    let bytes = text
+        .as_str()
+        .filter(|text| text.is_ascii())
+        .ok_or_else(refused)?;
     let bytes = bytes.as_bytes();
     let white = |b: u8| matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c);
     let digit = |b: u8| (b as char).to_digit(16);
@@ -215,7 +226,10 @@ pub fn from_hex(text: &Str) -> Result<Vec<u8>, Fault> {
             }
         }
         let top = digit(bytes[at]).ok_or_else(refused)?;
-        let bottom = bytes.get(at + 1).and_then(|b| digit(*b)).ok_or_else(refused)?;
+        let bottom = bytes
+            .get(at + 1)
+            .and_then(|b| digit(*b))
+            .ok_or_else(refused)?;
         out.push((top * 16 + bottom) as u8);
         at += 2;
     }
@@ -387,10 +401,7 @@ pub fn run_codex(
         Value::Str(found) if found.code_points().count() == 3 => return Ok(Exit::Word(FAILED)),
         Value::Str(_) | Value::Object(_) => return Ok(Exit::Word(FAILED)),
         _ => {
-            return Err(Fault::new(
-                "TypeError",
-                "cannot unpack non-iterable object",
-            ));
+            return Err(Fault::new("TypeError", "cannot unpack non-iterable object"));
         }
     };
     Ok(match code {
@@ -477,7 +488,10 @@ impl Live {
     pub fn for_capability(paths: &car_config::Paths, capability: &'static str) -> Live {
         let root = std::env::current_exe()
             .ok()
-            .and_then(|exe| exe.parent().map(|folder| folder.to_string_lossy().into_owned()))
+            .and_then(|exe| {
+                exe.parent()
+                    .map(|folder| folder.to_string_lossy().into_owned())
+            })
             .unwrap_or_default();
         Live {
             installation: paths.home.clone(),
@@ -500,12 +514,18 @@ impl Live {
             product_version: self.product_version.clone(),
         };
         let refused = |error: BackendError| match error {
-            BackendError::Adapter(code) | BackendError::Check(code) => Fault::new("AdapterError", &code),
+            BackendError::Adapter(code) | BackendError::Check(code) => {
+                Fault::new("AdapterError", &code)
+            }
             BackendError::Config(text) => Fault::new("ConfigError", &text),
             BackendError::Raised(class) => Fault::new(class, "raised by discovery"),
         };
-        let own = inuse::backend(Some(&self.installation), Some(&self.settings_file), &discovery)
-            .map_err(refused)?;
+        let own = inuse::backend(
+            Some(&self.installation),
+            Some(&self.settings_file),
+            &discovery,
+        )
+        .map_err(refused)?;
         let Some(home) = home else {
             return Ok(own);
         };
@@ -544,8 +564,9 @@ impl Opener for Live {
     fn open(&self, home: Option<&Path>) -> Result<Box<dyn Session + '_>, Fault> {
         use super::session::Channel;
         let backend = self.backend(home)?;
-        let mut session = super::session::Session::new(backend, None, Some(self.capability), Vec::new())
-            .map_err(|error| Fault::new(error.class(), error.text()))?;
+        let mut session =
+            super::session::Session::new(backend, None, Some(self.capability), Vec::new())
+                .map_err(|error| Fault::new(error.class(), error.text()))?;
         session
             .enter()
             .map_err(|error| Fault::new(error.class(), error.text()))?;
@@ -586,7 +607,9 @@ mod tests {
             "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
         );
         assert_eq!(
-            digest(&text("a@b.c"), &text("4a656665")).expect("made").len(),
+            digest(&text("a@b.c"), &text("4a656665"))
+                .expect("made")
+                .len(),
             16
         );
     }

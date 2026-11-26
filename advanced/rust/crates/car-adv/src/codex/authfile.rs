@@ -17,8 +17,8 @@ mod toml;
 
 use std::path::{Path, PathBuf};
 
-pub use crate::state::seam::accounts::{LIMIT, RECURSION};
 use crate::state::seam::Tokens;
+pub use crate::state::seam::accounts::{LIMIT, RECURSION};
 
 pub const NAME: &str = "auth.json";
 pub const CONFIG: &str = "config.toml";
@@ -313,7 +313,10 @@ fn age(path: &Path, now: f64) -> f64 {
 }
 
 fn hex_tail(text: &str, count: usize) -> bool {
-    text.len() == count && text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    text.len() == count
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// `_SCRATCH.match(name)`.

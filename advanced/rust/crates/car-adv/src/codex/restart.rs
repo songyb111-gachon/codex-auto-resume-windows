@@ -79,8 +79,9 @@ fn core(error: car_codex::errors::Error) -> Main {
 fn main_of(hands: &dyn Hands) -> Result<Option<(Value, Value)>, Main> {
     let rows = match hands.inventory() {
         Ok(rows) => rows,
-        Err(fault) if ["AdapterError", "KeyError", "TypeError", "ValueError"]
-            .contains(&fault.class.as_str()) =>
+        Err(fault)
+            if ["AdapterError", "KeyError", "TypeError", "ValueError"]
+                .contains(&fault.class.as_str()) =>
         {
             return Err(Main::Lookup);
         }
@@ -221,11 +222,19 @@ pub fn busy(
         let booted = match &status {
             Value::Object(map) => map.get("booted_at").cloned().unwrap_or(Value::Null),
             found if !pyval::truthy(found) => Value::Null,
-            _ => return Err(Fault::new("AttributeError", "object has no attribute 'get'")),
+            _ => {
+                return Err(Fault::new(
+                    "AttributeError",
+                    "object has no attribute 'get'",
+                ));
+            }
         };
         let source = source?;
         let found = source.activity(now, &booted)?;
-        Ok((rows, car_policy::settings::poweraction::judge_activity(&found)))
+        Ok((
+            rows,
+            car_policy::settings::poweraction::judge_activity(&found),
+        ))
     })();
     let Ok((rows, word)) = read else {
         return Ok(vec![UNKNOWN]);
@@ -239,7 +248,10 @@ pub fn busy(
     let waiting = car_machine::vocab_gen::domain_states::WAITING;
     for row in &rows {
         if !matches!(row, Value::Object(_)) {
-            return Err(Fault::new("AttributeError", "object has no attribute 'get'"));
+            return Err(Fault::new(
+                "AttributeError",
+                "object has no attribute 'get'",
+            ));
         }
         let truthy = |key: &str| get(row, key).is_some_and(pyval::truthy);
         if truthy("hold") || truthy("cancel_requested") {
@@ -326,8 +338,13 @@ impl Hands for LiveHands {
             os: std::sync::Arc::new(car_codex::system::PolicyOs),
         };
         match threads.own(1, &std::collections::BTreeSet::new()) {
-            Ok(own) => Ok(own.first().map_or(Value::Null, |(id, _)| Value::from(id.as_str()))),
-            Err(_) => Err(Fault::new("TurnsUnavailable", "the conversations cannot be read")),
+            Ok(own) => Ok(own
+                .first()
+                .map_or(Value::Null, |(id, _)| Value::from(id.as_str()))),
+            Err(_) => Err(Fault::new(
+                "TurnsUnavailable",
+                "the conversations cannot be read",
+            )),
         }
     }
     fn open(&self, link: &str) -> Result<Value, Fault> {

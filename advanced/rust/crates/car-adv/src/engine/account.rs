@@ -269,10 +269,12 @@ fn hold_waiting(inner: &Inner, view: &dyn View, now: f64) -> Result<i64, Fault> 
 
 fn minus(a: &Value, b: &Value) -> Value {
     match (a, b) {
-        (Value::Int(_), Value::Int(_)) => match (crate::state::py::small(a), crate::state::py::small(b)) {
-            (Some(x), Some(y)) => Value::from(x - y),
-            _ => Value::Float(pyval::minus(a, b).unwrap_or(0.0)),
-        },
+        (Value::Int(_), Value::Int(_)) => {
+            match (crate::state::py::small(a), crate::state::py::small(b)) {
+                (Some(x), Some(y)) => Value::from(x - y),
+                _ => Value::Float(pyval::minus(a, b).unwrap_or(0.0)),
+            }
+        }
         _ => Value::Float(pyval::minus(a, b).unwrap_or(0.0)),
     }
 }
@@ -296,7 +298,9 @@ fn hold_rules(inner: &Inner, scoped: &Scoped<'_>) -> Result<i64, Fault> {
     let mut held = 0;
     for rule in rules {
         let rule = Value::Object(rule);
-        if !rule_get(&rule, "state").is_some_and(|state| pyval::is(state, RuleState::Counting.as_str())) {
+        if !rule_get(&rule, "state")
+            .is_some_and(|state| pyval::is(state, RuleState::Counting.as_str()))
+        {
             continue;
         }
         let key = (

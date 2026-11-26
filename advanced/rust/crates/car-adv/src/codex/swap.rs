@@ -90,7 +90,8 @@ pub struct World<'a> {
 
 /// `restart(between)`: codex/restart.restart's shape, given what to do once the app is gone - (outcome, how), or None
 /// where its hands said no right before the close. Whatever `between` raises, the restart swallows.
-pub type Restart<'a> = dyn FnMut(&mut dyn FnMut() -> Result<(), Fault>) -> Result<Option<(Value, Value)>, Fault> + 'a;
+pub type Restart<'a> =
+    dyn FnMut(&mut dyn FnMut() -> Result<(), Fault>) -> Result<Option<(Value, Value)>, Fault> + 'a;
 
 fn text(value: &str) -> Value {
     Value::Str(Str::new(value))
@@ -266,7 +267,9 @@ pub fn other_engines(
             return Ok(true);
         }
         let pid = get(row, "pid").cloned().unwrap_or(Value::Null);
-        if !car_codex::pairing::engine_row(system, row) || own.iter().any(|each| pyval::eq(each, &pid)) {
+        if !car_codex::pairing::engine_row(system, row)
+            || own.iter().any(|each| pyval::eq(each, &pid))
+        {
             continue;
         }
         if !matches!(main, Value::Null) && !pyval::eq(&pid, &main) && under_main(row)? {
@@ -308,7 +311,9 @@ fn is_number(value: Option<&Value>) -> bool {
 pub fn meters(windows: &[Value]) -> Result<Map, Fault> {
     let rows: Vec<&Value> = windows
         .iter()
-        .filter(|window| matches!(window, Value::Object(_)) && is_number(get(window, "used_percent")))
+        .filter(|window| {
+            matches!(window, Value::Object(_)) && is_number(get(window, "used_percent"))
+        })
         .collect();
     let codex: Vec<&Value> = rows
         .iter()
@@ -346,8 +351,9 @@ pub fn meters(windows: &[Value]) -> Result<Map, Fault> {
         if !matches!(found.get(name), Some(Value::Null)) {
             continue;
         }
-        let used = car_machine::pytext::to_float(get(window, "used_percent").unwrap_or(&Value::Null))
-            .map_err(|class| Fault::new(class, "float()"))?;
+        let used =
+            car_machine::pytext::to_float(get(window, "used_percent").unwrap_or(&Value::Null))
+                .map_err(|class| Fault::new(class, "float()"))?;
         let reset = match get(window, "reset_at") {
             Some(reset @ Value::Int(_)) => reset.clone(),
             _ => Value::Null,
@@ -455,7 +461,9 @@ pub fn add_by_login(
         let backend = backend_for.backend(home)?;
         let mut argv = backend.argv()?;
         argv.push("login".to_owned());
-        let seconds = seconds.filter(|seconds| *seconds != 0.0).unwrap_or(account::LOGIN_SECONDS);
+        let seconds = seconds
+            .filter(|seconds| *seconds != 0.0)
+            .unwrap_or(account::LOGIN_SECONDS);
         let code = account::run_codex(runner, &argv, backend.as_ref(), seconds)?;
         if !matches!(&code, account::Exit::Code(code) if pyval::eq(code, &Value::from(0))) {
             return Ok(None);
@@ -474,7 +482,9 @@ pub fn add_by_login(
     }
     let email = get(&found, "email").cloned().unwrap_or(Value::Null);
     let plan = get(&found, "plan_word").cloned().unwrap_or(Value::Null);
-    match locked(store, profiles::LOCK_SECONDS, || Ok(store.save(&data, &email, &plan)?)) {
+    match locked(store, profiles::LOCK_SECONDS, || {
+        Ok(store.save(&data, &email, &plan)?)
+    }) {
         Ok(saved) => Ok(Some(saved)),
         Err(fault) if fault.is_os() => Ok(None),
         Err(fault) => Err(fault),
@@ -493,7 +503,10 @@ pub fn save_current(
     }
     let found = read_real();
     let Value::Object(_) = &found else {
-        return Err(Fault::new("AttributeError", "object has no attribute 'get'"));
+        return Err(Fault::new(
+            "AttributeError",
+            "object has no attribute 'get'",
+        ));
     };
     if !is_true(get(&found, "present")) || !truthy(get(&found, "email")) {
         return Ok(None);
@@ -562,7 +575,11 @@ fn read_one(
         Ok(profile) => profile,
         Err(error) => {
             let fault = Fault::from(error);
-            return if fault.is_profile() { Ok(found) } else { Err(fault) };
+            return if fault.is_profile() {
+                Ok(found)
+            } else {
+                Err(fault)
+            };
         }
     };
     let auth = auth_of(&profile);
@@ -618,7 +635,14 @@ fn read_one(
         }
     }
     let noted = locked(store, profiles::KEEP_SECONDS, || {
-        note_read(store, profile_id, &auth, scratch.after.as_deref(), &found, now)
+        note_read(
+            store,
+            profile_id,
+            &auth,
+            scratch.after.as_deref(),
+            &found,
+            now,
+        )
     });
     if let Err(fault) = noted
         && !fault.is_os()
@@ -638,7 +662,10 @@ fn note_read(
     now: Option<f64>,
 ) -> Result<(), Fault> {
     if is_false(found.get("present")) || is_false(found.get("own")) {
-        store.update(profile_id, &pairs(vec![("failed_at", stamp_of(store, now))]))?;
+        store.update(
+            profile_id,
+            &pairs(vec![("failed_at", stamp_of(store, now))]),
+        )?;
         return Ok(());
     }
     let mut changes = Vec::new();
@@ -655,7 +682,8 @@ fn note_read(
         };
         changes.push(("exhausted_until", until));
     }
-    if is_true(found.get("present")) && !matches!(found.get("available"), None | Some(Value::Null)) {
+    if is_true(found.get("present")) && !matches!(found.get("available"), None | Some(Value::Null))
+    {
         let mut usage = Map::new();
         usage.insert(Str::new("read_at"), stamp_of(store, now));
         for key in ["available", "most_used", "five_hour", "weekly"] {
@@ -793,9 +821,10 @@ pub fn previous_of(store: &Profiles, intent: &Value) -> Result<Vec<u8>, Fault> {
             .ok_or_else(|| Fault::new("ProfileError", "the intent's copy cannot be opened"))?;
         return match authfile::check(&opened) {
             Ok(data) => Ok(data),
-            Err(fault) if fault.is_os() => {
-                Err(Fault::new("ProfileError", "the intent's copy cannot be opened"))
-            }
+            Err(fault) if fault.is_os() => Err(Fault::new(
+                "ProfileError",
+                "the intent's copy cannot be opened",
+            )),
             Err(fault) => Err(fault),
         };
     }
@@ -857,7 +886,10 @@ fn switch_held(
     let stamp = stamp_of(store, now);
     let before = read_real();
     if !matches!(before, Value::Object(_)) {
-        return Err(Fault::new("AttributeError", "object has no attribute 'get'"));
+        return Err(Fault::new(
+            "AttributeError",
+            "object has no attribute 'get'",
+        ));
     }
     if !is_true(get(&before, "present")) || !truthy(get(&before, "email")) {
         return Ok(NOT_USABLE); // an account that cannot be told apart is never swapped out
@@ -902,7 +934,10 @@ fn switch_held(
         }
         store.update(
             &source,
-            &pairs(vec![("auth", bytes_value(&latest)), ("used_at", stamp.clone())]),
+            &pairs(vec![
+                ("auth", bytes_value(&latest)),
+                ("used_at", stamp.clone()),
+            ]),
         )?;
         authfile::replace(codex_home, &target_auth, world.tokens)?;
         done.swapped = true;
@@ -944,19 +979,31 @@ fn switch_held(
         let after = read_answer(world, read_real, AFTER_TRIES)?;
         let wanted = match target.get("email") {
             Some(found) if pyval::truthy(found) => match found {
-                Value::Str(email) => Str::from_code_points(car_policy::classify::text::lower(email))
-                    .map_or(Value::Null, Value::Str),
-                _ => return Err(Fault::new("AttributeError", "object has no attribute 'lower'")),
+                Value::Str(email) => {
+                    Str::from_code_points(car_policy::classify::text::lower(email))
+                        .map_or(Value::Null, Value::Str)
+                }
+                _ => {
+                    return Err(Fault::new(
+                        "AttributeError",
+                        "object has no attribute 'lower'",
+                    ));
+                }
             },
             _ => text(""),
         };
         let identity = account::identity(&after)?;
-        if identity.as_ref().is_some_and(|found| pyval::eq(found, &wanted)) {
+        if identity
+            .as_ref()
+            .is_some_and(|found| pyval::eq(found, &wanted))
+        {
             store.update(
                 target_id,
                 &pairs(vec![("used_at", stamp.clone()), ("seen_at", stamp.clone())]),
             )?;
-            let email = pyval::text(&field(&target, "email")).unwrap_or_default().to_owned();
+            let email = pyval::text(&field(&target, "email"))
+                .unwrap_or_default()
+                .to_owned();
             store.mark_switched(&email)?;
             // The app that did not come back is said as such: nothing is released early into a closed app.
             return Ok(if word(&outcome, restarts::NOT_STARTED) {
@@ -1028,7 +1075,9 @@ pub fn recover(
     if matches!(store.intent()?, Value::Null) {
         return Ok(None);
     }
-    match locked(store, 0.0, || recover_held(world, store, codex_home, read_real, restart)) {
+    match locked(store, 0.0, || {
+        recover_held(world, store, codex_home, read_real, restart)
+    }) {
         Err(fault) if fault.class == "Locked" => Ok(Some(LOCKED)),
         other => other,
     }
@@ -1080,13 +1129,20 @@ fn recover_held(
             if pyval::eq(now, &lowered) {
                 if target.is_some() {
                     let stamp = Value::from(clock(store).trunc() as i64);
-                    store.update(&to, &pairs(vec![("used_at", stamp.clone()), ("seen_at", stamp)]))?;
+                    store.update(
+                        &to,
+                        &pairs(vec![("used_at", stamp.clone()), ("seen_at", stamp)]),
+                    )?;
                 }
                 store.mark_switched(email.as_str().unwrap_or_default())?;
                 return Ok(SWITCHED);
             }
         }
-        if !word(&step, BACK) && !known(&found)? && put_in.is_some() && matches!(from, Value::Str(_)) {
+        if !word(&step, BACK)
+            && !known(&found)?
+            && put_in.is_some()
+            && matches!(from, Value::Str(_))
+        {
             kept = true; // R1: no answer, nothing undone - read again next look
             return Ok(UNVERIFIED);
         }
@@ -1191,7 +1247,9 @@ pub fn unwind(world: &World, store: &Profiles, codex_home: Option<&Path>) -> Res
     let (put_in, previous) = match found {
         Ok(Some(found)) => found,
         Ok(None) => return Ok(true),
-        Err(fault) if fault.is_profile() || ["KeyError", "TypeError"].contains(&fault.class.as_str()) => {
+        Err(fault)
+            if fault.is_profile() || ["KeyError", "TypeError"].contains(&fault.class.as_str()) =>
+        {
             return Ok(true); // nothing kept to put back: deleting loses nothing more
         }
         Err(fault) => return Err(fault),
@@ -1238,7 +1296,10 @@ fn nobody() -> Vec<Value> {
 impl Live {
     pub fn new() -> Live {
         let system = std::sync::Arc::new(car_codex::system::Platform::new());
-        let (listing, asking) = (std::sync::Arc::clone(&system), std::sync::Arc::clone(&system));
+        let (listing, asking) = (
+            std::sync::Arc::clone(&system),
+            std::sync::Arc::clone(&system),
+        );
         let started = std::time::Instant::now();
         Live {
             system,

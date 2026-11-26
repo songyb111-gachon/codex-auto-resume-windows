@@ -364,7 +364,12 @@ impl Parser {
         })
     }
 
-    fn create_dict_rule(&mut self, pos: usize, root: usize, flags: &mut Flags) -> Parsed<(usize, Key)> {
+    fn create_dict_rule(
+        &mut self,
+        pos: usize,
+        root: usize,
+        flags: &mut Flags,
+    ) -> Parsed<(usize, Key)> {
         self.call(|p| {
             let pos = p.skip_chars(pos + 1, ws)?;
             let (pos, key) = p.parse_key(pos)?;
@@ -384,7 +389,12 @@ impl Parser {
         })
     }
 
-    fn create_list_rule(&mut self, pos: usize, root: usize, flags: &mut Flags) -> Parsed<(usize, Key)> {
+    fn create_list_rule(
+        &mut self,
+        pos: usize,
+        root: usize,
+        flags: &mut Flags,
+    ) -> Parsed<(usize, Key)> {
         self.call(|p| {
             let pos = p.skip_chars(pos + 2, ws)?;
             let (pos, key) = p.parse_key(pos)?;
@@ -408,7 +418,13 @@ impl Parser {
         })
     }
 
-    fn key_value_rule(&mut self, pos: usize, root: usize, flags: &mut Flags, header: &Key) -> Parsed<usize> {
+    fn key_value_rule(
+        &mut self,
+        pos: usize,
+        root: usize,
+        flags: &mut Flags,
+        header: &Key,
+    ) -> Parsed<usize> {
         self.call(|p| {
             let (pos, key, value) = p.parse_key_value_pair(pos)?;
             let stem = key[key.len() - 1].clone();
@@ -951,8 +967,10 @@ pub fn top_level(text: &str, key: &str, base: usize) -> Result<Option<Found>, Er
         depth: base,
     };
     parser.loads(0)?;
-    Ok(parser.table_get(0, key).map(|index| match &parser.nodes[index] {
-        Node::Str(text) => Found::Str(text.clone()),
-        _ => Found::Other,
-    }))
+    Ok(parser
+        .table_get(0, key)
+        .map(|index| match &parser.nodes[index] {
+            Node::Str(text) => Found::Str(text.clone()),
+            _ => Found::Other,
+        }))
 }
