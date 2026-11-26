@@ -549,6 +549,85 @@ pub fn app_engines(system: &dyn System) -> Result<Vec<String>> {
     server_engines(system, &inventory(system)?)
 }
 
+/// How deep below a package's folder a codex.exe is looked for: `app\resources\codex.exe` is three names down (#58).
+pub const PACKAGE_ENGINE_DEPTH: usize = 4;
+
+/// `os.scandir(folder)` as `package_engines` reads it: each entry's path (the folder and the name joined as scandir
+/// joins them), name, and whether it is a folder (`is_dir(follow_symlinks=False) and not is_symlink()`: a junction is
+/// a folder, a symbolic link is neither) or a file (`is_file(follow_symlinks=False)`). None where the folder cannot be
+/// opened (the reference's `OSError`, then `continue`).
+fn listed(folder: &str) -> Option<Vec<(String, String, bool, bool)>> {
+    use car_policy::settings::os::Os;
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(folder).ok()? {
+        // An error met while listing ends the listing; what was listed before it stays (the reference appends as it
+        // iterates, then `continue`s past the OSError).
+        let Ok(entry) = entry else {
+            break;
+        };
+        let name = entry.file_name().to_string_lossy().into_owned();
+        // `join_path_filenameW`: a separator is added unless the folder ends in one or in a drive's colon.
+        let path = if folder.is_empty() || folder.ends_with(['\\', '/', ':']) {
+            format!("{folder}{name}")
+        } else {
+            format!("{folder}\\{name}")
+        };
+        let attributes = entry.metadata().map_or(0, |facts| facts.file_attributes());
+        let link = PolicyOs.is_symlink(std::path::Path::new(&path));
+        let directory = attributes & 0x10 != 0;
+        found.push((path, name, directory && !link, !directory && !link));
+    }
+    Some(found)
+}
+
+/// `package_engines()` (v0.6.26 final, live acceptance R2b): every file called codex.exe in the folders of the Codex
+/// app's package installed for this account (`package_roots`), up to [`PACKAGE_ENGINE_DEPTH`] names below a folder,
+/// that may be an engine (`engine_row`, `_main_place`) and is a file of the package's own folder in WindowsApps, as
+/// written and as resolved (`_package_file`): whether or not the app runs. Only folder names are read; nothing is
+/// opened, hashed or started. Nothing where the package manager cannot answer (AdapterError, OSError); any other
+/// exception of it leaves, as the reference's would.
+pub fn package_engines(system: &dyn System) -> Result<Vec<String>> {
+    let roots = match system.package_roots(&codex_app_family()) {
+        Ok(roots) => roots,
+        Err(Error::Adapter(_) | Error::Os) => return Ok(Vec::new()),
+        Err(other) => return Err(other),
+    };
+    let mut found = Vec::new();
+    for root in roots {
+        let mut level = vec![root];
+        for _depth in 0..PACKAGE_ENGINE_DEPTH {
+            let mut below = Vec::new();
+            for folder in &level {
+                let Some(entries) = listed(folder) else {
+                    continue;
+                };
+                for (path, name, directory, file) in entries {
+                    if directory {
+                        below.push(path);
+                    } else if name.to_lowercase() == "codex.exe" && file {
+                        found.push(path);
+                    }
+                }
+            }
+            level = below;
+        }
+    }
+    let mut engines = Vec::new();
+    for path in found {
+        let Some(resolved) = system.resolve(&path) else {
+            continue;
+        };
+        if [&path, &resolved].iter().all(|each| {
+            package_file(system, each)
+                && engine_row(system, &object(vec![("path", Value::from(each.as_str()))]))
+                && !main_place(system, each)
+        }) {
+            engines.push(resolved);
+        }
+    }
+    Ok(engines)
+}
+
 /// `engines_instead(rows, codex_exe)`: the codex.exe paths the app main runs where none of them is `codex_exe`.
 pub fn engines_instead(
     system: &dyn System,

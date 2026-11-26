@@ -374,6 +374,24 @@ pub fn served_engines(system: &dyn System) -> Vec<String> {
         .collect()
 }
 
+/// `_package_engines()` (v0.6.26 final, live acceptance R2b): the engines in the folders of the Codex app's package
+/// installed for this account, whether or not the app runs; nothing where the package manager cannot answer (any
+/// exception of `package_engines`). A generator in the reference, as `_served_engines` is: `official_engine` is asked
+/// of each only as the caller comes to it ([`official`] over this list).
+pub fn package_engines(system: &dyn System) -> Vec<String> {
+    pairing::package_engines(system).unwrap_or_default()
+}
+
+/// The official ones of `found`, each asked only when the caller comes to it (the generators' filter).
+pub fn official<'a>(
+    system: &'a dyn System,
+    found: Vec<String>,
+) -> impl Iterator<Item = String> + 'a {
+    found
+        .into_iter()
+        .filter(move |path| pairing::official_engine(system, path).0)
+}
+
 /// The record of discovery: every candidate's path and its checks, in the order they were made.
 pub type Discovery = Vec<(String, Value)>;
 

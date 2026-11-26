@@ -103,4 +103,20 @@ impl System for World {
     fn restart_manager_available(&self) -> bool {
         false
     }
+
+    /// The case's package folders (`packages`, as advcodex.py's `fake_packages` reads it): none unless it names some,
+    /// never this PC's.
+    fn package_roots(&self, _family: &str) -> Result<Vec<String>> {
+        match self.field("packages") {
+            Value::Array(items) => Ok(items
+                .iter()
+                .filter_map(|each| match each {
+                    Value::Str(text) => text.as_str().map(str::to_owned),
+                    _ => None,
+                })
+                .collect()),
+            Value::Object(_) => Err(Error::Adapter("package_roots_unavailable")),
+            _ => Ok(Vec::new()),
+        }
+    }
 }

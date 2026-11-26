@@ -384,6 +384,10 @@ _authenticode.signer = _fake_signer
 _pairing.processes_named = lambda names, families: json.loads(json.dumps(WORLD.get("processes") or []))
 _pairing.resource_users = lambda *paths: []
 _pairing.process_identity = _no_identity
+# v0.6.26 final (FINAL-DELTA #6): the case's package folders, never this PC's.
+_pairing.package_roots = lambda family: (
+    [each for each in WORLD.get("packages") if isinstance(each, str)] if isinstance(WORLD.get("packages"), list)
+    else [])
 
 
 def session_error(error):

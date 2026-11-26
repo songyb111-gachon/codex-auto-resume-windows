@@ -203,6 +203,19 @@ impl System for World {
     fn restart_manager_available(&self) -> bool {
         !matches!(field(&self.read(), "restart_manager"), Value::Bool(false))
     }
+
+    /// The world's package folders (`packages`, as appserverdiff.py's `fake_packages` reads it): a list of folders,
+    /// `{"raise": spec}`, or none - never this PC's (`tests/no_real_codex.py` `_guard_packages`).
+    fn package_roots(&self, _family: &str) -> car_codex::Result<Vec<String>> {
+        match field(&self.read(), "packages") {
+            Value::Array(items) => Ok(items
+                .iter()
+                .filter_map(|each| pyval::text(each).map(str::to_owned))
+                .collect()),
+            Value::Object(spec) => Err(raise_of(spec.get("raise").unwrap_or(&Value::Null))),
+            _ => Ok(Vec::new()),
+        }
+    }
 }
 
 /// What one operation answered.
@@ -494,6 +507,9 @@ impl Case {
                 ok(pairing::app_running_now(system).map_or(Value::Null, Value::Bool))
             }
             "app_engines" => answer(pairing::app_engines(system).map(|found| texts(&found))),
+            "package_engines" => {
+                answer(pairing::package_engines(system).map(|found| texts(&found)))
+            }
             "inventory" => answer(pairing::inventory(system).map(Value::Array)),
             "forget_inventory" => {
                 pairing::forget_inventory();

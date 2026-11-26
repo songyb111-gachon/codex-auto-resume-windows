@@ -467,6 +467,9 @@ pub fn run(case: &mut Case, op: &str, args: &[Value]) -> Value {
             )))
         }
         "registry.served_engines" => ok(texts(&probes::served_engines(system))),
+        "registry.package_engines" => ok(texts(
+            &probes::official(system, probes::package_engines(system)).collect::<Vec<_>>(),
+        )),
         "registry.read_report" => with_py(
             views::read_report(&text_of(&arg(0)), number(&arg(1))),
             |(found, status)| Value::Array(vec![found.unwrap_or(Value::Null), Value::from(status)]),

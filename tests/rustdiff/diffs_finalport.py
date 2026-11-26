@@ -9,6 +9,15 @@
   of the wrong type, `added` that is no dict. Each answer, file, state row and Host call compared, as ControlCallDiff
   does (diffs_bridge_acting).
 
+* PackageEnginesDiff - `codex/pairing.py` `package_engines`, `compat/probes.py` `_package_engines` and
+  `compat/views.py` `_binding_holds` (FINAL-DELTA #6-#9, live acceptance R2b): the world's package folders
+  (`packages`: appserverdiff's `fake_packages`, car-harness `appserver.rs` `World::package_roots`; never this PC's) over
+  a scratch WindowsApps - the package engine (signed or not), the update trampoline, the main's slot, a program that is
+  not codex, names in any case, a folder called codex.exe, depths 1 to 5, a junction, a root outside WindowsApps, with a
+  trailing separator, absent, a file, twice, `..` in it - and the package manager refusing in three ways; reports bound
+  to the package engine, to bin, to a replaced or vanished file, with the app's process list open, closed or refused.
+  test_package_engine_bound's cases.
+
 The fresh-home rows (#1-#5, #11) are held by diffs_codex_homes (`history-absent-*`), diffs_codex_compat_io
 (`schema_variants`) and diffs_review6 (`r6_fresh_home_*`).
 
@@ -16,11 +25,16 @@ Run by run.py; never by the lanes' discovery.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 
 from rustdiff import diffs_bridge_acting as acting
+from rustdiff.appserverdiff import AppBase, facts, op
 from rustdiff.diffs import RECORD
+
+PUBLISHER = "2p2nqsd0c76g0"
+OPENAI = "OpenAI OpCo, LLC"
 
 DAY = 86400
 COUNTS = {"cases": 0}
@@ -112,6 +126,119 @@ class StatusMeterDiff(acting.ActingBase):
                 with self.subTest(reading=reading, plug=name):
                     self.call({"status_plug": plug}, tune, "get_status, %s, %s" % (reading, name))
         RECORD.append("finalport status meter: %d get_status cases equal" % COUNTS["cases"])
+
+
+class PackageEnginesDiff(AppBase):
+    def test_package_engines_and_the_binding(self):
+        folder = self.profile("packages")
+        local, native = folder / "local", folder / "pf"
+        bin_exe = local / "OpenAI" / "Codex" / "bin" / "0123abcd" / "codex.exe"
+        bin_exe.parent.mkdir(parents=True)
+        bin_exe.write_bytes(b"MZ-bin")
+        apps = native / "WindowsApps"
+        root = apps / ("OpenAI.Codex_26.1120.0.0_x64__" + PUBLISHER)
+        engine = root / "app" / "resources" / "codex.exe"
+        engine.parent.mkdir(parents=True)
+        engine.write_bytes(b"MZ-package-0.171")
+        files = {
+            "trampoline": root / "app" / "Codex.exe",
+            "main slot": root / "app" / "codex.exe",
+            "node": root / "app" / "resources" / "node.exe",
+            "upper": root / "app" / "tools" / "CODEX.EXE",
+            "depth 1": root / "codex.exe",
+            "depth 4": root / "a" / "b" / "c" / "codex.exe",
+            "depth 5": root / "a" / "b" / "c" / "d" / "codex.exe",
+            "codex.exe.bak": root / "app" / "resources" / "codex.exe.bak",
+        }
+        for path in files.values():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"MZ-" + path.name.encode())
+        (root / "app" / "folder" / "codex.exe").mkdir(parents=True)
+        # A junction below the package folder, to a folder of it that holds an engine (a folder to Python 3.12+).
+        target = root / "linked-target"
+        target.mkdir()
+        (target / "codex.exe").write_bytes(b"MZ-linked")
+        try:
+            import _winapi
+
+            _winapi.CreateJunction(str(target), str(root / "junction"))
+        except (ImportError, OSError):
+            pass
+        second = apps / ("OpenAI.Codex_26.1201.0.0_arm64__" + PUBLISHER)
+        (second / "app" / "resources").mkdir(parents=True)
+        (second / "app" / "resources" / "codex.exe").write_bytes(b"MZ-second")
+        elsewhere = folder / "elsewhere" / ("OpenAI.Codex_26.1120.0.0_x64__" + PUBLISHER)
+        (elsewhere / "app" / "resources").mkdir(parents=True)
+        (elsewhere / "app" / "resources" / "codex.exe").write_bytes(b"MZ-elsewhere")
+        stranger = apps / "Other.App_1.0.0.0_x64__abcdefghijklm"
+        (stranger / "app" / "resources").mkdir(parents=True)
+        (stranger / "app" / "resources" / "codex.exe").write_bytes(b"MZ-stranger")
+        a_file = folder / "a-file"
+        a_file.write_bytes(b"x")
+        every = [engine] + list(files.values()) + [target / "codex.exe", root / "junction" / "codex.exe",
+                                                   second / "app" / "resources" / "codex.exe",
+                                                   elsewhere / "app" / "resources" / "codex.exe",
+                                                   stranger / "app" / "resources" / "codex.exe", bin_exe]
+        signed_all = {str(path).lower(): OPENAI for path in every}
+        known = facts()
+        spec = {"bundled": known["bundled"], "reported": known["reported"], "cache_file": str(folder / "cache.json"),
+                "version": known["version"], "report_file": str(folder / "report.json")}
+
+        def report_on(exe):
+            stat = exe.stat()
+            return {"engine": {"found": True, "version": "codex-cli 0.171.0", "candidates": 1,
+                               "signature": [stat.st_size, stat.st_mtime_ns],
+                               "path_digest": hashlib.sha256(str(exe.resolve()).lower().encode("utf-8")).hexdigest()}}
+
+        reports = [report_on(each) for each in (engine, bin_exe, files["trampoline"], files["node"],
+                                                elsewhere / "app" / "resources" / "codex.exe",
+                                                second / "app" / "resources" / "codex.exe", files["depth 4"],
+                                                target / "codex.exe")]
+        reports.append({"engine": dict(report_on(engine)["engine"], signature=[1, 2])})
+        reports.append({"engine": dict(report_on(engine)["engine"], path_digest="b" * 64)})
+        ops = [op("package_engines"), op("registry.package_engines")]
+        ops += [op("registry.binding", spec, report, None) for report in reports]
+        ops += [op("registry.binding", spec, reports[0], str(bin_exe))]
+        env = {"LOCALAPPDATA": str(local), "ProgramW6432": str(native)}
+        app_open = [{"pid": 10, "parent": 1, "path": str(root / "app" / "ChatGPT.exe"), "created": 100,
+                     "family": "OpenAI.Codex_" + PUBLISHER},
+                    {"pid": 20, "parent": 10, "path": str(engine), "created": 200}]
+        sep = chr(92)
+        rooted = {
+            "the package": [str(root)],
+            "two packages": [str(root), str(second)],
+            "twice": [str(root), str(root)],
+            "trailing separator": [str(root) + sep],
+            "forward slashes": [str(root).replace(sep, "/")],
+            "upper case": [str(root).upper()],
+            "outside WindowsApps": [str(elsewhere)],
+            "another package": [str(stranger)],
+            "absent": [str(apps / ("OpenAI.Codex_9.9.9.9_x64__" + PUBLISHER))],
+            "a file": [str(a_file)],
+            "dot dot": [str(root / "app") + sep + ".."],
+            "empty text": [""],
+            "none": [],
+            "not texts": [5, None, str(root)],
+            "refused OSError": {"raise": "OSError"},
+            "refused AdapterError": {"raise": "windows_required"},
+            "refused ValueError": {"raise": "ValueError"},
+        }
+        cases = []
+        for packages in rooted.values():
+            for signers in (signed_all, {}):
+                for processes in ([], app_open, {"raise": "OSError"}):
+                    cases.append({"world": {"env": env, "packages": packages, "signers": signers,
+                                            "processes": processes, "restart_manager": True}, "ops": ops})
+        # No packages at all: the world says nothing (the guard's answer on a PC with the app, CI's on one without).
+        cases.append({"world": {"env": env, "signers": signed_all, "processes": []}, "ops": ops})
+        count, calls = self.script(cases, "package engines", chunk=20)
+        # The file replaced, then gone, under the same reports.
+        engine.write_bytes(b"MZ-package-0.172-and-longer")
+        replaced = self.script(cases[:6], "package engine replaced", chunk=20)
+        engine.unlink()
+        gone = self.script(cases[:6], "package engine gone", chunk=20)
+        RECORD.append("finalport package engines: %d worlds, %d calls equal (+%d replaced, +%d gone)"
+                      % (count, calls, replaced[1], gone[1]))
 
 
 if __name__ == "__main__":

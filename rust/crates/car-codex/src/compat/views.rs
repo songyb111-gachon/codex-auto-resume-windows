@@ -11,7 +11,7 @@ use car_machine::vocab_gen::compat_model as words;
 use super::cache::{Cache, read_cache, sources_of};
 use super::files::{load_bundled, path_digest, product_version, read_capped, signature};
 use super::probes::{
-    api_checks, candidate_paths, discover, engine_from_backend, engine_from_discovery,
+    self, api_checks, candidate_paths, discover, engine_from_backend, engine_from_discovery,
     served_engines, source_checks,
 };
 use super::report::{build_report, unusable_view, validate_report, view_of};
@@ -167,6 +167,16 @@ pub fn binding_holds(registry: &Registry, report: &Value, explicit: Option<&str>
         let wanted = pyval::text(digest).unwrap_or_default();
         let matches = |candidate: &str| path_digest(system, candidate).as_deref() == Some(wanted);
         for candidate in candidate_paths(system, &registry.config, explicit) {
+            if matches(&candidate) {
+                return pyval::eq(
+                    &signature(&candidate).unwrap_or(Value::Null),
+                    get(engine, "signature"),
+                );
+            }
+        }
+        // v0.6.26 final (live acceptance R2b): before the app, the engines of its package on disk, so the report on the
+        // app's engine stays bound while that very file is there, whether or not the app runs now.
+        for candidate in probes::official(system, probes::package_engines(system)) {
             if matches(&candidate) {
                 return pyval::eq(
                     &signature(&candidate).unwrap_or(Value::Null),

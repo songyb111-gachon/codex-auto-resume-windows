@@ -115,6 +115,10 @@ mod tests {
         fn restart_manager_available(&self) -> bool {
             false
         }
+
+        fn package_roots(&self, _family: &str) -> car_codex::errors::Result<Vec<String>> {
+            Ok(Vec::new())
+        }
     }
 
     #[derive(Debug)]

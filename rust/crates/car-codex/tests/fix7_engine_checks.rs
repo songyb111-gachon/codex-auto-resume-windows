@@ -61,6 +61,10 @@ impl System for Stand {
     fn restart_manager_available(&self) -> bool {
         false
     }
+
+    fn package_roots(&self, _family: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
 }
 
 /// Which of the two answers lingers: the scratch folder's name says (`linger-version` or `linger-help`).
