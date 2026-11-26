@@ -499,7 +499,10 @@ python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha
 
 * (d) found the advanced window's one-word literals (`address`, `capacity`, `interrupted`, `requires`, `returned`) in every Rust binary:
   the standard library's panic messages. `rust_edition_audit.plain_word` leaves a one plain lowercase word out for the Rust binaries
-  only, by `edition_audit.one_word`'s rule for (c); every other literal and every name is still looked for.
+  only, by `edition_audit.one_word`'s rule for (c); every other literal and every name is still looked for. Since D18 the MCP
+  launcher is car-bin's too and carries the same five (std's io error kinds and `OpenOptions` message, `capacity overflow`,
+  the formatter's `returned an error`): `rust_release.RUST_BUILT` is every cargo-built executable and the rule reads them
+  all alike. Proof (CI fix seat): a std-only program built with this profile holds exactly these five window literals.
 * The allowances (`RUST_EXECUTABLE_ALLOWED`): `codex-auto-resume.exe` and `car_core.dll` x the package name (car-policy's edition look,
   the allowance `ALLOWED` gives `edition.py`); `codex-auto-resume-setup.exe` x the package name (the installer window's and C# setup's,
   `EXECUTABLE_ALLOWED`/`SETUP_ALLOWED`). None is used by the stub core; car-legacy has none.

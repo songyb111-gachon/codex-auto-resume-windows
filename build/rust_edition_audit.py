@@ -14,9 +14,10 @@ is made of, and each difference is the same allowance the Python audit already m
       - codex-auto-resume-setup.exe refuses an edition change without -AllowEditionChange (BRIDGE.md section 4) and
         so tells which edition is installed by the package's folder, as install.ps1 and the installer window do: the
         allowance EXECUTABLE_ALLOWED gives the window and SETUP_ALLOWED the C# setup program.
-    car-legacy (runtime/) has none: it names no edition. In a Rust binary (d) leaves out the window's literals that are
-    one plain lowercase word, which the standard library's own messages carry (`plain_word`), by the rule
-    edition_audit.one_word gives (c); the C# executables are read for every literal as before.
+    car-legacy (runtime/) has none: it names no edition. In a Rust binary - app/bin, car-legacy and, since D18, the
+    MCP launcher (rust_release.RUST_BUILT) - (d) leaves out the window's literals that are one plain lowercase word,
+    which the standard library's own messages carry (`plain_word`), by the rule edition_audit.one_word gives (c); the
+    C# window is read for every literal as before.
   * (f) lets the editions differ where each builds its own: the window and the manifest's display name as before, and
     (D2) the three binaries of app/bin, and the handover marker's `edition` (BRIDGE.md: the edition the archive is).
     The advanced archive adds only in its own places, and has the package's __init__.py, which is all an old
@@ -96,7 +97,7 @@ def check_executables(standard: dict, tree: audit.Inventory) -> tuple[list, set]
             else:
                 found.append("(d) %s holds %s" % (entry, name))
         for literal in sorted(tree.literals):
-            if entry in rust_release.BINARIES and plain_word(literal):
+            if entry in rust_release.RUST_BUILT and plain_word(literal):
                 continue
             if audit._holds(data, literal, word=False):
                 found.append("(d) %s holds the literal %r" % (entry, literal))

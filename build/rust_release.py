@@ -79,6 +79,10 @@ EDITION_BINARIES = {"codex-auto-resume.exe": "payload/app/bin/codex-auto-resume.
 # car-legacy, from the standard workspace in both editions: one stand-in for every installation (D9).
 LEGACY_BINARIES = {"python.exe": "payload/runtime/python.exe", "pythonw.exe": "payload/runtime/pythonw.exe"}
 BINARIES = tuple(EDITION_BINARIES.values()) + tuple(LEGACY_BINARIES.values())
+# car-bin's MCP launcher, from the standard workspace in both editions like car-legacy (D18): where the C# one was.
+MCP_LAUNCHER = "payload/app/mcp/" + make_release.MCP_EXE
+# Every executable of the payload that cargo builds (the window is the C# one).
+RUST_BUILT = BINARIES + (MCP_LAUNCHER,)
 # The installer proofs' test forward, by the variable it reads, and the stub core, by the line only it says (car-bin).
 TEST_HOOK = b"CODEX_AUTO_RESUME_TEST_CORE"
 STUB_CORE = b"is not ported yet (stub core); nothing was done"
@@ -256,7 +260,7 @@ def collect_window(stage: Path, edition: str, window: Path | None, launcher: Pat
         launcher = (legacy or built("standard")) / make_release.MCP_EXE
     copy(window, stage, "payload/" + make_release.GUI_EXE)
     copy(ROOT / "assets" / "codex-auto-resume.ico", stage, "payload/codex-auto-resume.ico")
-    copy(launcher, stage, "payload/app/mcp/" + make_release.MCP_EXE)
+    copy(launcher, stage, MCP_LAUNCHER)
 
 
 def collect_launchers(stage: Path) -> None:
