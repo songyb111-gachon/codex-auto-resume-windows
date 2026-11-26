@@ -321,6 +321,59 @@ class SurfaceJob:
                              {"surface": "tip", "parts": plain(parts), "light": light, "scale": scale, "locale": locale,
                               "day": day, "anchors": anchors, "table": self.stand_in.name}, result)
 
+    def place(self):
+        from codex_auto_resume.ui import popup
+        screens = [((0, 0, 1920, 1040), (0, 0, 1920, 1080)), ((0, 40, 1920, 1080), (0, 0, 1920, 1080)),
+                   ((60, 0, 1920, 1080), (0, 0, 1920, 1080)), ((0, 0, 1860, 1080), (0, 0, 1920, 1080)),
+                   ((0, 0, 1920, 1080), (0, 0, 1920, 1080)), ((-1920, 0, 0, 1040), (-1920, 0, 0, 1080))]
+        anchors = [(1800, 1045, 1824, 1069), (5, 500, 29, 524), (900, 3, 924, 27), (-3, -3, 1, 1), None]
+        places = []
+        for work, monitor in screens:
+            for icon in anchors:
+                for cursor in (None, (1700, 1050), (3, 3), (-7, -7)):
+                    for size in ((688, 900), (2000, 300), (101, 99), (3, 3)):
+                        places.append([list(size), list(work), list(monitor), list(icon) if icon else None,
+                                       list(cursor) if cursor else None, 12])
+        targets = [[["check", "k1"], [10, 10, 100, 40]], [["check", "k2"], [10, 50, 100, 80]], [["toggle"], [10, 90, 50, 120]],
+                   [["dashboard"], [60, 90, 100, 120]]]
+        points = [[10, 10], [99, 39], [100, 40], [55, 95], [59, 119], [60, 119], [0, 0], [-1, 50]]
+        currents = [None, ["check", "k1"], ["dashboard"], ["toggle"], ["nothing"]]
+        found_places = []
+        for size, work, monitor, icon, cursor, gap in places:
+            x, y, edge = popup.place(tuple(size), tuple(work), tuple(monitor), tuple(icon) if icon else None,
+                                     tuple(cursor) if cursor else None, gap=gap)
+            found_places.append([x, y, edge])
+        as_targets = [(tuple(target), tuple(rect)) for target, rect in targets]
+        order = popup.focus_order(as_targets)
+        result = {"places": found_places, "hits": [popup.hit_test(as_targets, x, y) for x, y in points], "order": order,
+                  "focus": [[popup.next_focus(order, tuple(current) if current else None),
+                             popup.next_focus(order, tuple(current) if current else None, True)] for current in currents]}
+        self.add("place/popup", {"surface": "place", "places": places, "targets": targets, "points": points,
+                                 "currents": currents}, result)
+
+    def popup_motion(self):
+        from codex_auto_resume.ui.popup import motion
+        moments = [0.0, 1.0, 16.0, 40.0, 79.9, 80.0, 120.0, 159.0, 160.0, 400.0, 1234.5, 2200.0, 4399.0, 4400.0, 10000.0,
+                   123456.789]
+        states = ["monitoring", "waiting", "checking", "recovering", "paused", "idle", "attention", "failed", "unknown"]
+        designs = ["soft", "classic", "plain"]
+        halos = [motion.halo(state, moment, moment, reduced=reduced, design=design)
+                 for state in states for design in designs for reduced in (False, True) for moment in moments]
+        seen = {"a": True, "b": False, "c": True, "d": False}
+        previous = {"a": False, "b": False, "c": True}
+        running = {"a": (0.0, 0.0, 1.0), "c": (0.0, 1.0, 0.0)}
+        result = {"halos": halos,
+                  "openings": [list(motion.opening(moment, 8)) for moment in moments],
+                  "closings": [list(motion.closing(moment, 200)) for moment in moments],
+                  "faces": [list(motion.face_amount((5.0, None, 80), moment)) for moment in moments],
+                  "glides": [list(motion.glide_amount((10.0, 0.25, 1.0), moment)) for moment in moments],
+                  "next": [motion.next_glides(seen, previous if opened else None, running, moment, animate=animate)
+                           for moment in moments for animate in (True, False) for opened in (True, False)],
+                  "lengths": [motion.face_length(before, after) for before in ("rest", "hover", "pressed", "busy")
+                              for after in ("rest", "hover", "pressed", "busy")]}
+        self.add("motion/popup", {"surface": "popup_motion", "moments": moments, "states": states, "designs": designs},
+                 result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -372,6 +425,8 @@ class SurfaceParityTests(unittest.TestCase):
         job.popup()
         job.menu()
         job.tip()
+        job.place()
+        job.popup_motion()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -410,6 +465,12 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_tip_card_is_laid_out_as_the_reference_lays_it_out(self):
         self.compare("tip/")
+
+    def test_the_popup_is_placed_hit_and_focused_as_the_reference_does_it(self):
+        self.compare("place/")
+
+    def test_the_popups_motion_is_the_references_frame_for_frame(self):
+        self.compare("motion/popup")
 
 
 class SurfaceSourceTests(unittest.TestCase):

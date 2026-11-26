@@ -46,6 +46,40 @@ namespace CodexAutoResume
             return Round(value * scale);
         }
 
+        // Python's math.cos, math.sin, math.atan2 and float ** are the C runtime's (the Universal CRT on Windows); .NET
+        // Framework's Math functions are the runtime's own and differ in the last place now and then (a light frame's dim,
+        // 0.32520093012235185 against 0.32520093012235196, at attention's 2200 ms). The surfaces call the CRT's, as the
+        // Python does.
+        [System.Runtime.InteropServices.DllImport("ucrtbase.dll", EntryPoint = "cos", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern double CrtCos(double x);
+
+        [System.Runtime.InteropServices.DllImport("ucrtbase.dll", EntryPoint = "sin", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern double CrtSin(double x);
+
+        [System.Runtime.InteropServices.DllImport("ucrtbase.dll", EntryPoint = "pow", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern double CrtPow(double x, double y);
+
+        [System.Runtime.InteropServices.DllImport("ucrtbase.dll", EntryPoint = "atan2", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern double CrtAtan2(double y, double x);
+
+        [System.Runtime.InteropServices.DllImport("ucrtbase.dll", EntryPoint = "sqrt", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern double CrtSqrt(double x);
+
+        /// math.cos.
+        internal static double Cos(double x) { return CrtCos(x); }
+
+        /// math.sin.
+        internal static double Sin(double x) { return CrtSin(x); }
+
+        /// x ** y for floats.
+        internal static double Pow(double x, double y) { return CrtPow(x, y); }
+
+        /// math.atan2.
+        internal static double Atan2(double y, double x) { return CrtAtan2(y, x); }
+
+        /// math.sqrt (correctly rounded everywhere; the CRT's, for one source of every function).
+        internal static double Sqrt(double x) { return CrtSqrt(x); }
+
         /// Python's truth of a JSON value: None, False, 0, "" and an empty list or object are false.
         internal static bool Truthy(object value)
         {

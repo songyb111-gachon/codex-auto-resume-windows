@@ -124,6 +124,10 @@ namespace CodexAutoResume
                     return Menu(task, locale, measure);
                 case "tip":
                     return Tip(task, locale, measure);
+                case "place":
+                    return Place(task);
+                case "popup_motion":
+                    return PopupMotionCase(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -209,6 +213,99 @@ namespace CodexAutoResume
                 anchors.Add(TipPlan.Anchor(IntsOrNull(three[0]), IntsOrNull(three[1]), IntsOrNull(three[2])));
             }
             return new Dictionary<string, object> { { "plan", plan }, { "text", TipPlan.TipText(plan) }, { "anchors", anchors } };
+        }
+
+        /// The popup's placement: (x, y, edge) for each (size, work, monitor, icon, cursor, gap) asked, and the hit test
+        /// and focus order over the targets given.
+        private static Dictionary<string, object> Place(Dictionary<string, object> task)
+        {
+            var places = new List<object>();
+            foreach (object entry in (List<object>)task["places"])
+            {
+                var six = (List<object>)entry;
+                string edge;
+                int[] at = PopupPlace.Place(Ints(six[0]), Ints(six[1]), Ints(six[2]), IntsOrNull(six[3]), IntsOrNull(six[4]),
+                                            (int)(double)six[5], out edge);
+                places.Add(new List<object> { at[0], at[1], edge });
+            }
+            var targets = new List<KeyValuePair<object, int[]>>();
+            foreach (object entry in (List<object>)task["targets"])
+            {
+                var pair = (List<object>)entry;
+                targets.Add(new KeyValuePair<object, int[]>(TargetOf(pair[0]), Ints(pair[1])));
+            }
+            var hits = new List<object>();
+            foreach (object entry in (List<object>)task["points"])
+            {
+                var point = (List<object>)entry;
+                hits.Add(PopupPlace.HitTest(targets, (int)(double)point[0], (int)(double)point[1]));
+            }
+            List<object> order = PopupPlace.FocusOrder(targets);
+            var focus = new List<object>();
+            foreach (object current in (List<object>)task["currents"])
+                focus.Add(new List<object> { PopupPlace.NextFocus(order, TargetOf(current)),
+                                             PopupPlace.NextFocus(order, TargetOf(current), true) });
+            return new Dictionary<string, object> { { "places", places }, { "hits", hits }, { "order", order }, { "focus", focus } };
+        }
+
+        /// A target as JSON says one ([name] or [name, key]); anything else as it is.
+        internal static object TargetOf(object value)
+        {
+            var list = value as List<object>;
+            if (list == null || list.Count == 0 || !(list[0] is string)) return value;
+            return list.Count == 1 ? new SurfaceTarget((string)list[0]) : new SurfaceTarget((string)list[0], list[1]);
+        }
+
+        /// The popup's motion arithmetic over the moments asked: the light per state, design and reduce, the opening,
+        /// the closing, the faces, the glides.
+        private static Dictionary<string, object> PopupMotionCase(Dictionary<string, object> task)
+        {
+            var moments = (List<object>)task["moments"];
+            var halos = new List<object>();
+            foreach (object state in (List<object>)task["states"])
+                foreach (object design in (List<object>)task["designs"])
+                    foreach (bool reduced in new[] { false, true })
+                        foreach (object moment in moments)
+                        {
+                            LightFrame frame = PopupMotion.Halo((string)state, (double)moment, reduced, (string)design);
+                            halos.Add(frame == null ? null : frame.ToMap());
+                        }
+            var openings = new List<object>();
+            var closings = new List<object>();
+            var faces = new List<object>();
+            var glides = new List<object>();
+            foreach (object moment in moments)
+            {
+                int[] opening = PopupMotion.Opening((double)moment, 8);
+                openings.Add(new List<object> { opening[0], opening[1], opening[2] == 1 });
+                int[] closing = PopupMotion.Closing((double)moment, 200);
+                closings.Add(new List<object> { closing[0], closing[1] == 1 });
+                double[] face = PopupMotion.FaceAmount(5.0, 80, (double)moment);
+                faces.Add(new List<object> { face[0], face[1] == 1.0 });
+                double[] amount = PopupMotion.GlideAmount(new Glide(10.0, 0.25, 1.0), (double)moment);
+                glides.Add(new List<object> { amount[0], amount[1] == 1.0 });
+            }
+            var seen = new Dictionary<object, bool> { { "a", true }, { "b", false }, { "c", true }, { "d", false } };
+            var previous = new Dictionary<object, bool> { { "a", false }, { "b", false }, { "c", true } };
+            var running = new Dictionary<object, Glide> { { "a", new Glide(0.0, 0.0, 1.0) }, { "c", new Glide(0.0, 1.0, 0.0) } };
+            var next = new List<object>();
+            foreach (object moment in moments)
+                foreach (bool animate in new[] { true, false })
+                    foreach (bool opened in new[] { true, false })
+                    {
+                        var made = new Dictionary<string, object>();
+                        foreach (KeyValuePair<object, Glide> pair in PopupMotion.NextGlides(seen, opened ? previous : null, running,
+                                                                                         (double)moment, animate))
+                            made[(string)pair.Key] = new List<object> { pair.Value.Started, pair.Value.Begin, pair.Value.End };
+                        next.Add(made);
+                    }
+            var lengths = new List<object>();
+            foreach (string before in new[] { "rest", "hover", "pressed", "busy" })
+                foreach (string after in new[] { "rest", "hover", "pressed", "busy" })
+                    lengths.Add(PopupMotion.FaceLength(before, after));
+            return new Dictionary<string, object> { { "halos", halos }, { "openings", openings }, { "closings", closings },
+                                                    { "faces", faces }, { "glides", glides }, { "next", next },
+                                                    { "lengths", lengths } };
         }
 
         // ----------------------------------------------------------------------------- the dump
