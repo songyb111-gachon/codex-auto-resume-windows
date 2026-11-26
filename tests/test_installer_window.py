@@ -896,10 +896,11 @@ class UninstallWindowTests(unittest.TestCase):
 class SourceTests(unittest.TestCase):
     def test_it_is_built_into_the_window_and_the_setup_programs_from_one_list(self):
         # v0.6.17: gui/HostApp.cs, whether either program runs inside another app's private view of Windows.
-        installer = ["gui/InstallerFlow.cs", "gui/InstallerWindow.cs", "gui/HostApp.cs"]
+        # v0.6.27: gui/CoreExe.cs, the core both programs start (the Desktop shortcut's `desktop-shortcut`).
+        installer = ["gui/InstallerFlow.cs", "gui/InstallerWindow.cs", "gui/HostApp.cs", "gui/CoreExe.cs"]
         self.assertEqual(list(guiscan.group("installer")), installer)
-        self.assertEqual(make_setup.window_sources()[:3], installer)
-        self.assertEqual(make_setup.window_sources()[3:], list(guiscan.group("controls")) +
+        self.assertEqual(make_setup.window_sources()[:4], installer)
+        self.assertEqual(make_setup.window_sources()[4:], list(guiscan.group("controls")) +
                          list(guiscan.group("generated")) + ["gui/WindowJson.cs"])
         self.assertIn("gui/SettingsRemove.cs", guiscan.group("settings"))
 
