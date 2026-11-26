@@ -410,21 +410,12 @@ pub fn activate(
         watcher.info(line);
         Ok(())
     };
-    let shell = car_surface::seam::SystemPowerShell::system();
+    let setting = crate::notices::card_setting(&settings);
     let announce = |notice: car_surface::notifier::Notice| -> Result<(), Raised> {
         let notice = car_surface::notifier::with_open_codex(&notice, false).map_err(Raised::new)?;
-        let show = |content: &Map, silent: bool| {
-            car_surface::notify::show_content(&shell, content, silent)
-        };
-        car_surface::notifier::deliver(
-            &notice,
-            None,
-            &Value::Bool(true),
-            &|| Ok(Value::Object(Map::new())),
-            &show,
-        )
-        .map(|_| ())
-        .map_err(Raised::new)
+        crate::notices::deliver(&notice, Some(watcher.events().inbox()), &setting)
+            .map(|_| ())
+            .map_err(|failed| Raised::new(&failed.class))
     };
     let buttons = CardButtons(control);
     let with = car_surface::notifier::Activation {

@@ -362,8 +362,9 @@ impl Watcher {
     /// reference's actors; `popup {call, args}` done as `perform` does it (`surface::Shared::act`) and
     /// `failure_seen`/`mark_seen` as the icon's `_failure_seen` (`acknowledge_failure()`), each followed at once by a
     /// snapshot drawn from the outcome; `open_dashboard` and `open_chat` as `ui/tray/dashboard.py` opens the window,
-    /// `notice_action` as `App._notice_action` (`notifier.activate`, actor "toast"). `notice_complete` waits for the
-    /// card route (the notice event and this PC's presence probes): `not_ported`.
+    /// `notice_action` as `App._notice_action` (`notifier.activate`, actor "toast"); `cards_attached`/`cards_detached`
+    /// attach and detach the card stack's inbox, and `notice_complete {id, shown}` ends a card's notice
+    /// (`notifier.complete`).
     pub fn post_action(&self, action: &str, fields: &Map) -> Value {
         let answer = |ok: bool| {
             let mut map = Map::new();
@@ -380,12 +381,32 @@ impl Watcher {
                 answer(true)
             }
             "cards_attached" => {
-                self.events.cards(true);
+                self.events.attach_cards();
                 answer(true)
             }
             "cards_detached" => {
-                self.events.cards(false);
+                // The stack's `stop`: what it never took ends as the toast, off this thread (`_complete(notice, False)`).
+                let waiting = self.events.detach_cards();
+                if !waiting.is_empty() {
+                    std::thread::spawn(move || {
+                        for notice in waiting {
+                            crate::notices::complete(&notice, &Value::Bool(false));
+                        }
+                    });
+                }
                 answer(true)
+            }
+            "notice_complete" => {
+                // `notifier.complete(notice, shown is True)`; the host posts it on a worker thread (PowerShell runs).
+                let id = fields.get("id").cloned().unwrap_or(Value::Null);
+                match self.events.take_posted(&id) {
+                    Some(notice) => {
+                        let shown =
+                            Value::Bool(matches!(fields.get("shown"), Some(Value::Bool(true))));
+                        answer(crate::notices::complete(&notice, &shown))
+                    }
+                    None => answer(false),
+                }
             }
             "stop" => answer(
                 self.stop() != 0
@@ -490,6 +511,11 @@ impl Watcher {
                 Value::Object(map)
             }
         }
+    }
+
+    /// The event queue and the card stack's inbox.
+    pub fn events(&self) -> &Events {
+        &self.events
     }
 
     /// One line of the watcher's log, from the host's side (`self.logger.info`).

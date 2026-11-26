@@ -17,6 +17,7 @@ pub mod health;
 pub mod homes;
 pub mod join;
 pub mod launcher;
+pub mod notices;
 pub mod plugnotices;
 pub mod rescan;
 pub mod setaside;

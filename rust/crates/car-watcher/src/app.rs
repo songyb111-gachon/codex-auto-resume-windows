@@ -194,6 +194,8 @@ pub struct App {
     shared_settings: Arc<std::sync::Mutex<Map>>,
     notices: crate::plugnotices::PlugNotices,
     popup: crate::surface::Popup,
+    /// `_watcher_toasts`, made at the first watcher notice that is not the last one.
+    watcher_notices: std::sync::OnceLock<Arc<crate::notices::WatcherNotices>>,
 }
 
 fn stamp(path: &str) -> Option<(u128, u64)> {
@@ -255,6 +257,7 @@ impl App {
             shared_settings: Arc::new(std::sync::Mutex::new(Map::new())),
             notices: crate::plugnotices::PlugNotices::new(),
             popup: start.popup,
+            watcher_notices: std::sync::OnceLock::new(),
         };
         let stored = app.read_settings();
         app.settings_good = stored.is_some();
@@ -665,8 +668,9 @@ impl World for App {
         ))
     }
     fn watcher_notice(&self, event: &str, detail: Map, last: bool) -> Res<()> {
-        self.events.queue_watcher_notice(event, detail, last);
-        Ok(())
+        self.watcher_notices()
+            .notice(event, detail, last)
+            .map(|_| ())
     }
     fn start_tray(&mut self) -> bool {
         if !self
@@ -814,10 +818,9 @@ impl car_surface::seam::TrayStore for StoreTray<'_> {
 impl App {
     /// `_edition_notices(added)`: the plug's notices, each shown once in this watcher's life.
     fn edition_notices(&mut self, added: &car_policy::plug::Answer<Value>) -> Res<()> {
-        let events = std::sync::Arc::clone(&self.events);
+        let notices = self.watcher_notices();
         let mut notice = |event: &str, detail: Map| -> Res<()> {
-            events.queue_watcher_notice(event, detail, false);
-            Ok(())
+            notices.notice(event, detail, false).map(|_| ())
         };
         self.notices.edition_notices(added, &mut notice)
     }
@@ -848,21 +851,35 @@ impl App {
 }
 
 impl App {
+    /// What a notice's route needs: the settings in force, the plug, the state folder and the card inbox.
+    fn route(&self) -> crate::notices::Route {
+        crate::notices::Route {
+            settings: Arc::clone(&self.shared_settings),
+            plug: Arc::clone(&self.plug),
+            state_dir: self.paths.state_dir.clone(),
+            events: Arc::clone(&self.events),
+        }
+    }
+
+    /// `_watcher_notice`'s queue and route.
+    fn watcher_notices(&self) -> Arc<crate::notices::WatcherNotices> {
+        Arc::clone(self.watcher_notices.get_or_init(|| {
+            let log = self.log.clone();
+            Arc::new(crate::notices::WatcherNotices::new(
+                self.route(),
+                Arc::new(move |line: &str| log.info(line)),
+            ))
+        }))
+    }
+
     /// `_notifier(source)`'s announce (`App._deliver` included): read from the settings in force on every event, built
-    /// into one Notice and shown by exactly one route. The card route is the host's (`cards_attached`); this PC's
-    /// presence probes are not in car-platform yet, so `card_allowed` reads "cannot tell" and the route is the toast.
+    /// into one Notice and shown by exactly one route: the card where the host attached its stack and this PC's
+    /// presence probes allow it (`notices::Route::deliver`), else the toast.
     fn announce(&self) -> crate::join::Announce {
-        let settings = Arc::clone(&self.shared_settings);
-        let plug = Arc::clone(&self.plug);
-        let state_dir = self.paths.state_dir.clone();
+        let route = self.route();
         Arc::new(
             move |event: &str, detail: &Map, identity: &dyn Fn() -> Value| {
-                let values = Value::Object(
-                    settings
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .clone(),
-                );
+                let values = route.values();
                 let fail = |class: &'static str| Failed::new(class, "");
                 if !car_policy::settings::notification_enabled(&values, event).map_err(fail)? {
                     return Ok(false);
@@ -901,46 +918,8 @@ impl App {
                     return Ok(false);
                 };
                 let notice = car_surface::notifier::with_open_codex(&built, false).map_err(fail)?;
-                // P20 (v0.6.19): told first to a plug that wants it.
-                let detail = Value::Object(detail.clone());
-                let opened = || -> Result<Value, car_surface::seam::Raised> {
-                    let store = Store::open_with(
-                        Path::new(&state_dir),
-                        car_store::Options::new(Arc::new(Probe)),
-                    )
-                    .map_err(|_| car_surface::seam::Raised::new("StoreError"))?;
-                    store
-                        .pending()
-                        .map(|rows| Value::Array(rows.into_iter().map(Value::Object).collect()))
-                        .map_err(|_| car_surface::seam::Raised::new("StoreError"))
-                };
-                plug.notice(&|| {
-                    car_surface::notifier::told(
-                        &notice,
-                        &detail,
-                        Some(&opened),
-                        Value::Float(crate::clock::wall()),
-                    )
-                    .ok()
-                });
-                let shell = car_surface::seam::SystemPowerShell::system();
-                let show = |content: &Map, silent: bool| {
-                    car_surface::notify::show_content(&shell, content, silent)
-                };
-                let setting = field(car_surface::notifier::CARD_SETTING);
-                let setting = if matches!(setting, Value::Null) {
-                    Value::Bool(true)
-                } else {
-                    setting
-                };
-                let (_, shown) = car_surface::notifier::deliver(
-                    &notice,
-                    None,
-                    &setting,
-                    &|| Ok(Value::Object(Map::new())),
-                    &show,
-                )
-                .map_err(fail)?;
+                let setting = crate::notices::card_setting(&values);
+                let shown = route.deliver(&notice, detail, true, &setting)?;
                 Ok(shown)
             },
         )
