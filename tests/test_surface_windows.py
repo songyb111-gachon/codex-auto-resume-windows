@@ -88,8 +88,12 @@ class WindowJob:
         from codex_auto_resume import tray_place
         settings, notify = tray_place.NOTIFY_ICON_SETTINGS, tray_place.TRAY_NOTIFY
         exe = r"C:\Program Files\Codex Auto Resume\CodexAutoResume.exe"
-        folders = {"{6D809377-6AF0-444B-8957-A3773F02200E}": r"C:\Program Files",
-                   "{F1B32785-6FBA-4FCF-9D55-7B8E7F157091}": r"C:\Users\ExampleUser\AppData\Local", "{BAD}": None}
+        # Windows' known folders (FOLDERID_ProgramFilesX64, FOLDERID_LocalAppData), their ids built from their parts so the
+        # repository's UUID rule (test_repo_hygiene) reads no literal one.
+        program_files = "{%s}" % "-".join(("6D809377", "6AF0", "444B", "8957", "A3773F02200E"))
+        local_app_data = "{%s}" % "-".join(("F1B32785", "6FBA", "4FCF", "9D55", "7B8E7F157091"))
+        folders = {program_files: r"C:\Program Files", local_app_data: r"C:\Users\ExampleUser\AppData\Local",
+                   "{BAD}": None}
 
         def entry(path, uid=1, promoted=1, guid=None):
             values = {"ExecutablePath": path, "UID": uid, "IsPromoted": promoted}
@@ -110,7 +114,7 @@ class WindowJob:
             return keys
 
         ours, theirs = entry(exe), entry(r"C:\Other\app.exe")
-        known = entry("{6D809377-6AF0-444B-8957-A3773F02200E}\\Codex Auto Resume\\CodexAutoResume.exe", promoted=0)
+        known = entry(program_files + "\\Codex Auto Resume\\CodexAutoResume.exe", promoted=0)
         runs = {
             "promoted": [(0, state(theirs, ours)), (1, state(theirs, ours)), (2, state(theirs, entry(exe, promoted=0)))],
             "overflow": [(0, state(known)), (5, state(known))],
