@@ -212,7 +212,7 @@ impl Case {
             Box::new(move || *lock(&reading)),
             Arc::new(Counter(Mutex::new(0))) as Arc<dyn Tokens>,
         );
-        for call in list(get(case, "setup")) {
+        for call in list(&homed(get(case, "setup"), &home)) {
             let parts = list(&call);
             call_state(&state, &parts);
         }
@@ -262,6 +262,29 @@ impl Case {
 
     pub fn close(&self) {
         self.held.state.close();
+    }
+}
+
+/// `value` with every text's "{home}" made the case's home.
+pub fn homed(value: &Value, home: &str) -> Value {
+    match value {
+        Value::Str(found) => Value::Str(
+            found
+                .as_str()
+                .unwrap_or_default()
+                .replace("{home}", home)
+                .as_str()
+                .into(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(|each| homed(each, home)).collect()),
+        Value::Object(map) => {
+            let mut made = Map::new();
+            for (key, each) in map.iter() {
+                made.insert(key.clone(), homed(each, home));
+            }
+            Value::Object(made)
+        }
+        other => other.clone(),
     }
 }
 

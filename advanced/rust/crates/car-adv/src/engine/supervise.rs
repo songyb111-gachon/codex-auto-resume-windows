@@ -110,14 +110,6 @@ pub(crate) fn word(text: &str) -> Value {
     Value::Str(text.into())
 }
 
-/// `type(value) is int` and its value, where it fits an i64.
-pub(crate) fn int_of(value: &Value) -> Option<i64> {
-    match value {
-        Value::Int(number) => number.as_i64(),
-        _ => None,
-    }
-}
-
 /// `value` as a float for a number (`int` or `float`, never a bool); None otherwise.
 pub(crate) fn number(value: &Value) -> Option<f64> {
     match value {
@@ -135,9 +127,6 @@ pub(crate) fn field<'a>(value: &'a Value, key: &str) -> &'a Value {
         _ => &NONE,
     }
 }
-
-/// One shared value a code and its errand or threads both reach (`self` in Python).
-pub(crate) type Shared<T> = Arc<Mutex<T>>;
 
 /// `car_config::Links` over car-platform's link test (what the product's paths are made with).
 #[derive(Debug)]
