@@ -18,6 +18,7 @@ windows = { version = "0.62", features = [
     "Win32_Globalization",
     "Win32_Graphics_Gdi",
     "Win32_Networking_NetworkListManager",
+    "Win32_Networking_WinHttp",
     "Win32_Security",
     "Win32_Security_Authorization",
     "Win32_Security_Credentials",
@@ -52,3 +53,7 @@ windows = { version = "0.62", features = [
 # Reads the installed manifest's display name (`addremove::display_name`); the workspace already builds it for
 # car-machine and the harness.
 serde_json = { version = "1", default-features = false, features = ["std"] }
+
+# The advanced courier's SMTP TLS (`tls`, seat S7.3b; the owner's Q4 (a)): the system's Schannel through the `schannel`
+# crate (MIT), never TLS written by hand. Only the advanced edition calls it; the standard binaries link none of it.
+schannel = "0.1.26"
