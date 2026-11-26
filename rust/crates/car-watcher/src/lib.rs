@@ -16,3 +16,5 @@ pub mod clock;
 pub mod homes;
 pub mod watchloop;
 pub mod launcher;
+pub mod app;
+pub mod events;
