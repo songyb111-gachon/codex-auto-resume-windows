@@ -42,6 +42,7 @@ gui/CardWindow.cs
 gui/TrayMotion.cs
 gui/TrayWords.cs
 gui/TrayPlace.cs
+gui/TipCard.cs
 gui/SurfaceRender.cs
 gui/SurfaceRenderWindows.cs
 

@@ -208,6 +208,144 @@ class WindowJob:
                  {"answers": [], "executable": tray_place._same_path(exe), "paths": [],
                   "open": [overflow(windows) for windows in sets]})
 
+    # The look of Windows' system colours in High Contrast, fixed (as test_surface_parity's pixel cases fix them).
+    SYSTEM = {"Window": [0, 0, 0], "WindowFrame": [255, 255, 255], "WindowText": [255, 255, 255],
+              "Highlight": [26, 235, 255], "HighlightText": [0, 0, 0], "Control": [0, 0, 0], "GrayText": [63, 242, 63]}
+
+    def tip_window(self):
+        """The icon's card as a window: the reference's TipCard driven through a script - the icon's calls, its own
+        messages, the clocks, the pointer - with every call that would put a window on the screen answered by a stand-in,
+        and the C#'s TipCard over a window made and never shown, through the same script. After each step: shown, alpha,
+        fade, frame timer, place, size, text and the picture by digest; and the window's own picture against the render
+        mode's (the live-path proof)."""
+        import hashlib
+        import make_screenshots
+        from codex_auto_resume import brand, interface
+        from codex_auto_resume.ui import popup
+        from codex_auto_resume.ui.popup import fonts, gdiplus, light as light_module, renderer as renderer_module
+        from codex_auto_resume.ui.tray import tipcard, words
+        import test_tray_tipcard as fixtures
+        WM_TIMER, WM_SETTINGCHANGE = 0x0113, 0x001A
+        tick, frame, fade, watch = tipcard.TIP_TICK, tipcard.TIP_FRAME, tipcard.TIP_FADE, tipcard.TIP_WATCH
+        timer = lambda which: ["message", WM_TIMER, which, True]  # noqa: E731
+        script = ([["show"]] + [["clock", 0.05], timer(fade)] * 6 + [["proof"], timer(frame), ["clock", 0.5], timer(frame),
+                  ["proof"], ["clock", 1.0], timer(tick), ["pointer", [5, 5]], timer(watch), ["clock", 0.6], timer(watch),
+                  ["clock", 0.35], timer(watch), ["clock", 0.05], timer(watch)] + [["clock", 0.03], timer(fade)] * 5
+                  + [["show"], ["message", 0x0021, 0, True], ["message", 0x0084, 0, True], ["pointer", [110, 1050]],
+                     timer(watch), ["message", WM_SETTINGCHANGE, 0], ["held", True], timer(tick), timer(frame),
+                     ["held", False], timer(tick), ["message", 0x007E, 0], ["show"], ["clock", 0.05], timer(fade), ["clock", 0.05],
+                     timer(fade), ["leave"], ["clock", 0.05], timer(fade), ["clock", 0.05], timer(fade), ["show"], ["leave"], ["clock", 0.02], timer(fade),
+                     ["hide"], ["show"], ["message", 0x0218, 4], ["show"], ["message", 0x0218, 9], ["hide"], ["hide"],
+                     ["leave"]])
+        screen = {"box": [1800, 1045, 1824, 1069], "dpi": 144, "work": [0, 0, 1920, 1040], "monitor": [0, 0, 1920, 1080]}
+        runs = []
+        for locale in ("en", "ko", "ar"):
+            for name, edition in (("waiting", None), ("metered", "advanced")):
+                for theme, design, contrast in (["light", "soft", False], ["dark", "plain", False]):
+                    runs.append((locale, name, edition, [theme, design, contrast], False, False, 1.0))
+        runs += [("en", "held", None, ["light", "soft", True], False, False, 1.0),
+                 ("ko", "failed", "advanced", ["dark", "classic", False], True, False, 1.0),
+                 ("en", "waiting", None, ["light", "soft", False], False, True, 1.0),
+                 ("ar", "due", None, ["light", "plain", False], False, False, 1.75),
+                 ("de" if "de" in interface.STRINGS else "en", "paused", None, ["dark", "soft", False], False, False, 1.25)]
+        saved = (renderer_module.system_rgb, light_module.system_rgb, popup._dll, tipcard.time, tipcard.tip_screen,
+                 tipcard.tip_pointer, tipcard.access.tell, popup.high_contrast, popup.reduced_motion,
+                 popup.apps_use_light_theme, popup.text_scale, popup.theme_setting, popup.design_setting)
+        real = popup._dll
+
+        class User32:
+            """The real user32 for everything but what makes, shows, places or times a window."""
+            def __init__(self, inner):
+                self._inner = inner
+
+            def __getattr__(self, name):
+                stand = {"RegisterClassW": lambda *a: 1, "CreateWindowExW": lambda *a: 0x1234, "DestroyWindow": lambda *a: 1,
+                         "UnregisterClassW": lambda *a: 1, "ShowWindow": lambda *a: 1, "SetWindowPos": lambda *a: 1,
+                         "SetTimer": lambda *a: 1, "KillTimer": lambda *a: 1, "UpdateLayeredWindow": lambda *a: 1,
+                         "DefWindowProcW": lambda *a: 0}
+                return stand[name] if name in stand else getattr(self._inner, name)
+
+        renderer_module.system_rgb = light_module.system_rgb = lambda name: tuple(self.SYSTEM[name])
+        popup._dll = lambda name: User32(real(name)) if name == "user32" else real(name)
+        tipcard.access.tell = lambda *unused: None
+        try:
+            with make_screenshots.pinned_face():
+                pinned = fonts._ui_face()
+                for locale, name, edition, look, reduced, days, text in runs:
+                    strings = interface.STRINGS[locale]
+                    snapshot = fixtures.FIXTURES[name]
+                    state = {"clock": 1000.0, "pointer": None, "held": False}
+
+                    class Clock:
+                        @staticmethod
+                        def monotonic():
+                            return state["clock"]
+
+                        @staticmethod
+                        def time():
+                            return fixtures.NOW
+                    tipcard.time = Clock
+                    tipcard.tip_screen = lambda icon=None, point=None: {key: tuple(value) if isinstance(value, list) else value
+                                                                        for key, value in screen.items()}
+                    tipcard.tip_pointer = lambda: None if state["pointer"] is None else tuple(state["pointer"])
+                    popup.high_contrast = lambda: look[2]
+                    popup.reduced_motion = lambda: reduced
+                    popup.apps_use_light_theme = lambda: look[0] == "light"
+                    popup.text_scale = lambda: text
+                    popup.theme_setting = lambda: look[0]
+                    popup.design_setting = lambda: look[1]
+                    shown_locale = popup.locale_of(strings)
+                    before = gdiplus.gdiplus_objects()
+                    logged = []
+                    card = tipcard.TipCard(content=lambda: (words.tooltip_parts(snapshot, strings, fixtures.NOW, edition),
+                                                            snapshot, strings),
+                                           held=lambda: state["held"], log=logged.append, days=days)
+                    steps, proofs = [], []
+                    try:
+                        for step in script:
+                            op, returned = step[0], None
+                            if op == "show":
+                                card.show()
+                            elif op == "hide":
+                                card.hide()
+                            elif op == "leave":
+                                card.hide(at_once=False)
+                            elif op == "clock":
+                                state["clock"] += step[1]
+                            elif op == "pointer":
+                                state["pointer"] = step[1]
+                            elif op == "held":
+                                state["held"] = step[1]
+                            elif op == "message":
+                                answer = card._wndproc(card.hwnd, step[1], step[2], 0)
+                                returned = float(answer) if len(step) > 3 and step[3] else None
+                            elif op == "proof":
+                                digest = hashlib.sha256(card.render().pixels()).hexdigest()
+                                proofs.append([digest, digest, True])
+                                continue
+                            canvas = card._renderer.canvas if card._renderer is not None and card._plan is not None else None
+                            steps.append({"op": op, "visible": card.visible, "alpha": card._alpha,
+                                          "fade": card._fade[0] if card._fade else None, "frames": card._frame_running,
+                                          "origin": list(card._origin) if card._plan is not None else None,
+                                          "size": card._plan["size"] if card._plan is not None else None, "text": card.text,
+                                          "pixels": hashlib.sha256(canvas.pixels()).hexdigest() if canvas else None,
+                                          "returned": returned})
+                    finally:
+                        card.destroy()
+                    parts = words.tooltip_parts(snapshot, strings, fixtures.NOW, edition)
+                    self.add("tipwindow/%s/%s/%s-%s-%s/%s-%s-%r" % (locale, name, look[0], look[1], look[2], reduced, days, text),
+                             {"surface": "tip_window", "snapshot": snapshot, "strings": strings, "edition": edition,
+                              "locale": shown_locale, "letters": fonts._letters(shown_locale), "look": look,
+                              "reduced": reduced, "days": days, "text_scale": text, "now": fixtures.NOW, "screen": screen,
+                              "script": script, "pinned": pinned, "system": self.SYSTEM, "parts": parts,
+                              "light": tipcard.tip_light(snapshot, fixtures.NOW),
+                              "day": tipcard.tip_day(brand.day_look_at(fixtures.NOW) if days else None, look[2], look[1])},
+                             {"steps": steps, "proofs": proofs, "log": logged, "left": gdiplus.gdiplus_objects() - before})
+        finally:
+            (renderer_module.system_rgb, light_module.system_rgb, popup._dll, tipcard.time, tipcard.tip_screen,
+             tipcard.tip_pointer, tipcard.access.tell, popup.high_contrast, popup.reduced_motion,
+             popup.apps_use_light_theme, popup.text_scale, popup.theme_setting, popup.design_setting) = saved
+
     def job(self):
         return {"format": JOB_FORMAT, "tables": {}, "cases": self.cases}
 
@@ -231,6 +369,7 @@ class SurfaceWindowTests(unittest.TestCase):
         job = WindowJob()
         job.tray_words()
         job.tray_place()
+        job.tip_window()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -265,6 +404,10 @@ class SurfaceWindowTests(unittest.TestCase):
 
     def test_where_windows_keeps_the_icon_is_read_as_the_reference_reads_it(self):
         self.compare("trayplace/")
+
+
+    def test_the_icons_card_window_lives_and_paints_as_the_references_offscreen(self):
+        self.compare("tipwindow/")
 
 
 if __name__ == "__main__":
