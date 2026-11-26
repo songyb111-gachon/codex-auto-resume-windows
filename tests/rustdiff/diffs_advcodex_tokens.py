@@ -23,8 +23,8 @@ import subprocess
 from rustdiff.advcodexd import AdvCodexRestDiff
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-THREAD = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"
-OTHER = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c"
+THREAD = "0a1b2c3d-c3d4-7e5f-8a9b-0c1d2e3f4a5b"
+OTHER = "0a1b2c3d-c3d4-7e5f-8a9b-0c1d2e3f4a5c"
 KINDS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens")
 STAMPS = ["2026-10-22T03:04:05.123Z", "2026-10-22T23:59:59.999Z", "2026-10-22T00:00:00Z", "2026-10-21T14:59:59Z",
           "2026-10-21T15:00:00Z", "2026-03-08T07:00:00Z", "2026-11-01T05:30:00Z", "2024-02-29T12:00:00Z",
