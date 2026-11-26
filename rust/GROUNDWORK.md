@@ -2775,3 +2775,71 @@ python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 sta
 bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+## Seat S7.2e1: what a carried turn does - the engine's capabilities for sends and turns (branch `car-v0627-s72e1`, 2026-11-27)
+
+From `car-v0627-s72a` `8e6362cbf` (Integration 8 + S7.2a/S7.2a2). Reference: the v0.6.26 final. P7-DESIGN 2.2 and
+S7.2e1's row (twenty `engine/` modules, 3,555 Python lines). **Nine of the twenty are ported and diffed; eleven are left**
+(below, with what each needs).
+
+### Ported (module -> crate)
+
+| Python (`advanced/.../engine/`) | here (car-adv `engine::`) |
+|---|---|
+| `silent.py` | `silent` (P15: SILENT unless `codex::headless::EMPTY_REFUSED`) |
+| `everyconversation.py` | `everyconversation` (P19: `{every_desktop}`) |
+| `sessions.py` | `sessions` (P18 `{cli, ide}`, P16 TO_SESSION for `holder == "session"` without `queued_since`) |
+| `parallel.py` | `parallel` (P12; `chosen_in`/`option_in`: Python's `in` over a tuple of ints, used by every Workers/Hours/Attempts option) |
+| `oncemore.py` | `oncemore` (P7: car-policy `gates::resend_candidate`, `resent`, `channel_paid`) |
+| `headless.py` | `headless` (P16 route, P8/`tend` `follow_up`; `RunWorld` - the seams; `Follows`, `TurnsReader`, `SharedRoute` = core's `Route` over S7.2c's `HeadlessRun`) |
+| `compact.py` | `compact` (P17, P3 known_failure/thread_available, P16 compact/turn mode, P8) |
+| `fallback.py` | `fallback` (P16 fallback mode with `owe`, `_defaulted`, P8 and the `Restore` errand inside core's guard) |
+| `retries.py` | `retries` (`toml`, `overrides`, `fits`, `account_kind` - the one field of S7.2b's `codex::account::parse` read here -, P8 holding `codex::headless::hold_retry_settings`) |
+
+### Left (not ported here: the seat's context ran out after the nine) - what each needs
+
+`emptyreply` (P8 errand + P2; needs core's `LocalSource` (car-codex) judging a person's own conversation, `Goals`,
+the continuations handle's `mine/get/note/add/end/last`, the global statement catalogs' text, seam_p7's
+`continued_handed`/`answer_key`/`words_pass`), `keepgoing` (same family: `kept`, `stop_kept`, `plan_statuses`,
+`View::thread_enabled`), `goal` (350), `subagent` (258), `markerfree` (202), `foropen` (150; seam_p7 `for_open_watching`),
+`opentarget` (289), `steer` (224; the steers handle), `promptqueue` (372; seam_p7 `prompt_handed`, images), `chat` (145;
+seam_p7 `chat_handed`/`chat_watched`/`paused_by_stop`), `admitted` (261; the four admission capabilities'
+`make_*`). Each `make` is still the skeleton's None. The continuations handle methods missing from car-adv's
+`Scoped::handle()` (S7.1a's: only `continuation`/`continuations_writing` are there) are best written beside the first
+of these modules, as `follow_up` here calls the runs table's state functions directly.
+
+### The proof
+
+* **`advturns`** (example, `examples/advturns/{main,world}.rs`) and **`tests/rustdiff/advturns.py`** +
+  **`advturnsworld.py`**: car-adv's runtime over the *shipped* definitions of the scenario (`capabilities`), each code
+  made with the scenario's fakes (`seams`: a session's scripted answers, a conversation's turns and turn codes, the run
+  follower's live run and ends, the unheld look), against the tag's `Runtime` over its own classes made with the same
+  fakes. Arming confirms the statement's own warnings (`"AUTO"`); every compat capability the definitions name is in the
+  view. Compared: every answer, every call a fake was asked (routes noted as capability, key, seconds, mode), every
+  advanced.sqlite row at the end.
+* `diffs_advturns_small.py` (AdvTurnsSmallDiff): 9 scenarios; `diffs_advturns_runs.py` (AdvTurnsRunsDiff): 23 scenarios
+  (headless 3, compact 6, fallback 7, retries 6) - all equal (rc 0). The edges: off/watched/on, a record not a dict, a
+  bad key, `app` 0 vs False, an option of 7 or "8", MQ passed, a claim time past a float, a failure not a dict, an
+  ordinal that cannot be compared, turns that raise, a session that cannot enter, an update Codex refuses, a debt tried
+  again within RESTORE_EVERY, settings lapsing after FRESH_SECONDS.
+* Mutation checks (scratchpad `car-v0627-s72e1-mutate.py`: each rule broken alone, `advturns` rebuilt, its scenarios
+  run, the file restored): silent answering SILENT after Codex refused an empty turn, other_sessions taking an item
+  queued for opening, parallel_dispatch not held to 2 before MQ, once_more taking an int past a float as a claim time,
+  follow_up never ending a row no thread follows, compact holding after a completed compaction, model_fallback trying
+  a restore every tick, the retry settings held past FRESH_SECONDS: **8 of 8 caught**, none survived.
+* The re-diff: `python -X utf8 tests/rustdiff/rediff_adv72e1.py --reference v0.6.26`. The ledger:
+  `python -X utf8 tests/rustdiff/advledger_s72e1.py` (35 advanced test files reach an S7.2e1 module; 8 reach only ported
+  ones; all wait for the proxy, S7.2a3).
+
+### Seams left
+
+* `RunWorld::bare()` (what `make(paths)` gives headless_run, compact_continue, model_fallback): the process's follower,
+  no session (each open fails), app and unheld looks that raise, no turns. The entry points (S7.3d) hand the live world
+  through `make_with`: `codex::headless::live_session` over `inuse::backend`, `Turns::new(inuse home)` as a
+  `TurnsReader`, the app look and `Backend.holder` for `unheld_now`. Likewise `retries::make_with(open, monotonic)`.
+* `SharedRoute::resume` hands `HeadlessRun::resume` no launch guard (core entered it first; AUDIT line).
+* `capabilities::make` already names every one of these `make`s; nothing in the table changed.
+
+### Gates
+
+In the seat's report (fmt, clippy, test, deny in both workspaces; check_groundwork; check_rebuild).
