@@ -243,10 +243,9 @@ pub(crate) fn ledger_holds(
         let mut handle = Handle {
             live: Some(connection),
         };
-        let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             ledger.claim_ledger_checked(&mut handle, row, now, carried)
-        }));
-        found
+        }))
     }
     .unwrap_or((Answer::Defer, true));
     // SAFETY: as above; no authorizer from here.

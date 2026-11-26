@@ -479,6 +479,7 @@ impl Store {
 
     /// `_resend_claim`: an uncertain submission claimed once more, only for a plugged claim that carries the schedule
     /// (the NULL plug's never grants one, and the answer says which check held it).
+    #[allow(clippy::too_many_arguments)]
     fn resend_claim(
         &self,
         connection: &Connection,
