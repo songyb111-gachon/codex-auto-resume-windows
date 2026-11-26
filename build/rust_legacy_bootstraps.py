@@ -271,15 +271,22 @@ def check_entry(bootstraps, runtime: Path, core: Path) -> list:
     return found
 
 
+# v0.6.27 (S6.2b): the core the entry run reaches is the stub core, car-bin's car-core-proof.exe, built beside car-legacy
+# in the standard workspace - never the archive's real core, whose `setup` writes the Run value, the AUMID and the link
+# handler into the real HKCU, which the scratch profile does not redirect. Reaching it is what (c) proves (NOT_PORTED).
+PROOF_CORE = "car-core-proof.exe"
+
+
 def entry_from_archive(standard: Path, work: Path) -> tuple[Path, Path]:
-    """The archive's runtime\\python.exe and app\\bin\\codex-auto-resume.exe, unpacked into `work`."""
+    """The archive's runtime python.exe, unpacked into `work`, and the standard workspace's stub core (PROOF_CORE)."""
     with zipfile.ZipFile(standard) as archive:
-        paths = []
-        for name in ("payload/runtime/python.exe", "payload/app/bin/codex-auto-resume.exe"):
-            target = work / name.rsplit("/", 1)[1]
-            target.write_bytes(archive.read(name))
-            paths.append(target)
-    return paths[0], paths[1]
+        target = work / "python.exe"
+        target.write_bytes(archive.read("payload/runtime/python.exe"))
+    core = ROOT / "rust" / "target" / "release" / PROOF_CORE
+    if not core.is_file():
+        raise SystemExit("%s is not built (cargo build --release in rust/): the entry run never reaches the real core"
+                         % core)
+    return target, core
 
 
 def run(dist: Path, version: str, refs=(), entry: bool = True, already: list | None = None) -> tuple[list, dict]:
@@ -324,7 +331,7 @@ def main(argv=None) -> int:
         for ref in repeated:
             print("--ref %s is a published tag's commit, asked once among the tags" % ref)
         bootstraps = [legacy.lift(ROOT, tag) for tag in tags] + lifted
-        found = check_entry(bootstraps, folder / "python.exe", folder / "codex-auto-resume.exe")
+        found = check_entry(bootstraps, folder / "python.exe", folder / PROOF_CORE)
         print("(c) the compatibility entry run: the bootstraps of %s to %s" % (bootstraps[0].tag, bootstraps[-1].tag))
         for line in found:
             print("  " + line)

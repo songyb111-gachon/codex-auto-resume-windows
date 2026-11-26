@@ -26,6 +26,11 @@ path = "src/bin/setup.rs"
 name = "codex-auto-resume-mcp"
 path = "src/bin/mcp.rs"
 
+# S6.2b: the stub core, for the release proofs alone (src/bin/proof.rs); codex-auto-resume.exe is the real core now.
+[[bin]]
+name = "car-core-proof"
+path = "src/bin/proof.rs"
+
 [dependencies]
 car-control = { path = "../car-control" }
 car-platform = { path = "../car-platform" }

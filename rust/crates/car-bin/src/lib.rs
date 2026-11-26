@@ -6,14 +6,14 @@
 //! advanced edition's binary passes its own [`Role`]s to [`main_with`]: the role registry seam (P7-DESIGN). car-harness's
 //! `car-core-stub` (the CODEX_AR_CORE=rust shim) and `car-core-world` (the legacy shapes' diff) run it today.
 //!
-//! `codex-auto-resume.exe` itself is still the **stub core** the packaging skeleton (S8.1) ships ([`core_main`]): every
-//! command is refused with [`NOT_PORTED`], so an old updater that reaches it through car-legacy (D9) ends on a code it
-//! already reads as "did not finish" and changes nothing. The stub never answers success for work it did not do. One
-//! exception, for the installer's proofs only (S8.2): where [`TEST_CORE`] names a program, the stub hands every command to
-//! that program - the test double of `tests/install_double.py` - and ends with its code. It stays the stub until the
-//! release's own proofs (`rust_legacy_bootstraps.check_entry`, the installer proofs) can run the real core on a scratch
-//! home without its registrations reaching HKCU (Integration 8: [`main_with`]'s `setup` writes the Run value, the AUMID
-//! and the link handler through car-platform, which no scratch home redirects).
+//! `codex-auto-resume.exe` is the real core, [`main_with`]`(&[])` (S6.2b). The **stub core** ([`core_main`]) is a binary
+//! of its own, `car-core-proof.exe`, for the release's proofs alone: every command is refused with [`NOT_PORTED`], and
+//! where [`TEST_CORE`] names a program the stub hands every command to it (the test double of `tests/install_double.py`)
+//! and ends with its code. The proofs - the installer proofs and `rust_legacy_bootstraps.check_entry` - put the stub at
+//! `appin\codex-auto-resume.exe` of their scratch installations, never the real core: the real core's `setup` writes
+//! the Run value, the AUMID and the link handler through car-platform, and no scratch home redirects HKCU (Integration
+//! 8 kept the stub as the core for that reason). The stub is never shipped (rust_release.py copies only the core, and
+//! refuses a core that carries the test forward and is not the stub).
 //!
 //! `codex-auto-resume-setup.exe` is the setup program v0.6.26's bootstrap hands a Rust archive over to (BRIDGE.md
 //! section 4, [`setup_main`]): it runs the archive's own `install\install.ps1` - the installer every route ends in -
