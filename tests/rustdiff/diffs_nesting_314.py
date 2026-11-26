@@ -57,7 +57,7 @@ def value_of(shape, leaf):
         if shape[index]:
             value = [] if held is None else [held]
         else:
-            value = {} if held is None else {"a": held}
+            value = {} if held is None else {"b": 0, "a": held}  # two keys, "b" first: sort_keys has an order to make
     return value
 
 OPTIONS = {"plain": {}, "indent0": {"indent": 0}, "indent2": {"indent": 2}, "sort": {"sort_keys": True},

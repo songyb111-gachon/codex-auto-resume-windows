@@ -100,6 +100,8 @@ fn value_of(kinds: &[bool], leaf: &str) -> Value {
         } else {
             let mut map = Map::new();
             if let Some(held) = held {
+                // two keys, "b" first: sort_keys has an order to make
+                map.insert(Str::new("b"), Value::Int(0.into()));
                 map.insert(Str::new("a"), held);
             }
             Value::Object(map)
