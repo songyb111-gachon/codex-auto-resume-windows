@@ -178,6 +178,9 @@ class SurfaceTests(unittest.TestCase):
         fields = rust_fields(read(ABI), "EventKind", "Surfaces")
         # Every field of the wire, in order, and the pump's own Actions after them.
         self.assertEqual(properties, [field.capitalize() for field in fields] + ["Actions"])
+        # DECISIONS.md's addendum: the surfaces event carries the catalog's locale and letters, so the first frame is
+        # drawn in that language (no "en" before the first strings event).
+        self.assertEqual(fields, ["icon", "strings", "settings", "edition", "demo", "locale", "letters"])
 
     def test_the_snapshot_and_strings_events_carry_abi_rs_fields(self):
         # DECISIONS.md, "The popup's model at the host boundary": the snapshot carries the popup's ready view, the

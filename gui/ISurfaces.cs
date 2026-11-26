@@ -22,7 +22,8 @@ namespace CodexAutoResume
     /// The kinds car_next_event hands the host (car-host's abi::EventKind), in the table's order.
     internal static class HostEvents
     {
-        /// icon, strings, settings, edition, demo: build the surfaces, then post tray_started.
+        /// icon, strings, settings, edition, demo, locale, letters: build the surfaces (the first frame in that locale),
+        /// then post tray_started.
         internal const string Surfaces = "surfaces";
         /// snapshot, popup: what the icon draws from and the popup's ready view, once per tick.
         internal const string Snapshot = "snapshot";
@@ -104,6 +105,10 @@ namespace CodexAutoResume
         internal string Edition { get; set; }
         /// The demo's name.
         internal string Demo { get; set; }
+        /// The catalog's locale, so the first frame is drawn in it (the host has no locale_of).
+        internal string Locale { get; set; }
+        /// Every character the locale's words draw (typeface.letters): the fonts' lacks rule.
+        internal string Letters { get; set; }
         /// Where the surfaces post their actions. Set by the pump; not on the wire.
         internal IHostActions Actions { get; set; }
     }

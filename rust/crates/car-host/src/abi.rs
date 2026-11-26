@@ -74,8 +74,9 @@ pub type Factory = fn() -> Guarded;
 /// in [`EventKind::fields`]' order; `ended` is always the last.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EventKind {
-    /// The surfaces to build: `App._start_tray` building `tray.Tray(...)` (runtime/app.py:612-652). The core then waits
-    /// up to 5 s for `tray_started` (`Tray.start`, ui/tray/icon.py:169-174).
+    /// The surfaces to build: `App._start_tray` building `tray.Tray(...)` (runtime/app.py:612-652), with the catalog's
+    /// locale and the fonts' lacks rule, so the first frame is drawn in that language (DECISIONS.md's addendum). The core
+    /// then waits up to 5 s for `tray_started` (`Tray.start`, ui/tray/icon.py:169-174).
     Surfaces,
     /// `tray.snapshot_from` with `EXTRA` and `blocked` in it, once per tick (`_update_tray`, runtime/app.py:654-669), and
     /// the popup's ready view beside it (car-surface `PopupModel.view`: rows, status, header, row menus), so the host
@@ -127,7 +128,8 @@ impl EventKind {
     ///
     /// * `surfaces`: `icon` (the icon file's path), `strings` (`interface.catalog()`), `settings` (the settings the
     ///   surfaces adopt: theme, design, reduce_motion, as `adopt_settings` reads them), `edition` (`edition.shown`),
-    ///   `demo` (the demo's name, `str(paths.state_dir)`);
+    ///   `demo` (the demo's name, `str(paths.state_dir)`), `locale` (the catalog's locale), `letters` (the fonts' lacks
+    ///   rule);
     /// * `snapshot`: `snapshot` (the tray's snapshot), `popup` (the popup's view, `PopupModel.view`'s output);
     /// * `strings`: `strings` (the catalog), `locale` (its locale), `letters` (the fonts' lacks rule);
     /// * `settings`: `settings`;
@@ -135,7 +137,9 @@ impl EventKind {
     /// * `close`: none; `ended`: `exit_code`.
     pub const fn fields(self) -> &'static [&'static str] {
         match self {
-            EventKind::Surfaces => &["icon", "strings", "settings", "edition", "demo"],
+            EventKind::Surfaces => &[
+                "icon", "strings", "settings", "edition", "demo", "locale", "letters",
+            ],
             EventKind::Snapshot => &["snapshot", "popup"],
             EventKind::Strings => &["strings", "locale", "letters"],
             EventKind::Settings => &["settings"],
@@ -159,6 +163,8 @@ pub struct Surfaces {
     pub settings: Value,
     pub edition: Value,
     pub demo: Value,
+    pub locale: Value,
+    pub letters: Value,
 }
 
 /// One event, as the core queues it for `car_next_event`.
@@ -212,6 +218,8 @@ impl Event {
                 surfaces.settings.clone(),
                 surfaces.edition.clone(),
                 surfaces.demo.clone(),
+                surfaces.locale.clone(),
+                surfaces.letters.clone(),
             ],
             Event::Snapshot { snapshot, popup } => vec![snapshot.clone(), popup.clone()],
             Event::Strings {
@@ -895,10 +903,12 @@ mod tests {
             settings: Value::Null,
             edition: Value::Str(Str::new("standard")),
             demo: Value::Str(Str::new("d")),
+            locale: Value::Str(Str::new("ja")),
+            letters: Value::Str(Str::new("xy")),
         }));
         assert_eq!(
             written(&surfaces.to_json()),
-            br#"{"kind": "surfaces", "icon": "i.ico", "strings": {}, "settings": null, "edition": "standard", "demo": "d"}"#
+            br#"{"kind": "surfaces", "icon": "i.ico", "strings": {}, "settings": null, "edition": "standard", "demo": "d", "locale": "ja", "letters": "xy"}"#
         );
         assert_eq!(written(&Event::Close.to_json()), br#"{"kind": "close"}"#);
         let snapshot = Event::Snapshot {
