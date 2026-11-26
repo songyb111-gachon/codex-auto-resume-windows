@@ -313,12 +313,14 @@ namespace CodexAutoResume
         internal readonly Dictionary<string, object> Vm;
         internal readonly string Title;
         internal string Edge = "bottom";
-        internal readonly double Born;
+        /// When the card came; the render mode sets it, as motion_card sets a card's `born` for each picture.
+        internal double Born;
         private double breathed;
         internal readonly double Scale;
         internal readonly string Theme, Design;
         internal readonly bool Contrast;
-        internal readonly CardMotion Motion;
+        /// Its motion; the render mode gives it a new one, as motion_card gives a card its own for each picture.
+        internal CardMotion Motion;
         /// The button under the pointer, and the one pressed (the stack sets them, then Redraw).
         internal object Hover { get; set; }
         internal object Pressed { get; set; }
