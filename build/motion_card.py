@@ -145,10 +145,11 @@ class CardFrames:
 
     `work` and `monitor` are the canvas's work area and whole area, (left, top, right, bottom) in its pixels, and
     `anchor` the tray icon's rectangle the card stands beside; `scale` its size (1.5 beside a window pictured at
-    150 %). Close it when done: the card holds GDI+ objects."""
+    150 %). `render`, a build/surface_render.py session, draws it through the host's render mode instead of the
+    reference's Card, with the same calls. Close it when done: the card holds GDI+ objects."""
 
     def __init__(self, locale: str, *, scale: float, work, monitor, anchor=None, theme: str = "light",
-                 design: str | None = None):
+                 design: str | None = None, render=None):
         import make_screenshots
         from codex_auto_resume import brand, notice_window
         from codex_auto_resume.ui import popup as tray_popup
@@ -161,8 +162,12 @@ class CardFrames:
         self._pinned = make_screenshots.pinned_face      # the stills' face (F1)
         try:
             with self._pinned():
-                self.card = notice_window.Card(make_screenshots._NoStack(), make_screenshots.card_notice(locale),
-                                               now_ms=0, where=where, drawn=drawn, windows=False)
+                if render is not None:
+                    self.card = render.card(make_screenshots.card_notice(locale), now_ms=0, where=where, drawn=drawn,
+                                            hold=make_screenshots._NoStack().hold())
+                else:
+                    self.card = notice_window.Card(make_screenshots._NoStack(), make_screenshots.card_notice(locale),
+                                                   now_ms=0, where=where, drawn=drawn, windows=False)
         except BaseException:
             self.close()
             raise
@@ -211,8 +216,11 @@ class CardFrames:
         motion.move_to(born, self.place)
         if leave is not None:
             motion.retire(leave)
-        card.motion = motion
-        card.born = born
+        if hasattr(card, "follow"):                 # the render mode's card: the same motion, said to it
+            card.follow(motion, born, FOREVER_MS, self.place, leave)
+        else:
+            card.motion = motion
+            card.born = born
         entering = t - born < notice_card.ENTRANCE_MS
         if light is None:
             light = born if entering else (t if leave is None else max(born + notice_card.ENTRANCE_MS,
