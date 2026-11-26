@@ -967,7 +967,7 @@ namespace CodexAutoResume
             return menu != null && hwnd != IntPtr.Zero && menu.Hwnd == hwnd;
         }
 
-        private void Activate(object target)
+        internal void Activate(object target)
         {
             List<object> action = ActionFor(target);
             if (action == null) return;
