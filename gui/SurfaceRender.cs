@@ -142,6 +142,8 @@ namespace CodexAutoResume
                     return ShapeCase(task);
                 case "gdip":
                     return GdipCase(task);
+                case "elevation":
+                    return ElevationCase(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -650,6 +652,40 @@ namespace CodexAutoResume
             {
                 SurfaceGdip.Release();
             }
+        }
+
+        /// The shadows' masks in the order asked (the order matters: a well reuses its turned twin), each as its size,
+        /// centre, extent and the coverage's digest; brand's recipes per theme and design; shadow_step.
+        private static Dictionary<string, object> ElevationCase(Dictionary<string, object> task)
+        {
+            var masks = new List<object>();
+            foreach (object entry in (List<object>)task["masks"])
+            {
+                var ask = (List<object>)entry;
+                object smoothing = ask[ask.Count - 1];
+                double? smooth = smoothing == null ? (double?)null : (double)smoothing;
+                ShadowMask mask = (string)ask[0] == "lift"
+                    ? SurfaceElevation.LiftCoverage((int)(double)ask[1], (int)(double)ask[2], (double)ask[3], (double)ask[4], smooth)
+                    : SurfaceElevation.WellCoverage((int)(double)ask[1], (int)(double)ask[2], (double)ask[3], (double)ask[4],
+                                                    (double)ask[5], (double)ask[6], smooth);
+                masks.Add(new List<object> { mask.Width, mask.Height, mask.Centre, mask.Extent, Digest(mask.Coverage) });
+            }
+            var recipes = new List<object>();
+            foreach (string recipe in new[] { "card", "control", "inset", "tile" })
+                foreach (string theme in SurfaceTheme.Themes)
+                    foreach (string design in SurfaceTheme.Designs)
+                    {
+                        var listed = new List<object>();
+                        foreach (SurfaceShadow shadow in SurfaceElevation.RecipeShadows(recipe, theme, design))
+                            listed.Add(new List<object> { shadow.Dx, shadow.Dy, shadow.Blur, shadow.Token, shadow.Alpha, shadow.Inset });
+                        recipes.Add(listed);
+                    }
+            var steps = new List<object>();
+            foreach (object value in (List<object>)task["steps"]) steps.Add(SurfaceElevation.ShadowStep((double)value));
+            var grounds = new List<object>();
+            foreach (string theme in SurfaceTheme.Themes)
+                foreach (string design in SurfaceTheme.Designs) grounds.Add(SurfaceTheme.Hex(SurfaceElevation.TileGround(theme, design)));
+            return new Dictionary<string, object> { { "masks", masks }, { "recipes", recipes }, { "steps", steps }, { "grounds", grounds } };
         }
 
         // ----------------------------------------------------------------------------- the dump

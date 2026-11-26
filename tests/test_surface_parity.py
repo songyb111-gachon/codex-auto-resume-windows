@@ -632,6 +632,37 @@ class SurfaceJob:
         finally:
             gdiplus._gdiplus_release()
 
+    def elevation(self):
+        import hashlib
+        from codex_auto_resume import brand
+        from codex_auto_resume.ui.popup import elevation
+        elevation._MASKS.clear()
+        masks = [["lift", 640, 900, 32.0, 28.0, None], ["lift", 300, 60, 22.0, 12.0, None], ["lift", 300, 60, 22.0, 12.0, 0.0],
+                 ["lift", 80, 44, 22.0, 4.0, None], ["lift", 30, 30, 999.0, 6.0, None], ["lift", 40, 22, 11.0, 0.0, None],
+                 ["well", 300, 70, 22.0, 12.0, 4.0, 4.0, None], ["well", 300, 70, 22.0, 12.0, -4.0, -4.0, None],
+                 ["well", 300, 70, 22.0, 12.0, 3.0, -2.0, 0.0], ["well", 300, 70, 22.0, 12.0, -3.0, 2.0, 0.0],
+                 ["well", 120, 36, 11.0, 6.0, 0.0, 1.0, None], ["well", 60, 20, 7.0, 0.0, 2.0, 2.0, None],
+                 ["lift", 688, 700, 32.0, 36.0, None], ["well", 41, 23, 11.5, 3.0, 1.5, 1.5, 0.6]]
+        found = []
+        for ask in masks:
+            if ask[0] == "lift":
+                mask = elevation.lift_coverage(ask[1], ask[2], ask[3], ask[4], smoothing=ask[5])
+            else:
+                mask = elevation.well_coverage(ask[1], ask[2], ask[3], ask[4], ask[5], ask[6], smoothing=ask[7])
+            found.append([mask["width"], mask["height"], list(mask["centre"]), mask["extent"],
+                          hashlib.sha256(mask["coverage"]).hexdigest()])
+        recipes = []
+        for recipe in ("card", "control", "inset", "tile"):
+            for theme in ("light", "dark"):
+                for design in ("soft", "classic", "plain"):
+                    recipes.append([[s.dx, s.dy, s.blur, s.token, s.alpha, s.inset]
+                                    for s in elevation.recipe_shadows(recipe, theme, design)])
+        steps = [0.0, 0.4, 0.5, 1.5, 2.5, -0.5, -1.5, -2.49, 3.7, -0.0]
+        result = {"masks": found, "recipes": recipes, "steps": [elevation.shadow_step(value) for value in steps],
+                  "grounds": [elevation.tile_ground(theme, design) for theme in ("light", "dark")
+                              for design in ("soft", "classic", "plain")]}
+        self.add("elevation/all", {"surface": "elevation", "masks": masks, "steps": steps}, result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -690,6 +721,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.paint()
         job.shape()
         job.gdip()
+        job.elevation()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -752,6 +784,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_corner_outline_and_its_tables_are_the_references(self):
         self.compare("shape/")
+
+    def test_the_shadows_masks_and_recipes_are_the_references(self):
+        self.compare("elevation/")
 
     def test_the_painters_gdiplus_calls_make_the_references_pixels_and_leak_nothing(self):
         self.compare("gdip/")
