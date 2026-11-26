@@ -34,9 +34,9 @@ namespace CodexAutoResume
         private static readonly int[] NavigateNext = { 2, 4, 5 }, NavigatePrevious = { 1, 3, 6 };
         private const int NavigateFirst = 7, NavigateLast = 8;
         private static readonly string[] PickedFirst = { "switch", "button" }, Passing = { "focused", "hot" };
-        internal static readonly Guid IidUnknown = new Guid("00000000-0000-0000-C000-000000000046");
-        internal static readonly Guid IidDispatch = new Guid("00020400-0000-0000-C000-000000000046");
-        internal static readonly Guid IidAccessible = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
+        internal static readonly Guid IidUnknown = new Guid(0x00000000, 0x0000, 0x0000, 0xC0, 0, 0, 0, 0, 0, 0, 0x46);
+        internal static readonly Guid IidDispatch = new Guid(0x00020400, 0x0000, 0x0000, 0xC0, 0, 0, 0, 0, 0, 0, 0x46);
+        internal static readonly Guid IidAccessible = new Guid(0x618736E0, 0x3C3D, 0x11CF, 0x81, 0x0C, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71);
 
         // ------------------------------------------------------------------ the pure half
         private static object Field(Dictionary<string, object> map, string key)

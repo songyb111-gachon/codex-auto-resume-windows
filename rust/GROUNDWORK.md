@@ -2268,7 +2268,28 @@ catalog at once, so its walk reads the catalog the window last drew with, as the
   posts `closed` there. The cards' attach/detach are posted as `cards_attached`/`cards_detached` where the reference's
   CardStack attached to and left the inbox.
 
-**Left, in this order:** step 2 (the probe mode as the host's own entry; the class implementing `ISurfaces` over
-TrayIcon - which already makes the popup, menu, tip and cards and attaches `SurfaceAccess` to the live ones - reading
-`SurfacesEvent.Locale`/`Letters`; a draft is `HostSurfaces` in the seat's scratch, not committed); step 3's live-path proof for the menu and card windows; step 4 (BGRA frames; the retargets, not run);
-step 5 (one `make_gui.ps1` at the end).
+**Step 2, done.** `gui/HostSurfaces.cs` implements `ISurfaces`: `Start` builds the `TrayIcon` from the `surfaces` event (its
+catalog, `Locale` and `Letters` - the first frame in that language -, the adopted look, the edition, the demo's name),
+posts `tray_started` once it is up (nothing when it cannot be made, see the seams); `Snapshot` hands the icon its
+snapshot and the popup its view, `Strings` the catalog with its locale and letters, `Settings` the look (the popup's
+`FollowSettings`), `Notice`/`Demo` a card to the stack the icon hosts, `Close` the icon's `WM_CLOSE`; the icon's end posts
+`closed`, once. The icon makes its popup, drawn menu, tip and cards as the reference makes them and fills their MSAA
+hooks (`SurfaceAccess.Attach`). The probe is the host's own entry: `SurfaceRender.Probe(args)` answers
+`--probe <job> [<answer>]` (null otherwise; S6.2b's `Main` asks it beside `Run()` before any DLL loads). Held by
+`hostsurfaces/` in `test_surface_windows` (8 tests, exact): started in Korean, a snapshot, a tick, English, a tick, close -
+the shell told the reference's `tooltip` words in each language, `cards_attached`, `tray_started`, `cards_detached`,
+`closed` (mutation: a `Start` that drops the event's catalog fails it).
+
+**Step 5, done for this head.** `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions:
+every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`); `gui/window.sources`, the files it lists and
+`build/make_gui.ps1` have no diff from the base.
+
+**Checks:** the GUI set (24 modules, one at a time through `gui_lock.sh`): OK, but `test_gui_v065_controls` - its GUID
+rule found `SurfaceAccess.cs`' interface ids spelled as text (now built from their parts, as access.py builds them) and
+its UI Automation focus test failed beside the set; alone under `quiet.sh` all 26 pass. Gates in `rust/` and
+`advanced/rust/` (fmt, clippy -D warnings, test, deny), `check_groundwork.py`, `check_rebuild.sh`: all pass.
+
+**Left, in this order (nothing of it started):** step 3's live-path proof for the menu and card windows (each window's
+own paint into its buffer against the render mode's bytes, as `popupwindow/` and `tipwindow/` hold theirs); step 4 (the
+render mode writes BGRA frames; retarget `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions
+to it, not run); then step 5 once more at the end.
