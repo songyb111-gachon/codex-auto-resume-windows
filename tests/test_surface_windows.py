@@ -202,7 +202,7 @@ class WindowJob:
                 [[win11, True, 1], [win10, True, 0]], [["Other", True, 0], [win10, False, 0], [win10, True, 2]],
                 [[win10, True, 0]] * 3, [[win11, True, 1]] * 20 + [[win10, True, 0]], [[win11, True, 1]] * 17,
                 [[win11, True, 1]] * 15 + [[win11, True, 0]], [[win11, True, 1]] * 16 + [[win11, True, 0]]]
-        self.add("trayplace/overflow",
+        self.add("trayplace/flyout",
                  {"surface": "tray_place", "executable": exe, "uid": 1, "folders": {}, "steps": [], "paths": [],
                   "overflow": sets},
                  {"answers": [], "executable": tray_place._same_path(exe), "paths": [],

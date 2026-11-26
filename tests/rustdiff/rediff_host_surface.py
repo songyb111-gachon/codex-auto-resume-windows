@@ -7,7 +7,8 @@ The surfaces the host draws are C#, not Rust, so their diff is comparison A (tes
 car-harness diff: the C# plans against the Python reference's, exactly, over the fixed matrix (rediff_surface.py is
 car-surface's, S6.0's, the decision half). This says, in order: which of the ported Python files - and the ones the
 matrix's view models are made from - differ between the tag and this checkout (`git diff --stat`, so a change is seen
-even where no case reaches it); then runs test_surface_parity with the tag's own package as the reference (its `src`,
+even where no case reaches it); then runs test_surface_parity and test_surface_windows (the windows' halves, S6.3c) with
+the tag's own package as the reference (its `src`,
 taken out of git as tests/released.py takes it, first on the path; this checkout's tests/ and build/ for the matrix).
 Exit 0 only when the comparison is exact; a file that changed is printed, not failed on - the comparison decides.
 """
@@ -26,9 +27,10 @@ PORTED = ("ui/popup/layout.py", "ui/popup/words.py", "ui/popup/fonts.py", "ui/po
           "ui/popup/placement.py", "ui/popup/menuplan.py", "ui/popup/renderer.py", "ui/popup/win32.py",
           "ui/popup/menuwindow.py", "ui/tray/tipplan.py", "ui/tray/motion.py", "ui/tray/tipcard.py", "ui/card/card.py",
           "notice_card.py", "brand", "win/typeface.py", "win/textsize.py", "l10n.py", "ui/popup/light.py",
-          "ui/popup/gdiplus.py", "ui/popup/elevation.py", "ui/popup/layers.py", "ui/card/surfaces.py")
+          "ui/popup/gdiplus.py", "ui/popup/elevation.py", "ui/popup/layers.py", "ui/card/surfaces.py",
+          "ui/tray/words.py", "ui/words.py", "tray_place.py")
 # What the matrix's view models are made from.
-INPUTS = ("ui/popup/model.py", "ui/tray/words.py", "ui/tray/menu.py", "notifier.py", "notify.py", "locales")
+INPUTS = ("ui/popup/model.py", "ui/tray/menu.py", "notifier.py", "notify.py", "locales")
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
@@ -50,7 +52,8 @@ def main(argv=None) -> int:
     source = released.package(tag)
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)
-    status = subprocess.run([sys.executable, "-X", "utf8", "-m", "unittest", "test_surface_parity"], cwd=ROOT,
+    status = subprocess.run([sys.executable, "-X", "utf8", "-m", "unittest", "test_surface_parity",
+                             "test_surface_windows"], cwd=ROOT,
                             env=environment, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("rediff of the host's surfaces against %s: %s" % (tag, "exact" if status == 0 else "DIFFER"))
     return 0 if status == 0 else 1

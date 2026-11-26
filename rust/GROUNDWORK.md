@@ -2109,3 +2109,46 @@ also watches `ui/popup/light.py gdiplus.py elevation.py layers.py ui/card/surfac
 implementing `ISurfaces`; then items 3-4 (the live-path proof, each window's own paint against the render mode's bytes;
 the retargets of `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions, which need the render
 mode to write each frame's BGRA, not only its digest - not started, not run). Item 5 is done (above).
+
+### S6.3 fourth part (seat S6.3c, 2026-11-26): the bidi table at Unicode 16.0.0, and the first windows
+
+**Step 0, done.** `tests/surfacebidi.py` now runs itself under the bundled CPython 3.14.10 (`refpython.command(...,
+which="bundled")`, always bundled whatever `--reference-python` says, as the other Unicode generators are), refuses a
+runtime whose `unicodedata` is not `UNICODE = "16.0.0"` (exit 2), and `--check` refuses a file that names another stamp or
+differs (exit 1). `gui/SurfaceBidi.cs` is regenerated at 16.0.0. comparison A's `bidi/all` takes its expected answers from
+the same runtime (`surfacebidi.first_strong`), not from the test's interpreter: 27 of its sampled code points read
+differently at 15.1.0, so the case now proves the 16.0.0 table. `SurfaceSourceTests` runs `--check` (no skip any more).
+AUDIT-v0628's S6.3b bidi line says what is true now.
+
+**Step 1, begun** - three of the windows' files, each held exact by a new module, `tests/test_surface_windows.py` (standard
+lane, in-box csc, one compile, ~30 s; 3 tests, all exact):
+
+| C# (`[surface]`) | Python ported | Held by |
+|---|---|---|
+| `TrayWords.cs` | `ui/tray/words.py` whole (`tooltip_parts`, `tooltip` with the v0.6.26 N1 cut, `tooltip_joined`, `meter_rows`, `meter_line`) + `ui/words.py`'s `countdown`, `share`, `left`, `window_name`; lengths and cuts by code point | `traywords/`: 22 catalogs + 4 odd ones x 20 snapshots x 4 editions, and 14 countdowns (2,094 cases) |
+| `TrayPlace.cs` | `tray_place.py` whole: `IconPlacement` over `ICurrentUserKeys` (the real one is `Registry.CurrentUser`, read only, REG_DWORD unsigned and REG_EXPAND_SZ unexpanded as winreg gives them), `overflow_open` over `IOverflowWindows`, `battery_saver`, `known_folder`, `process_image`, `_same_path` (ntpath `splitroot`/`normpath` and `normcase` through `LCMapStringEx`, as CPython calls it) | `trayplace/` (16 cases): 15 runs of registry states and clock readings, 22 paths, 12 flyout window sets |
+| `TipCard.cs` | `ui/tray/tipcard.py`'s window half: `tip_light` (+ `model.snapshot_activity`), `tip_place`, `tip_away`, `tip_pointer`, `tip_screen`, `TipCard` (create, destroy, show, hide at once or fading, tick, the backstop's watch, `_lay` with the text-size fit, frame, render, the light's band, fade in/out, gone, the window procedure); `brand.day_look_at` | `tipwindow/` (17 runs): the reference's own `TipCard` driven by a script (its user32 window calls stood in, nothing shown) and the C#'s over a window made and **never shown** (`OnScreen = false`), messages sent to its procedure: after each of 70 steps shown/alpha/fade/frame timer/place/size/text/picture digest and the answers to WM_MOUSEACTIVATE and WM_NCHITTEST; and the **live-path proof** (step 3) for the card: its own `Render()` == the render mode's `DrawTip` for the same parts and frame == the reference's, byte for byte, 0 GDI+ objects left |
+
+`SurfaceRender` is now `partial`: the windows' cases are in `gui/SurfaceRenderWindows.cs` (`tray_words`, `tray_place`,
+`tip_window`; a case it does not know falls through to "no surface"). Mutations (each alone, restored, each fails):
+`TipChars` 127, the meter's `<= LOW_LEFT` as `<`, the cut's row-first order, the strip's U+202F; `LOOK_AGAIN_S` 29, the
+promoted entries' `or`, the flyout's 16-window bound, normpath's `..` at the root, a bool UID; `TIP_AWAY_S` 0.9,
+`MA_NOACTIVATE`, the fade-out from the alpha it left at, the zero-alpha hide, the light held by `reduced` alone, the fit's
+`> 1.0`. `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions: every `.exe` byte-identical
+(`ec1ae342...`, `101f257d...`, `382bbb9c...`). `rediff_host_surface.py` now also watches `ui/tray/words.py`,
+`ui/words.py`, `tray_place.py` and runs `test_surface_windows`.
+
+Seams this part leaves (the main session's, not decided here): the tip card's content carries the catalog's `Locale` and
+`Letters` (the host has no `locale_of` and no catalogs - AUDIT line); the icon's words read the snapshot's numbers as
+doubles (the window's `Json`), so a whole float reads as an int (AUDIT line). `TipCard.Accessible` and
+`SurfaceAccessHooks.Disconnecting` are the hooks `SurfaceAccess.cs` fills (null until then: Windows answers WM_GETOBJECT).
+
+**Left, in this order (nothing of it started):** the rest of step 1 - `PopupWindow.cs`/`PopupMessages.cs` (`window.py`,
+`messages.py`, `hidden.py`, layers' `PopupCard` half; it needs the popup's model as the host gets it - `PopupModel.view`,
+rows/status, `perform` posting `popup` actions - a seam to settle first), `MenuWindow.cs` (`menuwindow.Menu`),
+`CardStack.cs` (`ui/card/stack.py` + `ui/card/win32.py`, implementing `ICardHost`), `TrayIcon.cs`, `TrayMenu.cs`,
+`SurfaceAccess.cs` (MSAA, then TipCard's hooks); each the way `TipCard` is held: the reference driven with its window
+calls stood in, the C# over a window never shown, the same script, state and digests after each step. Then step 2 (the
+probe mode as the host's own entry - today the probe is the render mode's `*_window` cases - and the class implementing
+`ISurfaces`), step 3 for the popup, menu and card windows, step 4 (BGRA frames; the retargets, not run). Step 5 is done
+for this head (above).
