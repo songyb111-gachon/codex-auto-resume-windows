@@ -146,6 +146,8 @@ namespace CodexAutoResume
                     return ElevationCase(task);
                 case "days":
                     return DaysCase(task);
+                case "bidi":
+                    return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
             }
             throw new NotSupportedException("no surface " + surface);
         }

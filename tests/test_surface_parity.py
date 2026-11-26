@@ -687,6 +687,14 @@ class SurfaceJob:
             self.add("days/" + look, {"surface": "days", "look": look, "moments": self.DAY_MOMENTS, "within": self.DAY_WITHIN,
                                       "points": points, "paths": self.DAY_PATHS}, result)
 
+    def bidi(self):
+        """l10n.first_strong over a code point of every 173 (no surrogate: the job is UTF-8), each after digits and
+        spaces, and a few texts of the plans' own."""
+        from codex_auto_resume import l10n
+        texts = ["", "123 - 4", "abc", "مرحبا", "12 א", " (𝐀)", "𐠀x", "‏‎a"]
+        texts += ["1 " + chr(point) for point in range(0, 0x110000, 173) if not 0xD800 <= point <= 0xDFFF]
+        self.add("bidi/all", {"surface": "bidi", "texts": texts}, [l10n.first_strong(text) for text in texts])
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -747,6 +755,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.gdip()
         job.elevation()
         job.days()
+        job.bidi()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -816,6 +825,9 @@ class SurfaceParityTests(unittest.TestCase):
     def test_a_special_days_pieces_and_the_icons_mark_are_the_references_frame_for_frame(self):
         self.compare("days/")
 
+    def test_the_first_strong_direction_is_the_references_over_the_whole_code_space(self):
+        self.compare("bidi/")
+
     def test_the_painters_gdiplus_calls_make_the_references_pixels_and_leak_nothing(self):
         self.compare("gdip/")
         for case_id, case in self.found.items():
@@ -824,6 +836,14 @@ class SurfaceParityTests(unittest.TestCase):
 
 
 class SurfaceSourceTests(unittest.TestCase):
+    def test_the_hosts_direction_table_is_the_one_python_writes(self):
+        import unicodedata
+        import surfacebidi
+        written = (ROOT / "gui" / "SurfaceBidi.cs").read_text(encoding="utf-8")
+        if unicodedata.unidata_version not in written:
+            self.skipTest("this Python's Unicode (%s) is not the table's" % unicodedata.unidata_version)
+        self.assertEqual(written, surfacebidi.source(), "run `python -X utf8 tests/surfacebidi.py`")
+
     def test_the_hosts_json_is_the_windows_json_byte_for_byte(self):
         def body(path):
             text = (ROOT / path).read_text(encoding="utf-8").replace("\r\n", "\n")
