@@ -674,6 +674,27 @@ class HomeDiff(CodexBase):
         homes.append(raw("schema-no-state", history=[turns % "", items % ""] + full, queue=[queue % ""]))
         homes.append(raw("schema-no-tables", state=["CREATE TABLE other (x)"], history=["CREATE TABLE other (x)"], queue=["CREATE TABLE other (x)"]))
         homes.append(raw("schema-no-projection", state=[threads % ""], history=[turns % "", items % ""], queue=[queue % ""]))
+        # v0.6.26 final (FINAL-DELTA #1-#4; test_history_not_yet ReaderTests): no history database, the state holding
+        # a conversation (the refusal it was), none beside a queue (HistoryNotYet), of a schema the reader refuses, with
+        # no threads table, not a database, or not there at all (each the refusal it was: a state that cannot be read
+        # is no "not yet")
+        home = raw("history-absent-a-thread", state=[threads % ""], queue=[queue % ""])
+        thread(home, uid(9700))
+        homes.append(home)
+        homes.append(raw("history-absent-queue", state=[threads % ""], queue=[queue % ""]))
+        homes.append(raw("history-absent-state-refused", state=[(threads % "").replace("rollout_path ", "zz_rollout_path ", 1)]))
+        homes.append(raw("history-absent-no-threads", state=["CREATE TABLE other (x)"]))
+        home = raw("history-absent-state-damaged")
+        (home.root / "state_5.sqlite").write_bytes(b"not a database at all" * 10)
+        homes.append(home)
+        homes.append(raw("history-absent-nothing"))
+        home = raw("history-absent-two-states", state=[threads % ""])
+        older = sqlite3.connect(home.root / "state_4.sqlite")
+        older.execute(threads % "")
+        older.execute("INSERT INTO threads (id) VALUES ('0a1b2c3d-0001-7000-8000-0000000000aa')")
+        older.commit()
+        older.close()
+        homes.append(home)
         # declared types for tokens_used, columns of the names the guards read
         for number, declared in enumerate(("INTEGER", "INT UNSIGNED", "TEXT", "REAL", "BLOB", "", "bigint", "POINT")):
             home = raw("schema-tokens-%d" % number, state=[threads % (", cwd TEXT, model TEXT, approval_mode TEXT, tokens_used " + declared)],

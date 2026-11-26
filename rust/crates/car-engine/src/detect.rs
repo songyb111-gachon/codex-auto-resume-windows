@@ -292,7 +292,13 @@ impl Engine {
         let asking = self.plug.wants(Point::Admission)
             && !self.observing(&settings)
             && !self.managed.disable_auto_resume;
-        let mut found = self.source.latest_failures(since, &kinds, asking, asking)?;
+        let mut found = match self.source.latest_failures(since, &kinds, asking, asking) {
+            Ok(found) => found,
+            // v0.6.26 final: a fresh home - its state holds no conversation, and Codex makes its history with the first
+            // one it saves - has nothing to detect yet: a detection that read nothing, not one that could not read.
+            Err("HistoryNotYet") => return Ok(()),
+            Err(error) => return Err(error),
+        };
         for raw in found.iter_mut() {
             let shape = raw.shift_remove("shape").unwrap_or(Value::Null);
             let admissible = raw.shift_remove("admissible").unwrap_or(Value::Bool(false));

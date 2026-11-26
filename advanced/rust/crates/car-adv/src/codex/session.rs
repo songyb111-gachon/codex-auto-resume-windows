@@ -85,7 +85,7 @@ fn from_core(error: Error) -> SessionError {
         Error::Os => SessionError::Raised("OSError"),
         Error::Python(class) => SessionError::Raised(class),
         Error::Sqlite => SessionError::Raised("Error"),
-        Error::Source(_) => SessionError::Raised("SourceError"),
+        Error::Source(refused) => SessionError::Raised(refused.class()),
     }
 }
 

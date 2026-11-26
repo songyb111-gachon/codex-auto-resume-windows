@@ -195,6 +195,34 @@ def schema_variants(root: Path) -> list[Path]:
     lost = home("a thread, no history")
     lost.thread("0a1b2c3d-0001-7000-8000-00000000000c")
     (lost.root / "thread_history_1.sqlite").unlink(missing_ok=True)
+    # The final-port seat (FINAL-DELTA #5): no history beside a state whose conversations are not known - a state of a
+    # schema the check fails (never asked), one that is no database, none at all, an empty threads table in a newer
+    # generation beside an older one that holds a conversation: "unknown" stays UNAVAILABLE, only "none" is "not yet".
+    for name, damage in (("no rollout_path, no history", "schema"), ("state not sqlite, no history", "damaged"),
+                         ("no state, no history", "gone"), ("newer empty state, no history", "newer")):
+        made = home(name)
+        if damage == "newer":
+            made.thread("0a1b2c3d-0001-7000-8000-00000000000d")
+        (made.root / "thread_history_1.sqlite").unlink(missing_ok=True)
+        if damage == "schema":
+            try:
+                connection = sqlite3.connect(made.root / "state_5.sqlite")
+                connection.execute("ALTER TABLE threads DROP COLUMN rollout_path")
+                connection.commit()
+                connection.close()
+            except sqlite3.Error:
+                pass
+        elif damage == "damaged":
+            (made.root / "state_5.sqlite").write_bytes(b"not a database at all" * 10)
+        elif damage == "gone":
+            (made.root / "state_5.sqlite").unlink(missing_ok=True)
+        else:
+            import shutil as _shutil
+            _shutil.copyfile(made.root / "state_5.sqlite", made.root / "state_6.sqlite")
+            connection = sqlite3.connect(made.root / "state_6.sqlite")
+            connection.execute("DELETE FROM threads")
+            connection.commit()
+            connection.close()
     for name, db, data in (("state not sqlite", "state_5.sqlite", b"not a database at all" * 10),
                            ("history empty", "thread_history_1.sqlite", b""),
                            ("newer queue", "queue_2.sqlite", b"")):

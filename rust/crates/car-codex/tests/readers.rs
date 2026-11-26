@@ -372,6 +372,54 @@ fn a_failed_turn_of_a_desktop_conversation_is_found_and_a_schema_that_moved_is_r
 }
 
 #[test]
+fn a_fresh_home_has_no_history_yet_and_every_other_home_refuses_as_it_did() {
+    // test_history_not_yet ReaderTests (v0.6.26 final): no history database and a state with no conversation is
+    // HistoryNotYet, still a SourceError; with a conversation, or with no state either, the plain refusal.
+    let nothing = BTreeSet::<String>::new;
+    let (folder, source) = home("not-yet");
+    // a history that is there is read as it was
+    assert!(
+        source
+            .latest_failures(&Value::from(1_788_624_400), &nothing(), false, false)
+            .expect("a read")
+            .is_empty()
+    );
+    std::fs::remove_file(folder.join("thread_history_1.sqlite")).expect("no history");
+    let fresh = source.latest_failures(&Value::from(1_788_624_400), &nothing(), false, false);
+    let Err(refused) = fresh else {
+        panic!("a fresh home refuses")
+    };
+    assert!(refused.is_history_not_yet());
+    assert!(matches!(refused, Error::Source(_)));
+    assert_eq!(refused.class(), "HistoryNotYet");
+    assert_eq!(refused.message(), "No Codex history database yet");
+    // only the history is "not yet": the state still resolves
+    assert!(source.resolve("state").is_ok());
+    // a conversation in the state: the refusal it was
+    put(
+        &folder,
+        "state_5.sqlite",
+        &[&format!(
+            "INSERT INTO threads VALUES ('{A}', '', 'vscode', 'user', 0, 'paginated')"
+        )],
+    );
+    let lost = source
+        .latest_failures(&Value::from(1_788_624_400), &nothing(), false, false)
+        .expect_err("a refusal");
+    assert!(!lost.is_history_not_yet());
+    assert_eq!(lost.class(), "SourceError");
+    assert_eq!(
+        lost.message(),
+        "No Codex history database with the required schema"
+    );
+    // no state either: the refusal it was
+    std::fs::remove_file(folder.join("state_5.sqlite")).expect("no state");
+    let gone = source.resolve("history").expect_err("a refusal");
+    assert_eq!(gone.class(), "SourceError");
+    let _ = std::fs::remove_dir_all(&folder);
+}
+
+#[test]
 fn what_a_rollout_says_after_a_failed_turn_is_one_of_six_words() {
     let folder = scratch("superseded");
     let file = folder.join("sessions").join("one.jsonl");

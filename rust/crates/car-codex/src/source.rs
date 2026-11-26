@@ -222,10 +222,27 @@ impl LocalSource {
             if supported == Some(true) {
                 return Ok(name_of(&path));
             }
+        } else if kind == "history" && self.history_not_made() {
+            return Err(Error::history_not_yet());
         }
         Err(Error::source(&format!(
             "No Codex {kind} database with the required schema"
         )))
+    }
+
+    /// `_history_not_made()` (v0.6.26 final): whether a home with no history database is one Codex has not made it in
+    /// yet - its newest state database read, and holding no conversation (`HistoryNotYet`). Anything that cannot be
+    /// read is no: the refusal as it always was.
+    fn history_not_made(&self) -> bool {
+        self.no_conversation().unwrap_or(false)
+    }
+
+    /// `_no_conversation()` (`history.py`, v0.6.26 final): whether the newest state database holds no conversation - a
+    /// row's being only, never a column of one.
+    fn no_conversation(&self) -> Result<bool> {
+        self.with_db("state", |connection| {
+            Ok(sql::query(connection, "SELECT 1 FROM threads LIMIT 1", &[])?.is_empty())
+        })
     }
 
     /// `_db(kind)`: a read-only connection to the newest generation of one of `DB_KINDS`, for the length of `body`.
