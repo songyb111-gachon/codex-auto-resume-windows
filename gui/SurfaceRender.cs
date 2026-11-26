@@ -122,6 +122,8 @@ namespace CodexAutoResume
                     return PopupLayout.Plan((Dictionary<string, object>)task["vm"], Number(task, "scale"), locale, measure);
                 case "menu":
                     return Menu(task, locale, measure);
+                case "tip":
+                    return Tip(task, locale, measure);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -187,6 +189,26 @@ namespace CodexAutoResume
             result["accessible"] = MenuPlan.AccessibleItems(plan, Index(Field(task, "selected")),
                                                             Field(task, "strings") as Dictionary<string, object>);
             return result;
+        }
+
+        private static int[] IntsOrNull(object value)
+        {
+            return value == null ? null : Ints(value);
+        }
+
+        /// The tip card: its plan (measured, mirrored right to left), its words, and the box it stands beside for each
+        /// (icon, point, cursor) asked.
+        private static Dictionary<string, object> Tip(Dictionary<string, object> task, string locale, SurfaceText measure)
+        {
+            SurfacePlan plan = TipPlan.Plan((Dictionary<string, object>)task["parts"], Field(task, "light"), Number(task, "scale"),
+                                            locale, Field(task, "day") as string, measure);
+            var anchors = new List<object>();
+            foreach (object entry in (List<object>)Field(task, "anchors") ?? new List<object>())
+            {
+                var three = (List<object>)entry;
+                anchors.Add(TipPlan.Anchor(IntsOrNull(three[0]), IntsOrNull(three[1]), IntsOrNull(three[2])));
+            }
+            return new Dictionary<string, object> { { "plan", plan }, { "text", TipPlan.TipText(plan) }, { "anchors", anchors } };
         }
 
         // ----------------------------------------------------------------------------- the dump

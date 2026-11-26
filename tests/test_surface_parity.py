@@ -128,8 +128,8 @@ class StandIn:
         return found
 
     def ink(self, role, text):
-        text = (text or "").strip()
-        found = (0, 0) if not text else (len(text) % 3, (len(text) * 7) % 4)
+        stripped = (text or "").strip()
+        found = (0, 0) if not stripped else (len(stripped) % 3, (len(stripped) * 7) % 4)
         self.ink_tables.setdefault(self.name, {})[(role, text)] = found
         return found
 
@@ -296,6 +296,31 @@ class SurfaceJob:
                     result["accessible"] = popup.menu_accessible_items(plan, 2, strings)
                     self.add("menu/%s/%s/%r" % (name, locale, scale), case, result)
 
+    def tip(self):
+        from codex_auto_resume import interface
+        from codex_auto_resume.ui.popup import renderer as renderer_module
+        from codex_auto_resume.ui.tray import tipcard, tipplan, words
+        import test_tray_tipcard as fixtures
+        anchors = [[[100, 1040, 124, 1064], [110, 1050], [112, 1052]], [[100, 1040, 124, 1064], [5, 5], None],
+                   [None, None, [7, 9]], [[1, 2, 3, 4], None, None], [None, None, None]]
+        for scale in SCALES:
+            for locale in LOCALES:
+                strings = interface.STRINGS[locale]
+                for name, edition, day in (("waiting", None, None), ("metered", "advanced", None), ("held", None, "christmas"),
+                                           ("failed", "advanced", "birthday"), ("empty", None, None), ("paused", None, None)):
+                    snapshot = fixtures.FIXTURES[name]
+                    parts = words.tooltip_parts(snapshot, strings, fixtures.NOW, edition)
+                    light = tipcard.tip_light(snapshot, fixtures.NOW)
+                    renderer = renderer_for(tipcard.TipRenderer, self.stand_in, locale, scale)
+                    renderer.metrics, renderer.ink = self.stand_in.metrics, self.stand_in.ink
+                    with standing_in(self.stand_in, renderer_module):
+                        plan = renderer.tip_layout(parts, light, scale, locale, day)
+                    result = {"plan": plan, "text": tipplan.tip_text(plan),
+                              "anchors": [tipplan.tip_anchor(*three) for three in anchors]}
+                    self.add("tip/%s/%s/%r" % (name, locale, scale),
+                             {"surface": "tip", "parts": plain(parts), "light": light, "scale": scale, "locale": locale,
+                              "day": day, "anchors": anchors, "table": self.stand_in.name}, result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -346,6 +371,7 @@ class SurfaceParityTests(unittest.TestCase):
         job = SurfaceJob()
         job.popup()
         job.menu()
+        job.tip()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -381,6 +407,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_the_menu_is_laid_out_placed_and_keyed_as_the_reference_does_it(self):
         self.compare("menu/")
+
+    def test_the_tip_card_is_laid_out_as_the_reference_lays_it_out(self):
+        self.compare("tip/")
 
 
 class SurfaceSourceTests(unittest.TestCase):
