@@ -66,8 +66,8 @@ impl Queue {
     fn of(value: Option<&Value>) -> Queue {
         match value {
             Some(Value::Array(items)) => Queue(items.clone(), 0),
+            Some(Value::Null) | None => Queue(vec![], 0),
             Some(other) => Queue(vec![other.clone()], 0),
-            None => Queue(vec![], 0),
         }
     }
 

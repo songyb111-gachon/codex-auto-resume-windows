@@ -26,7 +26,7 @@ ODD = [{}, [], None, "x", 3, {"data": []}, {"data": "x"}, {"goal": {"status": "a
 
 
 def run_case(measurement, session=None, **extra):
-    case = {"op": "run", "measurement": measurement, "dir": "$dir", "versions": VERSIONS, "session": session}
+    case = {"op": "run", "measurement": measurement.lower(), "dir": "$dir", "versions": VERSIONS, "session": session}
     case.update(extra)
     return case
 
@@ -50,6 +50,12 @@ class Compare(unittest.TestCase):
                 self.fail("case %d differs: %s\nreference: %s\nprobe:     %s" % (
                     index, json.dumps(cases[index])[:600], json.dumps(one)[:1500], json.dumps(two)[:1500]))
         self.assertEqual(want_files, got_files)
+        # Not vacuous: most cases must be answered, not refused at the door (a measurement's word is lower case).
+        runs = [each for case, each in zip(cases, want) if case.get("op") == "run"]
+        self.assertTrue(any("ok" in each["answer"] for each in want), "no case was answered")
+        if runs:
+            reached = sum(bool(each["log"]) for each in runs)
+            self.assertGreater(reached, len(runs) // 2, "most runs raised before a fake was asked anything")
         return want
 
 
@@ -76,7 +82,7 @@ class MeasureEvidenceDiff(Compare):
                    completed(THREAD, "t-1", "completed")], ["x", None, 3, {"method": "turn/completed"}]]
         for batch, turn in itertools.product(events, (None, "t-1", "t-2")):
             cases.append({"op": "completed_status", "events": batch, "thread": THREAD, "turn": turn})
-        for measurement, value in itertools.product(("M1", "MQP", "Nope"), (
+        for measurement, value in itertools.product(("m1", "mqp", "Nope"), (
                 THREAD, THREAD.upper(), "x", None, 5, THREAD + "," + OTHER, THREAD + "," + THREAD,
                 ",".join([THREAD, OTHER, THREAD[:-1] + "c", THREAD[:-1] + "d", THREAD[:-1] + "e"]),
                 ",".join([THREAD, OTHER, THREAD[:-1] + "c", THREAD[:-1] + "d"]), THREAD + ",")):
@@ -91,17 +97,17 @@ class MeasureEvidenceDiff(Compare):
         notes = [None, "", "  ", "what happened", 5, "C:\\path", THREAD, "\u00e9t\u00e9"]
         cases = []
         for verdict, seen, note in itertools.product(("pass", "fail", "blocked", "maybe"), observed, notes):
-            cases.append({"op": "build", "measurement": "M3", "verdict": verdict, "observed": seen, "note": note,
+            cases.append({"op": "build", "measurement": "m3", "verdict": verdict, "observed": seen, "note": note,
                           "product_version": "0.6.26", "codex_version": "0.155.0", "windows_build": "10.0.26100",
                           "recorded_at": "2026-11-27T10:00Z"})
         for field, value in itertools.product(("product_version", "codex_version", "windows_build", "recorded_at"),
                                               ("C:\\x", THREAD, 5, None, "1.2.3", "a@b.cd")):
-            case = {"op": "build", "measurement": "M1", "verdict": "pass", "observed": good,
+            case = {"op": "build", "measurement": "m1", "verdict": "pass", "observed": good,
                     "product_version": "0.6.26", "codex_version": "0.155.0", "windows_build": "10.0.26100",
                     "recorded_at": "2026-11-27T10:00Z"}
             case[field] = value
             cases.append(case)
-        for measurement in ("M1", "M2b", "MQP", "Mgave"):
+        for measurement in ("m1", "m2b", "mqp", "mgave"):
             cases.append({"op": "build_write", "measurement": measurement, "verdict": "blocked", "observed": good,
                           "note": "\u00e9 line\nnext", "product_version": "0.6.26", "codex_version": "0.155.0",
                           "windows_build": "10.0.26100", "recorded_at": "2026-11-27T10:00Z", "dir": "$dir"})
@@ -110,13 +116,13 @@ class MeasureEvidenceDiff(Compare):
 
     def test_complete_and_outcome(self):
         def record(**changes):
-            found = {"format": "codex-auto-resume-measurement/1", "step": "M1", "verdict": "blocked",
+            found = {"format": "codex-auto-resume-measurement/1", "step": "m1", "verdict": "blocked",
                      "recorded_at": "2026-11-27T10:00Z", "product_version": "0.6.26", "codex_version": "0.155.0",
                      "windows_build": "10.0.26100", "observed": {"a": True}, "note": "n"}
             found.update(changes)
             return found
         seeds = [json.dumps(record(), indent=2).encode(), json.dumps(record()).replace("\n", "\r\n").encode(),
-                 json.dumps(record(verdict="pass")).encode(), json.dumps(record(step="M2")).encode(),
+                 json.dumps(record(verdict="pass")).encode(), json.dumps(record(step="m2")).encode(),
                  json.dumps(record(format="other")).encode(), json.dumps(record(codex_version="0.154.0")).encode(),
                  json.dumps(record(codex_version=155)).encode(), json.dumps(record(codex_version=None)).encode(),
                  json.dumps(record(completion={"verdict": "fail"})).encode(), b"[1, 2]", b"not json", b"\xff\xfe",
@@ -127,21 +133,21 @@ class MeasureEvidenceDiff(Compare):
             for verdict, note, version in (("pass", "as_expected", "0.155.0"), ("fail", "partial", "0.155.0"),
                                            ("blocked", "as_expected", "0.155.0"), ("pass", "nope", "0.155.0"),
                                            ("pass", "as_expected", "155"), ("pass", "as_expected", None)):
-                cases.append({"op": "ev_complete", "measurement": "M1", "verdict": verdict, "note": note,
+                cases.append({"op": "ev_complete", "measurement": "m1", "verdict": verdict, "note": note,
                               "codex_version": version, "recorded_at": "2026-11-27T10:00Z", "dir": "$dir",
-                              "seed": {"measurement-M1.json": seed.hex()}})
-        cases.append({"op": "ev_complete", "measurement": "M1", "verdict": "pass", "note": "as_expected",
+                              "seed": {"measurement-m1.json": seed.hex()}})
+        cases.append({"op": "ev_complete", "measurement": "m1", "verdict": "pass", "note": "as_expected",
                       "codex_version": "0.155.0", "recorded_at": "C:\\x", "dir": "$dir",
-                      "seed": {"measurement-M1.json": seeds[0].hex()}})
-        cases.append({"op": "ev_complete", "measurement": "M1", "verdict": "pass", "note": "as_expected",
+                      "seed": {"measurement-m1.json": seeds[0].hex()}})
+        cases.append({"op": "ev_complete", "measurement": "m1", "verdict": "pass", "note": "as_expected",
                       "codex_version": "0.155.0", "recorded_at": "x", "dir": "$dir"})
         for versions, backend in ((VERSIONS, None), (None, {"engine_version": "0.155.0"}), (None, None),
                                   ({"codex_version": "unknown"}, None), ({}, {"engine_version": ""}),
                                   ({"codex_version": 155}, None)):
             for note in ("as_expected", "bad"):
-                cases.append({"op": "complete", "measurement": "M1", "verdict": "pass", "note": note,
+                cases.append({"op": "complete", "measurement": "m1", "verdict": "pass", "note": note,
                               "versions": versions, "backend": backend, "dir": "$dir",
-                              "seed": {"measurement-M1.json": seeds[0].hex()}})
+                              "seed": {"measurement-m1.json": seeds[0].hex()}})
         records = [record(), record(verdict="pass"), record(verdict="fail"), record(completion={"verdict": "pass"}),
                    record(completion={"verdict": "blocked"}), record(completion="x"), record(codex_version=5),
                    record(format="x"), record(verdict="pass", completion={"verdict": "fail"}), [], None, "x"]

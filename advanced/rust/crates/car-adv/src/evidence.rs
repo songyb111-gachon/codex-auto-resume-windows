@@ -15,7 +15,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use car_machine::json::{Map, Options, Str, Value, from_str, to_string};
+use car_machine::json::{Map, Options, Str, Value, to_string};
 use car_machine::pytext::py_str;
 use car_machine::vocab_gen::domain_public::TURN_STATUSES;
 use car_policy::classify::failures::CATEGORIES;
@@ -320,23 +320,24 @@ pub fn path_for(measurement: Measurement, directory: Option<&Path>) -> PathBuf {
 }
 
 /// `json.dumps(record, ensure_ascii=False, indent=2, allow_nan=False) + "\n"`.
-fn dumps(record: &Map) -> Result<Str, Fault> {
-    let written = to_string(
-        &Value::Object(record.clone()),
-        &Options::new().ensure_ascii(false).indent(2),
-    )
-    .map_err(|_| Fault::Raised("ValueError"))?;
-    let mut bytes = written.into_bytes();
-    bytes.push(b'\n');
-    Str::from_surrogatepass(bytes).ok_or(Fault::Raised("ValueError"))
+fn dumps(record: &Map) -> Result<Option<String>, Fault> {
+    let value = Value::Object(record.clone());
+    match to_string(&value, &Options::new().ensure_ascii(false).indent(2)) {
+        Ok(written) => Ok(Some(written + "\n")),
+        // A lone surrogate: `json.dumps` makes the text, and only its encoding fails, after the file is opened.
+        Err(_) if to_string(&value, &Options::new().ensure_ascii(true).indent(2)).is_ok() => {
+            Ok(None)
+        }
+        Err(_) => Err(Fault::Raised("ValueError")),
+    }
 }
 
 /// `Path.write_text(text, encoding="utf-8")` in text mode on Windows: opened (emptied) first, each `\n` written
-/// `\r\n`; a lone surrogate is a UnicodeEncodeError after the open.
-fn write_text(target: &Path, text: &Str) -> Result<(), Fault> {
+/// `\r\n`; a text holding a lone surrogate (None) is a UnicodeEncodeError after the open.
+fn write_text(target: &Path, text: Option<&str>) -> Result<(), Fault> {
     let mut file =
         std::fs::File::create(target).map_err(|error| Fault::Raised(os_class(&error)))?;
-    let Some(text) = text.as_str() else {
+    let Some(text) = text else {
         return Err(Fault::Raised("UnicodeEncodeError"));
     };
     let translated = text.replace('\n', "\r\n");
@@ -386,7 +387,8 @@ pub fn complete(
     let decoded = String::from_utf8(bytes).map_err(|_| unreadable.clone())?;
     // Text mode reads `\r\n` and a lone `\r` as `\n`.
     let decoded = decoded.replace("\r\n", "\n").replace('\r', "\n");
-    let record = from_str(&decoded).map_err(|_| unreadable)?;
+    // `json.loads`: NaN, the infinities and a lone surrogate escape are read, as Python reads them.
+    let record = car_machine::compat::loads(&decoded).map_err(|_| unreadable)?;
     let Value::Object(mut record) = record else {
         return Err(Fault::Evidence("the file is not a measurement record"));
     };
@@ -424,7 +426,7 @@ pub fn complete(
     }
     record.insert(Str::new("completion"), Value::Object(completion));
     let written = dumps(&record)?;
-    write_text(&target, &written)?;
+    write_text(&target, written.as_deref())?;
     Ok(target)
 }
 
@@ -472,6 +474,6 @@ pub fn write(record: &Map, directory: Option<&Path>) -> Result<PathBuf, Fault> {
         .unwrap_or_default();
     let target = directory.join(format!("measurement-{step}.json"));
     let written = dumps(record)?;
-    write_text(&target, &written)?;
+    write_text(&target, written.as_deref())?;
     Ok(target)
 }

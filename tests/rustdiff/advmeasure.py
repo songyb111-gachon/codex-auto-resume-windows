@@ -37,6 +37,33 @@ from codex_auto_resume_advanced.codex import protocol
 from codex_auto_resume_advanced.vocabulary import Measurement, NoteCode, Verdict
 
 request = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+
+# Never the real engine (the main session's notice of 2026-11-27): no discovery, no process look, no live seam.
+import os, tempfile
+os.environ["CODEX_AUTO_RESUME_CODEX_EXE"] = os.path.join(tempfile.gettempdir(), "car-v0627-s74-no-such-engine",
+                                                         "codex.exe")
+
+
+def _refused(*unused, **also):
+    raise RuntimeError("refused in the S7.4 diff: no real engine, process or install is asked")
+
+
+from codex_auto_resume.codex import pairing
+from codex_auto_resume_advanced.codex import inuse
+pairing.processes_named = pairing.resource_users = pairing.process_identity = _refused
+inuse.backend = _refused
+for _name in ("live_backend", "live_session_factory", "live_launcher", "live_cli", "live_ipc", "live_hands"):
+    setattr(measure, _name, _refused)
+try:
+    from codex_auto_resume.win import inventory
+    inventory.resource_users = _refused
+except ImportError:
+    pass
+try:
+    from codex_auto_resume import windows as _windows
+    _windows.resource_users = _refused
+except ImportError:
+    pass
 TIMING = {"m2b_queue": "_M2B_QUEUE_SECONDS", "m2b_poll": "_M2B_POLL_SECONDS", "m6_turn": "_M6_TURN_SECONDS",
           "m6_interrupt": "_M6_INTERRUPT_SECONDS", "m6_poll": "_M6_POLL_SECONDS", "mu_spacing": "_MU_SPACING"}
 HELD = {name: getattr(measure, name) for name in TIMING.values()}
@@ -349,7 +376,8 @@ def both(cases: list) -> tuple:
                 answer = json.loads(done.stdout.decode("utf-8"))
             else:
                 done = subprocess.run([str(probe_path())], input=json.dumps(request, ensure_ascii=False).encode("utf-8"),
-                                      capture_output=True, creationflags=NO_WINDOW, timeout=900)
+                                      capture_output=True, creationflags=NO_WINDOW, timeout=900,
+                                      env=dict(os.environ, CODEX_AUTO_RESUME_CODEX_EXE=str(folder / "no-such-engine.exe")))
                 if done.returncode != 0:
                     raise AssertionError("advmeasure failed: " + done.stderr.decode("utf-8", "replace")[-3000:])
                 answer = json.loads(done.stdout.decode("utf-8"))

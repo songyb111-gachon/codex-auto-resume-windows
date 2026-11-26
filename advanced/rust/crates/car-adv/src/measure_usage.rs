@@ -392,10 +392,8 @@ pub(super) fn mr(ctx: &mut Context<'_>) -> Res<Found> {
     }
     let spent = ctx.with_session(|ctx, session| {
         let before = read_usage(session, credits::detailed())?.1;
-        let listed = match field(&before, "windows") {
-            Value::Array(items) => items,
-            _ => return Err(py("TypeError")),
-        };
+        // `credits.full(windows)` reads `windows or ()`.
+        let listed = windows_of(&field(&before, "windows"))?;
         if credits::full(&listed).map_err(py)?.is_empty() {
             return Ok(Spent::NoLimit);
         }
