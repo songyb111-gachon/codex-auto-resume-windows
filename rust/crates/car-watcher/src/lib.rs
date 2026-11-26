@@ -19,3 +19,5 @@ pub mod launcher;
 pub mod app;
 pub mod events;
 pub mod api;
+pub mod checkup;
+pub mod rescan;

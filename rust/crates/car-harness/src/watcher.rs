@@ -28,6 +28,7 @@ use car_watcher::watchloop::{Adapter, Fired, Loop, TickEngine, World, run};
 use crate::object;
 
 mod batch;
+mod check;
 mod launch;
 pub use batch::batch;
 pub use launch::run as launcher;

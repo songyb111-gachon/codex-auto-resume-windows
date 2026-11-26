@@ -334,7 +334,7 @@ pub fn batch(cases: &Value) -> Value {
             "sweep" => Some(sweep(args)),
             "plug_notices" => Some(plug_notices(args)),
             "afterwork" => Some(afterwork(args)),
-            _ => None,
+            other => super::check::case(other, args),
         }));
         answers.push(match found {
             Ok(Some(Ok(value))) => ok(value),
