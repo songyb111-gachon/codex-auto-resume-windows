@@ -148,9 +148,10 @@ impl Events {
         if queue.ended {
             return;
         }
-        queue
-            .events
-            .push_back(event("ended", [("exit_code", Value::from(i64::from(code)))]));
+        queue.events.push_back(event(
+            "ended",
+            [("exit_code", Value::from(i64::from(code)))],
+        ));
         queue.ended = true;
         self.ready.notify_all();
     }

@@ -32,7 +32,12 @@ use crate::watchloop::{Adapter, Fired, TickEngine, World};
 /// The engine and everything it is built from, as App builds it (`backend`, `engine`, `engine_moved`,
 /// `_compatibility_tick`, `engine_state`, `home_backend`, `home_engine`).
 pub trait EngineMaker {
-    fn engine(&mut self, store: &Store, values: &Map, managed: &Managed) -> Res<Box<dyn TickEngine>>;
+    fn engine(
+        &mut self,
+        store: &Store,
+        values: &Map,
+        managed: &Managed,
+    ) -> Res<Box<dyn TickEngine>>;
     fn engine_moved(&mut self) -> bool {
         false
     }
@@ -51,7 +56,7 @@ pub trait EngineMaker {
         &mut self,
         _store: &Store,
         _engine: &mut dyn TickEngine,
-    ) -> Res<(Option<bool>, BTreeMap<&'static str, Option<bool>>)> {
+    ) -> Res<crate::watchloop::RecoveryFacts> {
         Ok((None, BTreeMap::new()))
     }
     fn home_backend(&mut self, _path: &str, _exe: &str) -> Res<Box<dyn HomeBackend>> {
@@ -73,8 +78,16 @@ pub trait EngineMaker {
 pub struct NotJoined;
 
 impl EngineMaker for NotJoined {
-    fn engine(&mut self, _store: &Store, _values: &Map, _managed: &Managed) -> Res<Box<dyn TickEngine>> {
-        Err(Failed::new("EngineNotJoined", "car-engine is joined to the watcher by the integration"))
+    fn engine(
+        &mut self,
+        _store: &Store,
+        _values: &Map,
+        _managed: &Managed,
+    ) -> Res<Box<dyn TickEngine>> {
+        Err(Failed::new(
+            "EngineNotJoined",
+            "car-engine is joined to the watcher by the integration",
+        ))
     }
 }
 
@@ -176,7 +189,7 @@ impl App {
     pub fn new(start: Start) -> App {
         let _ = start.paths.ensure();
         let log = car_config::logbook::Logbook::open(&start.paths.log_file, "", &[])
-            .with_rename(|from, to| car_platform::files::rename(from, to));
+            .with_rename(car_platform::files::rename);
         let os: Arc<dyn Os + Send + Sync> = Arc::new(car_control::host::PlatformOs);
         let managed = start.host.managed();
         let lock_dir = std::env::var("LOCALAPPDATA")
@@ -312,7 +325,9 @@ impl HomesApp for App {
         self.maker.app_identity()
     }
     fn default_lock_identity(&self) -> Option<String> {
-        self.home_lock.as_ref().and_then(|lock| lock.identity.clone())
+        self.home_lock
+            .as_ref()
+            .and_then(|lock| lock.identity.clone())
     }
     fn codex_home(&self) -> String {
         self.codex_home.clone()
@@ -360,7 +375,8 @@ fn adapter(error: car_machine::domain::errors::AdapterError) -> Adapter {
 
 impl World for App {
     fn enter_mutex(&mut self) -> Result<bool, Adapter> {
-        let mut mutex = car_platform::sync::Mutex::new(&self.paths.state_dir, 0.0).map_err(adapter)?;
+        let mut mutex =
+            car_platform::sync::Mutex::new(&self.paths.state_dir, 0.0).map_err(adapter)?;
         mutex.enter().map_err(adapter)?;
         let abandoned = mutex.abandoned;
         self.mutex = Some(mutex);
@@ -372,7 +388,8 @@ impl World for App {
         }
     }
     fn enter_stop(&mut self) -> Result<(), Adapter> {
-        let mut stop = car_platform::sync::StopEvent::new(&self.paths.state_dir).map_err(adapter)?;
+        let mut stop =
+            car_platform::sync::StopEvent::new(&self.paths.state_dir).map_err(adapter)?;
         stop.enter().map_err(adapter)?;
         self.stop = Some(stop);
         Ok(())
@@ -383,7 +400,8 @@ impl World for App {
         }
     }
     fn enter_wake(&mut self) -> Result<(), Adapter> {
-        let mut wake = car_platform::sync::WakeEvent::new(&self.paths.state_dir).map_err(adapter)?;
+        let mut wake =
+            car_platform::sync::WakeEvent::new(&self.paths.state_dir).map_err(adapter)?;
         wake.enter().map_err(adapter)?;
         self.wake = Some(wake);
         Ok(())
@@ -394,8 +412,9 @@ impl World for App {
         }
     }
     fn enter_home_lock(&mut self) -> Result<(), Adapter> {
-        let mut lock = car_platform::homelock::HomeLock::new(&self.codex_home, Some(&self.lock_dir), false)
-            .map_err(adapter)?;
+        let mut lock =
+            car_platform::homelock::HomeLock::new(&self.codex_home, Some(&self.lock_dir), false)
+                .map_err(adapter)?;
         lock.enter().map_err(adapter)?;
         self.home_lock = Some(lock);
         Ok(())
@@ -407,7 +426,9 @@ impl World for App {
     }
     fn wait_for(&mut self, wake: bool, seconds: f64) -> Fired {
         let Some(stop) = self.stop.as_ref() else {
-            std::thread::sleep(std::time::Duration::from_secs_f64(seconds.clamp(0.0, 3600.0)));
+            std::thread::sleep(std::time::Duration::from_secs_f64(
+                seconds.clamp(0.0, 3600.0),
+            ));
             return Fired::Timeout;
         };
         if !wake || self.wake.is_none() {
@@ -417,7 +438,12 @@ impl World for App {
                 Fired::Timeout
             };
         }
-        let handles = [stop.raw(), self.wake.as_ref().and_then(car_platform::sync::WakeEvent::raw)];
+        let handles = [
+            stop.raw(),
+            self.wake
+                .as_ref()
+                .and_then(car_platform::sync::WakeEvent::raw),
+        ];
         match car_platform::sync::wait_any(&handles, seconds) {
             Some(0) => Fired::Stop,
             Some(1) => Fired::Wake,
@@ -637,7 +663,9 @@ impl World for App {
             }
             let snapshot = car_surface::tray::model::snapshot_from(&StoreTray(store))
                 .map_err(|class| Failed::new(class, ""))?;
-            let added = self.plug.surface(car_policy::plug::Surface::Tray, &snapshot);
+            let added = self
+                .plug
+                .surface(car_policy::plug::Surface::Tray, &snapshot);
             self.edition_notices(&added)
         });
     }
@@ -660,15 +688,19 @@ impl World for App {
         &mut self,
         store: &Store,
         engine: &mut dyn TickEngine,
-    ) -> Res<(Option<bool>, BTreeMap<&'static str, Option<bool>>)> {
+    ) -> Res<crate::watchloop::RecoveryFacts> {
         self.maker.recovery_facts(store, engine)
     }
     fn layout(&mut self) -> Res<Value> {
         Ok(car_codex::layout::read(&self.paths.codex_layout_file).unwrap_or(Value::Null))
     }
     fn write_self_check(&mut self, written: &Value) -> Res<()> {
-        car_codex::compat::files::write_json_atomic(&self.paths.self_check_file, written, "selfcheck.")
-            .map_err(|_| Failed::new("OSError", ""))
+        car_codex::compat::files::write_json_atomic(
+            &self.paths.self_check_file,
+            written,
+            "selfcheck.",
+        )
+        .map_err(|_| Failed::new("OSError", ""))
     }
 }
 
@@ -689,10 +721,14 @@ impl car_surface::seam::TrayStore for StoreTray<'_> {
         self.0.disabled_threads().map_err(|error| error.class())
     }
     fn settings(&self) -> car_machine::pyval::Py<Value> {
-        Ok(Value::Object(self.0.settings().map_err(|error| error.class())?))
+        Ok(Value::Object(
+            self.0.settings().map_err(|error| error.class())?,
+        ))
     }
     fn failure_marks(&self) -> car_machine::pyval::Py<Value> {
-        Ok(Value::Object(self.0.failure_marks().map_err(|error| error.class())?))
+        Ok(Value::Object(
+            self.0.failure_marks().map_err(|error| error.class())?,
+        ))
     }
 }
 
@@ -713,10 +749,16 @@ impl App {
             return;
         }
         let result = crate::fail::guarded(|| {
-            let enabled = store.settings()?.get("enabled").cloned().unwrap_or(Value::Null);
+            let enabled = store
+                .settings()?
+                .get("enabled")
+                .cloned()
+                .unwrap_or(Value::Null);
             if car_machine::pyval::truthy(&enabled) {
                 store.set_enabled(false, crate::clock::wall())?;
-                self.info("auto-resume paused: an administrator's policy key says so (DisableAutoResume)");
+                self.info(
+                    "auto-resume paused: an administrator's policy key says so (DisableAutoResume)",
+                );
             }
             Ok(())
         });

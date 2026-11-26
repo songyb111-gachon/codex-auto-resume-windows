@@ -118,7 +118,11 @@ impl car_watcher::waking::Sleeper for ScriptEngine {
     fn after_sleep(&mut self, since: f64, slept: f64) -> Res<()> {
         call(
             &self.calls,
-            vec!["after_sleep".into(), Value::Float(since), Value::Float(slept)],
+            vec![
+                "after_sleep".into(),
+                Value::Float(since),
+                Value::Float(slept),
+            ],
         );
         Ok(())
     }
@@ -178,7 +182,10 @@ impl TickEngine for ScriptEngine {
     fn apply_policy(&mut self, _values: &Value, _managed: &Managed) {}
     fn set_retiring(&mut self, _retiring: bool) {}
     fn latest_failures(&mut self, since: f64) -> Res<Vec<Value>> {
-        call(&self.calls, vec!["latest_failures".into(), Value::Float(since)]);
+        call(
+            &self.calls,
+            vec!["latest_failures".into(), Value::Float(since)],
+        );
         Ok(self.failures.clone())
     }
 }
@@ -190,10 +197,9 @@ struct Memory {
 impl OwnProcess for Memory {
     fn memory(&self) -> Option<(u64, u64)> {
         match self.script.next("memory", Value::Null) {
-            Value::Array(pair) if pair.len() == 2 => Some((
-                number(&pair[0]) as u64,
-                number(&pair[1]) as u64,
-            )),
+            Value::Array(pair) if pair.len() == 2 => {
+                Some((number(&pair[0]) as u64, number(&pair[1]) as u64))
+            }
             _ => None,
         }
     }
@@ -252,7 +258,9 @@ impl HomesApp for ScriptWorld {
         field(&self.whole, "values").clone()
     }
     fn info(&self, line: &str) {
-        self.lines.borrow_mut().push(Value::from(line.replace(&self.home, "<HOME>")));
+        self.lines
+            .borrow_mut()
+            .push(Value::from(line.replace(&self.home, "<HOME>")));
     }
     fn record_failure(&self, label: &str, failed: &Failed) {
         call(
@@ -377,7 +385,11 @@ impl World for ScriptWorld {
             Some("wake") => Fired::Wake,
             _ => Fired::Timeout,
         };
-        let after = after.unwrap_or(if fired == Fired::Timeout { seconds } else { 0.5 });
+        let after = after.unwrap_or(if fired == Fired::Timeout {
+            seconds
+        } else {
+            0.5
+        });
         self.clock.advance(after);
         fired
     }
@@ -399,7 +411,10 @@ impl World for ScriptWorld {
         }
     }
     fn version(&self) -> String {
-        field(&self.whole, "version").as_str_value().unwrap_or_default().to_owned()
+        field(&self.whole, "version")
+            .as_str_value()
+            .unwrap_or_default()
+            .to_owned()
     }
     fn state_dir(&self) -> String {
         self.state_dir.clone()
@@ -516,7 +531,7 @@ impl World for ScriptWorld {
         &mut self,
         _store: &Store,
         _engine: &mut dyn TickEngine,
-    ) -> Res<(Option<bool>, BTreeMap<&'static str, Option<bool>>)> {
+    ) -> Res<car_watcher::watchloop::RecoveryFacts> {
         call(&self.calls, vec!["facts".into()]);
         let mut facts = BTreeMap::new();
         if let Value::Object(given) = field(&self.whole, "facts") {
@@ -549,7 +564,10 @@ impl World for ScriptWorld {
 
 /// `watcher.loop` {home, script}: the loop run once over the script's world.
 pub fn run_loop(request: &Map) -> Value {
-    let home = field(request, "home").as_str_value().unwrap_or_default().to_owned();
+    let home = field(request, "home")
+        .as_str_value()
+        .unwrap_or_default()
+        .to_owned();
     let script = match field(request, "script") {
         Value::Object(map) => map.clone(),
         _ => Map::new(),
@@ -558,8 +576,18 @@ pub fn run_loop(request: &Map) -> Value {
     let _ = std::fs::create_dir_all(&state_dir);
     let _ = std::fs::create_dir_all(format!("{home}\\logs"));
     let keys = [
-        "mutex", "stop", "wake", "home_lock", "waits", "opens", "builds", "ticks", "watches",
-        "watch_needed", "usage", "memory",
+        "mutex",
+        "stop",
+        "wake",
+        "home_lock",
+        "waits",
+        "opens",
+        "builds",
+        "ticks",
+        "watches",
+        "watch_needed",
+        "usage",
+        "memory",
     ];
     let calls: Calls = Rc::default();
     let lines: Rc<RefCell<Vec<Value>>> = Rc::default();

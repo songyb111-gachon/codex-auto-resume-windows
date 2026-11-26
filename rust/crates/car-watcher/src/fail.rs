@@ -24,7 +24,11 @@ impl Failed {
     pub fn of_panic(payload: &Payload) -> Failed {
         let message = raised(&**payload)
             .map(|found| found.message.clone())
-            .or_else(|| payload.downcast_ref::<&str>().map(|text| (*text).to_owned()))
+            .or_else(|| {
+                payload
+                    .downcast_ref::<&str>()
+                    .map(|text| (*text).to_owned())
+            })
             .or_else(|| payload.downcast_ref::<String>().cloned())
             .unwrap_or_default();
         Failed {

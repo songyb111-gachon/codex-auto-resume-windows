@@ -100,10 +100,16 @@ impl PlugNotices {
         }
         // _account_changed
         for shown in self.unshown(added, "account", "_account_shown") {
-            notice("account_changed", detail([("count", field(&shown, "count"))]))?;
+            notice(
+                "account_changed",
+                detail([("count", field(&shown, "count"))]),
+            )?;
         }
         for shown in self.unshown(added, "autoswitch", "_autoswitch_shown") {
-            notice("accounts_exhausted", detail([("why", field(&shown, "why"))]))?;
+            notice(
+                "accounts_exhausted",
+                detail([("why", field(&shown, "why"))]),
+            )?;
         }
         Ok(())
     }

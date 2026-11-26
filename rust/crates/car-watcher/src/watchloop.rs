@@ -43,6 +43,9 @@ pub const WAKE_COALESCE_SECONDS: f64 = 5.0;
 /// A store that cannot be opened is retried with a growing wait, up to this.
 pub const OPEN_RETRY_MAX_SECONDS: f64 = 60.0;
 
+/// `(app runs, {rule: held})`: one look of the recovery rules.
+pub type RecoveryFacts = (Option<bool>, BTreeMap<&'static str, Option<bool>>);
+
 /// What `_wait_for` saw.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fired {
@@ -139,18 +142,19 @@ pub trait World: crate::homes::HomesApp {
     /// `_app_runs()`: whether a process of the Codex app's package runs, or None.
     fn app_runs(&mut self) -> Option<bool>;
     /// `_recovery_facts(store, engine)`: (app runs, {rule: held}), from the backend and the Restart Manager.
-    fn recovery_facts(
-        &mut self,
-        store: &Store,
-        engine: &mut dyn TickEngine,
-    ) -> Res<(Option<bool>, BTreeMap<&'static str, Option<bool>>)>;
+    fn recovery_facts(&mut self, store: &Store, engine: &mut dyn TickEngine) -> Res<RecoveryFacts>;
     /// `codex_layout.read(paths.codex_layout_file)`.
     fn layout(&mut self) -> Res<Value>;
     /// `compatio.write_json_atomic(paths.self_check_file, written, "selfcheck.")`: an OSError is said, anything
     /// else raises.
     fn write_self_check(&mut self, written: &Value) -> Res<()>;
     /// `control.watcher.how_it_ended(status, False, sign_in, booted_at)`.
-    fn how_it_ended(&self, status: Option<&Map>, sign_in: Option<&str>, booted_at: Option<f64>) -> (Value, Value) {
+    fn how_it_ended(
+        &self,
+        status: Option<&Map>,
+        sign_in: Option<&str>,
+        booted_at: Option<f64>,
+    ) -> (Value, Value) {
         car_control::status::how_it_ended(status, Some(false), sign_in, booted_at)
     }
 }
@@ -224,45 +228,66 @@ pub fn run(world: &mut dyn World, state: &mut Loop, once: bool, poll: Option<i64
             }
         }
     }
-    let code = (|| {
-        if let Err(Adapter(word)) = world.enter_stop() {
-            world.info(&format!(
-                "stop event unavailable ({word}); refusing to run (pid {pid})"
-            ));
-            return EXIT_ERROR;
-        }
-        let code = (|| {
-            let wake = match world.enter_wake() {
-                Ok(()) => true,
-                Err(Adapter(word)) => {
-                    world.info(&format!(
-                        "wake event unavailable ({word}); Retry Now waits for the next poll"
-                    ));
-                    false
-                }
-            };
-            let code = match world.enter_home_lock() {
-                Err(Adapter(word)) => {
-                    world.info(&format!(
-                        "another engine or process holds this Codex home ({word}); refusing to run (pid {pid})"
-                    ));
-                    EXIT_BUSY
-                }
-                Ok(()) => {
-                    let code = run_loop(world, state, abandoned, wake, once, poll);
-                    world.exit_home_lock();
-                    code
-                }
-            };
-            if wake {
-                world.exit_wake();
-            }
-            code
-        })();
-        world.exit_stop();
-        code
-    })();
+    let code = with_stop(world, state, abandoned, once, poll);
     world.exit_mutex();
+    code
+}
+
+/// The stop event held (or the run refused for want of it), then the wake event and the Codex home's lock.
+fn with_stop(
+    world: &mut dyn World,
+    state: &mut Loop,
+    abandoned: bool,
+    once: bool,
+    poll: Option<i64>,
+) -> i32 {
+    let pid = world.pid();
+    if let Err(Adapter(word)) = world.enter_stop() {
+        // A stop event planted by a lower-integrity process would let that process stop the watcher at will.
+        world.info(&format!(
+            "stop event unavailable ({word}); refusing to run (pid {pid})"
+        ));
+        return EXIT_ERROR;
+    }
+    let code = with_wake(world, state, abandoned, once, poll);
+    world.exit_stop();
+    code
+}
+
+/// The wake event (only Retry Now loses its immediacy without it), then the Codex home's lock and the loop.
+fn with_wake(
+    world: &mut dyn World,
+    state: &mut Loop,
+    abandoned: bool,
+    once: bool,
+    poll: Option<i64>,
+) -> i32 {
+    let pid = world.pid();
+    let wake = match world.enter_wake() {
+        Ok(()) => true,
+        Err(Adapter(word)) => {
+            world.info(&format!(
+                "wake event unavailable ({word}); Retry Now waits for the next poll"
+            ));
+            false
+        }
+    };
+    let code = match world.enter_home_lock() {
+        Err(Adapter(word)) => {
+            world.info(&format!(
+                "another engine or process holds this Codex home ({word}); refusing to run (pid {pid})"
+            ));
+            EXIT_BUSY
+        }
+        Ok(()) => {
+            let code = run_loop(world, state, abandoned, wake, once, poll);
+            world.exit_home_lock();
+            code
+        }
+    };
+    if wake {
+        world.exit_wake();
+    }
     code
 }
 
@@ -359,7 +384,7 @@ fn heartbeat(
         awake_since: awake.map_or(Value::Null, Value::Float),
         memory_peak: health
             .and_then(|health| health.peak)
-            .map_or(Value::Null, |peak| Value::from(peak)),
+            .map_or(Value::Null, Value::from),
         sign_in: health
             .and_then(|health| health.sign_in.clone())
             .map_or(Value::Null, Value::from),
@@ -386,8 +411,8 @@ fn predecessor(world: &mut dyn World, store: &Store, health: Option<&Health>) {
                 .as_ref()
                 .and_then(|status| status.get("pid"))
                 .map_or("None".to_owned(), car_machine::pytext::py_str);
-            let seen = car_machine::pytext::to_float(&seen)
-                .map_err(|class| Failed::new(class, ""))?;
+            let seen =
+                car_machine::pytext::to_float(&seen).map_err(|class| Failed::new(class, ""))?;
             world.info(&format!(
                 "the watcher before this one (pid {pid}, last seen {}) ended without stopping, in this start of Windows",
                 world.clock_text(seen)
@@ -411,7 +436,8 @@ fn memory(world: &mut dyn World, health: Option<&mut Health>, guard: bool) -> bo
             return Ok(false);
         }
         let log = |line: &str| seen.info(line);
-        let notice = |event: &str, detail: Map, last: bool| seen.watcher_notice(event, detail, last);
+        let notice =
+            |event: &str, detail: Map, last: bool| seen.watcher_notice(event, detail, last);
         health.over(&values, &log, &notice)
     });
     match result {
@@ -537,7 +563,10 @@ impl car_config::logbook::Clock for LinesClock<'_> {
 }
 
 /// `_new_reading(engine)`: the engine's last usage reading, the first time the heartbeat is handed it.
-fn new_reading(state: &mut Loop, engine: Option<&mut Box<dyn TickEngine>>) -> Option<(Value, Value)> {
+fn new_reading(
+    state: &mut Loop,
+    engine: Option<&mut Box<dyn TickEngine>>,
+) -> Option<(Value, Value)> {
     let reading = match engine {
         Some(engine) => guarded(|| engine.last_usage()).ok().flatten(),
         None => None,
@@ -875,7 +904,7 @@ fn self_check(
     mut engine: Option<&mut Box<dyn TickEngine>>,
     started: f64,
 ) {
-    let mut judge = state.judge.take().unwrap_or_else(impossible::Judge::new);
+    let mut judge = state.judge.take().unwrap_or_default();
     let now = world.now();
     let looked = guarded(|| {
         let missing = engine.is_none() && world.settings_good();
@@ -891,14 +920,15 @@ fn self_check(
         facts.insert("engine_missing", missing);
         facts.insert("history_unreadable", unreadable);
         judge.tick(runs, &facts);
-        match engine.as_deref_mut() {
+        match &mut engine {
             None => judge.look(now, false, &BTreeMap::new()),
             Some(engine) => {
-                if now - state.judged_at >= impossible::LOOK_EVERY_SECONDS || now < state.judged_at {
+                if now - state.judged_at >= impossible::LOOK_EVERY_SECONDS || now < state.judged_at
+                {
                     state.judged_at = now;
-                    let (runs, facts) = world.recovery_facts(store, &mut **engine)?;
+                    let (runs, facts) = world.recovery_facts(store, &mut ***engine)?;
                     judge.look(now, runs == Some(true), &facts);
-                    state.unknown_error = unknown_errors(&mut **engine, now, &state.unknown_error);
+                    state.unknown_error = unknown_errors(&mut ***engine, now, &state.unknown_error);
                 }
             }
         }
@@ -962,12 +992,14 @@ fn layout_said(world: &mut dyn World) -> Res<(Value, Value)> {
         _ => Map::new(),
     };
     // `type(found.get(name)) is int and found[name] > 0`: a bool is not an int here.
-    let app_open = ["mains", "helpers"].iter().any(|name| match found.get(*name) {
-        Some(count @ Value::Int(_)) => {
-            car_machine::pyval::greater(count, &Value::from(0)).unwrap_or(false)
-        }
-        _ => false,
-    });
+    let app_open = ["mains", "helpers"]
+        .iter()
+        .any(|name| match found.get(*name) {
+            Some(count @ Value::Int(_)) => {
+                car_machine::pyval::greater(count, &Value::from(0)).unwrap_or(false)
+            }
+            _ => false,
+        });
     let untested = if app_open && matches!(kept.get("catalogued"), Some(Value::Bool(false))) {
         car_machine::domain::public::version_word(kept.get("app_version").unwrap_or(&Value::Null))
             .or_else(|| {

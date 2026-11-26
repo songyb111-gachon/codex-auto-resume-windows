@@ -34,7 +34,11 @@ fn a_watcher_starts_is_stopped_and_says_ended_last() {
     let codex = base.join("codex");
     std::fs::create_dir_all(home.join("app").join("bin")).expect("home");
     std::fs::create_dir_all(&codex).expect("codex home");
-    std::fs::write(home.join("app").join("bin").join("CodexAutoResume.exe"), b"").expect("host");
+    std::fs::write(
+        home.join("app").join("bin").join("CodexAutoResume.exe"),
+        b"",
+    )
+    .expect("host");
     std::fs::write(
         home.join("runtime.json"),
         format!(
@@ -68,7 +72,13 @@ fn a_watcher_starts_is_stopped_and_says_ended_last() {
     );
     request.insert(
         "image".into(),
-        Value::from(home.join("app").join("bin").join("CodexAutoResume.exe").to_string_lossy().as_ref()),
+        Value::from(
+            home.join("app")
+                .join("bin")
+                .join("CodexAutoResume.exe")
+                .to_string_lossy()
+                .as_ref(),
+        ),
     );
     let watcher = Watcher::start(
         &Value::Object(request),
@@ -82,7 +92,8 @@ fn a_watcher_starts_is_stopped_and_says_ended_last() {
     while Instant::now() < until {
         let Some(event) = watcher.next_event(Duration::from_millis(250)) else {
             if !stopped && home.join("logs").join("auto-resume.log").is_file() {
-                let log = std::fs::read_to_string(home.join("logs").join("auto-resume.log")).unwrap_or_default();
+                let log = std::fs::read_to_string(home.join("logs").join("auto-resume.log"))
+                    .unwrap_or_default();
                 if log.contains("initialising Codex adapter failed (EngineNotJoined)") {
                     assert_eq!(watcher.stop(), 1, "the stop event is held by the watcher");
                     stopped = true;
@@ -116,7 +127,11 @@ fn a_watcher_starts_is_stopped_and_says_ended_last() {
         }
     }
     watcher.join();
-    assert_eq!(seen.first().map(String::as_str), Some("surfaces"), "{seen:?}");
+    assert_eq!(
+        seen.first().map(String::as_str),
+        Some("surfaces"),
+        "{seen:?}"
+    );
     assert_eq!(seen.last().map(String::as_str), Some("ended"), "{seen:?}");
     assert!(seen.contains(&"snapshot".to_owned()), "{seen:?}");
     assert!(seen.contains(&"close".to_owned()), "{seen:?}");
@@ -124,7 +139,8 @@ fn a_watcher_starts_is_stopped_and_says_ended_last() {
     assert!(log.contains("watcher started (pid"), "{log}");
     assert!(log.contains("stop requested; watcher exiting"), "{log}");
     assert!(log.contains("watcher stopped"), "{log}");
-    let launched = std::fs::read_to_string(home.join("logs").join("launcher.log")).expect("launcher.log");
+    let launched =
+        std::fs::read_to_string(home.join("logs").join("launcher.log")).expect("launcher.log");
     assert!(launched.contains("launcher started (pid"), "{launched}");
     // After `ended` nothing more comes.
     assert!(watcher.next_event(Duration::from_millis(50)).is_none());

@@ -114,7 +114,9 @@ fn put<T>(list: &mut Vec<(String, T)>, key: &str, value: T) {
 }
 
 fn find<'a, T>(list: &'a [(String, T)], key: &str) -> Option<&'a T> {
-    list.iter().find(|(each, _)| each == key).map(|(_, value)| value)
+    list.iter()
+        .find(|(each, _)| each == key)
+        .map(|(_, value)| value)
 }
 
 impl Homes {
@@ -171,7 +173,8 @@ impl Homes {
                 .collect();
             if orphans.is_empty()
                 || !wanted.iter().any(|(_, (path, _))| {
-                    configured::problem(&*os, &Str::from(path.as_str())) == Some(configured::MISSING)
+                    configured::problem(&*os, &Str::from(path.as_str()))
+                        == Some(configured::MISSING)
                 })
             {
                 self.swept = true;
@@ -217,7 +220,9 @@ impl Homes {
                 if !in_flight {
                     let mut gone = self.runs.remove(index);
                     gone.close();
-                    app.info("a removed Codex home has nothing in flight any more; its lock is let go");
+                    app.info(
+                        "a removed Codex home has nothing in flight any more; its lock is let go",
+                    );
                     continue;
                 }
             }
@@ -230,8 +235,13 @@ impl Homes {
             self.exe = Some(exe.clone());
             for run in &mut self.runs {
                 run.backend = app.home_backend(&run.path, exe)?;
-                run.engine =
-                    app.home_engine(store, &run.path, exe, &run.key, std::rc::Rc::clone(&run.lock))?;
+                run.engine = app.home_engine(
+                    store,
+                    &run.path,
+                    exe,
+                    &run.key,
+                    std::rc::Rc::clone(&run.lock),
+                )?;
                 run.engine.set_retiring(run.retiring);
             }
         }
@@ -281,7 +291,11 @@ impl Homes {
         }
         let mut taken: Vec<Option<String>> = vec![app.default_lock_identity()];
         taken.extend(self.runs.iter().map(|run| run.lock.borrow().identity()));
-        if configured::key(&*os, &Str::from(app.codex_home().as_str())).ok().as_deref() == Some(key) {
+        if configured::key(&*os, &Str::from(app.codex_home().as_str()))
+            .ok()
+            .as_deref()
+            == Some(key)
+        {
             return Ok("duplicate");
         }
         let lock = match app.extra_home_lock(path) {
@@ -354,7 +368,11 @@ impl Homes {
         }
     }
 
-    pub fn apply_policy(&mut self, values: &Value, managed: &car_policy::settings::managed::Managed) {
+    pub fn apply_policy(
+        &mut self,
+        values: &Value,
+        managed: &car_policy::settings::managed::Managed,
+    ) {
         for run in &mut self.runs {
             run.engine.apply_policy(values, managed);
         }

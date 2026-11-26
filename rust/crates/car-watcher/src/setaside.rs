@@ -120,7 +120,9 @@ pub fn rmtree(target: &Path) -> std::io::Result<()> {
     std::fs::symlink_metadata(target)?;
     if link_like(target) {
         // rmtree refuses a link given as its own top ("Cannot call rmtree on a symbolic link"), OSError.
-        return Err(std::io::Error::other("Cannot call rmtree on a symbolic link"));
+        return Err(std::io::Error::other(
+            "Cannot call rmtree on a symbolic link",
+        ));
     }
     remove_tree(target)
 }

@@ -103,7 +103,9 @@ pub fn note(world: &dyn LauncherWorld, home: &Path, text: &str) {
         if path.is_file() {
             let raw = car_machine::pyfile::read(&path)?;
             // read_text(errors="replace") reads "\r\n" as "\n"; splitlines() then splits on every line break.
-            let text = String::from_utf8_lossy(&raw).replace("\r\n", "\n").replace('\r', "\n");
+            let text = String::from_utf8_lossy(&raw)
+                .replace("\r\n", "\n")
+                .replace('\r', "\n");
             let all: Vec<String> = splitlines(&text);
             let skip = all.len().saturating_sub(LAUNCH_LOG_LINES);
             lines = all.into_iter().skip(skip).collect();
@@ -121,7 +123,15 @@ fn splitlines(text: &str) -> Vec<String> {
     for c in text.chars() {
         if matches!(
             c,
-            '\n' | '\r' | '\u{0b}' | '\u{0c}' | '\u{1c}' | '\u{1d}' | '\u{1e}' | '\u{85}' | '\u{2028}' | '\u{2029}'
+            '\n' | '\r'
+                | '\u{0b}'
+                | '\u{0c}'
+                | '\u{1c}'
+                | '\u{1d}'
+                | '\u{1e}'
+                | '\u{85}'
+                | '\u{2028}'
+                | '\u{2029}'
         ) {
             lines.push(std::mem::take(&mut current));
         } else {
@@ -164,7 +174,10 @@ pub fn resolve_plugin_root(world: &dyn LauncherWorld, config: &Map) -> Option<Pa
         let listed = (|| -> std::io::Result<()> {
             for marketplace in std::fs::read_dir(&cache)? {
                 let marketplace = marketplace?.path();
-                let Some(market) = marketplace.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+                let Some(market) = marketplace
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                else {
                     continue;
                 };
                 if !OUR_MARKETPLACES.contains(&market.as_str()) {
@@ -253,7 +266,8 @@ fn why_held(world: &mut dyn LauncherWorld, home: &Path) -> Option<String> {
     match world.supervise_held(home) {
         Value::Str(word) => word.as_str().and_then(|word| {
             let letters: String = word.chars().filter(|c| *c != '_').collect();
-            (!letters.is_empty() && letters.chars().all(char::is_alphabetic)).then(|| word.to_owned())
+            (!letters.is_empty() && letters.chars().all(char::is_alphabetic))
+                .then(|| word.to_owned())
         }),
         _ => None,
     }
@@ -345,14 +359,25 @@ fn supervised(
         note(
             world,
             here,
-            &format!("watcher started as a supervised child (pid {})", child.pid()),
+            &format!(
+                "watcher started as a supervised child (pid {})",
+                child.pid()
+            ),
         );
         let code = child.wait();
         if code == EXIT_SCHEMA_NEWER {
-            note(world, here, &format!("the supervised watcher ended (exit {code}): the state is newer than its code, and it started the installed copy itself; not starting it again here"));
+            note(
+                world,
+                here,
+                &format!(
+                    "the supervised watcher ended (exit {code}): the state is newer than its code, and it started the installed copy itself; not starting it again here"
+                ),
+            );
             return Some(code);
         }
-        if held.is_some() && supervise(world, home, &facts(PHASE_START)).as_deref() == Some(SUPERVISE) {
+        if held.is_some()
+            && supervise(world, home, &facts(PHASE_START)).as_deref() == Some(SUPERVISE)
+        {
             held = None;
             unsupervised(world, home, None);
         }
@@ -415,7 +440,10 @@ fn after_stop(world: &mut dyn LauncherWorld, here: &Path, home: &Path) -> bool {
 
 /// `_relaunch_once(here, command)`: start the launcher again, once, so it resolves the installation afresh.
 fn relaunch_once(world: &mut dyn LauncherWorld, here: &Path, command: &[String]) {
-    if world.env(RELAUNCH_MARK).is_some_and(|mark| !mark.is_empty()) {
+    if world
+        .env(RELAUNCH_MARK)
+        .is_some_and(|mark| !mark.is_empty())
+    {
         note(
             world,
             here,
@@ -424,7 +452,11 @@ fn relaunch_once(world: &mut dyn LauncherWorld, here: &Path, command: &[String])
         return;
     }
     let Some(program) = world.child_program() else {
-        note(world, here, "the state is newer than this engine, and there is no pythonw.exe to start the installed copy under; not starting again");
+        note(
+            world,
+            here,
+            "the state is newer than this engine, and there is no pythonw.exe to start the installed copy under; not starting again",
+        );
         return;
     };
     note(
@@ -451,7 +483,10 @@ pub fn main(world: &mut dyn LauncherWorld, argv: &[String]) -> i32 {
         let pid = world.pid();
         note(world, &here, &format!("launcher started (pid {pid})"));
     }
-    if world.env(RELAUNCH_MARK).is_some_and(|mark| !mark.is_empty()) {
+    if world
+        .env(RELAUNCH_MARK)
+        .is_some_and(|mark| !mark.is_empty())
+    {
         world.sleep(2.0);
     }
     let config = (|| -> Option<(Map, PathBuf)> {
@@ -482,7 +517,9 @@ pub fn main(world: &mut dyn LauncherWorld, argv: &[String]) -> i32 {
         );
         return EXIT_ERROR;
     }
-    if world.take_env(AFTER_STOP_MARK).is_some_and(|mark| !mark.is_empty())
+    if world
+        .take_env(AFTER_STOP_MARK)
+        .is_some_and(|mark| !mark.is_empty())
         && !after_stop(world, &here, &home)
     {
         return 0;
@@ -515,7 +552,13 @@ pub fn main(world: &mut dyn LauncherWorld, argv: &[String]) -> i32 {
         if supervise(world, &home, &facts(PHASE_START)).as_deref() == Some(SUPERVISE)
             && supervise(world, &home, &ended_facts(code)).as_deref() == Some(RESTART)
         {
-            note(world, &here, &format!("the watcher that ran without crash restart stopped unexpectedly (exit {code}); starting it supervised"));
+            note(
+                world,
+                &here,
+                &format!(
+                    "the watcher that ran without crash restart stopped unexpectedly (exit {code}); starting it supervised"
+                ),
+            );
             unsupervised(world, &home, None);
             let restarted = supervised(world, &here, &home, None);
             return restarted.unwrap_or(code);

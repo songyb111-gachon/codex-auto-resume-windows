@@ -65,21 +65,41 @@ pub fn ago(seconds: Option<f64>, locale: &str) -> String {
     };
     let seconds = (seconds.trunc() as i64).max(0);
     if seconds < 3600 {
-        return t("check.ago_minutes", locale, &[("n", (seconds / 60).to_string())]);
+        return t(
+            "check.ago_minutes",
+            locale,
+            &[("n", (seconds / 60).to_string())],
+        );
     }
     if seconds < 2 * 86_400 {
-        return t("check.ago_hours", locale, &[("n", (seconds / 3600).to_string())]);
+        return t(
+            "check.ago_hours",
+            locale,
+            &[("n", (seconds / 3600).to_string())],
+        );
     }
-    t("check.ago_days", locale, &[("n", (seconds / 86_400).to_string())])
+    t(
+        "check.ago_days",
+        locale,
+        &[("n", (seconds / 86_400).to_string())],
+    )
 }
 
 /// `_within(seconds, locale)`.
 pub fn within(seconds: f64, locale: &str) -> String {
     let seconds = (seconds.trunc() as i64).max(0);
     if seconds < 3600 {
-        return t("check.in_minutes", locale, &[("n", (seconds / 60).to_string())]);
+        return t(
+            "check.in_minutes",
+            locale,
+            &[("n", (seconds / 60).to_string())],
+        );
     }
-    t("check.in_hours", locale, &[("n", (seconds / 3600).to_string())])
+    t(
+        "check.in_hours",
+        locale,
+        &[("n", (seconds / 3600).to_string())],
+    )
 }
 
 /// `_reason(code, kind, locale)`: a reason's words; its kind word, where it has one, after them.
@@ -195,7 +215,12 @@ pub fn summary(rows: &[Value], watcher_running: bool, cloud: &Value) -> String {
     if reasons.is_empty() {
         return "ready".to_owned();
     }
-    let rank = |code: &str| FIRST.iter().position(|each| *each == code).unwrap_or(FIRST.len());
+    let rank = |code: &str| {
+        FIRST
+            .iter()
+            .position(|each| *each == code)
+            .unwrap_or(FIRST.len())
+    };
     let mut best = reasons[0].clone();
     for each in &reasons[1..] {
         if rank(each) < rank(&best) {
@@ -267,15 +292,26 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
     let mut said = Vec::new();
     let summary = text(get(result, "summary")).unwrap_or_default();
     if matches!(summary.as_str(), "nothing" | "cloud" | "ready" | "taken") {
-        said.push(t(&format!("check.summary.{summary}"), locale, &[("hours", hours.clone())]));
+        said.push(t(
+            &format!("check.summary.{summary}"),
+            locale,
+            &[("hours", hours.clone())],
+        ));
     } else {
-        said.push(t("check.summary", locale, &[("reason", reason(&summary, None, locale))]));
+        said.push(t(
+            "check.summary",
+            locale,
+            &[("reason", reason(&summary, None, locale))],
+        ));
     }
     said.push(String::new());
     said.push(t("check.part1", locale, &[("hours", hours.clone())]));
     let conversations = rows(result, "conversations");
     if conversations.is_empty() {
-        said.push(format!("  {}", t("check.none_recent", locale, &[("hours", hours.clone())])));
+        said.push(format!(
+            "  {}",
+            t("check.none_recent", locale, &[("hours", hours.clone())])
+        ));
     }
     let left = get(result, "left_out");
     if truthy(get(left, "conversations")) {
@@ -294,7 +330,11 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
     if truthy(get(left, "unchecked")) {
         said.push(format!(
             "  {}",
-            t("check.unchecked", locale, &[("n", car_machine::pytext::py_str(get(left, "unchecked")))])
+            t(
+                "check.unchecked",
+                locale,
+                &[("n", car_machine::pytext::py_str(get(left, "unchecked")))]
+            )
         ));
     }
     for row in &conversations {
@@ -303,13 +343,22 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
         let verdict = if truthy(get(row, "brought")) {
             t("check.yes", locale, &[])
         } else if status.as_deref() != Some("failed") && matches!(get(row, "reason"), Value::Null) {
-            t("check.no", locale, &[("reason", reason("not_failed", None, locale))])
-        } else {
-            let code = row_reason.filter(|code| !code.is_empty()).unwrap_or_else(|| "not_failed".into());
             t(
                 "check.no",
                 locale,
-                &[("reason", reason(&code, text(get(row, "kind")).as_deref(), locale))],
+                &[("reason", reason("not_failed", None, locale))],
+            )
+        } else {
+            let code = row_reason
+                .filter(|code| !code.is_empty())
+                .unwrap_or_else(|| "not_failed".into());
+            t(
+                "check.no",
+                locale,
+                &[(
+                    "reason",
+                    reason(&code, text(get(row, "kind")).as_deref(), locale),
+                )],
             )
         };
         let when = if truthy(get(row, "completed_at")) {
@@ -331,7 +380,9 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
                     ("thread", car_machine::pytext::py_str(get(row, "thread"))),
                     (
                         "status",
-                        status.filter(|found| !found.is_empty()).unwrap_or_else(|| "?".into()),
+                        status
+                            .filter(|found| !found.is_empty())
+                            .unwrap_or_else(|| "?".into()),
                     ),
                     ("category", category),
                     ("verdict", verdict),
@@ -341,7 +392,10 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
     }
     said.push(String::new());
     said.push(t("check.part2", locale, &[]));
-    let brought: Vec<&Value> = conversations.iter().filter(|row| truthy(get(row, "brought"))).collect();
+    let brought: Vec<&Value> = conversations
+        .iter()
+        .filter(|row| truthy(get(row, "brought")))
+        .collect();
     if brought.is_empty() {
         said.push(format!("  {}", t("check.part2_none", locale, &[])));
     }
@@ -355,7 +409,11 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
             };
             said.push(format!(
                 "  {}",
-                t("check.recorded", locale, &[("thread", thread), ("state", states.join(", "))])
+                t(
+                    "check.recorded",
+                    locale,
+                    &[("thread", thread), ("state", states.join(", "))]
+                )
             ));
             continue;
         }
@@ -367,7 +425,10 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
             held.push("watcher_stopped".to_owned());
         }
         if held.is_empty() {
-            said.push(format!("  {}", t("check.held_none", locale, &[("thread", thread.clone())])));
+            said.push(format!(
+                "  {}",
+                t("check.held_none", locale, &[("thread", thread.clone())])
+            ));
         }
         for code in held {
             said.push(format!(
@@ -375,7 +436,10 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
                 t(
                     "check.held",
                     locale,
-                    &[("thread", thread.clone()), ("reason", reason(&code, None, locale))],
+                    &[
+                        ("thread", thread.clone()),
+                        ("reason", reason(&code, None, locale))
+                    ],
                 )
             ));
         }
@@ -394,7 +458,10 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
                 locale,
                 &[
                     ("thread", car_machine::pytext::py_str(get(pair, "thread"))),
-                    ("other", car_machine::pytext::py_str(get(pair, "turns_under"))),
+                    (
+                        "other",
+                        car_machine::pytext::py_str(get(pair, "turns_under"))
+                    ),
                 ],
             )
         ));
@@ -405,14 +472,27 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
         let name = if matches!(get(&home, "home"), Value::Null) {
             t("check.home_default", locale, &[])
         } else {
-            t("check.home_other", locale, &[("n", car_machine::pytext::py_str(get(&home, "home")))])
+            t(
+                "check.home_other",
+                locale,
+                &[("n", car_machine::pytext::py_str(get(&home, "home")))],
+            )
         };
         if !truthy(get(&home, "readable")) {
-            said.push(format!("  {}", t("check.home_unreadable", locale, &[("home", name)])));
+            said.push(format!(
+                "  {}",
+                t("check.home_unreadable", locale, &[("home", name)])
+            ));
             continue;
         }
-        let state = ago(number(get(&home, "state_written")).map(|at| now - at), locale);
-        let history = ago(number(get(&home, "history_written")).map(|at| now - at), locale);
+        let state = ago(
+            number(get(&home, "state_written")).map(|at| now - at),
+            locale,
+        );
+        let history = ago(
+            number(get(&home, "history_written")).map(|at| now - at),
+            locale,
+        );
         let current = if truthy(get(&home, "current")) {
             t("check.home_current", locale, &[])
         } else {
@@ -423,14 +503,23 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
             t(
                 "check.home_row",
                 locale,
-                &[("home", name), ("state", state), ("history", history), ("current", current)],
+                &[
+                    ("home", name),
+                    ("state", state),
+                    ("history", history),
+                    ("current", current)
+                ],
             )
         ));
     }
     said.push(String::new());
     let count = get(result, "cloud_tasks");
     said.push(if truthy(count) {
-        t("check.cloud", locale, &[("count", car_machine::pytext::py_str(count))])
+        t(
+            "check.cloud",
+            locale,
+            &[("count", car_machine::pytext::py_str(count))],
+        )
     } else {
         t("check.cloud_none", locale, &[])
     });
@@ -442,7 +531,8 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
             "?".to_owned()
         };
         let reset = if truthy(get(reading, "reset_at")) {
-            number(get(reading, "reset_at")).map_or_else(|| "?".into(), |at| within(at - now, locale))
+            number(get(reading, "reset_at"))
+                .map_or_else(|| "?".into(), |at| within(at - now, locale))
         } else {
             "?".to_owned()
         };
@@ -474,8 +564,18 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
         locale,
         &[
             ("route", route),
-            ("dnd", word(get(notices, "do_not_disturb"), "check.on", "check.off")),
-            ("allowed", word(get(notices, "app_allowed"), "check.allowed", "check.blocked")),
+            (
+                "dnd",
+                word(get(notices, "do_not_disturb"), "check.on", "check.off"),
+            ),
+            (
+                "allowed",
+                word(
+                    get(notices, "app_allowed"),
+                    "check.allowed",
+                    "check.blocked",
+                ),
+            ),
         ],
     ));
     let codex = get(result, "codex");

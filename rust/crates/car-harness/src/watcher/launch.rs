@@ -36,7 +36,11 @@ impl Plug for ScriptPlug {
         let word = if answers.is_empty() {
             "defer".to_owned()
         } else {
-            answers.remove(0).as_str_value().unwrap_or("defer").to_owned()
+            answers
+                .remove(0)
+                .as_str_value()
+                .unwrap_or("defer")
+                .to_owned()
         };
         match word.as_str() {
             "raise" => Err(HookFailed),
@@ -119,10 +123,18 @@ impl LauncherWorld for LaunchWorld {
     }
     fn usable(&self, root: &Path) -> bool {
         root.join("src").join("auto_resume.py").is_file()
-            && root.join("src").join("codex_auto_resume").join("cli.py").is_file()
+            && root
+                .join("src")
+                .join("codex_auto_resume")
+                .join("cli.py")
+                .is_file()
     }
     fn codex_home(&self) -> PathBuf {
-        PathBuf::from(field(&self.script, "codex_home").as_str_value().unwrap_or_default())
+        PathBuf::from(
+            field(&self.script, "codex_home")
+                .as_str_value()
+                .unwrap_or_default(),
+        )
     }
     fn supervise(&mut self, _home: &Path, facts: &Value) -> Option<String> {
         let plug = self.plug.as_ref()?;
@@ -157,7 +169,12 @@ impl LauncherWorld for LaunchWorld {
             &self.calls,
             vec![
                 "watcher".into(),
-                Value::Array(command.iter().map(|each| Value::from(each.as_str())).collect()),
+                Value::Array(
+                    command
+                        .iter()
+                        .map(|each| Value::from(each.as_str()))
+                        .collect(),
+                ),
             ],
         );
         match LaunchWorld::next(&mut self.codes, Value::from(0)) {

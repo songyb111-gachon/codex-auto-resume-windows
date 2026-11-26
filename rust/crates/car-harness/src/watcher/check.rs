@@ -13,11 +13,16 @@ use car_watcher::rescan::RescanEngine;
 use super::AsStr;
 
 fn number(value: Option<&Value>) -> f64 {
-    value.map_or(0.0, |found| car_machine::pytext::to_float(found).unwrap_or(0.0))
+    value.map_or(0.0, |found| {
+        car_machine::pytext::to_float(found).unwrap_or(0.0)
+    })
 }
 
 fn text(value: Option<&Value>) -> String {
-    value.and_then(AsStr::as_str_value).unwrap_or_default().to_owned()
+    value
+        .and_then(AsStr::as_str_value)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn map(value: Option<&Value>) -> Map {
@@ -71,13 +76,22 @@ impl ScriptEngine {
 
 impl RescanEngine for ScriptEngine {
     fn proof(&mut self, row: &Map) -> Res<Value> {
-        self.answer("proof", vec![row.get("interruption_id").cloned().unwrap_or(Value::Null)])
+        self.answer(
+            "proof",
+            vec![row.get("interruption_id").cloned().unwrap_or(Value::Null)],
+        )
     }
     fn turn_observation(&mut self, thread: &Value, turn_id: &Value, proof: &Value) -> Res<Value> {
-        self.answer("turn_observation", vec![thread.clone(), turn_id.clone(), proof.clone()])
+        self.answer(
+            "turn_observation",
+            vec![thread.clone(), turn_id.clone(), proof.clone()],
+        )
     }
     fn later_turns(&mut self, thread: &Value, ordinal: &Value, proof: &Value) -> Res<Value> {
-        self.answer("later_turns", vec![thread.clone(), ordinal.clone(), proof.clone()])
+        self.answer(
+            "later_turns",
+            vec![thread.clone(), ordinal.clone(), proof.clone()],
+        )
     }
     fn persons_turns(&mut self, thread: &Value, turns: &Value) -> Res<Vec<Value>> {
         match self.answer("persons_turns", vec![thread.clone(), turns.clone()])? {
@@ -178,11 +192,16 @@ pub fn case(name: &str, args: &[Value]) -> Option<Result<Value, String>> {
                 None | Some(Value::Null) => None,
                 found => Some(number(found)),
             };
-            let (outcome, reason) =
-                match car_watcher::rescan::judge(&mut engine, &row, &kin, deadline, number(args.get(4))) {
-                    Ok(found) => found,
-                    Err(failed) => return Some(Err(failed.class)),
-                };
+            let (outcome, reason) = match car_watcher::rescan::judge(
+                &mut engine,
+                &row,
+                &kin,
+                deadline,
+                number(args.get(4)),
+            ) {
+                Ok(found) => found,
+                Err(failed) => return Some(Err(failed.class)),
+            };
             Value::Array(vec![
                 Value::from(outcome),
                 reason.map_or(Value::Null, Value::from),

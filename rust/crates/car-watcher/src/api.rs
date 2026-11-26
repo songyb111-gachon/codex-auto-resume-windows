@@ -121,11 +121,14 @@ impl LauncherWorld for SystemLauncher {
         root.join("bin").join("CodexAutoResume.exe").is_file()
     }
     fn codex_home(&self) -> PathBuf {
-        match std::env::var("CODEX_HOME").ok().filter(|found| !found.is_empty()) {
-            Some(found) => PathBuf::from(car_machine::winpath::expanduser(&found, &|name: &str| {
-                std::env::var(name).ok()
-            })
-            .unwrap_or(found)),
+        match std::env::var("CODEX_HOME")
+            .ok()
+            .filter(|found| !found.is_empty())
+        {
+            Some(found) => PathBuf::from(
+                car_machine::winpath::expanduser(&found, &|name: &str| std::env::var(name).ok())
+                    .unwrap_or(found),
+            ),
             None => PathBuf::from(std::env::var("USERPROFILE").unwrap_or_default()).join(".codex"),
         }
     }
@@ -153,7 +156,9 @@ impl LauncherWorld for SystemLauncher {
         let status = store.watcher_status().ok().flatten();
         store.close();
         match status.and_then(|row| row.get("end_mark").cloned()) {
-            Some(Value::Str(mark)) if matches!(mark.as_str(), Some("clean" | "memory_guard")) => Some(true),
+            Some(Value::Str(mark)) if matches!(mark.as_str(), Some("clean" | "memory_guard")) => {
+                Some(true)
+            }
             Some(Value::Str(mark)) if mark.as_str() == Some("running") => Some(false),
             _ => None,
         }
@@ -175,7 +180,10 @@ impl LauncherWorld for SystemLauncher {
         *self.state.lock().unwrap_or_else(PoisonError::into_inner) = Some(paths.state_dir.clone());
         let host = Arc::new(car_control::host::SystemHost::new(&self.project_root));
         let codex_home = car_control::host::Host::codex_home(&*host);
-        let maker = self.maker.take().map_or_else(|| Box::new(NotJoined) as Box<dyn EngineMaker>, |make| make());
+        let maker = self.maker.take().map_or_else(
+            || Box::new(NotJoined) as Box<dyn EngineMaker>,
+            |make| make(),
+        );
         let mut app = App::new(Start {
             paths,
             project_root: self.project_root.clone(),
@@ -207,7 +215,10 @@ impl LauncherWorld for SystemLauncher {
         env.push((crate::launcher::RELAUNCH_MARK.into(), "1".into()));
         let spawn = car_platform::spawn::Spawn::new(arguments.iter().cloned())
             .with_env(env)
-            .with_flags(car_platform::spawn::DETACHED_PROCESS | car_platform::spawn::CREATE_NEW_PROCESS_GROUP)
+            .with_flags(
+                car_platform::spawn::DETACHED_PROCESS
+                    | car_platform::spawn::CREATE_NEW_PROCESS_GROUP,
+            )
             .with_streams(
                 car_platform::spawn::Stream::Null,
                 car_platform::spawn::Stream::Null,
@@ -223,7 +234,11 @@ impl LauncherWorld for SystemLauncher {
 impl Watcher {
     /// `car_start`'s request read: `argv` a list of texts (required), `home` a text or absent, `image` the host's own
     /// path. The launcher runs on its own thread; this returns once it is started.
-    pub fn start(request: &Value, factory: Factory, project_root: &str) -> Result<Watcher, Refused> {
+    pub fn start(
+        request: &Value,
+        factory: Factory,
+        project_root: &str,
+    ) -> Result<Watcher, Refused> {
         Watcher::start_with(request, factory, project_root, None)
     }
 
@@ -295,7 +310,11 @@ impl Watcher {
 
     /// `car_stop`: the stop event signalled, as the icon's Stop item does; 0 when nothing ran to be stopped.
     pub fn stop(&self) -> i32 {
-        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         match state {
             Some(state_dir) => match car_platform::sync::StopEvent::new(&state_dir) {
                 Ok(stop) => i32::from(stop.signal()),
@@ -336,7 +355,14 @@ impl Watcher {
                 self.events.cards(false);
                 answer(true)
             }
-            "stop" => answer(self.stop() != 0 || self.state.lock().unwrap_or_else(PoisonError::into_inner).is_some()),
+            "stop" => answer(
+                self.stop() != 0
+                    || self
+                        .state
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .is_some(),
+            ),
             "toggle" | "disarm_power" => match self.control() {
                 Some(control) => {
                     let done = if action == "toggle" {
@@ -360,7 +386,11 @@ impl Watcher {
 
     /// The control layer bound to the watcher's home, once the watcher runs.
     fn control(&self) -> Option<car_control::Control> {
-        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner).clone()?;
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()?;
         let home = Path::new(&state).parent()?.to_string_lossy().into_owned();
         let paths = crate::app::paths(Some(&home), &self.project_root).ok()?;
         Some(car_control::Control::new(
@@ -373,7 +403,11 @@ impl Watcher {
     /// `car_bridge`: one `bridge serve` request, its reply bytes as `bridge serve` writes them.
     pub fn bridge(&self, line: &[u8]) -> Vec<u8> {
         let home = self.home.clone().or_else(|| {
-            let state = self.state.lock().unwrap_or_else(PoisonError::into_inner).clone()?;
+            let state = self
+                .state
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()?;
             Some(Path::new(&state).parent()?.to_string_lossy().into_owned())
         });
         let Ok(paths) = crate::app::paths(home.as_deref(), &self.project_root) else {
@@ -397,7 +431,12 @@ impl Watcher {
 
     /// Wait for the launcher's thread (after `ended`).
     pub fn join(&self) {
-        if let Some(thread) = self.thread.lock().unwrap_or_else(PoisonError::into_inner).take() {
+        if let Some(thread) = self
+            .thread
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
             let _ = thread.join();
         }
     }

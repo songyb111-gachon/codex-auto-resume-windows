@@ -53,7 +53,10 @@ impl car_watcher::setaside::Machine for SweepMachine {
 }
 
 fn sweep(args: &[Value]) -> Result<Value, String> {
-    let home = args.first().and_then(AsStr::as_str_value).unwrap_or_default();
+    let home = args
+        .first()
+        .and_then(AsStr::as_str_value)
+        .unwrap_or_default();
     let installing = match args.get(1) {
         Some(Value::Bool(flag)) => Some(*flag),
         _ => None,
@@ -65,8 +68,14 @@ fn sweep(args: &[Value]) -> Result<Value, String> {
     let paths = paths_of(home).map_err(str::to_owned)?;
     let lines = RefCell::new(Vec::new());
     let log = |line: &str| lines.borrow_mut().push(Value::from(line));
-    let (swept, left) =
-        car_watcher::setaside::sweep(&paths, Some(&log), &SweepMachine { installing, running });
+    let (swept, left) = car_watcher::setaside::sweep(
+        &paths,
+        Some(&log),
+        &SweepMachine {
+            installing,
+            running,
+        },
+    );
     Ok(Value::Array(vec![
         Value::from(swept),
         Value::from(left),
@@ -88,9 +97,10 @@ fn plug_notices(args: &[Value]) -> Result<Value, String> {
         };
         let raised = RefCell::new(Vec::new());
         let mut notice = |event: &str, detail: Map| -> Res<()> {
-            raised
-                .borrow_mut()
-                .push(Value::Array(vec![Value::from(event), Value::Object(detail)]));
+            raised.borrow_mut().push(Value::Array(vec![
+                Value::from(event),
+                Value::Object(detail),
+            ]));
             Ok(())
         };
         notices
@@ -132,12 +142,20 @@ impl PowerControl for StepControl {
     fn power_batch_end(&self, nonce: &Value, result: &str, now: f64) -> Res<bool> {
         call(
             &self.1,
-            vec!["batch_end".into(), nonce.clone(), result.into(), Value::Float(now)],
+            vec![
+                "batch_end".into(),
+                nonce.clone(),
+                result.into(),
+                Value::Float(now),
+            ],
         );
         Ok(!matches!(get(&self.0, "batch_end"), Value::Bool(false)))
     }
     fn power_batch_finish(&self, nonce: &Value, now: f64) -> Res<Option<String>> {
-        call(&self.1, vec!["batch_finish".into(), nonce.clone(), Value::Float(now)]);
+        call(
+            &self.1,
+            vec!["batch_finish".into(), nonce.clone(), Value::Float(now)],
+        );
         if !has(&self.0, "finish") {
             return Ok(Some("done".into()));
         }
@@ -226,7 +244,10 @@ impl Activity for StepEngine {
 }
 
 fn afterwork(args: &[Value]) -> Result<Value, String> {
-    let state_dir = args.first().and_then(AsStr::as_str_value).unwrap_or_default();
+    let state_dir = args
+        .first()
+        .and_then(AsStr::as_str_value)
+        .unwrap_or_default();
     let steps = match args.get(1) {
         Some(Value::Array(steps)) => steps.clone(),
         _ => Vec::new(),
@@ -267,7 +288,10 @@ fn afterwork(args: &[Value]) -> Result<Value, String> {
             ]));
             Ok(())
         };
-        let op = field(&map, "op").as_str_value().unwrap_or("look").to_owned();
+        let op = field(&map, "op")
+            .as_str_value()
+            .unwrap_or("look")
+            .to_owned();
         let managed = Managed {
             disable_power_action: matches!(field(&map, "held"), Value::Bool(true)),
             disable_auto_resume: matches!(field(&map, "paused_by_policy"), Value::Bool(true)),
@@ -334,12 +358,13 @@ pub fn batch(cases: &Value) -> Value {
             .unwrap_or_default()
             .to_owned();
         let args = &parts[1..];
-        let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match name.as_str() {
-            "sweep" => Some(sweep(args)),
-            "plug_notices" => Some(plug_notices(args)),
-            "afterwork" => Some(afterwork(args)),
-            other => super::check::case(other, args),
-        }));
+        let found =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match name.as_str() {
+                "sweep" => Some(sweep(args)),
+                "plug_notices" => Some(plug_notices(args)),
+                "afterwork" => Some(afterwork(args)),
+                other => super::check::case(other, args),
+            }));
         answers.push(match found {
             Ok(Some(Ok(value))) => ok(value),
             Ok(Some(Err(class))) => error(&class),

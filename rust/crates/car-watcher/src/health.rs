@@ -171,8 +171,9 @@ impl Health {
             Some(found) => pyval::truthy(found),
         };
         let stored = Value::Object(settings);
-        let observe_only = pyval::truthy(pyval::get(&stored, "observe_only").unwrap_or(&Value::Null))
-            || pyval::truthy(pyval::get(values, "observe_only").unwrap_or(&Value::Null));
+        let observe_only =
+            pyval::truthy(pyval::get(&stored, "observe_only").unwrap_or(&Value::Null))
+                || pyval::truthy(pyval::get(values, "observe_only").unwrap_or(&Value::Null));
         let rows = Value::Array(store.pending()?.into_iter().map(Value::Object).collect());
         let reading = heartbeat.get("usage").cloned().unwrap_or(Value::Null);
         let content = statusfile::content(

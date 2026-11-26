@@ -90,7 +90,10 @@ impl Powerdown for ThisPowerdown {
         Ok((found, why.map(str::to_owned)))
     }
     fn other_sessions(&self) -> Res<Value> {
-        Ok(car_platform::powerdown::other_sessions().map_or(Value::Null, |n| Value::from(n as i64)))
+        Ok(
+            car_platform::powerdown::other_sessions()
+                .map_or(Value::Null, |n| Value::from(n as i64)),
+        )
     }
     fn idle_seconds(&self) -> Res<Value> {
         Ok(car_platform::powerdown::idle_seconds().map_or(Value::Null, Value::Float))
@@ -99,7 +102,10 @@ impl Powerdown for ThisPowerdown {
         Ok(Value::Bool(car_platform::powerdown::act(&py_str(action))))
     }
     fn last_error(&self) -> Res<Value> {
-        Ok(car_platform::powerdown::last_error().map_or(Value::Null, |n| Value::from(i64::from(n))))
+        Ok(
+            car_platform::powerdown::last_error()
+                .map_or(Value::Null, |n| Value::from(i64::from(n))),
+        )
     }
 }
 
@@ -354,7 +360,8 @@ impl AfterWork {
         look: &mut Look,
     ) -> Res<()> {
         let threads: Vec<String> = if decision::for_tasks(armed) {
-            let mut threads: Vec<String> = match tasks.as_ref().map(|found| field(found, "threads")) {
+            let mut threads: Vec<String> = match tasks.as_ref().map(|found| field(found, "threads"))
+            {
                 Some(Value::Array(items)) => items.iter().map(py_str).collect(),
                 _ => Vec::new(),
             };
@@ -387,17 +394,16 @@ impl AfterWork {
         }
         if pyval::is(&action, "shut_down") {
             let others = self.port.other_sessions()?;
-            if let Some(word) = decision::judge_presence(
-                &action,
-                &others,
-                &Value::Float(decision::IDLE_SECONDS),
-            ) {
+            if let Some(word) =
+                decision::judge_presence(&action, &others, &Value::Float(decision::IDLE_SECONDS))
+            {
                 return self.wait(Some(armed), Some(word), false, look);
             }
         }
         let idle = self.port.idle_seconds()?;
         let Some(countdown) = self.countdown.clone() else {
-            if let Some(word) = decision::judge_presence(&Value::from("sleep"), &Value::from(0), &idle)
+            if let Some(word) =
+                decision::judge_presence(&Value::from("sleep"), &Value::from(0), &idle)
             {
                 return self.wait(Some(armed), Some(word), false, look);
             }
@@ -584,7 +590,12 @@ impl AfterWork {
             .control
             .power_batch_finish(&key(armed, "nonce")?, now)?
         else {
-            self.line("power_countdown_ended", Some("unwritten".into()), None, look);
+            self.line(
+                "power_countdown_ended",
+                Some("unwritten".into()),
+                None,
+                look,
+            );
             return Ok(());
         };
         self.forget();
@@ -599,7 +610,8 @@ impl AfterWork {
             });
         }
         self.line("power_now", Some(py_str(&action)), None, look);
-        let _ = crate::fail::guarded(|| (look.notice)(NOW, map([("action", action.clone())]), true));
+        let _ =
+            crate::fail::guarded(|| (look.notice)(NOW, map([("action", action.clone())]), true));
         let done = matches!(
             crate::fail::guarded(|| self.port.act(&action)),
             Ok(Value::Bool(true))
@@ -622,7 +634,13 @@ impl AfterWork {
     /// `halt(reason)`: a look that failed, or a tick that cannot look - any countdown ends, nothing is done.
     pub fn halt(&mut self, log: &dyn Fn(&str), clock: &dyn Clock) {
         if self.countdown.take().is_some() {
-            line_to(log, clock, "power_countdown_ended", Some(FAILED_LOOK.into()), None);
+            line_to(
+                log,
+                clock,
+                "power_countdown_ended",
+                Some(FAILED_LOOK.into()),
+                None,
+            );
         }
     }
 
@@ -630,7 +648,13 @@ impl AfterWork {
     pub fn stop(&mut self, log: &dyn Fn(&str), clock: &dyn Clock) {
         let countdown = self.countdown.take();
         if countdown.is_some() {
-            line_to(log, clock, "power_countdown_ended", Some(STOPPING.into()), None);
+            line_to(
+                log,
+                clock,
+                "power_countdown_ended",
+                Some(STOPPING.into()),
+                None,
+            );
         }
         if let Some(countdown) = countdown {
             let shown = Value::Object(shown_map("waiting", Some("watcher"), None));

@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn civil_days() {
         assert_eq!(days_from_civil(1970, 1, 1), 0);
-        assert_eq!(days_from_civil(2026, 11, 26), 20_418);
+        assert_eq!(days_from_civil(2026, 11, 26), 20_783);
         assert_eq!(days_from_civil(2000, 3, 1), 11_017);
     }
 }

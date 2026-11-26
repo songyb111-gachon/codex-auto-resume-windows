@@ -90,8 +90,16 @@ pub fn proofs(kin: &[Map]) -> (Vec<String>, bool) {
 
 /// `persons(engine, row, ours)`: the turns after the record's exact failed turn that a person started, and whether
 /// one such turn's user message is not in the history yet.
-pub fn persons(engine: &mut dyn RescanEngine, row: &Map, ours: &[String]) -> Res<(Vec<Value>, bool)> {
-    let key = |name: &str| row.get(name).cloned().ok_or_else(|| Failed::new("KeyError", name));
+pub fn persons(
+    engine: &mut dyn RescanEngine,
+    row: &Map,
+    ours: &[String],
+) -> Res<(Vec<Value>, bool)> {
+    let key = |name: &str| {
+        row.get(name)
+            .cloned()
+            .ok_or_else(|| Failed::new("KeyError", name))
+    };
     let thread = key("thread_id")?;
     let proof = engine.proof(row)?;
     let seen = engine.turn_observation(&thread, &key("turn_id")?, &proof)?;
@@ -99,7 +107,9 @@ pub fn persons(engine: &mut dyn RescanEngine, row: &Map, ours: &[String]) -> Res
         return Err(Failed::new("AttributeError", "get"));
     };
     let ordinal = key("ordinal")?;
-    if !car_machine::pyval::truthy(get(&seen, "found")) || !car_machine::pyval::eq(get(&seen, "ordinal"), &ordinal) {
+    if !car_machine::pyval::truthy(get(&seen, "found"))
+        || !car_machine::pyval::eq(get(&seen, "ordinal"), &ordinal)
+    {
         return Ok((Vec::new(), false));
     }
     let later = engine.later_turns(&thread, &ordinal, &proof)?;
@@ -182,11 +192,13 @@ fn judged(
     let now = engine.clock();
     let current = crate::fail::guarded(|| engine.fresh_throughout(&thread, now)).unwrap_or(false);
     if current {
-        return Ok(match crate::fail::guarded(|| engine.valid_interruption(row)) {
-            Ok(true) => (RECHECKED, None),
-            Ok(false) => (UNRESOLVED, Some(CHANGED_LATEST.into())),
-            Err(_) => (UNRESOLVED, Some(UNREADABLE.into())),
-        });
+        return Ok(
+            match crate::fail::guarded(|| engine.valid_interruption(row)) {
+                Ok(true) => (RECHECKED, None),
+                Ok(false) => (UNRESOLVED, Some(CHANGED_LATEST.into())),
+                Err(_) => (UNRESOLVED, Some(UNREADABLE.into())),
+            },
+        );
     }
     if free {
         return Ok((UNRESOLVED, Some(MARKER_FREE.into())));
