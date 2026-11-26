@@ -8,7 +8,9 @@ The seams (`scenario["seams"]`): `turns` {thread: turn | null | "raise"} and `co
 {"open": "raise", "enter": "raise", "answers": {method: [answer | "raise", ...]}}; `unheld`: true | false | "raise".
 The steps: ["live", shown | null], ["told", key, capability, end, model_restored], ["stop_request", key],
 ["retry_settings"], ["flag", "empty_refused", bool], ["seam", name, value] (a seam replaced from here on),
-["keep", thread, count] and ["kept_used", thread] (keep_going's rows, as the Dashboard and a SENT write them).
+["keep", thread, count] and ["kept_used", thread] (keep_going's rows, as the Dashboard and a SENT write them),
+["send", record, thread, prompt, client_id] and ["pools", record] (the channel P5 names, sent through once, or asked
+whether it pools). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused.
 The continuation family's looks (S7.2e1b): `recent` [thread, ...] | "raise"; `between` {thread: n | "raise"}; `plans`
 {thread: [status, ...] | null | "raise"}; `goals` {thread: status | null | "raise"}; `own` {thread: bool | "raise"}
 (core's reader takes it for a conversation it recovers; default true); `children` {parent: [{thread_id, turn_id, status,
@@ -45,6 +47,11 @@ class FakeSession:
         answer = answers[min(index, len(answers) - 1)]
         if answer == "raise":
             raise RuntimeError("raised")
+        if answer == "timeout":
+            raise RuntimeError("protocol_timeout")
+        if answer == "refused":
+            from codex_auto_resume_advanced.codex.protocol import SessionRefused
+            raise SessionRefused("refused")
         return answer
 
 
@@ -156,6 +163,7 @@ class World:
         "other_sessions": "sessions", "once_more_when_unsure": "oncemore", "headless_run": "headless",
         "compact_continue": "compact", "model_fallback": "fallback", "codex_retry_settings": "retries",
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
+        "marker_free_continuation": "markerfree",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -212,6 +220,8 @@ class World:
                 return self.noted(module.ModelFallback)(paths, turns=self.turns, unheld_now=self.unheld, **run)
             if capability == "codex_retry_settings":
                 return module.RetrySettings(paths, session=lambda: self.open(capability), clock=lambda: self.clock[0])
+            if capability == "marker_free_continuation":
+                return module.MarkerFreeContinuation(paths, session=lambda: self.open(capability))
             if capability in self.LOOKING:
                 import codex_auto_resume.codex as core_codex
                 module.Turns = lambda home: self.turns
@@ -240,6 +250,14 @@ class World:
             self.follower.ends.append({"key": args[0], "capability": args[1], "end": RunEnd(args[2]),
                                        "model_restored": args[3]})
             return None
+        if op in ("send", "pools"):
+            from codex_auto_resume.domain.plug import BACKEND, Point
+            channel = runtime.ask(Point.SENDER, args[0], BACKEND)
+            if not hasattr(channel, "send"):
+                return said(channel)
+            if op == "pools":
+                return channel.pools()
+            return norm(channel.send(args[1], args[2], client_id=args[3]))
         if op == "keep":
             return runtime.state.set_keep_going(args[0], args[1])
         if op == "kept_used":

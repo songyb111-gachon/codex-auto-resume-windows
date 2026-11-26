@@ -212,8 +212,45 @@ def subagent_corpus() -> list:
     ]
 
 
+MARKER = "marker_free_continuation"
+CLIENT = "0a1b2c3d-0002-4000-8000-000000000001"
+QUEUED = "0a1b2c3d-0003-4000-8000-000000000001"
+
+
+def marker_corpus() -> list:
+    from rustdiff.advturns import KEY, record
+    core = record(KEY, THREAD)
+
+    def send(prompt="Carry on.", thread_id=THREAD, client=CLIENT):
+        return ["send", core, thread_id, prompt, client]
+    answers = [{"queuedSubmissionId": QUEUED}, {"id": QUEUED}, {"item": {"id": QUEUED}},
+               {"queuedSubmission": {"id": QUEUED.upper()}}, {"queuedSubmissionId": "x", "item": {"id": QUEUED}},
+               "raise", "timeout", "refused", 5, None, [QUEUED]]
+    return [
+        scenario("markerfree_points_off_and_on", [MARKER],
+                 [["ask", "delivery", core], send(), arm(MARKER), ["ask", "delivery", core],
+                  ["ask", "delivery", "a record"], send(), ["pools", core]],
+                 seams={"session": {"answers": {"thread/queue/add": [{"queuedSubmissionId": QUEUED}]}}}),
+        scenario("markerfree_send_outcomes", [MARKER],
+                 [arm(MARKER)] + [send() for _ in answers]
+                 + [send(thread_id="nope"), send(""), send("a\x00b"), send("x" * 30001), send("y" * 30000),
+                    send("é" * 30000), send(client="nope"), send(client=CLIENT.upper())],
+                 seams={"session": {"answers": {"thread/queue/add": answers}}}),
+        scenario("markerfree_no_session", [MARKER], [arm(MARKER), send()],
+                 seams={"session": {"open": "raise"}}),
+        scenario("markerfree_session_will_not_start", [MARKER], [arm(MARKER), send()],
+                 seams={"session": {"enter": "raise"}}),
+        scenario("markerfree_pools_once_mqp_passed", [MARKER], [arm(MARKER), ["pools", core]],
+                 measured={"mqp": ["pass", "0.155.0"]}),
+        scenario("markerfree_pools_mqp_failed", [MARKER], [arm(MARKER), ["pools", core]],
+                 measured={"mqp": ["fail", "0.155.0"]}),
+        scenario("markerfree_watched", [MARKER], [arm(MARKER, "shadow"), ["ask", "delivery", core], send()],
+                 seams={"session": {"answers": {"thread/queue/add": [{"id": QUEUED}]}}}),
+    ]
+
+
 def corpus() -> list:
-    return empty_corpus() + keep_corpus() + subagent_corpus()
+    return empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus()
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):

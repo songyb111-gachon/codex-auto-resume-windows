@@ -449,6 +449,31 @@ fn main() {
                 .partition(&arg(0))
                 .map(|found| found.map_or_else(|| text("DEFER"), value))
                 .map_err(|raise| raise.0.to_owned()),
+            "send" | "pools" => {
+                let record = arg(0);
+                match runtime.ask(Point::Sender, &[&record]) {
+                    Ok(Said::Channel(channel)) => Ok(if op == "send" {
+                        let prompt = match arg(2) {
+                            Value::Str(prompt) => prompt,
+                            _ => car_machine::json::Str::new(""),
+                        };
+                        let client = arg(3);
+                        channel.send(
+                            arg(1).as_text().unwrap_or_default(),
+                            &prompt,
+                            client.as_text(),
+                        )
+                    } else {
+                        match channel.pools_said() {
+                            Some(Ok(said)) => said,
+                            Some(Err(_)) => text("raised"),
+                            None => Value::Null,
+                        }
+                    }),
+                    Ok(found) => Ok(said(&found)),
+                    Err(raise) => Err(raise.0.to_owned()),
+                }
+            }
             "moved" => runtime
                 .moved(&arg(0), arg(1).as_text().unwrap_or_default())
                 .map(|()| text("DEFER"))

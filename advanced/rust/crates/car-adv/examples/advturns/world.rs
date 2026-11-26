@@ -304,7 +304,9 @@ impl Looks for FakeLooks {
     }
 }
 
-struct FakeSession(Arc<Inner>);
+/// A session of the scenario's: `call` answers from `session.answers`; a session with no `submit` of its own is called
+/// whole at once in the reference (`protocol.submitted`), so `submit` calls and `receive` hands back what it got.
+struct FakeSession(Arc<Inner>, Option<Result<Value, SessionError>>);
 
 impl Channel for FakeSession {
     fn enter(&mut self) -> Result<(), SessionError> {
@@ -314,11 +316,15 @@ impl Channel for FakeSession {
         }
         Ok(())
     }
-    fn submit(&mut self, _method: &str, _params: Option<Value>) -> Result<i64, SessionError> {
-        Err(SessionError::Raised("RuntimeError"))
+    fn submit(&mut self, method: &str, params: Option<Value>) -> Result<i64, SessionError> {
+        let got = self.call(method, params);
+        self.1 = Some(got);
+        Ok(0)
     }
     fn receive(&mut self, _: &str, _: i64, _: Option<&Value>) -> Result<Value, SessionError> {
-        Err(SessionError::Raised("RuntimeError"))
+        self.1
+            .take()
+            .unwrap_or(Err(SessionError::Raised("RuntimeError")))
     }
     fn call(&mut self, method: &str, params: Option<Value>) -> Result<Value, SessionError> {
         self.0.note(vec![
@@ -340,6 +346,11 @@ impl Channel for FakeSession {
         let answer = answers[index.min(answers.len() - 1)].clone();
         if is_raise(&answer) {
             return Err(SessionError::Raised("RuntimeError"));
+        }
+        match answer.as_text() {
+            Some("timeout") => return Err(SessionError::Adapter("protocol_timeout")),
+            Some("refused") => return Err(SessionError::Refused),
+            _ => {}
         }
         Ok(answer)
     }
@@ -372,7 +383,7 @@ impl World {
             if is_raise(get(&inner.seam("session"), "open")) {
                 return Err(());
             }
-            Ok(Box::new(FakeSession(inner.clone())))
+            Ok(Box::new(FakeSession(inner.clone(), None)))
         })
     }
 
@@ -437,6 +448,9 @@ impl World {
             "empty_response" => engine::emptyreply::make_with(paths, self.look_world()),
             "keep_going" => engine::keepgoing::make_with(paths, self.look_world()),
             "subagent_parent" => engine::subagent::make_with(paths, self.look_world()),
+            "marker_free_continuation" => {
+                engine::markerfree::make_with(paths, Arc::new(Mutex::new(self.opener())))
+            }
             "compact_continue" => engine::compact::make_with(paths, self.run_world()),
             "model_fallback" => engine::fallback::make_with(paths, self.run_world()),
             "codex_retry_settings" => {
