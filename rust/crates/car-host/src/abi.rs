@@ -25,15 +25,15 @@
 //!   [`car_next_event`](next_event), which the host's pump pulls.
 //! * **No export sends.** `car_post_action` takes only the closed [`ActionKind`] table (a `popup` call only one of
 //!   [`POPUP_CALLS`]); any other name is answered `{"ok":false,"error":"unknown_action"}`.
-//! * **Panics (D15).** Every export body runs inside `catch_unwind`. A caught panic is answered
-//!   `{"ok":false,"error":"panic"}` (`car_start`'s with `"abi": 1` first; `car_stop` returns -1; `car_free` frees
-//!   nothing more) and counted ([`panics`]). The exports stay `extern "C"`, not `"C-unwind"`: anything that still
+//! * **Panics (D15).** Every export body runs inside `catch_unwind` (car-machine's `caught::catch`, the one
+//!   catcher). A caught panic is answered `{"ok":false,"error":"panic"}` (`car_start`'s with `"abi": 1` first;
+//!   `car_stop` returns -1; `car_free` frees nothing more) and counted ([`panics`]). The exports stay `extern "C"`, not `"C-unwind"`: anything that still
 //!   escapes aborts the process instead of unwinding into the CLR.
 //! * **A null `out_len`.** The call does nothing and answers NULL: a reply the host cannot measure is a reply it
 //!   cannot free.
 //!
 //! **The empty core.** Until S6.1's watcher is here there is nothing to start: `car_start` reads the request and
-//! answers `{"abi":1,"ok":false,"error":"not_ported"}` (as the stub core refuses every command, car-bin
+//! answers `{"abi": 1, "ok": false, "error": "not_ported"}` (as the stub core refuses every command, car-bin
 //! `NOT_PORTED`: it never answers success for work it did not do); `car_stop` has nothing to stop and answers 0;
 //! `car_bridge` and every known action answer `{"ok":false,"error":"not_started"}`; `car_next_event` has no event to
 //! give and answers NULL when `timeout_ms` has passed. S6.2b fills these bodies over car-watcher; the six signatures,
@@ -45,7 +45,6 @@
 //! depends on car-host with `default-features = false` and is the same call with its own plug.
 
 use std::collections::{BTreeMap, VecDeque};
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -447,7 +446,7 @@ fn tripwire(_name: &str) {
 
 /// `body()`, a panic caught and counted.
 fn guarded<T>(body: impl FnOnce() -> T) -> Option<T> {
-    match catch_unwind(AssertUnwindSafe(body)) {
+    match car_machine::caught::catch(body) {
         Ok(value) => Some(value),
         Err(_) => {
             PANICS.fetch_add(1, Ordering::Relaxed);
