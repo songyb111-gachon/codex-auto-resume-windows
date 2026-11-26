@@ -634,6 +634,7 @@ impl World {
             "queue_for_open" => engine::foropen::make_with(paths, self.goal_world().goal),
             "open_to_send" => engine::opentarget::make_with(paths, self.open_world()),
             "steer_send" => engine::steer::make_with(paths, self.steer_world()),
+            "codex_chat" => engine::chat::make_with(paths, Arc::new(Mutex::new(self.opener()))),
             "prompt_queue" => {
                 let running = self.0.clone();
                 engine::promptqueue::make_with(
@@ -764,6 +765,12 @@ impl World {
                         .map_err(|error| error.class().to_owned()),
                 )
             }
+            "chat_add" => Some(
+                state
+                    .add_chat(&arg(0), &arg(1), &arg(2), &Value::Null)
+                    .map(Value::from)
+                    .map_err(|error| error.class().to_owned()),
+            ),
             "keep" => Some(
                 state
                     .set_keep_going(&arg(0), &arg(1), &Value::Null)

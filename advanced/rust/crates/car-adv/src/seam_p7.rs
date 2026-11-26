@@ -241,77 +241,11 @@ pub fn reset_message_handed(rule: &Value) -> Option<Value> {
 /// S7.2e1b; the runtime's name kept).
 pub use crate::engine::promptqueue::handed as prompt_handed;
 
-/// `engine/chat.handed(row)` (S7.2e1): one message as core is handed it, marked `pause_keeps` (v0.6.23).
-pub fn chat_handed(row: &Value) -> Option<Value> {
-    let key = get(row, "record_id")?;
-    if !matches!(key, Value::Str(text) if text.len() == 64) {
-        return None;
-    }
-    let own = [
-        ("record_id", key.clone()),
-        ("thread_id", or_null(get(row, "thread_id"))),
-        ("marker", marker(key)),
-        ("purpose", word("message")),
-        ("ordinal", Value::Null),
-        ("pause_keeps", Value::Bool(true)),
-    ];
-    if is(get(row, "state"), "in_flight") {
-        return Some(in_flight(
-            &own,
-            or_null(get(row, "sent_at")),
-            Value::Null,
-            false,
-        ));
-    }
-    if is(get(row, "state"), "waiting") && truthy(get(row, "words")) {
-        return Some(waiting(&own, or_null(get(row, "words"))));
-    }
-    None
-}
-
-/// `engine/chat.TAKEN_WITHIN`: how long Codex has to take a message it holds in its queue before it is taken back.
-pub const TAKEN_WITHIN: f64 = 180.0;
-
-fn number(value: Option<&Value>) -> Option<f64> {
-    match value {
-        Some(Value::Int(int)) => int.as_i64().map(|n| n as f64),
-        Some(Value::Float(number)) => Some(*number),
-        Some(Value::Bool(flag)) => Some(f64::from(u8::from(*flag))),
-        _ => None,
-    }
-}
-
-/// `engine/chat.paused_by_stop(row, stops)`: whether a message in flight sat in a queue usage_pause stopped.
-pub fn paused_by_stop(row: &Value, stops: &[Value]) -> bool {
-    stops.iter().any(|stop| {
-        let ended = match (
-            number(get(stop, "finished_at")),
-            number(get(row, "sent_at")),
-        ) {
-            (Some(end), Some(sent)) => end >= sent,
-            _ => false,
-        };
-        is(get(stop, "capability"), USAGE_PAUSE)
-            && is(get(stop, "kind"), "after_reset")
-            && get(stop, "thread_id") == get(row, "thread_id")
-            && (null(get(stop, "finished_at")) || ended)
-    })
-}
-
-/// `engine/chat.watched(row, now, stops)` (S7.2e1): a message in flight as core watches it, asked back out of Codex's
-/// queue once TAKEN_WITHIN has passed - never one in a queue the forced stop paused (v0.6.26, M1).
-pub fn chat_watched(row: &Value, now: f64, stops: &[Value]) -> Option<Value> {
-    let mut found = chat_handed(row)?;
-    let sent = number(get(&found, "sent_at"));
-    if let Some(sent) = sent
-        && now - sent >= TAKEN_WITHIN
-        && !paused_by_stop(row, stops)
-        && let Value::Object(map) = &mut found
-    {
-        map.insert("withdraw".into(), Value::Bool(true));
-    }
-    Some(found)
-}
+/// `engine/chat.handed`, `TAKEN_WITHIN`, `paused_by_stop` and `watched`: moved into their module by S7.2e1b; the
+/// runtime's names kept.
+pub use crate::engine::chat::{
+    TAKEN_WITHIN, handed as chat_handed, paused_by_stop, watched as chat_watched,
+};
 
 /// `engine/foropen.watching(record)`: core asks about a continuation already queued for opening (moved into its
 /// module by S7.2e1b; the runtime's name kept).

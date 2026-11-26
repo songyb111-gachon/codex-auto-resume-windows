@@ -497,9 +497,33 @@ def prompt_corpus() -> list:
     ]
 
 
+CHAT = "codex_chat"
+
+
+def chat_corpus() -> list:
+    from rustdiff.advturns import KEY, record
+    one, two, three, four = "1" * 64, "2" * 64, "3" * 64, "4" * 64
+
+    def add(number, key, words="What changed in the last turn?"):
+        return ["chat_add", thread(number), words, key]
+    mine = {"record_id": one, "thread_id": thread(1)}
+    return [
+        scenario("chat_each_conversation_oldest_first", [CHAT],
+                 [add(1, one), ["records"], arm(CHAT), add(1, two, "And then?"), add(2, three), add(3, four),
+                  ["records"], ["ask", "delivery", mine], ["ask", "delivery", record(KEY, thread(1))],
+                  ["send", mine, thread(1), "What changed in the last turn?", CLIENT],
+                  ["ask", "sender", record(KEY, thread(1))], ["pools", mine],
+                  ["moved", mine, "sent"], ["records"], ["clock", NOW + 181], ["records"]],
+                 enabled={thread(3): False},
+                 seams={"session": {"answers": {"thread/queue/add": [{"id": QUEUED}]}}}),
+        scenario("chat_watched", [CHAT], [arm(CHAT, "shadow"), add(1, one), ["records"], ["ask", "delivery", mine]]),
+    ]
+
+
 def corpus() -> list:
     return (empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
-            + for_open_corpus() + open_target_corpus() + prompt_corpus() + steer_corpus())
+            + for_open_corpus() + open_target_corpus() + prompt_corpus() + steer_corpus()
+            + chat_corpus())
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):
