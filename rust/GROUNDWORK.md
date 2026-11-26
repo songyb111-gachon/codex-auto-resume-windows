@@ -2695,3 +2695,83 @@ python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -k diffs_watche
 the 15 frozen modules (test_parts --worker tests, Python lane, then CODEX_AR_CORE=rust)
                                                      456 test ids, 456 pass on both, 0 differ (Python 545 s, Rust 591 s)
 ```
+
+## Integration 9 (branch `car-v0627-rust`, 2026-11-27)
+
+Three branches merged with `git merge --no-ff`, in this order, both sides of every conflict kept; then the plug wiring and
+the two guard fixes, each its own commit.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `fd998ad94` | car-v0627-cifix `b5369c05d` | car-v0627-ci (`800e89ac4`), the P6 step 0 host contracts (car-v0627-p6abi: car-host's `abi.rs`, `gui/HostCore.cs`, `gui/ISurfaces.cs`, `test_host_contract`), `0a7ba6590` and the CI fixes `3ec506531` `bd311cb10` `8cd43c996` `7918d901f` `6a72bb487` `e82826d6a` `b5369c05d` |
+| `1dd286803` | car-v0627-follow314 `1557d2cba` | JSON nesting depth per kind as the bundled 3.14.10 has it (car-machine's iterative reader and writer, `stack::run_deep`/`spawn_deep`), the drive-like realpath tail held by 15 homes, the advanced diffs and generators through `reference.command`/`script_command` |
+| `4388484cf` | car-v0627-s61 `6120144ab` | S6.1 car-watcher (watchloop, `app::App`, `api::Watcher`, launcher, homes, health, waking, afterwork, toasts, plugnotices, setaside, checkup/rescan), its diffs, car-harness `watcher.rs` |
+
+Conflicts: `rust/GROUNDWORK.md` in every merge (all sections kept, in merge order; cifix carried Integration 8's earlier
+"the full runs run detached" placeholder, which Integration 8's recorded long checks replace). Merge 1: `100ab5b39` and
+`0a7ba6590` are the same change; `12fd020a3` and `bd311cb10` chose the same two fixture uuids, so the token diff merged clean.
+Merge 2: `diffs_settings_plug` and `diffs_advstore`'s generator checks run through `reference.script_command` (follow314's
+form over `d77a66647`'s direct `--check`), the advanced one still naming utf-8 as `3ec506531` asks. Merge 3: car-harness
+`Cargo.toml` and check_groundwork's car-harness edge list take car-bin (S5.2) and car-watcher (S6.1) both.
+
+### The plug, shared (`599fe8f1f`)
+
+The reference hands one process's parts the same plug object (`edition.plug(paths)`: "loaded the first time it is asked for,
+and the same object every time after"; `Control(self.paths, plug=self.plug)` in App, the icon, the cards). Now:
+
+* car-control `Control::new(paths, host, plug: Arc<Guarded>)`; `plug()` still answers `&Guarded`. car-bin's CLI, the harness's
+  bridge and `review_bridge.rs` pass `Arc::new(Guarded::null())`.
+* car-watcher `api::SharedPlug` (the edition's `Factory` and a `OnceLock<Arc<Guarded>>`): made the first time a part asks, then
+  the same `Arc` for the launcher's P13 questions (`supervise`, `plug_is_null`, `supervise_held`), App (`Start.plug`), each of
+  App's Controls (they held a NULL plug of their own before: `App::control` passed `Guarded::null()`), the icon's `toggle` and
+  `disarm_power` and the in-process bridge. `Guarded.failures` is then one count for the process where the reference has one
+  per `guard()` wrapper over the same plug; nothing in the product reads it.
+* Test: `car-watcher api::tests::every_control_of_one_watcher_sees_the_one_plugs_state` - a plug that counts its own
+  `supervise_held` answers, asked through the launcher, two of App's Controls, the icon's Control and the launcher again: 1..5.
+  Reverted one at a time, each fails it: App::control a fresh NULL plug (`Null` for 2), the icon's control a fresh plug (1 for 4),
+  the launcher a fresh plug (1 for 2).
+* The deep stack (follow314's rule): car-machine `stack::try_spawn_deep(name, body)` is `spawn_deep` with the thread's name and
+  the spawn error kept (deep, else ordinary size, else that error), with a unit test; car-watcher's `watcher` thread (launcher and
+  loop) and its `toasts` thread use it. No other thread is spawned in car-watcher, car-control or car-host's exports.
+
+### Fixed here (`fea52e5f6`)
+
+* `test_python315_encoding`: `rediff_follow314.py` and `rediff_watcher.py` (both cut before `3ec506531`) read git's output in
+  the locale's encoding; they name utf-8 now.
+* `test_rust_release.BudgetTests`: the merged standard binaries weigh 0.709 MiB deflated (car-v0627-cifix alone 0.697, the
+  limit 0.7): `codex-auto-resume.exe` +6.8 KB and the setup program +4.9 KB from follow314's JSON reader and writer and its
+  deep-stack threads. `standard_binaries_mib` is 0.8 by release_budget.json's margin rule; the measure is in the budget's note.
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10; rustc 1.100.0; code HEAD `599fe8f1f`, guards and frozen at `fea52e5f6`)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0 (every
+                   result ok); cargo deny --locked check: advisories, bans, licenses, sources ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0 (car-adv 9 + 1); cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0: all 10 binaries the same with and without advanced/ (car_core.dll
+                                                     e9d5629e...), profile-path scan none in any .exe, .dll or .pdb
+run.py --build --reference v0.6.26 --reference-python bundled -v
+                                                     Ran 370 in 7,585 s: 2 FAIL, 1 expected failure (diffs_review6's fresh
+                                                     home), no skip, no `released:` rebuild. FAIL: the two HistoryNotYet
+                                                     cases, FINAL-DELTA #1-#5 (compat_io ProbesDiff.test_source_and_api_checks,
+                                                     codex_homes HomeDiff.test_schema_variants), the final-port seat's.
+                                                     diffs_watcher_* all OK in the release harness.
+the 15 frozen modules (test_parts --worker; CODEX_AR_CORE=rust)    456 pass on both, 0 differ (Python 400 s, Rust 428 s)
+Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit
+  test_srcscan test_stack test_layers test_structural_invariants test_rust_release test_rust_power_guard test_rust_install
+  test_rustdiff_reference_python test_review9_install test_host_contract test_python315_encoding test_rustdiff_script_command
+                                                     Ran 193: 2 FAIL (encoding, budget: fixed above); then
+                                                     test_python315_encoding test_rust_release.BudgetTests test_repo_hygiene
+                                                     Ran 13, OK
+```
+
+### For the next seats
+
+* **Integration 10** (S6.2a, S6.3e, S7.2a): `Control::new` takes `Arc<Guarded>` (a branch cut before `599fe8f1f` that builds a
+  Control passes `Arc::new(..)`); car-watcher's `Factory` is called once, through `api::SharedPlug`.
+* **S6.2b (the engine join)**: car-engine's `Given.plug` / `Options.plug` are still `Guarded` by value; App's engine is built with
+  `plug=self.plug` in the reference, so the join hands the engine App's `Arc` (car-engine takes `Arc<Guarded>`, or a `Plug` over
+  it) and `EngineMaker::engine` gets the plug. car-host's `car_bridge` runs on the host's calling thread: a request line it
+  parses should be read on a deep stack (`run_deep`), as follow314's rule asks.
+* The binaries budget is the stub core's plus the merged code; PLAN 6.6 still has P6 set it from its first full build.
