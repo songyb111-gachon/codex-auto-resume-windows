@@ -9,7 +9,14 @@
 //! (`seam`). The `_gen` files are written by `tests/rustdiff/gen_advpolicy.py` from the reference tag's own package.
 
 pub mod arming;
+pub mod control {
+    pub mod hookplugin;
+}
+pub mod engine {
+    pub mod hookclaims;
+}
 pub mod compat_views;
+pub mod hook;
 pub mod images;
 pub mod jsonx;
 pub mod ledger;
@@ -19,6 +26,7 @@ mod measured_gen;
 pub mod policy;
 pub mod profiles;
 pub mod registry;
+pub mod report;
 #[rustfmt::skip]
 mod registry_gen;
 pub mod seam;
