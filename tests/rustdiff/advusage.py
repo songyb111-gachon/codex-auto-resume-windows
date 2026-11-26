@@ -242,8 +242,8 @@ class ScriptSession:
             raise AdapterError("protocol_write_failed")
         if kind:
             raise RuntimeError("scripted")
-        ScriptSession.sequence += 1
-        return ScriptSession.sequence
+        self.sequence += 1                      # each session numbers its own requests
+        return self.sequence
 
     def receive(self, method, sequence, params=None):
         note("session.receive", method, sequence)
@@ -286,7 +286,7 @@ class Keys:
     @staticmethod
     def uuid4():
         Keys.count += 1
-        return "key-%d" % Keys.count
+        return "00000000-0000-4000-8000-%012d" % Keys.count
 
 
 credits.uuid = types.SimpleNamespace(uuid4=Keys.uuid4)
@@ -515,6 +515,8 @@ def operate(op):
             PENDING[op["code"]] = found
         return found
     if "run" in op:
+        if op["run"] not in PENDING:
+            return {"__raised__": "NoErrand"}
         errand = PENDING.pop(op["run"])
         try:
             return errand.run(guard)

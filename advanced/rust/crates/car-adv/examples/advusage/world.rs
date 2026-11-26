@@ -45,11 +45,10 @@ pub struct Shared {
     log: Mutex<Vec<Value>>,
     cursors: Mutex<HashMap<String, usize>>,
     catalogs: Arc<Catalogs>,
-    paths: Paths,
 }
 
 impl Shared {
-    pub fn new(world: Value, catalogs: Arc<Catalogs>, paths: Paths) -> Arc<Shared> {
+    pub fn new(world: Value, catalogs: Arc<Catalogs>) -> Arc<Shared> {
         let world = match world {
             Value::Object(_) => world,
             _ => Value::Object(Map::new()),
@@ -59,7 +58,6 @@ impl Shared {
             log: Mutex::new(Vec::new()),
             cursors: Mutex::new(HashMap::new()),
             catalogs,
-            paths,
         })
     }
 
@@ -77,7 +75,10 @@ impl Shared {
     }
 
     pub fn world(&self) -> Value {
-        self.world.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.world
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn note(&self, entry: Vec<Value>) {
@@ -112,7 +113,9 @@ impl Shared {
     }
 
     /// Core's errand guard: its answer the world's `guard` (true unless false).
-    pub fn guards(&self) -> impl FnMut(&mut dyn FnMut(bool) -> Value) -> Result<Value, HookFailed> + '_ {
+    pub fn guards(
+        &self,
+    ) -> impl FnMut(&mut dyn FnMut(bool) -> Value) -> Result<Value, HookFailed> + '_ {
         move |body| Ok(body(self.permits()))
     }
 
@@ -169,7 +172,7 @@ impl Shared {
             keys: Arc::new(move || {
                 let mut held = keys.lock().unwrap_or_else(PoisonError::into_inner);
                 *held += 1;
-                format!("key-{held}")
+                format!("00000000-0000-4000-8000-{held:012}")
             }),
             switched: Arc::new(move |_: &Paths| usage::number(at(&switched.world(), "switched"))),
             ipc: Arc::new(ScriptIpc(Arc::clone(self))),
@@ -221,7 +224,8 @@ impl usage::CodexReads for ScriptCodex {
         })
     }
     fn latest(&self, _home: &str, thread: &str) -> Result<Option<usage::TurnSeen>, Raised> {
-        self.0.note(vec![Value::from("turns.latest"), Value::from(thread)]);
+        self.0
+            .note(vec![Value::from("turns.latest"), Value::from(thread)]);
         let world = self.0.world();
         let found = at(at(at(&world, "turns"), "latest"), thread);
         if let Some(class) = raise_of(found) {
@@ -236,8 +240,19 @@ impl usage::CodexReads for ScriptCodex {
             _ => None,
         })
     }
-    fn between(&self, _home: &str, thread: &str, after: &Value, before: &Value) -> Result<i64, Raised> {
-        self.0.note(vec![Value::from("turns.between"), Value::from(thread), after.clone(), before.clone()]);
+    fn between(
+        &self,
+        _home: &str,
+        thread: &str,
+        after: &Value,
+        before: &Value,
+    ) -> Result<i64, Raised> {
+        self.0.note(vec![
+            Value::from("turns.between"),
+            Value::from(thread),
+            after.clone(),
+            before.clone(),
+        ]);
         let world = self.0.world();
         let found = at(at(at(&world, "turns"), "between"), thread);
         if let Some(class) = raise_of(found) {
@@ -252,8 +267,17 @@ impl usage::CodexReads for ScriptCodex {
             None => Ok(()),
         }
     }
-    fn source_latest(&self, _home: &str, thread: &str, widened: bool) -> Result<Option<Value>, Raised> {
-        self.0.note(vec![Value::from("source.latest"), Value::from(thread), Value::Bool(widened)]);
+    fn source_latest(
+        &self,
+        _home: &str,
+        thread: &str,
+        widened: bool,
+    ) -> Result<Option<Value>, Raised> {
+        self.0.note(vec![
+            Value::from("source.latest"),
+            Value::from(thread),
+            Value::Bool(widened),
+        ]);
         let world = self.0.world();
         let found = at(at(at(&world, "source"), "latest"), thread);
         if let Some(class) = raise_of(found) {
@@ -299,8 +323,12 @@ impl usage::MeterBackend for ScriptBackend {
         }
     }
     fn compatible(&mut self) -> Result<(), Raised> {
-        let found = self.shared.next("backend", "compatible").unwrap_or(Value::from("ok"));
-        self.shared.note(vec![Value::from("backend.compatible"), found.clone()]);
+        let found = self
+            .shared
+            .next("backend", "compatible")
+            .unwrap_or(Value::from("ok"));
+        self.shared
+            .note(vec![Value::from("backend.compatible"), found.clone()]);
         if matches!(&found, Value::Str(word) if word.as_str() == Some("raise")) {
             return Err(Raised::new("AdapterError"));
         }
@@ -315,7 +343,10 @@ struct ScriptSession {
 
 impl ScriptSession {
     fn reply(&mut self) -> Result<Value, SessionError> {
-        let found = self.shared.next("session", "replies").unwrap_or(Value::Null);
+        let found = self
+            .shared
+            .next("session", "replies")
+            .unwrap_or(Value::Null);
         match raise_of(&found).as_deref() {
             Some("adapter") => {
                 let code = text(at(&found, "code"));
@@ -370,9 +401,17 @@ impl Channel for ScriptSession {
         self.sequence += 1;
         Ok(self.sequence)
     }
-    fn receive(&mut self, method: &str, sequence: i64, _params: Option<&Value>) -> Result<Value, SessionError> {
-        self.shared
-            .note(vec![Value::from("session.receive"), Value::from(method), Value::from(sequence)]);
+    fn receive(
+        &mut self,
+        method: &str,
+        sequence: i64,
+        _params: Option<&Value>,
+    ) -> Result<Value, SessionError> {
+        self.shared.note(vec![
+            Value::from("session.receive"),
+            Value::from(method),
+            Value::from(sequence),
+        ]);
         self.reply()
     }
     fn call(&mut self, method: &str, params: Option<Value>) -> Result<Value, SessionError> {
@@ -394,20 +433,44 @@ impl Channel for ScriptSession {
 struct ScriptIpc(Arc<Shared>);
 
 impl ScriptIpc {
-    fn ask(&self, which: &str, thread: &Value, what: &Value, gate: &mut dyn Gate) -> Result<String, Raised> {
-        let word = self.0.next("ipc", which).map_or_else(|| "stopped".to_owned(), |found| text(&found));
-        let word = if which == "start" && word == "stopped" { "started".to_owned() } else { word };
+    fn ask(
+        &self,
+        which: &str,
+        thread: &Value,
+        what: &Value,
+        gate: &mut dyn Gate,
+    ) -> Result<String, Raised> {
+        let word = self
+            .0
+            .next("ipc", which)
+            .map_or_else(|| "stopped".to_owned(), |found| text(&found));
+        let word = if which == "start" && word == "stopped" {
+            "started".to_owned()
+        } else {
+            word
+        };
         let name = Value::from(format!("ipc.{which}"));
         if word == "raise" {
-            self.0.note(vec![name, thread.clone(), what.clone(), Value::from("raise")]);
+            self.0.note(vec![
+                name,
+                thread.clone(),
+                what.clone(),
+                Value::from("raise"),
+            ]);
             return Err(Raised::new("RuntimeError"));
         }
         if let Some(early) = word.strip_prefix('!') {
-            self.0.note(vec![name, thread.clone(), what.clone(), Value::from(word.as_str())]);
+            self.0.note(vec![
+                name,
+                thread.clone(),
+                what.clone(),
+                Value::from(word.as_str()),
+            ]);
             return Ok(early.to_owned());
         }
         let permitted = gate.enter().map_err(|_| Raised::new("RuntimeError"))?;
-        self.0.note(vec![name, thread.clone(), what.clone(), permitted.clone()]);
+        self.0
+            .note(vec![name, thread.clone(), what.clone(), permitted.clone()]);
         let _ = gate.exit();
         if !matches!(permitted, Value::Bool(true)) {
             return Ok("held".to_owned());
@@ -417,10 +480,20 @@ impl ScriptIpc {
 }
 
 impl usagestop::Ipc for ScriptIpc {
-    fn stop_turn(&self, thread: &Value, turn_id: &Value, gate: &mut dyn Gate) -> Result<String, Raised> {
+    fn stop_turn(
+        &self,
+        thread: &Value,
+        turn_id: &Value,
+        gate: &mut dyn Gate,
+    ) -> Result<String, Raised> {
         self.ask("stop", thread, turn_id, gate)
     }
-    fn start_turn(&self, thread: &Value, text: &Value, gate: &mut dyn Gate) -> Result<String, Raised> {
+    fn start_turn(
+        &self,
+        thread: &Value,
+        text: &Value,
+        gate: &mut dyn Gate,
+    ) -> Result<String, Raised> {
         self.ask("start", thread, text, gate)
     }
 }
@@ -441,9 +514,17 @@ pub fn inuse_op(paths: &Paths, what: &str, args: &[Value]) -> Value {
             Value::Null
         }
         "told" => inuse::told(Some(&paths.home)).map_or(Value::Null, |(exe, home)| {
-            Value::Array(vec![Value::from(exe.to_lowercase()), Value::from(home.to_lowercase())])
+            Value::Array(vec![
+                Value::from(exe.to_lowercase()),
+                Value::from(home.to_lowercase()),
+            ])
         }),
-        "elsewhere" => Value::Array(inuse::elsewhere(Some(&paths.home)).into_iter().map(Value::from).collect()),
+        "elsewhere" => Value::Array(
+            inuse::elsewhere(Some(&paths.home))
+                .into_iter()
+                .map(Value::from)
+                .collect(),
+        ),
         _ => Value::Null,
     }
 }

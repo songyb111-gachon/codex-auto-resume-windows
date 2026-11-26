@@ -35,6 +35,8 @@ pub const MISSES: i64 = 3;
 pub type Row = Map;
 /// (bucket, minutes).
 pub type Family = (Value, Value);
+/// `{family: row}`, in the order the reference's dict keeps.
+pub type Rows = Vec<(Family, Row)>;
 
 fn key(name: &str) -> car_machine::json::Str {
     car_machine::json::Str::new(name)

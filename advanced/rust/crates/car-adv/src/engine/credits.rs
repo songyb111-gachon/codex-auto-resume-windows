@@ -713,12 +713,14 @@ impl Inner {
                 continue;
             }
             let rule = handle.reset_rule(get(&spend, "rule_id")).map_err(failed)?;
-            if tries == 1.0 && self.measured("mr", true) && rule.is_some() {
+            if tries == 1.0
+                && self.measured("mr", true)
+                && let Some(rule) = &rule
+            {
                 let retried = handle
                     .retry_credit_spend(get(&spend, "spend_id"))
                     .map_err(failed)?;
                 if retried {
-                    let rule = rule.expect("checked above");
                     let family: Family = (
                         get(&spend, "bucket").clone(),
                         get(&spend, "minutes").clone(),
@@ -730,7 +732,7 @@ impl Inner {
                         .unwrap_or_else(|| resetwatch::blank(&family.0, &family.1));
                     let key = car_machine::pytext::py_str(get(&spend, "attempt_id"));
                     self.ask(
-                        &rule,
+                        rule,
                         &row,
                         handle,
                         session,

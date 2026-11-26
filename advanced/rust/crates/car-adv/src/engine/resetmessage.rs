@@ -510,7 +510,7 @@ impl Inner {
             return Ok(Said::Defer);
         }
         let thread = super::usage::field(record, "thread_id");
-        let read = (|| -> Result<(Vec<Row>, Vec<(Family, Row)>, f64), Failed> {
+        let read = (|| -> Result<(Vec<Row>, resetwatch::Rows, f64), Failed> {
             let rules: Vec<Row> = handle
                 .reset_rules(Some(CAPABILITY), &Value::Bool(true))?
                 .into_iter()

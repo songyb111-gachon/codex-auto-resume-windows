@@ -738,7 +738,7 @@ pub fn previews(
     now: f64,
 ) -> Result<Vec<(i64, Option<String>)>, Raised> {
     let wrap = Value::from(WRAP_UP);
-    let read = (|| -> crate::state::Result<(Map, Map, Vec<(Family, Row)>)> {
+    let read = (|| -> crate::state::Result<(Map, Map, super::resetwatch::Rows)> {
         Ok((
             state.options(&wrap)?,
             state.wordings(&wrap)?,
@@ -1017,7 +1017,7 @@ impl MeterInner {
         });
         let options = bound.call(|scoped| scoped.options())?;
         let on = acting(&options);
-        let rows = bound.call(|scoped| meter_rows(scoped))?;
+        let rows = bound.call(meter_rows)?;
         for row in of_account(&self.world, &rows, &self.paths, Some(&bound))? {
             let minutes = cell(&row, "minutes");
             if !acts_on(&on, minutes) {
@@ -1213,7 +1213,7 @@ impl UsageWrapUp {
         }
         let options = bound.call(|scoped| scoped.options())?;
         let on = acting_of(bound);
-        let rows = bound.call(|scoped| meter_rows(scoped))?;
+        let rows = bound.call(meter_rows)?;
         let mut due = Vec::new();
         for row in of_account(&self.world, &rows, &self.paths, Some(bound))? {
             let minutes = cell(&row, "minutes");
@@ -1335,7 +1335,7 @@ impl UsageWrapUp {
         if sent.is_empty() {
             return Ok(());
         }
-        let rows = bound.call(|scoped| meter_rows(scoped))?;
+        let rows = bound.call(meter_rows)?;
         let home = codex_home(&self.world, &self.paths, self.home.as_deref())?;
         let source = self.source()?;
         let mut words: Option<Option<String>> = None;
@@ -1609,7 +1609,7 @@ impl PauseCore {
         let now = bound.now();
         let options = bound.call(|scoped| scoped.options())?;
         let on = acting_of(bound);
-        let meter = bound.call(|scoped| meter_rows(scoped))?;
+        let meter = bound.call(meter_rows)?;
         let rows = windows(&meter);
         let resets = credit_resets(bound, &rows);
         let mut current: Vec<Family> = Vec::new();
@@ -1627,7 +1627,7 @@ impl PauseCore {
             }
         }
         if any {
-            let again = bound.call(|scoped| meter_rows(scoped))?;
+            let again = bound.call(meter_rows)?;
             current = of_account(&self.world, &again, &self.paths, Some(bound))?
                 .iter()
                 .map(family_of)
@@ -1689,7 +1689,7 @@ impl PauseCore {
             return Ok(false);
         };
         let now = bound.now();
-        let meter = bound.call(|scoped| meter_rows(scoped))?;
+        let meter = bound.call(meter_rows)?;
         let mut held = Vec::new();
         for row in windows(&meter) {
             let paused = cell(&row, "paused_reset_at");

@@ -26,6 +26,9 @@ use super::usage::{
 use crate::capabilities::{Binding, Code, Raised, Said, Spoke};
 use crate::codex::ipc::{Gate, GateRaised};
 
+/// (thread, its running turn) of each conversation to stop.
+pub type Targets = Vec<(String, TurnSeen)>;
+
 pub const FINAL: [&str; 3] = ["completed", "failed", "interrupted"];
 /// How many notices the stop keeps for the icon to show.
 pub const NOTICES_KEPT: usize = 16;
@@ -586,7 +589,7 @@ impl StopInner {
         }
         let held = self.core.holding()?;
         let now = bound.now();
-        let rows = bound.call(|scoped| meter_rows(scoped))?;
+        let rows = bound.call(meter_rows)?;
         let home = codex_home(self.world(), &self.core.paths, self.home.as_deref())?;
         let source = self.source()?;
         let going = self.continue_on();
@@ -873,7 +876,7 @@ impl StopInner {
         let resets = Resets {
             bound: bound.clone(),
         };
-        let read = (|| -> Result<(Vec<Row>, Vec<(Family, Row)>, bool), resetwatch::Failed> {
+        let read = (|| -> Result<(Vec<Row>, resetwatch::Rows, bool), resetwatch::Failed> {
             let rules: Vec<Row> = resets
                 .reset_rules(Some(RESET_MESSAGE), &Value::Null)?
                 .into_iter()
@@ -997,10 +1000,7 @@ impl StopInner {
     }
 
     /// P8: the windows marked; an errand where turns are to be stopped or a continuation after a reset waits.
-    pub fn tick_errand(
-        &mut self,
-        view: &dyn View,
-    ) -> Option<(Vec<(String, TurnSeen)>, Option<Row>)> {
+    pub fn tick_errand(&mut self, view: &dyn View) -> Option<(Targets, Option<Row>)> {
         self.bound()?;
         let marked = self.core.mark();
         let newly = self.once(marked);

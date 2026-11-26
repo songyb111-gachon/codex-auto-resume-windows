@@ -103,10 +103,6 @@ fn opt_f64(value: Option<f64>) -> Value {
     value.map_or(Value::Null, Value::from)
 }
 
-fn rows_value(rows: Vec<resetwatch::Row>) -> Value {
-    Value::Array(rows.into_iter().map(Value::Object).collect())
-}
-
 fn row_of(value: &Value) -> resetwatch::Row {
     match value {
         Value::Object(map) => map.clone(),
@@ -122,10 +118,9 @@ fn keyed(value: &Value) -> Vec<(resetwatch::Family, resetwatch::Row)> {
     for item in items {
         let row = row_of(item);
         let family = resetwatch::family_of(&row);
-        match out
-            .iter_mut()
-            .find(|(held, _)| car_machine::pyval::eq(&held.0, &family.0) && car_machine::pyval::eq(&held.1, &family.1))
-        {
+        match out.iter_mut().find(|(held, _)| {
+            car_machine::pyval::eq(&held.0, &family.0) && car_machine::pyval::eq(&held.1, &family.1)
+        }) {
             Some(slot) => slot.1 = row,
             None => out.push((family, row)),
         }
@@ -137,7 +132,13 @@ fn num(value: &Value) -> f64 {
     usage::number(value).unwrap_or(0.0)
 }
 
-fn pure(shared: &Arc<Shared>, state: &AdvancedState, name: &str, args: &[Value], kwargs: &Map) -> Result<Value, Raised> {
+fn pure(
+    shared: &Arc<Shared>,
+    state: &AdvancedState,
+    name: &str,
+    args: &[Value],
+    kwargs: &Map,
+) -> Result<Value, Raised> {
     let arg = |at: usize| args.get(at).cloned().unwrap_or(Value::Null);
     let kw = |name: &str| kwargs.get(name).cloned().unwrap_or(Value::Null);
     let world = shared.world_of();
@@ -187,7 +188,8 @@ fn pure(shared: &Arc<Shared>, state: &AdvancedState, name: &str, args: &[Value],
             let window = arg(1);
             let window = (!matches!(window, Value::Null)).then_some(window);
             let early = !matches!(arg(3), Value::Bool(false));
-            let (row, events) = resetwatch::advance(&row_of(&arg(0)), window.as_ref(), &arg(2), early)?;
+            let (row, events) =
+                resetwatch::advance(&row_of(&arg(0)), window.as_ref(), &arg(2), early)?;
             Value::Array(vec![
                 Value::Object(row),
                 Value::Array(events.into_iter().map(Value::from).collect()),
@@ -206,16 +208,27 @@ fn pure(shared: &Arc<Shared>, state: &AdvancedState, name: &str, args: &[Value],
             let row = (!matches!(row, Value::Null)).then(|| row_of(&row));
             Value::Bool(resetwatch::due(&row_of(&arg(0)), row.as_ref())?)
         }
-        "usage.percent" => {
-            usage::percent(&row_of(&arg(0)), car_store::value::text(&arg(1)).unwrap_or_default(), &arg(2))
-                .unwrap_or(Value::Null)
-        }
+        "usage.percent" => usage::percent(
+            &row_of(&arg(0)),
+            car_store::value::text(&arg(1)).unwrap_or_default(),
+            &arg(2),
+        )
+        .unwrap_or(Value::Null),
         "usage.reached" => {
             let threshold = arg(1);
             let threshold = (!matches!(threshold, Value::Null)).then_some(threshold);
-            Value::Bool(usage::reached(&row_of(&arg(0)), threshold.as_ref(), num(&arg(2)))?)
+            Value::Bool(usage::reached(
+                &row_of(&arg(0)),
+                threshold.as_ref(),
+                num(&arg(2)),
+            )?)
         }
-        "usage.acting" => Value::Array(usage::acting(&row_of(&arg(0))).into_iter().map(Value::from).collect()),
+        "usage.acting" => Value::Array(
+            usage::acting(&row_of(&arg(0)))
+                .into_iter()
+                .map(Value::from)
+                .collect(),
+        ),
         "usage.touched" => Value::Array(
             usage::touched(car_store::value::text(&arg(0)).unwrap_or_default())
                 .into_iter()
@@ -248,12 +261,20 @@ fn pure(shared: &Arc<Shared>, state: &AdvancedState, name: &str, args: &[Value],
             };
             Value::Bool(usage::stale(&row_of(&arg(0)), &resets)?)
         }
-        "usage.reset_since" => Value::Bool(usage::reset_since(&keyed(&arg(0)), &arg(1), &arg(2), num(&arg(3)))?),
+        "usage.reset_since" => Value::Bool(usage::reset_since(
+            &keyed(&arg(0)),
+            &arg(1),
+            &arg(2),
+            num(&arg(3)),
+        )?),
         "usage.previews" => {
             let found = usage::previews(&world, state, num(&arg(0)))?;
             let mut map = Map::new();
             for (minutes, words) in found {
-                map.insert(minutes.to_string().as_str().into(), words.map_or(Value::Null, Value::from));
+                map.insert(
+                    minutes.to_string().as_str().into(),
+                    words.map_or(Value::Null, Value::from),
+                );
             }
             Value::Object(map)
         }
@@ -267,7 +288,12 @@ fn pure(shared: &Arc<Shared>, state: &AdvancedState, name: &str, args: &[Value],
         "resetmessage.same_reset" => {
             let row = arg(1);
             let row = (!matches!(row, Value::Null)).then(|| row_of(&row));
-            Value::Bool(resetmessage::same_reset(&row_of(&arg(0)), row.as_ref(), &arg(2), num(&arg(3)))?)
+            Value::Bool(resetmessage::same_reset(
+                &row_of(&arg(0)),
+                row.as_ref(),
+                &arg(2),
+                num(&arg(3)),
+            )?)
         }
         "usagestop.counts_here" => {
             let window = arg(1);
@@ -292,7 +318,9 @@ fn main() {
         std::process::exit(2);
     };
     let home = std::path::PathBuf::from(car_machine::pytext::py_str(get(&request, "home")));
-    let clock = Arc::new(Mutex::new(usage::number(get(&request, "clock")).unwrap_or(0.0)));
+    let clock = Arc::new(Mutex::new(
+        usage::number(get(&request, "clock")).unwrap_or(0.0),
+    ));
     let seed = match get(&request, "tokens") {
         Value::Int(int) => int.as_i64().unwrap_or(0) as u64,
         _ => 0,
@@ -318,7 +346,7 @@ fn main() {
         car_machine::pytext::py_str(get(&request, "catalogs")),
         Box::new(|| "en".to_owned()),
     ));
-    let shared = Shared::new(get(&request, "world").clone(), catalogs, paths.clone());
+    let shared = Shared::new(get(&request, "world").clone(), catalogs);
     let switches: Arc<Mutex<Map>> = Arc::new(Mutex::new(Map::new()));
     let mut made: HashMap<String, Made> = HashMap::new();
     let mut pending: HashMap<String, Box<dyn Errand>> = HashMap::new();
@@ -368,13 +396,23 @@ fn main() {
                 };
             }
             if let Value::Str(name) = get(&op, "fn") {
-                return match pure(&shared, &state, name.as_str().unwrap_or_default(), &args, &kwargs) {
+                return match pure(
+                    &shared,
+                    &state,
+                    name.as_str().unwrap_or_default(),
+                    &args,
+                    &kwargs,
+                ) {
                     Ok(value) => ok(value),
                     Err(raised) => raised_of(&raised),
                 };
             }
             if let Value::Str(what) = get(&op, "inuse") {
-                return ok(world::inuse_op(&paths, what.as_str().unwrap_or_default(), &args));
+                return ok(world::inuse_op(
+                    &paths,
+                    what.as_str().unwrap_or_default(),
+                    &args,
+                ));
             }
             if let Value::Str(capability) = get(&op, "make") {
                 let capability = capability.as_str().unwrap_or_default().to_owned();
@@ -409,12 +447,17 @@ fn main() {
                         Made::Stop(code)
                     }
                     "reset_credit" => {
-                        let mut code = credits::ResetCredit::new(paths.clone(), world.open.clone(), world.keys.clone());
+                        let mut code = credits::ResetCredit::new(
+                            paths.clone(),
+                            world.open.clone(),
+                            world.keys.clone(),
+                        );
                         code.bind_to(bound);
                         Made::Credit(code)
                     }
                     "reset_message" => {
-                        let mut code = resetmessage::ResetMessage::new(paths.clone(), world.open.clone());
+                        let mut code =
+                            resetmessage::ResetMessage::new(paths.clone(), world.open.clone());
                         code.bind_to(bound);
                         Made::Message(code)
                     }
@@ -522,7 +565,10 @@ fn kept(code: &mut Made, now: f64) -> Value {
                 ),
             ])
         }
-        Made::Wrap(wrap) => object([("looked", opt_f64(wrap.looked)), ("turn", Value::from(wrap.turn as i64))]),
+        Made::Wrap(wrap) => object([
+            ("looked", opt_f64(wrap.looked)),
+            ("turn", Value::from(wrap.turn as i64)),
+        ]),
         Made::Early(early) => {
             let mut released = early.released.clone();
             released.sort_by_key(car_machine::pytext::py_str);
@@ -546,7 +592,11 @@ fn kept(code: &mut Made, now: f64) -> Value {
                 Value::Array(
                     list.iter()
                         .map(|(key, (failures, again))| {
-                            Value::Array(vec![key.clone(), Value::from(*failures), Value::from(*again)])
+                            Value::Array(vec![
+                                key.clone(),
+                                Value::from(*failures),
+                                Value::from(*again),
+                            ])
                         })
                         .collect(),
                 )
@@ -596,7 +646,10 @@ fn bind(state: &Arc<AdvancedState>, switches: &Arc<Mutex<Map>>, capability: &str
     let switches = Arc::clone(switches);
     let capability = capability.to_owned();
     usage::Bound::new(Arc::new(move |act: &mut dyn FnMut(&Scoped<'_>)| {
-        let held = switches.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let held = switches
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         let table = |name: &str| match held.get(name) {
             Some(Value::Object(map)) => map.clone(),
             _ => Map::new(),
