@@ -147,6 +147,14 @@ fn folder_attribute(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_dir())
 }
 
+/// `os.unlink(path)`: DeleteFileW, which refuses a read-only file (std's `remove_file` clears the attribute first).
+fn unlink(path: &Path) -> std::io::Result<()> {
+    if std::fs::symlink_metadata(path).is_ok_and(|meta| meta.permissions().readonly()) {
+        return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+    }
+    std::fs::remove_file(path)
+}
+
 /// A removal that found nothing to remove: rmtree passes over it.
 fn gone(result: std::io::Result<()>) -> std::io::Result<()> {
     match result {
@@ -180,7 +188,7 @@ fn remove_tree(folder: &Path) -> std::io::Result<()> {
         if folder_attribute(child) {
             gone(std::fs::remove_dir(child))?;
         } else {
-            gone(std::fs::remove_file(child))?;
+            gone(unlink(child))?;
         }
     }
     gone(std::fs::remove_dir(folder))
@@ -231,7 +239,7 @@ pub fn sweep(paths: &Paths, log: Option<&dyn Fn(&str)>, machine: &dyn Machine) -
                 }
                 rmtree(&target)
             } else {
-                std::fs::remove_file(path)
+                unlink(path)
             }
         })();
         match outcome {
