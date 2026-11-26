@@ -241,6 +241,7 @@ fn main() {
         asked.clone(),
         clock.clone(),
         &catalogs_dir,
+        get(&scenario, "measured").clone(),
     );
     let maker_world = world.clone();
     let mut table = Table::new();
@@ -449,6 +450,23 @@ fn main() {
                 .partition(&arg(0))
                 .map(|found| found.map_or_else(|| text("DEFER"), value))
                 .map_err(|raise| raise.0.to_owned()),
+            "resume" => {
+                let record = arg(0);
+                match runtime.ask(Point::Unloaded, &[&record]) {
+                    Ok(Said::Route(route)) => {
+                        let still = arg(2);
+                        let look = move || matches!(still, Value::Bool(true));
+                        let given: Option<&dyn Fn() -> bool> = if matches!(arg(2), Value::Null) {
+                            None
+                        } else {
+                            Some(&look)
+                        };
+                        Ok(route.resume(arg(1).as_text().unwrap_or_default(), given, None, None))
+                    }
+                    Ok(found) => Ok(said(&found)),
+                    Err(raise) => Err(raise.0.to_owned()),
+                }
+            }
             "send" | "pools" => {
                 let record = arg(0);
                 match runtime.ask(Point::Sender, &[&record]) {

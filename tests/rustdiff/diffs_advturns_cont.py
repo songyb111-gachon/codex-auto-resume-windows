@@ -249,8 +249,77 @@ def marker_corpus() -> list:
     ]
 
 
+GOAL = "goal_continuation"
+LIMITED, ACTIVE = "usage_limited", "active"
+
+
+def goal_corpus() -> list:
+    from rustdiff.advturns import KEY, OTHER_KEY, record
+
+    def usage(number, **more):
+        return record(KEY, thread(number), **dict({"category": "usage_limit", "holder": "app_free"}, **more))
+
+    def resume(number, still=True):
+        return ["resume", usage(number), thread(number), still]
+    routes = {thread(31): [LIMITED, LIMITED, ACTIVE], thread(32): LIMITED, thread(33): LIMITED,
+              thread(34): [LIMITED, LIMITED, LIMITED], thread(35): [LIMITED, LIMITED, ACTIVE],
+              thread(36): LIMITED, thread(37): LIMITED,
+              thread(38): [LIMITED, LIMITED, {"goal_id": "other", "status": ACTIVE}],
+              thread(39): [LIMITED, LIMITED, ACTIVE], thread(40): [LIMITED, "paused"], thread(41): "raise",
+              thread(42): ACTIVE, thread(43): "paused"}
+    sends = {thread(51): [LIMITED, LIMITED, ACTIVE], thread(52): [LIMITED, LIMITED, LIMITED],
+             thread(53): [LIMITED, LIMITED, ACTIVE], thread(54): [LIMITED, LIMITED, "paused"],
+             thread(55): [LIMITED, LIMITED, ACTIVE], thread(56): [LIMITED, LIMITED, ACTIVE],
+             thread(57): [LIMITED, "paused"], thread(58): LIMITED}
+
+    def send(number, prompt="Carry on.", client=CLIENT):
+        return ["send", usage(number), thread(number), prompt, client]
+    return [
+        scenario("goal_route_resumed_or_not", [GOAL],
+                 [["ask", "unloaded", usage(31)], arm(GOAL)]
+                 + [resume(31), resume(32, False), resume(33, "raise"), resume(34), resume(35), resume(36),
+                    resume(37), resume(38), resume(39, None), resume(40), resume(41), resume(42),
+                    ["ask", "unloaded", usage(43)], ["ask", "unloaded", usage(31, holder="none")],
+                    ["ask", "unloaded", record(KEY, thread(31), category="terminal_auth", holder="app_free")],
+                    ["ask", "unloaded", record(KEY, "not-a-uuid", category="usage_limit", holder="app_free")],
+                    ["ask", "unloaded", "a record"]],
+                 seams={"goals": routes,
+                        "session": {"answers": {"thread/goal/set": [{}, "no", "no", "timeout", "refused", {}, {}]}}}),
+        scenario("goal_route_no_session", [GOAL], [arm(GOAL), resume(31)],
+                 seams={"goals": routes, "session": {"open": "raise"}}),
+        scenario("goal_held_while_active_and_verified_reset", [GOAL],
+                 [arm(GOAL), ["ask", "gates", "thread_available", usage(42), {}],
+                  ["clock", NOW + 300], ["ask", "gates", "thread_available", usage(42), {}],
+                  ["clock", NOW + 601], ["ask", "gates", "thread_available", usage(42), {}],
+                  ["ask", "gates", "thread_available", usage(43), {}],
+                  ["ask", "gates", "thread_available", record(OTHER_KEY, thread(42), category="usage_limit"), {}],
+                  ["ask", "gates", "thread_available", record(OTHER_KEY, thread(42), category="network_transient"), {}],
+                  ["ask", "gates", "known_failure", usage(32, reset_at=NOW), {}],
+                  ["ask", "gates", "known_failure", usage(32, reset_at=NOW + 1000), {}],
+                  ["ask", "gates", "known_failure", usage(32, reset_at=True), {}],
+                  ["ask", "gates", "known_failure", usage(42, reset_at=NOW), {}],
+                  ["ask", "gates", "known_failure", usage(41, reset_at=NOW), {}],
+                  ["ask", "gates", "global_gates", usage(32), {}]],
+                 seams={"goals": routes}),
+        scenario("goal_channel_only_once_m2b_passed", [GOAL],
+                 [arm(GOAL), ["ask", "sender", usage(58)]],
+                 measured={"m2b": ["pass", "0.154.0"]}, seams={"goals": sends}),
+        scenario("goal_channel_sends", [GOAL],
+                 [arm(GOAL), send(51), send(52), send(53), send(54), send(55), send(56), send(57),
+                  send(58, prompt=""), send(58, client="nope"), ["ask", "sender", usage(43)]],
+                 measured={"m2b": ["pass", "0.155.0"]},
+                 seams={"goals": dict(sends, **{thread(43): "paused"}),
+                        "session": {"answers": {"thread/goal/set": [{}, "no", "no", {}, {}, "refused"],
+                                                "thread/queue/add": [{"id": QUEUED}, "timeout", "no"]}}}),
+        scenario("goal_watched", [GOAL],
+                 [arm(GOAL, "shadow"), ["ask", "unloaded", usage(31)],
+                  ["ask", "gates", "thread_available", usage(42), {}]],
+                 seams={"goals": routes}),
+    ]
+
+
 def corpus() -> list:
-    return empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus()
+    return empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):

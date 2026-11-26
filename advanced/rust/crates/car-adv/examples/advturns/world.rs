@@ -13,6 +13,7 @@ use car_adv::codex::lineage::Child;
 use car_adv::codex::session::{Channel, SessionError};
 use car_adv::codex::turns::Turn;
 use car_adv::engine::emptyreply::{LookWorld, Looks, Unreadable as LookUnreadable, Words};
+use car_adv::engine::goal::{GoalSeen, GoalWorld, m2b_passed};
 use car_adv::engine::headless::{Follows, RunWorld, TurnsReader, Unreadable};
 use car_adv::registry::CapabilityDef;
 use car_adv::statement::Catalogs;
@@ -56,6 +57,7 @@ struct Inner {
     ends: Mutex<Vec<Ended>>,
     real: Arc<Follower>,
     catalogs: Arc<Catalogs>,
+    measured: Value,
 }
 
 impl Inner {
@@ -265,7 +267,10 @@ impl Looks for FakeLooks {
         self.0
             .note(vec![text("goals"), text("read"), thread_id.clone()]);
         let found = of_thread(&self.0.seam("goals"), thread_id).unwrap_or(Value::Null);
-        raise_or(&found, |found| found.as_text().map(str::to_owned))
+        raise_or(&found, |found| match found {
+            Value::Object(_) => get(found, "status").as_text().map(str::to_owned),
+            other => other.as_text().map(str::to_owned),
+        })
     }
     fn own(&self, thread_id: &Value, widened: bool) -> Result<bool, LookUnreadable> {
         let words = if widened {
@@ -350,6 +355,12 @@ impl Channel for FakeSession {
         match answer.as_text() {
             Some("timeout") => return Err(SessionError::Adapter("protocol_timeout")),
             Some("refused") => return Err(SessionError::Refused),
+            Some("no") => {
+                return Err(SessionError::ByCodex {
+                    method: method.to_owned(),
+                    code: Some(-32600),
+                });
+            }
             _ => {}
         }
         Ok(answer)
@@ -363,7 +374,13 @@ impl Channel for FakeSession {
 }
 
 impl World {
-    pub fn new(seams: Value, asked: Asked, clock: Arc<Mutex<f64>>, catalogs: &str) -> World {
+    pub fn new(
+        seams: Value,
+        asked: Asked,
+        clock: Arc<Mutex<f64>>,
+        catalogs: &str,
+        measured: Value,
+    ) -> World {
         World(Arc::new(Inner {
             seams: Mutex::new(seams),
             asked,
@@ -373,6 +390,7 @@ impl World {
             ends: Mutex::new(Vec::new()),
             real: Follower::new(Arc::new(|| 0.0), 0.5),
             catalogs: Arc::new(Catalogs::new(catalogs, Box::new(|| "en".to_owned()))),
+            measured,
         }))
     }
 
@@ -440,6 +458,65 @@ impl World {
         }
     }
 
+    /// goal_continuation's world: the scenario's session and goals, M2b from its measurements, its clock.
+    pub fn goal_world(&self) -> GoalWorld {
+        let goals = self.0.clone();
+        let clock = self.0.clock.clone();
+        let entry = match get(&self.0.measured, "m2b") {
+            Value::Array(pair) if pair.len() == 2 => Some((
+                pair[0].as_text().unwrap_or_default().to_owned(),
+                pair[1].as_text().unwrap_or_default().to_owned(),
+            )),
+            _ => None,
+        };
+        let passed = m2b_passed(
+            Some("0.155.0"),
+            entry
+                .as_ref()
+                .map(|(verdict, on)| (verdict.as_str(), on.as_str())),
+        );
+        GoalWorld {
+            open: Arc::new(Mutex::new(self.opener())),
+            goal: Arc::new(move |thread: &Value| {
+                goals.note(vec![text("goals"), text("read"), thread.clone()]);
+                let mut found = of_thread(&goals.seam("goals"), thread).unwrap_or(Value::Null);
+                if let Value::Array(list) = &found {
+                    let name = format!("goals {}", python_str(thread));
+                    let index = {
+                        let mut calls = goals.calls.lock().unwrap_or_else(PoisonError::into_inner);
+                        let index = calls.entry(name).or_insert(0);
+                        let held = *index;
+                        *index += 1;
+                        held
+                    };
+                    found = match list.len() {
+                        0 => Value::Null,
+                        count => list[index.min(count - 1)].clone(),
+                    };
+                }
+                match &found {
+                    Value::Str(status) if status.as_str() != Some("raise") => Some(GoalSeen {
+                        goal_id: "g".to_owned(),
+                        status: status.as_str().unwrap_or_default().to_owned(),
+                    }),
+                    Value::Object(_) => Some(GoalSeen {
+                        goal_id: get(&found, "goal_id")
+                            .as_text()
+                            .unwrap_or_default()
+                            .to_owned(),
+                        status: get(&found, "status")
+                            .as_text()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    }),
+                    _ => None,
+                }
+            }),
+            m2b: Arc::new(move || passed),
+            clock: Arc::new(move || *clock.lock().unwrap_or_else(PoisonError::into_inner)),
+        }
+    }
+
     /// `definition.make(paths)`: the edition's own code, with the scenario's fakes where it takes them.
     pub fn make(&self, definition: &CapabilityDef, paths: &Paths) -> Option<Box<dyn Code>> {
         use car_adv::engine;
@@ -448,6 +525,7 @@ impl World {
             "empty_response" => engine::emptyreply::make_with(paths, self.look_world()),
             "keep_going" => engine::keepgoing::make_with(paths, self.look_world()),
             "subagent_parent" => engine::subagent::make_with(paths, self.look_world()),
+            "goal_continuation" => engine::goal::make_with(paths, self.goal_world()),
             "marker_free_continuation" => {
                 engine::markerfree::make_with(paths, Arc::new(Mutex::new(self.opener())))
             }

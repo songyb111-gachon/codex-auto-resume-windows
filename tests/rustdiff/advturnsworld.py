@@ -10,7 +10,10 @@ The steps: ["live", shown | null], ["told", key, capability, end, model_restored
 ["retry_settings"], ["flag", "empty_refused", bool], ["seam", name, value] (a seam replaced from here on),
 ["keep", thread, count] and ["kept_used", thread] (keep_going's rows, as the Dashboard and a SENT write them),
 ["send", record, thread, prompt, client_id] and ["pools", record] (the channel P5 names, sent through once, or asked
-whether it pools). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused.
+whether it pools), ["resume", record, thread, still_unloaded] (the route P16 names, resumed once; still_unloaded
+true | false | "raise" | null). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused, "no"
+Codex's own refusal of that method (RefusedByCodex). A goal is a status or {goal_id, status}; for goal_continuation a list of
+them is read one after another (the last again).
 The continuation family's looks (S7.2e1b): `recent` [thread, ...] | "raise"; `between` {thread: n | "raise"}; `plans`
 {thread: [status, ...] | null | "raise"}; `goals` {thread: status | null | "raise"}; `own` {thread: bool | "raise"}
 (core's reader takes it for a conversation it recovers; default true); `children` {parent: [{thread_id, turn_id, status,
@@ -49,6 +52,9 @@ class FakeSession:
             raise RuntimeError("raised")
         if answer == "timeout":
             raise RuntimeError("protocol_timeout")
+        if answer == "no":
+            from codex_auto_resume_advanced.codex.protocol import _refused_by_codex
+            raise _refused_by_codex(method, -32600)
         if answer == "refused":
             from codex_auto_resume_advanced.codex.protocol import SessionRefused
             raise SessionRefused("refused")
@@ -124,8 +130,14 @@ class FakeGoals:
     def read(self, thread_id):
         self.world.note("goals", "read", thread_id)
         found = self.world.seams.get("goals", {}).get(thread_id)
+        if isinstance(found, list):
+            index = self.world.calls.get("goals " + thread_id, 0)
+            self.world.calls["goals " + thread_id] = index + 1
+            found = found[min(index, len(found) - 1)] if found else None
         if found == "raise":
             raise RuntimeError("raised")
+        if isinstance(found, dict):
+            return types.SimpleNamespace(status=found.get("status"), goal_id=found.get("goal_id"), updated_at_ms=0)
         return None if found is None else types.SimpleNamespace(status=found, goal_id="g", updated_at_ms=0)
 
 
@@ -163,7 +175,7 @@ class World:
         "other_sessions": "sessions", "once_more_when_unsure": "oncemore", "headless_run": "headless",
         "compact_continue": "compact", "model_fallback": "fallback", "codex_retry_settings": "retries",
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
-        "marker_free_continuation": "markerfree",
+        "marker_free_continuation": "markerfree", "goal_continuation": "goal",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -220,6 +232,11 @@ class World:
                 return self.noted(module.ModelFallback)(paths, turns=self.turns, unheld_now=self.unheld, **run)
             if capability == "codex_retry_settings":
                 return module.RetrySettings(paths, session=lambda: self.open(capability), clock=lambda: self.clock[0])
+            if capability == "goal_continuation":
+                module.Goals = lambda home: FakeGoals(self)
+                return module.GoalContinuation(paths, session=lambda: self.open(capability), home="fake-codex-home",
+                                               view=lambda: globals()["view"], measured=lambda: globals()["measured"],
+                                               clock=lambda: self.clock[0])
             if capability == "marker_free_continuation":
                 return module.MarkerFreeContinuation(paths, session=lambda: self.open(capability))
             if capability in self.LOOKING:
@@ -250,6 +267,18 @@ class World:
             self.follower.ends.append({"key": args[0], "capability": args[1], "end": RunEnd(args[2]),
                                        "model_restored": args[3]})
             return None
+        if op == "resume":
+            from codex_auto_resume.domain.plug import Point
+            route = runtime.ask(Point.UNLOADED, args[0])
+            if not hasattr(route, "resume"):
+                return said(route)
+            still = args[2]
+
+            def look():
+                if still == "raise":
+                    raise RuntimeError("raised")
+                return still
+            return norm(route.resume(args[1], still_unloaded=None if still is None else look))
         if op in ("send", "pools"):
             from codex_auto_resume.domain.plug import BACKEND, Point
             channel = runtime.ask(Point.SENDER, args[0], BACKEND)
