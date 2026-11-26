@@ -212,6 +212,7 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
     import motion_card
     import motion_compose
     import motion_window
+    import surface_render
     from codex_auto_resume import brand
     from codex_auto_resume.ui import tray
     end = motion_plan.plan_end(plan)
@@ -259,6 +260,9 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
     work = (0, 0, edge, strip["top"] if strip else height)
     monitor = (0, 0, edge, height)
     popup_plan, popup, tip = plan.get("popup"), None, None
+    # P6-DESIGN 3.3 C: with CODEX_AR_SURFACE_RENDER the popup, the hover card and the notification card are drawn by the
+    # host's render mode (build/surface_render.py), the plans and everything around them unchanged.
+    render = surface_render.session() if (plan.get("popup") or plan.get("tip") or plan.get("card"))         and surface_render.wanted() else None
     popup_at, seen_bounds_at_start = (0, 0), {}
     if popup_plan:
         import motion_popup
@@ -267,7 +271,7 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
             # stills are: there is no ground of the theme's canvas to lay it on.
             raise SystemExit("the popup's canvas must be a transparent one: %r" % (canvas,))
         popup = motion_popup.PopupFrames(popup_plan.get("locale", plan["locale"]), scale=popup_plan["scale"],
-                                         theme=theme, design=design)
+                                         theme=theme, design=design, render=render)
         layer_width, layer_height = popup.size
         # Where the product puts the card (placement.place, as the icon's click asks for it), the picture's shadow round it.
         popup_at = popup.origin(work, monitor, anchor) if strip else (0, 0)
@@ -290,12 +294,12 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
         if not strip:
             raise SystemExit("the icon's hover card stands beside the icon: the plan needs a taskbar")
         tip = motion_tip.TipFrames(tip_plan.get("locale", plan["locale"]), scale=tip_plan["scale"], work=work,
-                                   monitor=monitor, box=anchor, theme=theme, design=design)
+                                   monitor=monitor, box=anchor, theme=theme, design=design, render=render)
     card_plan, card = plan.get("card"), None
     if card_plan:
         card = motion_card.CardFrames(card_plan.get("locale", plan["locale"]), scale=card_plan["scale"],
                                       work=work, monitor=(0, 0, width, height), anchor=anchor, theme=theme,
-                                      design=design)
+                                      design=design, render=render)
         if "at" in card_plan:
             card.place = tuple(card_plan["at"])
     accent = tuple(brand.rgb(brand.palette(theme, design)["accent"]))
@@ -375,6 +379,8 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
             popup.close()
         if tip is not None:
             tip.close()
+        if render is not None:
+            render.close()
 
 
 def main(argv=None) -> int:
