@@ -34,11 +34,11 @@ pub fn run_deep<R: Send>(body: impl FnOnce() -> R + Send) -> R {
     match outcome {
         Ok(Some(answer)) => answer,
         Ok(None) => {
-            let body = cell
-                .lock()
-                .ok()
-                .and_then(|mut held| held.take())
-                .expect("the body was not run, so it is still held");
+            // No thread was made, so the body is still held. (No `expect` here: a panic location is a path string, and
+            // the edition rebuild check scans the standard binaries for the builder's profile path.)
+            let Some(body) = cell.lock().ok().and_then(|mut held| held.take()) else {
+                std::process::abort()
+            };
             body()
         }
         Err(panic) => std::panic::resume_unwind(panic),
@@ -50,8 +50,10 @@ pub fn spawn_deep<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) 
     let cell = Arc::new(Mutex::new(Some(body)));
     let held = Arc::clone(&cell);
     let run = move || {
-        let body = held.lock().ok().and_then(|mut found| found.take());
-        body.expect("the body runs once")()
+        let Some(body) = held.lock().ok().and_then(|mut found| found.take()) else {
+            std::process::abort()
+        };
+        body()
     };
     match std::thread::Builder::new()
         .name("deep-stack".into())
@@ -60,8 +62,10 @@ pub fn spawn_deep<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) 
     {
         Ok(handle) => handle,
         Err(_) => std::thread::spawn(move || {
-            let body = cell.lock().ok().and_then(|mut found| found.take());
-            body.expect("the body was not run, so it is still held")()
+            let Some(body) = cell.lock().ok().and_then(|mut found| found.take()) else {
+                std::process::abort()
+            };
+            body()
         }),
     }
 }
