@@ -261,3 +261,92 @@ pub fn busy(
     }
     Ok(found)
 }
+
+// ------------------------------------------------------------------------------------------------ the product's hands
+/// The product's own `Hands(paths, home=, read=)`: core's process list read afresh, Windows' process identity, the
+/// Restart Manager's request and TerminateProcess (`win::appclose` over car-platform), the newest own conversation of
+/// the Codex home in use, the link handed to explorer.exe, the account read on a session of account_switch's own,
+/// and the monotonic clock.
+pub struct LiveHands {
+    pub system: std::sync::Arc<car_codex::system::Platform>,
+    pub home: String,
+    pub read: Box<dyn Fn() -> Value + Send + Sync>,
+    pub started: std::time::Instant,
+}
+
+impl LiveHands {
+    pub fn new(paths: &car_config::Paths) -> LiveHands {
+        let system = std::sync::Arc::new(car_codex::system::Platform::new());
+        let env = |name: &str| std::env::var(name).ok();
+        let home = super::inuse::home(Some(&paths.home), &env, &system.config).unwrap_or_default();
+        let live = super::account::Live::new(paths);
+        LiveHands {
+            system,
+            home,
+            read: Box::new(move || super::account::read(&live)),
+            started: std::time::Instant::now(),
+        }
+    }
+}
+
+impl Hands for LiveHands {
+    fn system(&self) -> &dyn System {
+        self.system.as_ref()
+    }
+    fn inventory(&self) -> Result<Vec<Value>, Fault> {
+        car_codex::pairing::forget_inventory();
+        car_codex::pairing::inventory(self.system.as_ref()).map_err(|error| match error {
+            car_codex::errors::Error::Adapter(code) => Fault::new("AdapterError", code),
+            other => Fault::new("OSError", &format!("{other:?}")),
+        })
+    }
+    fn created(&self, pid: &Value) -> Result<Value, Fault> {
+        Ok(match self.system.process_identity(pid) {
+            Ok(Value::Object(found)) => found.get("created").cloned().unwrap_or(Value::Null),
+            _ => Value::Null,
+        })
+    }
+    fn ask_close(&self, pid: &Value, created: &Value) -> Result<Value, Fault> {
+        Ok(Value::Bool(crate::win::appclose::ask_close(
+            &crate::win::appclose::Windows,
+            pid,
+            created,
+        )))
+    }
+    fn end_process(&self, pid: &Value, created: &Value) -> Result<Value, Fault> {
+        Ok(Value::Bool(crate::win::appclose::end_process(
+            &crate::win::appclose::Windows,
+            pid,
+            created,
+        )))
+    }
+    fn newest_conversation(&self) -> Result<Value, Fault> {
+        let threads = super::threads::Threads {
+            home: self.home.clone(),
+            os: std::sync::Arc::new(car_codex::system::PolicyOs),
+        };
+        match threads.own(1, &std::collections::BTreeSet::new()) {
+            Ok(own) => Ok(own.first().map_or(Value::Null, |(id, _)| Value::from(id.as_str()))),
+            Err(_) => Err(Fault::new("TurnsUnavailable", "the conversations cannot be read")),
+        }
+    }
+    fn open(&self, link: &str) -> Result<Value, Fault> {
+        let root = std::env::var("SystemRoot").ok();
+        car_surface::codex_link::open_in_codex(
+            &Value::from(link),
+            root.as_deref(),
+            &car_surface::seam::SystemLaunch,
+        )
+        .map(Value::Bool)
+        .map_err(|class| Fault::new(class, "the link was not handed"))
+    }
+    fn read(&self) -> Result<Value, Fault> {
+        Ok((self.read)())
+    }
+    fn now(&self) -> f64 {
+        self.started.elapsed().as_secs_f64()
+    }
+    fn sleep(&self, seconds: f64) {
+        std::thread::sleep(std::time::Duration::from_secs_f64(seconds.max(0.0)));
+    }
+}

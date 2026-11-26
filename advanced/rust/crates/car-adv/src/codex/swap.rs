@@ -1212,9 +1212,9 @@ pub fn unwind(world: &World, store: &Profiles, codex_home: Option<&Path>) -> Res
 /// from car-codex (no getter; seam left in rust/GROUNDWORK.md), so no app server is taken as this process's own.
 pub struct Live {
     pub system: std::sync::Arc<car_codex::system::Platform>,
-    inventory: Box<dyn Fn() -> Option<Vec<Value>>>,
-    app_running: Box<dyn Fn() -> Option<bool>>,
-    clock: Box<dyn Fn() -> f64>,
+    inventory: Box<dyn Fn() -> Option<Vec<Value>> + Send + Sync>,
+    app_running: Box<dyn Fn() -> Option<bool> + Send + Sync>,
+    clock: Box<dyn Fn() -> f64 + Send + Sync>,
 }
 
 impl Default for Live {
