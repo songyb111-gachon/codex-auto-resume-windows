@@ -51,6 +51,12 @@ pub fn a2b_base64(data: &[u8]) -> Result<Vec<u8>, ()> {
             if quad >= 2 {
                 pads += 1;
                 if quad + pads >= 4 {
+                    // The group the padding completes: two characters make one byte, three make two.
+                    if quad == 2 {
+                        out.push((left >> 4) as u8);
+                    } else {
+                        out.extend_from_slice(&[(left >> 10) as u8, (left >> 2) as u8]);
+                    }
                     return Ok(out);
                 }
             }
