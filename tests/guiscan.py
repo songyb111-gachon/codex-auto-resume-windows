@@ -32,7 +32,10 @@ MANIFEST = GUI / "window.sources"
 
 # Built by the same script from its own single source, and not part of the window: the MCP launcher, and (v0.6.19)
 # the advanced edition's Stop hook launcher, its twin, built only into that edition (build/make_gui.ps1 -Edition advanced).
-SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs")
+# v0.6.27 (P6 step 0): the watcher host's contracts with car_core.dll, compiled alone by tests/test_host_contract.py
+# until the host's own list (gui/host.sources, S6.2b) builds them; never part of the window.
+HOST = ("gui/HostCore.cs",)
+SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST
 
 # The groups `gui/window.sources` divides the compile list into, and what each one means:
 #
