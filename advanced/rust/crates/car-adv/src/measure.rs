@@ -26,6 +26,8 @@ use crate::vocabulary::{Measurement, Verdict};
 
 #[path = "measure_looks.rs"]
 mod looks;
+#[path = "measure_stage4.rs"]
+mod stage4;
 #[path = "measure_usage.rs"]
 mod usage;
 
@@ -189,11 +191,27 @@ pub type Hand = Box<dyn FnMut(&[Value]) -> Res<Value>>;
 pub type Cli = Box<dyn FnMut(&[String]) -> Res<Value>>;
 pub type Look = Box<dyn FnMut() -> Res<Value>>;
 
-/// The backend as a measurement reads it: `engine_version` and `codex_home` (`getattr(..., None)`).
-#[derive(Clone, Debug)]
+/// `backend.app_identity()`: what core's pairing says of the running Codex app (None where it is not running).
+pub type AppIdentity = std::rc::Rc<dyn Fn() -> Res<Value>>;
+
+/// The backend as a measurement reads it: `engine_version`, `codex_home` (`getattr(..., None)`) and
+/// `app_identity()` (None: the backend has no such method, an AttributeError where the reference calls it).
+#[derive(Clone)]
 pub struct BackendView {
     pub engine_version: Value,
     pub codex_home: Option<PathBuf>,
+    pub app_identity: Option<AppIdentity>,
+}
+
+impl std::fmt::Debug for BackendView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BackendView")
+            .field("engine_version", &self.engine_version)
+            .field("codex_home", &self.codex_home)
+            .field("app_identity", &self.app_identity.is_some())
+            .finish()
+    }
 }
 
 impl Default for BackendView {
@@ -201,6 +219,7 @@ impl Default for BackendView {
         BackendView {
             engine_version: Value::Null,
             codex_home: None,
+            app_identity: None,
         }
     }
 }
@@ -835,6 +854,7 @@ pub fn ported() -> Vec<Measurement> {
         M::Mipc,
         M::Maws,
         M::Mcloud,
+        M::M6b,
     ]
 }
 
@@ -863,6 +883,7 @@ fn dispatch(ctx: &mut Context<'_>) -> Res<Found> {
         M::Mipc => looks::mipc(ctx),
         M::Maws => looks::maws(ctx),
         M::Mcloud => looks::mcloud(ctx),
+        M::M6b => stage4::m6b(ctx),
         other => Err(Raised::Unported(other)),
     }
 }

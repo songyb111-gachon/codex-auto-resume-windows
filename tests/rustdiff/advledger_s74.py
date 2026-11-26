@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rustdiff import advledger_s72a as base  # noqa: E402
 
 PORTED = {"M1", "M2", "M2b", "M3", "M5", "M6", "M7", "MH", "MA", "MQ", "MT", "MW", "MP1", "MP2", "MP3", "MU", "MN",
-          "MR"}
+          "MR", "MIPC", "MAWS", "MCLOUD", "M6B"}
 # The measurements' words as the tests spell them: Measurement.M2B, "m2b", "measure mqo", ...
 WORDS = ["M1", "M2", "M2B", "M3", "M4", "M5", "M6", "M7", "MH", "MA", "MW", "MP1", "MP2", "MP3", "MU", "MN", "MR", "MQ",
          "ME", "MS", "MK", "MT", "MIPC", "MAWS", "MCLOUD", "M6B", "MO", "MX", "MXA", "MF", "M3B", "MB", "MC1", "MC2",

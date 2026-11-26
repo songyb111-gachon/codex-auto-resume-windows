@@ -245,20 +245,30 @@ fn timing(case: &Value) -> Timing {
     found
 }
 
-fn backend(case: &Value) -> Option<BackendView> {
+fn backend(case: &Value, log: &Log) -> Option<BackendView> {
     let found = get(case, "backend")?;
     if matches!(found, Value::Null) {
         return None;
     }
+    let app_identity: Option<measure::AppIdentity> = get(found, "app_identity").map(|spec| {
+        let spec = spec.clone();
+        let log = log.clone();
+        let held: measure::AppIdentity = Rc::new(move || {
+            note(&log, vec![s("app_identity")]);
+            answer(&spec)
+        });
+        held
+    });
     Some(BackendView {
         engine_version: get(found, "engine_version").cloned().unwrap_or(Value::Null),
         codex_home: text_of(get(found, "codex_home")).map(PathBuf::from),
+        app_identity,
     })
 }
 
 fn seams(case: &Value, log: &Log) -> measure::Seams {
     let mut seams = measure::Seams {
-        backend: backend(case),
+        backend: backend(case, log),
         ..measure::Seams::default()
     };
     if let Some(script) = get(case, "session").filter(|found| !matches!(found, Value::Null)) {
@@ -388,7 +398,7 @@ fn one(case: &Value, log: &Log) -> Value {
                 directory: folder.as_deref(),
                 timing: Timing::default(),
             };
-            let given = backend(case);
+            let given = backend(case, log);
             measure::complete(
                 measurement,
                 verdict,

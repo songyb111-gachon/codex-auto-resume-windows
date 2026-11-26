@@ -161,16 +161,21 @@ class Clock:
 
 
 class Backend:
-    def __init__(self, spec):
+    def __init__(self, spec, log=None):
         self.engine_version = spec.get("engine_version")
         if spec.get("codex_home") is not None:
             self.codex_home = spec["codex_home"]
+        if "app_identity" in spec:
+            def app_identity(_spec=spec["app_identity"]):
+                log.append(["app_identity"])
+                return answer(_spec)
+            self.app_identity = app_identity
 
 
 def seams(case, log):
     given = {}
     backend = case.get("backend")
-    given["backend"] = Backend(backend) if isinstance(backend, dict) else None
+    given["backend"] = Backend(backend, log) if isinstance(backend, dict) else None
     if case.get("session") is not None:
         given["session_factory"] = factory_of(case["session"], log)
     if case.get("launcher") is not None:
@@ -240,7 +245,7 @@ def one(case, log):
     if op == "complete":
         backend = case.get("backend")
         return norm(measure.complete(case["measurement"], case["verdict"], case.get("note", ""),
-                                     backend=Backend(backend) if isinstance(backend, dict) else None,
+                                     backend=Backend(backend, log) if isinstance(backend, dict) else None,
                                      versions=case.get("versions"), clock=clock.time, directory=folder))
     if op == "ev_complete":
         Measurement(case["measurement"]), Verdict(case["verdict"])

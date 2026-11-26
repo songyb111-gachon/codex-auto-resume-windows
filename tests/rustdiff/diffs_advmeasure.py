@@ -209,6 +209,23 @@ class MeasureProbeDiff(Compare):
                               timing={"m6_turn": 0.3, "m6_interrupt": 0.2, "m6_poll": 0.1}))
         self.held(cases)
 
+    def test_m6b(self):
+        cases = self.common("M6B")
+        resumes = [{}, None, {"sandbox": {"type": "workspaceWrite"}, "approvalPolicy": "on-request",
+                              "approvalsReviewer": "user", "activePermissionProfile": "p"},
+                   {"sandbox": {"type": "x"}, "approvalPolicy": {"granular": 1}, "approvalsReviewer": "auto",
+                    "activePermissionProfile": None}, {"sandbox": "readOnly", "approvalPolicy": 5}]
+        apps = [None, {"engine_version": "0.155.0"}, {"engine_version": "0.155.0", "app_identity": None},
+                {"engine_version": "0.155.0", "app_identity": {"server": {"pid": 1}}},
+                {"engine_version": "0.155.0", "app_identity": RAISES[4]}]
+        for resumed, app in itertools.product(resumes, apps):
+            for start, batch in (({"turn": {"id": "t-1"}}, [[completed(SAMPLE, "t-1", "completed")]]),
+                                 ({"turn": {"id": "t-1"}}, []), ({}, [])):
+                cases.append(run_case("M6B", {"replies": {"thread/resume": resumed, "turn/start": start},
+                                              "events": batch, "declined": 1}, backend=app,
+                                      timing={"m6_turn": 0.5, "m6_interrupt": 0.25, "m6_poll": 0.25}))
+        self.held(cases)
+
     def test_mw(self):
         cases = [run_case("MW"), run_case("MW", launcher=[None]), run_case("MW", launcher=["x"]),
                  run_case("MW", launcher=[RAISES[0]]), run_case("MW", launcher=[RAISES[1]]),
