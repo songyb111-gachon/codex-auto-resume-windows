@@ -2619,12 +2619,8 @@ registry, catalogs and edges it is declared before (dropped first). Errands run 
 
 ### Not ported, and why
 
-* **The core side's carrying of a record of the plug's own** (P2's flow: `engine/plugrecords.py`'s claim and launch,
-  `engine/recordchannel.py`, `store/plugclaims.py` `reserve_record`/`record_guard`), **P12's pool** (`engine/launches.py`),
-  **P11 inside car-store's claim** (`store/ledger.py` `_ledger_holds`: the savepoint, the authorizer, the handle), the
-  launch guard handed to a channel's `send` and a route's `resume`: the time went to the runtime and its proof. car-engine
-  still costs a handed record itself (`plug_record_check_failed`) and sends every claim inline; the plug side (`runtime.claim`
-  over `Ledger::sqlite`) is ready for the claim that asks it. These are the next S7.2 seat's (or Integration 9's) first work.
+* ~~The core side's carrying of a record of the plug's own, P12's pool, P11 inside car-store's claim, the launch guard
+  on a channel's send and a route's resume~~: done by S7.2a2 (section below).
 * **The advanced proxy (Q3 (c))**: not built. What is here is its ledger (`tests/rustdiff/advledger_s72a.py`) and the
   runtime it will drive. The proxy needs a serve loop in `advtrace` (one runtime per test, its codes the test's own Python
   objects asked back over the pipe, as `engineproxy.py` asks the store) and forwarders for `runtime.state.*` (car-adv
@@ -2674,7 +2670,7 @@ session's pictures.
 
 ### Seams left
 
-* car-policy `Ledger::sqlite`: car-store's claim must hand its connection's `sqlite3*` under the authorizer and savepoint
+* (filled by S7.2a2: car-store `ledger::ledger_holds` hands the claim's own `sqlite3*` and `execute`.) car-policy `Ledger::sqlite`: car-store's claim must hand its connection's `sqlite3*` under the authorizer and savepoint
   of `_ledger_holds` (and implement `execute` for a plug written otherwise). `runtime.claim` opens it with
   `Connection::from_handle` (never closed there).
 * car-engine `Store::errand_guard` has a default (AttributeError) for stores that have none; car-harness's `EngineStore`
@@ -2704,4 +2700,78 @@ session's pictures.
 python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
 bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 51, OK
+```
+
+## Seat S7.2a2: P2's records, P12's pool, P11 inside the claim, the launch guards (branch `car-v0627-s72a`, 2026-11-27)
+
+Finishing S7.2a in its worktree from `d70ef6bbf`. Reference: the v0.6.26 final on the bundled Python 3.14.10.
+
+### Ported (module -> crate)
+
+| Python | here |
+|---|---|
+| `store/ledger.py` `_ledger_holds`, `_ledger_authorizer`, `_attachable`, `_same_file`, `_LedgerConnection` | car-store `ledger` (SAVEPOINT claim_ledger; the authorizer set with `sqlite3_set_authorizer` on the claim's own connection; `execute` and the raw handle, both dead once the ledger answered; a hold, or a raise on a claim that carried an answer, rolled back) |
+| `store/claims.py` `reserve_detailed(ledger=)`, `_resend_claim` | car-store `Store::reserve_ledgered` (`reserve_detailed` is it with no ledger); the engine asks it through `Store::reserve_ledgered(..., &plug)` |
+| `store/plugclaims.py` `reserve_record`, `record_guard` | car-store `plugclaims` (beside `errand_guard`); car-engine's `Store` seam carries both (default AttributeError) |
+| `engine/plugrecords.py` (all) | car-engine `plugrecords` (`plug_records`, `try_record`, `dispatch_record`, `record_claim`, `record_problem`, `record_sent`, `watch_record`, `paused_records`, `persons_turns`); NOTED_LIMIT is the tag's 512 (the port had 4096) |
+| `engine/recordchannel.py` | car-engine `recordchannel` (`Carrier`, `marker_free`, `record_carried`, `record_queued`, `RESTART_GRACE`, `record_client`/`proof`/`words`, `take_back`) |
+| `engine/launches.py` + delivery.py `_take_slot`/`_pooled`/`_launched`/`_free_slot`/`_settle_launch` | car-engine `launches` (`LaunchPool`, `Slot`, `WorkerStore`, `Opener`, `Call`) and `delivery.rs`; the tick opens the pool when P12 answers 2-8 and an opener is set (`Engine::set_opener`) |
+| `plughands.Channel.send`, `plughands.Route.resume` (the guard entered first) | car-engine `plugrecords::guarded_send` (core's channel sends and a record's), `routes.rs` (`submission_guard` before `Route::resume`) |
+| `os.stat().st_dev/st_ino` | car-platform `files::file_identity`, through car-store's `Links::file_identity` (default None: paths compared) |
+
+### Seams left
+
+* `Engine::set_opener(Opener)`: the watcher (S6.1) hands a function opening a car-store `Store` for a worker
+  (`WorkerStore`: `submission_guard`, `close`); without one every send is inline (P12 answered 1), as before.
+* `Backend::worker_send()`: the real backend (car-codex's transport, wired by S6.1) must hand its send as a
+  `Send + Sync` function for a pooled send; a backend with none sends inline and the claim carries no CONCURRENCY
+  (AUDIT line). car-harness's backends have none (their traces never open a pool: `open_store` false).
+* The proxy's `AskStore` keeps the default `reserve_ledgered` (no ledger asked) and has no `reserve_record`/`record_guard`:
+  a record under the proxy costs itself, as an errand does.
+
+### The proof
+
+* **`diffs_engine_records.py` (`EngineRecordsDiff`)**: the scripted plug of `diffs_engine_plug` now also answers P2
+  (`records`) and P11 (`claim_ledger`, on both sides: `enginerun.scripted_plug` and car-harness `plugscript.rs`); 16 scenarios, 112 steps, 9 sends, 211 plug questions, all equal to the v0.6.26 tag on the bundled 3.14.10 (17 s): sent
+  and delivered, kept while queued, unproven a day on, a Pause watching it, the ledger holding/raising/deferring at
+  the claim and holding at the launch, every gate's wait, observe only noted once, bad words and damaged records
+  dropped, a send not started/raising/unknown, a hook raising, a marker-free message in flight.
+  The first run differed twice and found a port bug each time: `_worded` took car-policy's PromptError *codes* for other
+  exceptions (fixed), and the scenarios' conversation (fixed in the test, `fail_usage`).
+* **The engine's traces after the core side (risk 1)**: `run.py --build --reference v0.6.26 --reference-python bundled -k EngineRecordsDiff -k EngineTraceDiff
+  -k EngineReview6 -k EnginePanicDiff -k EngineInputsDiff -k LaunchGuardHeld -k EnginePlugDiff -k ScriptDiff -k RefusalDiff
+  -k AdvPlugDiff`: Ran 26, every family equal (corpus 81 / 1,023 steps, walks 60 / 5,153, deferring plug 81 / 1,023,
+  walks with a plug 40 / 3,429, scripted 63 / 878, AdvPlugDiff as S7.2a left it; B1 the expected failure as before) -
+  the standard edition's equality did not move. Its one red, LaunchGuardHeld, was the harness: the engine harness now
+  writes a send down before its guard (`backend.send_noted`, so a record's launch ledger question follows it on both
+  sides) and the test's probe had not learnt the flag; fixed, rerun alone: OK.
+* **Mutation checks** (scratchpad `car-v0627-s72a-mutate.py`, each alone, car-harness rebuilt, EngineRecordsDiff run,
+  the file restored): the launch guard ignoring the ledger, a raising ledger no longer holding a claim that carried the
+  plug's answer, observe only writing its line every tick, a send never started told SENT, a continuation's turn never
+  looked at, a record a day old never unproven: **6 of 6 caught**, none survived.
+* Unit tests: car-engine `launches` 2 (claim-order settling with every worker store closed; not_started where the store
+  cannot open, unknown where the send raised or answered no mapping).
+* The re-diff: `python -X utf8 tests/rustdiff/rediff_adv72a.py --reference v0.6.26` (scope and families now include
+  S7.2a2's files and `EngineRecordsDiff`).
+
+### Not done here (the advanced proxy, owner Q3 (c))
+
+Not built in this seat (the time went to the core side and its proof). What it needs, in order: (1) a serve loop in
+`advtrace` (`examples/advtrace/`), one `Runtime` per test whose capability codes are the test's own Python objects asked
+back over the pipe (car-harness `proxy.rs` and `tests/rustdiff/engineproxy.py` are the model); (2) a package
+`codex_auto_resume_advanced` under `CODEX_AR_CORE=rust` (a `tests/rustdiff/advproxy/` tree put first on the path, as
+`shim.py` does for core) whose `runtime.Runtime`, `plug.AdvancedPlug`/`create` and `registry.make` forward to it, and
+whose other modules re-export the tag's own until their seat ports them; (3) forwarders for `runtime.state.*` (car-adv
+`state::calls`) and `runtime.arming.*` (advprobe's ops); (4) the 26 files of `advledger_s72a.py`'s S7.2a row run through
+it, moving each from "waits" to "green". The ledger (`python -X utf8 tests/rustdiff/advledger_s72a.py`) is unchanged.
+
+### Gates
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after abb4bbba4); test --locked --no-fail-fast rc=0; cargo deny: rc=0
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates), with the one
+                                                     SQLite callback car-store defines named in SQLITE_CALLBACKS (b2cde55c5)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
+Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```

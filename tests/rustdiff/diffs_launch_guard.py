@@ -38,9 +38,9 @@ class LaunchGuardHeld(unittest.TestCase):
         state = {}
 
         class Probe(enginerun.Recorder):
-            def send(self, thread_id, prompt, *, launch_guard=None, permitted=None):
+            def send(self, thread_id, prompt, *, launch_guard=None, permitted=None, noted=False):
                 seen.append((permitted, write_lock_held(state["path"])))
-                return super().send(thread_id, prompt, launch_guard=launch_guard, permitted=permitted)
+                return super().send(thread_id, prompt, launch_guard=launch_guard, permitted=permitted, noted=noted)
 
         s = diffs_engine.Scenario("s2_launch_inside_the_guard").enable()
         diffs_engine.ready_after_reset(s).tick()
