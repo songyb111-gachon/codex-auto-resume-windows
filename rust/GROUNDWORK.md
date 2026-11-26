@@ -2775,3 +2775,107 @@ python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 sta
 bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+## Seat S7.2d: the usage meter, the wrap-up and the forced stop (branch `car-v0627-s72d`, 2026-11-27)
+
+From `car-v0627-s72a` `8e6362cbf`. Reference: the v0.6.26 final on the bundled Python 3.14.10 (`engine/usage.py` is the
+final's: FINAL-DELTA rows 25-30). P7-DESIGN 2.2 (this seat's nine files), 3.1, 7.
+
+### Ported (module -> crate)
+
+| Python (`advanced/src/codex_auto_resume_advanced/engine/`) | car-adv `engine::` |
+|---|---|
+| `continued.py` | `continued` (`answer_key` over any values as `str()` writes them, `words_pass`, `handed`; the one body is still `seam_p7`'s, S7.2a's port, so the two cannot differ - the integration points `seam_p7` here) |
+| `wrapwords.py` | `wrapwords` (`check_custom`, `window_words`, `reset_words`, `render` with `Ask`/`Words`; Python's dict-by-hash lookups as `lookup`/`num_eq`) |
+| `capacity.py` | `capacity` (`CapacityRetry`: P17, P3) |
+| `earlyreset.py` | `earlyreset` (`EarlyReset`: P7, P3, `not_taken`, the four stamps and `check_asked`) |
+| `resetwatch.py` | `resetwatch` (`blank`, `by_time`, `closed`, `advance`, `family_window`, `count`, `due`, `Watch` over `Resets` - the reset actions' `scoped.resets` with its writing/own guards -, `signal`; `Counter` is `seam_p7::ResetWatch` for S7.2b) |
+| `credits.py` | `credits` (`ResetCredit`: P7, P8's errand; `Lazy`, `Opener`, `Keys`) |
+| `resetmessage.py` | `resetmessage` (`ResetMessage`: P8, P2, P3, `watched_due`; `carried_by_stop`, `same_reset`, `handed`; `LongMessages`) |
+| `usage.py` (**final**) | `usage` (`UsageMeter` with `SKIP_WAIT`, the backend kept for the told engine and `inuse::saw`; `UsageWrapUp`; `PauseCore`/`UsagePause`; `percent`, `reached`, `windows`, `credit_resets`, `changed_at`, `of_account`, `stale`, `reset_since`, `acting`, `touched`, `order_problem`, `previews`) and what the seat's codes share: `Bound`, `World`, `CodexReads`, `MeterBackend` |
+| `usagestop.py` | `usagestop` (`UsageStop`: P8's errand, P3, `holds`; the stop, the continuation after the reset, the carried message (R2), `counts_here`, the notices; `Ipc`) |
+
+Every registry `make` of these ids now answers a code (`usage_meter`, `usage_wrap_up`, `usage_pause` - the forced stop -,
+`reset_credit`, `reset_message`, `long_reset_message`, `early_reset`, `capacity_retry`).
+
+### How the codes are held
+
+* A code's `Scoped` is reached through `usage::Bound` (the runtime's `Binding`, or a probe's own scope); a code whose
+  P8 answer is an errand keeps its state in `Arc<Mutex<_>>` the errand shares (core runs errands last, on the tick's
+  thread; the runtime's Gil is re-entrant there).
+* What the reference reads of the outside is one `usage::World`: the catalogs, the local clock (`time.localtime`), the
+  continuation language (`resolve_locale(settings.load(...))`), Codex's own files (`CodexReads`: `Turns(home)` and core's
+  `LocalSource` with P19's widening), `inuse.home`, `inuse.backend` (`MeterBackend`), the capability's own session
+  (`credits::Opener` -> `codex::session::Channel`), the spend key (`str(uuid.uuid4())`), the saved accounts' switch and
+  the app's IPC channel (`usagestop::Ipc`).
+
+### Seams left
+
+* `usage::install_world(World)` is the entry points' (S7.3d): until it is called, `World::installed()` answers the
+  product's defaults - catalogs in `<exe dir>\locales`, `l10n.current` "en", car-platform's `Crt`, the process's
+  environment with no Windows language list (as car-control's system host), car-codex's reads over `PolicyOs`, the live
+  discovery (`usage::system_backend`, product version from `car_config::codex::version(<exe dir>)`), real sessions, the
+  Desktop's pipe - and **no saved-accounts switch** (`switched` answers None until S7.2b's `Host` is handed: the
+  reference reads `profiles.last_switch_at()`/`intent()` there).
+* The tests' own seams (`UsageMeter(app_running=)`, `session=`, `UsageStop(stop=, start=, home=)`, `UsageWrapUp(home=)`)
+  are the World and the `home` fields; `app_running` has none (the product always looks through the backend) - the
+  advanced proxy needs it for the tag's tests that pass one (AUDIT).
+* Core's errand guard is a body scope; the IPC gate is asked mid-request: the request runs inside the guard (AUDIT).
+* `seam_p7::{continued_handed, reset_message_handed, answer_key, words_pass, ResetWatch}` move here at the integration.
+
+### The proof (`tests/rustdiff/advusage.py`, `diffs_advusage_{pure,codes}.py`, example `advusage`)
+
+One request of ops runs through the tag's advanced edition (its classes, with the module attributes named in
+`advusage.py` replaced by the same scripted world) and through car-adv's `advusage` example, on one scratch home made
+again for each side; every answer, the world's log (each session call, IPC request with the gate's answer, Codex read
+with its widening, backend check, in order), what each code keeps and `advanced.sqlite`'s dump are compared.
+
+* `diffs_advusage_pure` (5 tests, ~9,800 cases): `render` over 900 generated asks (every style, window, locale, used,
+  stop, reset, Custom text and their edges) + `check_custom`, `window_words`, `reset_words`; `answer_key`, `handed`,
+  `words_pass`; 700 `advance`/`by_time`/`closed`/`count`/`due` walks + `family_window`; 300 option sets through
+  `percent`, `acting`, `reached`, `order_problem`, `stale`, `reset_since` + `touched`; 500 `carried_by_stop`,
+  `same_reset`, `counts_here` cases.
+* `diffs_advusage_codes` (19 tests): capacity over 13 failures x 6 records x 4 clocks, bound and unbound; 6 early-reset
+  walks of 160 steps and unhashable ids; the meter by test_advanced_meter_skip_wait's and ..._engine_elsewhere's steps
+  (spaced skips, the kept backend checked again and dropped, a read within a wait of the app opening, unmatched with
+  elsewhere kept/forgotten, warnings, samples, the account change) and 4 walks of 70 looks; the wrap-up (found, still
+  due, superseded, Continue after the reset continued / superseded / handed over, every wording and locale, every read
+  that fails); the stop (stop, hold, gate, holds, continue, every stop and start word, Continue off, a guard that
+  refuses, the carried reset message for every start answer); the reset credit (spent, Use now, Ask me first, every
+  consume answer, the session and guard failures, no count, no credit); reset_message (due, expired, cancelled, too long,
+  watched, P3 holds, held by the stop).
+* Mutation checks (scratchpad `car-v0627-s72d-mutate.py`: each alone, `advusage` rebuilt, the diff that holds it run,
+  the file restored): the final's SKIP_WAIT shortened to 30 s; the backend kept for the told engine made afresh every
+  look; `inuse.saw` left out of the meter's look; the weekly reset said without its date; a refused start of the carried
+  message taken as sent; any refusal by Codex read as no such method; the capacity retry's default two hours made three;
+  a message due before the stop carried by its turn: **8 of 8 caught**. Two survived the first pass and the diffs were
+  widened until they were caught: DEFAULT_HOURS (a bound code reads the option's registry default - only an unbound one
+  reads the constant: the diff now asks one 2.5 hours on the wall clock) and REFUSED_STARTS (a start word answered
+  before the gate launches nothing, and the carry scenarios had no rule: `add_reset_rule` refuses a message without a
+  record id - the diff now gives one and answers every start word after the gate).
+* The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_s72d.py --reference v0.6.26`.
+* The ledger: `python -X utf8 tests/rustdiff/advledger_s72d.py [--markdown]` - 25 advanced test files import an S7.2d
+  module; their subjects are held by the two families above; none runs unedited on Rust yet (the advanced proxy is
+  S7.2a3's, being built in car-v0627-s72a; 10 of the 25 also wait for S7.3a, one for S7.2e1).
+
+### For later seats
+
+* The integration: point `seam_p7::{continued_handed, reset_message_handed, answer_key, words_pass}` at
+  `engine::continued`/`engine::resetmessage::handed`, and `seam_p7::ResetWatch` at `resetwatch::Counter`; S7.3d calls
+  `usage::install_world` with the live world (S7.2b's accounts `Host` for `switched`).
+* S7.3a (surfaces): `usage::{touched, order_problem, previews}` are `Edges::usage_touched/usage_order_problem/
+  usage_previews`; `wrapwords::check_custom` and `PLACEHOLDERS` are `wording_problem`/`wording_placeholders`
+  (`MAX_CUSTOM_LENGTH` the limit); the tray's meter and stop notices read `UsageStop::with(|s| s.notices(now))`.
+* The proxy seat: `examples/advusage` already drives every S7.2d class from a request; the tag's tests that pass
+  `app_running=` need a seam the World does not have yet.
+
+### Checks (`CARGO_BUILD_JOBS=4`, reference v0.6.26 on the bundled 3.14.10, rustc 1.100.0)
+
+```
+diffs (scratchpad runner = run.py without its check for the standard harness, which these diffs do not use)
+    diffs_advusage_pure + diffs_advusage_codes: Ran 24, OK (378 s)
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0 (car-adv 11 + 1); cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+Python (standard lane, wait_quiet.sh)   test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
+privacy_scan.py on every file added: clean
