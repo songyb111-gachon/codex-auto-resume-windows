@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 from rustdiff import core, reference
@@ -180,7 +181,10 @@ class PlugDiff(Family):
                                          + count("plug.widening_of") + count("plug.power"), len(mine), reference.TAG))
 
     def test_generated_files_are_the_tags(self):
-        gen = generator()
-        for path, text in gen.generate(reference.TAG).items():
-            self.assertEqual(path.read_bytes().decode("utf-8"), text,
-                             "%s is stale: gen_policy.py --write" % path.relative_to(ROOT).as_posix())
+        # The generator's own --check, which runs under the product's bundled Python (productpy.py) whose Unicode tables
+        # text_tables.rs and unicode_gen.rs hold; generated in this process (3.13.15, say) they would differ.
+        done = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__).resolve().parent / "gen_policy.py"),
+                               "--check", "--ref", reference.TAG], cwd=str(ROOT), capture_output=True,
+                              creationflags=reference.NO_WINDOW, timeout=900)
+        self.assertEqual(done.returncode, 0, "gen_policy.py --check: %s%s" % (
+            done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")[-2000:]))
