@@ -303,6 +303,14 @@ impl Backend for Caught<dyn Backend> {
     fn app_identity(&self) -> Py<Value> {
         car_scheduler::caught(|| self.0.app_identity())
     }
+    fn worker_send(&self) -> Option<crate::seam::WorkerSend> {
+        let send = self.0.worker_send()?;
+        Some(std::sync::Arc::new(
+            move |thread_id: &str, prompt: &Str, guard: &dyn LaunchGuard| {
+                car_scheduler::caught(|| send(thread_id, prompt, guard))
+            },
+        ))
+    }
     fn loaded(&self, thread_id: &str, app_identity: &Value) -> Py<Value> {
         car_scheduler::caught(|| self.0.loaded(thread_id, app_identity))
     }

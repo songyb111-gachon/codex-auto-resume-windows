@@ -444,7 +444,7 @@ impl Engine {
     pub(crate) fn workers(&self, due: &[Row]) -> i64 {
         let records: Vec<Value> = due.iter().map(|row| Value::Object(row.clone())).collect();
         let workers = self.plug.partition(&records);
-        if !self.home_key.is_empty() || self.retiring || !self.open_store {
+        if !self.home_key.is_empty() || self.retiring || !self.open_store || self.opener.is_none() {
             1
         } else {
             workers
@@ -458,4 +458,61 @@ fn row_of(name: &str, value: Value) -> Row {
 
 fn row_pairs(pairs: Vec<(&str, Value)>) -> Row {
     row(pairs)
+}
+
+impl Engine {
+    /// Hand the engine what opens a store for a worker (P12's `open_store`).
+    pub fn set_opener(&mut self, opener: crate::launches::Opener) {
+        self.opener = Some(opener);
+    }
+
+    /// `_take_slot(resend, route)`: a worker for the send being dispatched, taken before its claim - waiting, outside
+    /// any transaction, while every worker is busy - while a pool is open; never for a resend or a route.
+    pub(crate) fn take_slot(&mut self, resend: bool, queued_or_none: bool) {
+        if self.held_slot.is_some() || resend || !queued_or_none {
+            return;
+        }
+        let Some(mut pool) = self.pool.take() else {
+            return;
+        };
+        let slot =
+            pool.take(&mut |current, response| self.settle_launch(&current, &response, false));
+        self.pool = Some(pool);
+        self.held_slot = Some(slot);
+    }
+
+    /// `_pooled(sender, client)`: whether this send goes to the worker taken for it - core's own backend carrying its
+    /// marker (one whose send can leave this thread), or a channel that said it may wait beside others.
+    pub(crate) fn pooled(&mut self, backend: bool, concurrent: bool, client: Option<&str>) -> bool {
+        self.pooling = self.held_slot.is_some()
+            && ((backend && client.is_none() && self.backend.worker_send().is_some())
+                || (!backend && concurrent));
+        self.pooling
+    }
+
+    /// `_free_slot()`.
+    pub(crate) fn free_slot(&mut self) {
+        self.held_slot = None;
+        self.pooling = false;
+    }
+
+    /// `_settle_launch(current, response)`: what came of a send a worker waited for, on the tick thread and under the
+    /// dispatch lock (taken here unless the dispatch taking a slot holds it already), as dispatch settles its own.
+    pub(crate) fn settle_launch(
+        &mut self,
+        current: &Row,
+        response: &car_machine::json::Map,
+        lock: bool,
+    ) {
+        let held = self.dispatch_lock.clone();
+        let _held = if lock {
+            held.as_ref().map(|lock| lock.lock())
+        } else {
+            None
+        };
+        if self.after_send(current, response, false).is_err() {
+            let thread = crate::py::s(current, "thread_id");
+            self.log(Some(&thread), "post_send_bookkeeping_failed", Value::Null);
+        }
+    }
 }

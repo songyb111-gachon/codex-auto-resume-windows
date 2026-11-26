@@ -252,7 +252,16 @@ pub trait Backend {
     fn holder(&self, _thread_id: &str) -> Option<Py<Value>> {
         None
     }
+    /// `send` as a worker may call it beside others (P12, engine/launches.rs): the backend's send bound so that it can
+    /// run on another thread. None where this backend's send cannot leave the tick thread: its sends go inline.
+    fn worker_send(&self) -> Option<WorkerSend> {
+        None
+    }
 }
+
+/// The backend's send as a worker calls it: `send(thread_id, prompt, launch_guard=...)`.
+pub type WorkerSend =
+    std::sync::Arc<dyn Fn(&str, &Str, &dyn LaunchGuard) -> Py<Value> + Send + Sync>;
 
 /// A person's words for this time (`control/oncewords.py`'s `OnceWords`).
 pub trait OnceWords {

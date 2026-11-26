@@ -38,6 +38,7 @@ pub mod guard;
 pub mod host;
 pub mod impossible;
 pub mod kinds;
+pub mod launches;
 pub mod notices;
 pub mod options;
 pub mod outcome;
@@ -93,7 +94,8 @@ pub struct Given {
     pub plug: Guarded,
     pub connectivity: Option<Box<dyn Fn() -> Py<Value>>>,
     pub home_key: String,
-    /// `open_store`: whether a worker could open a store of its own (P12's pool is not ported: always inline).
+    /// `open_store`: whether a worker could open a store of its own; the opener itself is handed with
+    /// `Engine::set_opener` (P12's pool, engine/launches.rs).
     pub open_store: bool,
     pub once_words: Option<Box<dyn OnceWords>>,
     /// The draw jitter asks (`random.Random().random()`), only while jitter is on.
@@ -178,6 +180,12 @@ pub struct Engine {
     pub(crate) back_refused: HashSet<String>,
     /// `_records_noted`: the plug's records whose would-send line was written.
     pub(crate) records_noted: HashSet<String>,
+    /// P12: what opens a store for a worker (`open_store`), the pool open for this tick, the worker taken for the send
+    /// being dispatched, and whether that send goes to it (`_pool`, `_held_slot`, `_pooling`).
+    pub(crate) opener: Option<launches::Opener>,
+    pub(crate) pool: Option<launches::LaunchPool<Row>>,
+    pub(crate) held_slot: Option<launches::Slot>,
+    pub(crate) pooling: bool,
 }
 
 /// The uncertain submissions a look found no trace of, in the order found (`_no_trace`, a `dict`).
@@ -280,6 +288,10 @@ impl Engine {
             records_flying: Map::new(),
             back_refused: HashSet::new(),
             records_noted: HashSet::new(),
+            opener: None,
+            pool: None,
+            held_slot: None,
+            pooling: false,
         }
     }
 
@@ -365,9 +377,21 @@ impl Engine {
         }
         self.detection_failed = Some(false);
         let due = self.records(UNSENT)?;
-        // P12: how many sends may wait for their receipts at once. The pool is not ported: every send is inline,
-        // which is what the reference does for the answer every plug but the advanced one gives (1).
-        let _workers = self.workers(&due);
+        // P12: how many sends may wait for their receipts at once - 1, one after another in this thread, unless the
+        // plug answers 2 to 8. Every claim and look stays here; a worker only waits for a receipt, and every one is
+        // joined and settled before the tick goes on (engine/launches.rs).
+        let workers = self.workers(&due);
+        if workers > 1
+            && let Some(opener) = &self.opener
+        {
+            let started = std::time::Instant::now();
+            self.pool = Some(launches::LaunchPool::new(
+                usize::try_from(workers).unwrap_or(1),
+                std::sync::Arc::clone(opener),
+                Box::new(move || started.elapsed().as_secs_f64()),
+                Box::new(|seconds| std::thread::sleep(std::time::Duration::from_secs_f64(seconds))),
+            ));
+        }
         for row in &due {
             if car_scheduler::caught(|| self.attempt(row)).is_err() {
                 let thread = py::s(row, "thread_id");
@@ -377,6 +401,9 @@ impl Engine {
                     Value::Null,
                 );
             }
+        }
+        if let Some(pool) = self.pool.take() {
+            pool.close(&mut |current, response| self.settle_launch(&current, &response, true));
         }
         // v0.6.14: what the watch found no trace of, put to the plug for one more send (P7).
         if !self.plug.is_null() {
