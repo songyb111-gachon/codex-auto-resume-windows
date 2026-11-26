@@ -269,7 +269,7 @@ class StampedBuildTests(unittest.TestCase):
         self._collect("standard")
         self.launcher.unlink()
         with self.assertRaises(SystemExit) as refused:
-            self._collect("standard")
+            self._collect("advanced")          # a stage of its own; one launcher for both editions
         self.assertIn(str(self.launcher), str(refused.exception))
         self.assertIn("cargo build --release --locked", str(refused.exception))
         with self.assertRaises(ValueError):
