@@ -32,8 +32,7 @@ fn a_panic_costs_one_tick_and_one_call() {
         pump(|_| false, 1);
         let log = log(&home);
         let panicked = log.lines().position(|line| {
-            line.contains("initialising Codex adapter failed (")
-                && !line.contains(NOT_BUILT)
+            line.contains("initialising Codex adapter failed (") && !line.contains(NOT_BUILT)
         });
         if let Some(at) = panicked
             && log

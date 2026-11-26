@@ -361,8 +361,9 @@ impl Watcher {
     /// `cards_attached`, `cards_detached`); `toggle`, `stop` and `disarm_power` through the control layer with the
     /// reference's actors; `popup {call, args}` done as `perform` does it (`surface::Shared::act`) and
     /// `failure_seen`/`mark_seen` as the icon's `_failure_seen` (`acknowledge_failure()`), each followed at once by a
-    /// snapshot drawn from the outcome. `open_dashboard`, `open_chat`, `notice_action` and `notice_complete` need
-    /// what is not ported yet (the Dashboard opener of cut C6, the notifier's activation): `not_ported`.
+    /// snapshot drawn from the outcome; `open_dashboard` and `open_chat` as `ui/tray/dashboard.py` opens the window,
+    /// `notice_action` as `App._notice_action` (`notifier.activate`, actor "toast"). `notice_complete` waits for the
+    /// card route (the notice event and this PC's presence probes): `not_ported`.
     pub fn post_action(&self, action: &str, fields: &Map) -> Value {
         let answer = |ok: bool| {
             let mut map = Map::new();
@@ -446,6 +447,42 @@ impl Watcher {
                 },
                 None => answer(false),
             },
+            "open_dashboard" | "open_chat" => {
+                let Some(paths) = self.paths() else {
+                    return answer(false);
+                };
+                let home = Path::new(&paths.home);
+                let opened = if action == "open_dashboard" {
+                    let page = match fields.get("page") {
+                        Some(Value::Str(page)) => page.as_str(),
+                        _ => None,
+                    };
+                    let row = fields.get("row").filter(|row| !matches!(row, Value::Null));
+                    crate::dashboard::open_dashboard(home, page, row)
+                } else {
+                    crate::dashboard::open_chat(home, fields.get("thread").unwrap_or(&Value::Null))
+                };
+                match opened {
+                    Ok(done) => answer(done),
+                    Err(refused) => {
+                        let mut map = Map::new();
+                        map.insert("ok".into(), Value::Bool(false));
+                        map.insert("error".into(), Value::from(refused.0));
+                        Value::Object(map)
+                    }
+                }
+            }
+            "notice_action" => match (self.control(), self.paths()) {
+                (Some(control), Some(paths)) => {
+                    let uri = fields.get("uri").cloned().unwrap_or(Value::Null);
+                    let word = crate::surface::activate(self, &control, &paths, &uri);
+                    let mut map = Map::new();
+                    map.insert("ok".into(), Value::Bool(true));
+                    map.insert("result".into(), Value::from(word));
+                    Value::Object(map)
+                }
+                _ => answer(false),
+            },
             _ => {
                 let mut map = Map::new();
                 map.insert("ok".into(), Value::Bool(false));
@@ -453,6 +490,11 @@ impl Watcher {
                 Value::Object(map)
             }
         }
+    }
+
+    /// One line of the watcher's log, from the host's side (`self.logger.info`).
+    pub fn info(&self, line: &str) {
+        self.log(line);
     }
 
     /// The popup's names, as App reads them (`App.source()`).

@@ -85,7 +85,17 @@ fn the_exports_drive_one_watcher_from_start_to_ended() {
         &Value::Bool(true),
         "the click's outcome is drawn: {first:?}"
     );
+    // `open_chat`: a value that is not a conversation's UUID is refused before anything is started; a UUID with no
+    // Dashboard beside this scratch home starts nothing either; `notice_complete` waits for the card route.
     let answer = post(r#"{"action": "open_chat", "thread": "t"}"#);
+    assert_eq!(text(&answer, "error"), "not a conversation");
+    let answer =
+        post(r#"{"action": "open_chat", "thread": "123e4567-e89b-12d3-a456-426614174000"}"#);
+    assert_eq!(get(&answer, "ok"), &Value::Bool(false));
+    assert_eq!(get(&answer, "error"), &Value::Null);
+    let answer = post(r#"{"action": "open_dashboard", "page": "nowhere"}"#);
+    assert_eq!(text(&answer, "error"), "not a page of the window");
+    let answer = post(r#"{"action": "notice_complete", "id": 1, "shown": true}"#);
     assert_eq!(text(&answer, "error"), "not_ported");
 
     // The stop: close, then ended last.

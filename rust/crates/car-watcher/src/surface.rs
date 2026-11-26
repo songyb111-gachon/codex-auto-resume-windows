@@ -347,6 +347,98 @@ impl Shared {
     }
 }
 
+/// car-control's `Control` as a card's buttons call it, with the toast's actor.
+struct CardButtons<'a>(&'a Control);
+
+impl car_surface::seam::CardControl for CardButtons<'_> {
+    fn cancel_interruption(&self, interruption_id: &str, actor: &str) -> Result<Value, Raised> {
+        self.0
+            .cancel_interruption(&Value::from(interruption_id), actor)
+            .map_err(raised)
+    }
+    fn stop_power_countdown(&self, nonce: &str, actor: &str) -> Result<Value, Raised> {
+        self.0
+            .stop_power_countdown(&Value::from(nonce), actor)
+            .map(Value::from)
+            .map_err(raised)
+    }
+}
+
+/// `App._notice_action(uri)`: what a card's button asks, done in process (`notifier.activate`); its one word.
+pub fn activate(
+    watcher: &crate::api::Watcher,
+    control: &Control,
+    paths: &car_config::Paths,
+    uri: &Value,
+) -> String {
+    let environ = |name: &str| std::env::var(name).ok();
+    let locale = car_words::interface::language(&environ, &Vec::new);
+    let clock = car_platform::localclock::Crt;
+    let speech = car_surface::speech::Speech::new(locale, &clock);
+    let home = std::path::PathBuf::from(&paths.home);
+    let settings = control
+        .get_settings()
+        .map(Value::Object)
+        .unwrap_or_else(|_| Value::Object(Map::new()));
+    let stay = Value::Array(
+        car_policy::settings::notice_kinds::chosen(&settings)
+            .into_iter()
+            .map(Value::from)
+            .collect(),
+    );
+    let open_dashboard = |page: &str| -> Result<Value, Raised> {
+        crate::dashboard::open_dashboard(&home, Some(page), None)
+            .map(Value::Bool)
+            .map_err(|_| Raised::new("ValueError"))
+    };
+    let open_chat = |thread: &str| -> Result<Value, Raised> {
+        crate::dashboard::open_chat(&home, &Value::from(thread))
+            .map(Value::Bool)
+            .map_err(|_| Raised::new("ValueError"))
+    };
+    let open_link = |link: &str| -> Result<Value, Raised> {
+        let root = std::env::var("SystemRoot").ok();
+        car_surface::codex_link::open_in_codex(
+            &Value::from(link),
+            root.as_deref(),
+            &car_surface::seam::SystemLaunch,
+        )
+        .map(Value::Bool)
+        .map_err(Raised::new)
+    };
+    let log = |line: &str| -> Result<(), Raised> {
+        watcher.info(line);
+        Ok(())
+    };
+    let shell = car_surface::seam::SystemPowerShell::system();
+    let announce = |notice: car_surface::notifier::Notice| -> Result<(), Raised> {
+        let notice = car_surface::notifier::with_open_codex(&notice, false).map_err(Raised::new)?;
+        let show = |content: &Map, silent: bool| {
+            car_surface::notify::show_content(&shell, content, silent)
+        };
+        car_surface::notifier::deliver(
+            &notice,
+            None,
+            &Value::Bool(true),
+            &|| Ok(Value::Object(Map::new())),
+            &show,
+        )
+        .map(|_| ())
+        .map_err(Raised::new)
+    };
+    let buttons = CardButtons(control);
+    let with = car_surface::notifier::Activation {
+        control: Some(&buttons),
+        open_dashboard: Some(&open_dashboard),
+        announce: Some(&announce),
+        log: Some(&log),
+        open_link: Some(&open_link),
+        stay,
+        open_chat: Some(&open_chat),
+    };
+    car_surface::notifier::activate(&speech, uri, &with).unwrap_or_else(|class| class.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

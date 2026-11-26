@@ -10,6 +10,7 @@ pub mod api;
 pub mod app;
 pub mod checkup;
 pub mod clock;
+pub mod dashboard;
 pub mod events;
 pub mod fail;
 pub mod health;
