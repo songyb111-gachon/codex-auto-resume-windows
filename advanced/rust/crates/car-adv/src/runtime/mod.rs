@@ -556,6 +556,16 @@ impl Runtime {
         Ok(code)
     }
 
+    /// `_code_of(self.registry.get(capability))`, for a caller that only needs the code made (the advanced proxy's
+    /// `_code_of`): an id the registry lacks is Python's AttributeError on None, a `make` that gives none a raise.
+    pub fn make(&self, capability: &str) -> Result<(), Raised> {
+        let definition = self
+            .registry
+            .get(capability)
+            .ok_or_else(|| Raised::new("AttributeError"))?;
+        self.code_of(definition).map(|_| ())
+    }
+
     /// `action(definition)`: the code of an action, made once, for the surface a person starts what it does from.
     pub fn action(&self, capability: &str) -> Result<CodeCell, &'static str> {
         match self.registry.get(capability) {
