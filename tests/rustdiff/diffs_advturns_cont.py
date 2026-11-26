@@ -356,9 +356,64 @@ def for_open_corpus() -> list:
     ]
 
 
+OPEN = "open_to_send"
+
+
+def gates(**named) -> str:
+    vector = {"usage": ["PASS", "ok"], "consent": ["UNKNOWN", "not_checked"]}
+    vector.update({name: list(gate) for name, gate in named.items()})
+    return json.dumps(vector, separators=(",", ":"), sort_keys=True)
+
+
+def core_row(key, number, state="waiting_for_loaded_thread", gate=("WAIT", "notLoaded"), **more) -> dict:
+    row = {"interruption_id": key, "thread_id": thread(number), "state": state, "queue_id": None,
+           "gate_eval": gates(thread_available=gate)}
+    row.update(more)
+    return row
+
+
+def open_target_corpus() -> list:
+    pc = {"idle": 600, "handler": True, "running": True, "link": True}
+    a, b, c, d = "a" * 64, "b" * 64, "c" * 64, "d" * 64
+    rows = [core_row(a, 71), core_row(b, 72), core_row(c, 73, gate=("WAIT", "desktop_app_unavailable")),
+            core_row(d, 74, usage=["WAIT", "x"]), core_row("e" * 64, 75, state="failed"),
+            core_row("f" * 64, 76, gate=("WAIT", "unknown"))]
+    for_open = [core_row(a, 81, state="queued", queue_id="0a1b2c3d-0003-4000-8000-000000000009",
+                         gate=("PASS", "plugged")),
+                core_row(b, 82, state="queued", queue_id="0a1b2c3d-0003-4000-8000-000000000008",
+                         gate=("PASS", "plugged")),
+                core_row(c, 83, state="queued", queue_id="0a1b2c3d-0003-4000-8000-000000000007",
+                         gate=("PASS", "plugged"))]
+    return [
+        scenario("open_one_when_idle_then_settle", [OPEN],
+                 [["tick"], arm(OPEN)] + looks(1) + looks(3, NOW + 61)
+                 + looks(1, NOW + 700) + [["seam", "core_records", rows[2:]]] + looks(2, NOW + 761)
+                 + looks(2, NOW + 3000),
+                 core_records=rows, seams={"pc": pc}),
+        scenario("open_held_by_the_pc", [OPEN],
+                 [arm(OPEN), ["seam", "pc", dict(pc, idle=None)]] + looks(1)
+                 + [["seam", "pc", dict(pc, idle=299)]] + looks(1, NOW + 61)
+                 + [["seam", "pc", dict(pc, handler=False)]] + looks(1, NOW + 122)
+                 + [["seam", "pc", dict(pc, running=None)]] + looks(1, NOW + 183)
+                 + [["choose", OPEN, "open_idle_minutes", 2], ["seam", "pc", dict(pc, idle=121, running=False)]]
+                 + looks(1, NOW + 244) + [["seam", "pc", dict(pc, link=False)]] + looks(1, NOW + 305)
+                 + [["seam", "pc", dict(pc, link="raise")]] + looks(1, NOW + 1000),
+                 core_records=rows[:1], seams={"pc": pc}),
+        scenario("open_codex_started_for_a_closed_app", [OPEN],
+                 [arm(OPEN), ["choose", OPEN, "open_start_codex", 1]] + looks(2),
+                 core_records=[rows[2]], seams={"pc": dict(pc, running=False)}),
+        scenario("open_queued_for_open_only_when_not_held", [OPEN],
+                 [arm(OPEN)] + looks(1) + looks(1, NOW + 700) + looks(1, NOW + 1400),
+                 core_records=for_open, seams={"pc": dict(pc, holds={thread(81): True, thread(83): False})}),
+        scenario("open_nothing_to_look_at", [OPEN], [arm(OPEN), ["tick"], ["run"]],
+                 core_records=rows[3:], seams={"pc": pc}),
+        scenario("open_watched", [OPEN], [arm(OPEN, "shadow")] + looks(1), core_records=rows, seams={"pc": pc}),
+    ]
+
+
 def corpus() -> list:
     return (empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
-            + for_open_corpus())
+            + for_open_corpus() + open_target_corpus())
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):

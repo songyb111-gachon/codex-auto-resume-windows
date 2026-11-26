@@ -15,6 +15,7 @@ use car_adv::codex::turns::Turn;
 use car_adv::engine::emptyreply::{LookWorld, Looks, Unreadable as LookUnreadable, Words};
 use car_adv::engine::goal::{GoalSeen, GoalWorld, m2b_passed};
 use car_adv::engine::headless::{Follows, RunWorld, TurnsReader, Unreadable};
+use car_adv::engine::opentarget::OpenWorld;
 use car_adv::registry::CapabilityDef;
 use car_adv::statement::Catalogs;
 use car_adv::vocabulary::RunEnd;
@@ -444,6 +445,11 @@ impl World {
         }
     }
 
+    /// One seam of the scenario's, as it stands now.
+    pub fn seam(&self, name: &str) -> Value {
+        self.0.seam(name)
+    }
+
     /// The continuation family's world: the scenario's looks and the shipped catalogs' words (in English).
     pub fn look_world(&self) -> LookWorld {
         let catalogs = self.0.catalogs.clone();
@@ -517,6 +523,52 @@ impl World {
         }
     }
 
+    /// open_to_send's world: the scenario's PC (`pc`: idle, handler, running, link, holds), each look noted.
+    pub fn open_world(&self) -> OpenWorld {
+        let (idle, handler, running, link, holds) = (
+            self.0.clone(),
+            self.0.clone(),
+            self.0.clone(),
+            self.0.clone(),
+            self.0.clone(),
+        );
+        OpenWorld {
+            idle_seconds: Arc::new(move || {
+                idle.note(vec![text("pc"), text("idle")]);
+                match get(&idle.seam("pc"), "idle") {
+                    Value::Null => None,
+                    found => Some(number(found)),
+                }
+            }),
+            handler_registered: Arc::new(move || {
+                handler.note(vec![text("pc"), text("handler")]);
+                matches!(get(&handler.seam("pc"), "handler"), Value::Bool(true))
+            }),
+            app_running: Arc::new(move || {
+                running.note(vec![text("pc"), text("running")]);
+                match get(&running.seam("pc"), "running") {
+                    Value::Bool(found) => Some(*found),
+                    _ => None,
+                }
+            }),
+            open_link: Arc::new(move |thread: &Value| {
+                link.note(vec![text("pc"), text("link"), thread.clone()]);
+                match get(&link.seam("pc"), "link") {
+                    found if is_raise(found) => Err(()),
+                    Value::Bool(found) => Ok(*found),
+                    _ => Ok(false),
+                }
+            }),
+            app_holds: Arc::new(move |thread: &Value| {
+                holds.note(vec![text("pc"), text("holds"), thread.clone()]);
+                match of_thread(get(&holds.seam("pc"), "holds"), thread) {
+                    Some(Value::Bool(found)) => Some(found),
+                    _ => None,
+                }
+            }),
+        }
+    }
+
     /// `definition.make(paths)`: the edition's own code, with the scenario's fakes where it takes them.
     pub fn make(&self, definition: &CapabilityDef, paths: &Paths) -> Option<Box<dyn Code>> {
         use car_adv::engine;
@@ -527,6 +579,7 @@ impl World {
             "subagent_parent" => engine::subagent::make_with(paths, self.look_world()),
             "goal_continuation" => engine::goal::make_with(paths, self.goal_world()),
             "queue_for_open" => engine::foropen::make_with(paths, self.goal_world().goal),
+            "open_to_send" => engine::opentarget::make_with(paths, self.open_world()),
             "marker_free_continuation" => {
                 engine::markerfree::make_with(paths, Arc::new(Mutex::new(self.opener())))
             }

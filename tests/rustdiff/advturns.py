@@ -84,6 +84,9 @@ class View:
         self.now, self._core = clock[0], core
     def get(self, key):
         return self._core.get(key)
+    def records_in(self, states):
+        rows = WORLD.seams.get("core_records", scenario.get("core_records", []))
+        return [dict(row) for row in rows if row.get("state") in states]
     def thread_enabled(self, thread_id):
         found = scenario.get("enabled", {}).get(thread_id, True)
         if found == "raise":

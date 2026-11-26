@@ -128,6 +128,7 @@ struct TraceView {
     now: f64,
     core: Value,
     enabled: Value,
+    records: Value,
 }
 
 impl View for TraceView {
@@ -136,6 +137,20 @@ impl View for TraceView {
     }
     fn get(&self, interruption_id: &str) -> Result<Value, ReadFailed> {
         Ok(get(&self.core, interruption_id).clone())
+    }
+    fn records_in(&self, states: &[&str]) -> Result<Vec<Value>, ReadFailed> {
+        Ok(match &self.records {
+            Value::Array(rows) => rows
+                .iter()
+                .filter(|row| {
+                    get(row, "state")
+                        .as_text()
+                        .is_some_and(|state| states.contains(&state))
+                })
+                .cloned()
+                .collect(),
+            _ => Vec::new(),
+        })
     }
     fn thread_enabled(&self, thread_id: &str) -> Result<bool, ReadFailed> {
         match get(&self.enabled, thread_id) {
@@ -327,6 +342,7 @@ fn main() {
     let shared: Arc<Shared> = Shared::new(paths, options);
     let core = get(&scenario, "core").clone();
     let enabled = get(&scenario, "enabled").clone();
+    let records = get(&scenario, "core_records").clone();
     let now = || *clock.lock().unwrap_or_else(PoisonError::into_inner);
     let mut results = Vec::new();
     let mut last: Option<car_adv::runtime::tick::Errands> = None;
@@ -347,6 +363,10 @@ fn main() {
             now: now(),
             core: core.clone(),
             enabled: enabled.clone(),
+            records: match world.seam("core_records") {
+                Value::Null => records.clone(),
+                found => found,
+            },
         };
         let out: Result<Value, String> = shared.enter(|runtime| match op.as_str() {
             "clock" => {

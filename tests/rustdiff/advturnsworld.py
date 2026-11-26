@@ -14,6 +14,8 @@ whether it pools), ["resume", record, thread, still_unloaded] (the route P16 nam
 true | false | "raise" | null). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused, "no"
 Codex's own refusal of that method (RefusedByCodex). A goal is a status or {goal_id, status}; for goal_continuation a list of
 them is read one after another (the last again).
+open_to_send's PC (S7.2e1b): `pc` {idle: seconds | null, handler: bool, running: bool | null, link: bool | "raise",
+holds: {thread: bool | null}}; core's records the view hands `records_in` are `scenario["core_records"]`.
 The continuation family's looks (S7.2e1b): `recent` [thread, ...] | "raise"; `between` {thread: n | "raise"}; `plans`
 {thread: [status, ...] | null | "raise"}; `goals` {thread: status | null | "raise"}; `own` {thread: bool | "raise"}
 (core's reader takes it for a conversation it recovers; default true); `children` {parent: [{thread_id, turn_id, status,
@@ -176,6 +178,7 @@ class World:
         "compact_continue": "compact", "model_fallback": "fallback", "codex_retry_settings": "retries",
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
         "marker_free_continuation": "markerfree", "goal_continuation": "goal", "queue_for_open": "foropen",
+        "open_to_send": "opentarget",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -237,6 +240,38 @@ class World:
                 return module.GoalContinuation(paths, session=lambda: self.open(capability), home="fake-codex-home",
                                                view=lambda: globals()["view"], measured=lambda: globals()["measured"],
                                                clock=lambda: self.clock[0])
+            if capability == "open_to_send":
+                world = self
+
+                def pc(name):
+                    return world.seams.get("pc", {}).get(name)
+
+                def idle():
+                    world.note("pc", "idle")
+                    return pc("idle")
+
+                def handler():
+                    world.note("pc", "handler")
+                    return pc("handler") is True
+
+                def running():
+                    world.note("pc", "running")
+                    found = pc("running")
+                    return found if isinstance(found, bool) else None
+
+                def link(thread):
+                    world.note("pc", "link", thread)
+                    if pc("link") == "raise":
+                        raise RuntimeError("raised")
+                    return pc("link") is True
+
+                def holds(paths, thread):
+                    world.note("pc", "holds", thread)
+                    found = (pc("holds") or {}).get(thread)
+                    return found if isinstance(found, bool) else None
+                module.idle_seconds, module.handler_registered, module.app_running = idle, handler, running
+                module.open_link, module.app_holds = link, holds
+                return module.OpenTarget(paths)
             if capability == "queue_for_open":
                 module.Goals = lambda home: FakeGoals(self)
                 return module.QueueForOpen(paths, home="fake-codex-home")
