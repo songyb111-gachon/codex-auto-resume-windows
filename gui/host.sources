@@ -19,6 +19,7 @@
 
 [surface]
 gui/SurfaceJson.cs
+gui/SurfaceNative.cs
 gui/PopupWords.cs
 
 [generated]
