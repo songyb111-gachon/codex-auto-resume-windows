@@ -47,6 +47,38 @@ advledger = _load("rustdiff_advledger_s72a", HERE.parent / "advledger_s72a.py")
 
 # Proved green on Rust (`--run`: both lanes pass test by test, calls to advserve made), with the seat whose rows did it.
 GREEN = {
+    "test_advanced_keep_on_every.py": "S7.2a3 (runtime, state, arming)",
+    "test_advanced_arming.py": "S7.2a3 (runtime, state, arming; patched state methods through `faults`)",
+    "test_advanced_autocheck.py": "S7.2a3 (runtime)",
+    "test_advanced_state_v4.py": "S7.2a3 (state)",
+    "test_advanced_window_switches.py": "S7.2a3 (state)",
+    "test_advanced_requires.py": "S7.2a3 (runtime, arming)",
+    "test_advanced_registry.py": "S7.2a3 (runtime; the registry's own rules wait for their forwarder)",
+}
+
+# What a run found that the imports cannot say (`--run`): the seat or the reason a file still waits for, each with
+# the tests that hold it. A file leaves this only into GREEN.
+RUN_WAITS = {
+    "test_advanced_goal_verified_resets.py": ("S7.2e1", "the shipped goal_continuation's code: car-adv's make "
+                                              "table gives none until S7.2e1 (registry.make is forwarded)"),
+    "test_advanced_hook_claim.py": ("P11 host", "P11 (`claim_ledger`) runs on core's own SQLite connection, in "
+                                    "core's process: the integrated host (S7.3d), not a second process"),
+    "test_advanced_ledger.py": ("P11 host", "the claim ledger on core's connection (`state._open`, `claim`)"),
+    "test_advanced_state.py": ("P11 host", "AttachTests and RecordTests attach the file to core's connection "
+                               "(`state._open`); the other 61 tests are green through the proxy"),
+    "test_advanced_admission.py": ("S4.2 proxy", "EngineCase (6) fails on the core proxy alone too "
+                                   "(CODEX_AR_ADVPROXY=0): core's engine through car-harness with an advanced plug "
+                                   "(P11 and P2 through AskStore); the other 21 tests are green through the proxy"),
+    "test_advanced_state_v5.py": ("reference only", "\"a build of version N\" patches the reference's "
+                                  "session.SCHEMA_VERSION: car-adv's is compiled in (its migrations: diffs_advstore)"),
+    "test_advanced_state_v6.py": ("reference only", "patches session.SCHEMA_VERSION (as test_advanced_state_v5)"),
+    "test_advanced_state_v7.py": ("reference only", "patches session.SCHEMA_VERSION (as test_advanced_state_v5)"),
+    "test_advanced_schema_v8.py": ("reference only", "patches session.SCHEMA_VERSION (as test_advanced_state_v5)"),
+    "test_advanced_state_options.py": ("reference only", "an older reader (a patched SCHEMA_VERSION) and a "
+                                       "registry that is a SimpleNamespace with no definitions to hand car-adv"),
+    "test_advanced_examples.py": ("S7.1b", "reaches no forwarded code: statement's and registry's own functions"),
+    "test_advanced_measure_m4b.py": ("S7.4", "reaches no forwarded code: the measurement table's words"),
+    "test_advanced_word_keys.py": ("S7.1", "reaches no forwarded code: statement and images' own functions"),
 }
 
 # The names a HANDED or THROUGH module hands car-adv as data (a test may build them): any other function of the module
@@ -96,6 +128,8 @@ def rows(tag: str) -> list:
             status, why = "waits for %s" % base["unlock"], base["reason"]
         elif name in GREEN:
             status, why = "green on Rust", GREEN[name]
+        elif name in RUN_WAITS:
+            status, why = "waits for %s" % RUN_WAITS[name][0], RUN_WAITS[name][1]
         elif not waits:
             status, why = "ready", "nothing it imports waits: --run it"
         else:
