@@ -425,12 +425,9 @@ namespace CodexAutoResume
         /// What the installed engine's `desktop-shortcut` command ends with when another shortcut has the name
         /// (scripts/plugin_setup.py, EXIT_DESKTOP_TAKEN).
         internal const int ExitTaken = 3;
-        /// What a change that could not even be asked for ends with: no interpreter there, or it did not end in time.
+        /// What a change that could not even be asked for ends with: no core there, or it did not end in time.
         internal const int NotChanged = 1;
-        /// What every python.exe this program starts is given first: remote debugging off (PEP 768; the settings window's
-        /// own Bridge.NoRemoteDebug, which the setup programs are not compiled with).
-        internal const string NoRemoteDebug = "-X disable-remote-debug ";
-        /// The longest one change may take: a Python start and a shortcut written through PowerShell.
+        /// The longest one change may take: the core's start and a shortcut written through PowerShell.
         internal const int ChangeMilliseconds = 60000;
 
         /// Makes (`make`) or removes this installation's shortcut on the Desktop, by asking the installed engine - the same
@@ -443,10 +440,10 @@ namespace CodexAutoResume
             said = "";
             try
             {
-                string python = Path.Combine(Path.Combine(home, "runtime"), "python.exe");
-                string setup = Path.Combine(Path.Combine(Path.Combine(home, "app"), "scripts"), "plugin_setup.py");
-                if (!File.Exists(python) || !File.Exists(setup)) return NotChanged;
-                var info = new ProcessStartInfo(python, NoRemoteDebug + "\"" + setup + "\" desktop-shortcut " + (make ? "make" : "remove"));
+                // v0.6.27: the installation's core, whose `desktop-shortcut` is plugin_setup's (CoreExe).
+                string core = CoreExe.Path(home);
+                if (!File.Exists(core)) return NotChanged;
+                var info = new ProcessStartInfo(core, "desktop-shortcut " + (make ? "make" : "remove"));
                 info.UseShellExecute = false;
                 info.CreateNoWindow = true;
                 info.RedirectStandardOutput = true;

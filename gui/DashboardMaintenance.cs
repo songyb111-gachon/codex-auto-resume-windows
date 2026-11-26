@@ -96,13 +96,13 @@ namespace CodexAutoResume
             if (!Confirm(S("confirm.repair", "Run setup again to repair the Windows registrations, and start the watcher if it is stopped? Settings, pending recoveries, a pause and the sign-in choice are all kept."),
                          S("action.repair", "Repair installation"))) return;
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-            string python = Path.Combine(root, "runtime", "python.exe");
-            string setup = Path.Combine(root, "app", "scripts", "plugin_setup.py");
+            // v0.6.27: the installation's core, whose `setup` is plugin_setup's (CoreExe).
+            string core = CoreExe.Path(root);
             SetBusy(true);
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
                 string outcome, detail;
-                RunRepair(root, python, setup, out outcome, out detail);
+                RunRepair(root, core, out outcome, out detail);
                 bool noEntry = outcome == "done" &&
                                EntryCannotBeWritten(root, Environment.GetEnvironmentVariable("USERPROFILE"));
                 MethodInvoker finish = delegate
@@ -120,14 +120,13 @@ namespace CodexAutoResume
         /// done, busy, incomplete, running or failed. They are five different sentences
         /// because they ask for five different things from the person, and one of them -
         /// a setup that is still working - is not a failure at all.
-        private static void RunRepair(string root, string python, string setup,
-                                      out string outcome, out string detail)
+        private static void RunRepair(string root, string core, out string outcome, out string detail)
         {
             outcome = "failed";
             detail = "";
             // Nothing to run: this installation is missing the files setup is made of, so
             // saying "setup did not finish" would describe the wrong problem.
-            if (!File.Exists(python) || !File.Exists(setup)) { outcome = "incomplete"; return; }
+            if (!File.Exists(core)) { outcome = "incomplete"; return; }
             // The installer holds this while it works, and its own repair branch takes it
             // for the same reason: two processes rewriting the same registrations at once
             // is the one case the lock exists for. An abandoned lock means its holder died,
@@ -144,7 +143,7 @@ namespace CodexAutoResume
                     // starts a stopped watcher, and never undoes a pause or adds back a
                     // sign-in start the person switched off - a plain `setup` does both, as
                     // a first install should.
-                    var info = new ProcessStartInfo(python, Bridge.NoRemoteDebug + Bridge.Quote(setup) + " setup --keep-state");
+                    var info = new ProcessStartInfo(core, "setup --keep-state");
                     info.UseShellExecute = false;
                     // The installation this window belongs to. Setup resolves its target from
                     // this variable, so without it Repair would repair whichever installation

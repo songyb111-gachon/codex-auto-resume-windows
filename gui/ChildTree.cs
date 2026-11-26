@@ -1,6 +1,6 @@
 // Codex Auto Resume - ending a child of the window's, with what it started (v0.6.18).
 //
-// The one-shot bridge (Bridge.Call in gui/SettingsApp.cs) runs controlcli in a python.exe of its own. When that child
+// The one-shot bridge (Bridge.Call in gui/SettingsApp.cs) runs the core's bridge in a process of its own. When that child
 // does not answer in time it is ended - and so is what it started and still runs, since a probe of Codex that kept
 // the child's stdout open holds the window's read of it past the child's own end. .NET Framework has no
 // Kill(entireProcessTree), so the tree is read from one snapshot of every process (CreateToolhelp32Snapshot): the
@@ -8,8 +8,10 @@
 // again since is someone else's.
 //
 // The watcher is never ended (control/watcher.py, stop_watcher: a watcher stopped mid-submission cannot prove whether
-// it sent the continuation). It is the one process controlcli starts under pythonw.exe, detached and with no handle
-// of the window's, so a pythonw.exe, and everything under it, is left as it is wherever it is in the tree.
+// it sent the continuation). It is the one process the bridge starts detached and with no handle of the window's: since
+// v0.6.27 the watcher host, CodexAutoResume.exe, and - where the start went through the compatibility entry - car-legacy's
+// pythonw.exe, which hands `run` on to the host without waiting for it. So either image, and everything under it, is left
+// as it is wherever it is in the tree.
 
 using System;
 using System.Collections.Generic;
@@ -51,8 +53,16 @@ namespace CodexAutoResume
         private const int TH32CS_SNAPPROCESS = 0x00000002;
         private static readonly IntPtr Invalid = new IntPtr(-1);
 
-        /// The image the watcher runs under, which is never ended.
-        internal const string Spared = "pythonw.exe";
+        /// The images the watcher runs under, which are never ended: the host, and car-legacy's pythonw.exe (v0.6.27).
+        internal static readonly string[] Spared = { "CodexAutoResume.exe", "pythonw.exe" };
+
+        /// Whether `image` is one of Spared, as Windows compares file names. Pure.
+        internal static bool IsSpared(string image)
+        {
+            foreach (string each in Spared)
+                if (string.Equals(image, each, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
 
         /// One process as the snapshot listed it.
         internal struct Listed
@@ -105,7 +115,7 @@ namespace CodexAutoResume
                 foreach (Listed one in all)
                 {
                     if (one.Parent != parent || one.Id == parent || seen.Contains(one.Id)) continue;
-                    if (string.Equals(one.Image, Spared, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (IsSpared(one.Image)) continue;
                     DateTime start = startedAt(one.Id);
                     if (parentStart != DateTime.MaxValue && start != DateTime.MaxValue && start < parentStart) continue;
                     seen.Add(one.Id);

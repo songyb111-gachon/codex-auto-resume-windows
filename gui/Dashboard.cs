@@ -59,9 +59,6 @@ namespace CodexAutoResume
         internal static int RetryMilliseconds = 300000;
         private readonly Stopwatch givenUp = new Stopwatch();
         private readonly Bridge once;
-        private string python;
-        private readonly string bundled;
-        private readonly string appSrc;
         private readonly object gate = new object();
         private Process process;
         private int nextId;
@@ -71,9 +68,6 @@ namespace CodexAutoResume
         internal PersistentBridge(string root, Bridge once)
         {
             this.once = once;
-            python = RuntimeChoice.Python(root);
-            bundled = RuntimeChoice.BundledPython(root);
-            appSrc = Path.Combine(root, "app", "src");
         }
 
         internal bool Available { get { return once.Available; } }
@@ -224,21 +218,13 @@ namespace CodexAutoResume
         /// Whether the long-lived process is given up for now (for the tests).
         internal bool GivenUp { get { return failures >= MaxFailures; } }
 
-        /// One more failure of the long-lived process. v0.6.23: a chosen Python that has failed it MaxFailures times is
-        /// left for the bundled one, for the life of this window, and the count starts again: this is what keeps the
-        /// Advanced features page, and its Back to the bundled version, reachable while the chosen runtime is broken.
+        /// One more failure of the long-lived process: MaxFailures in a row give it up for RetryMilliseconds. v0.6.27:
+        /// there is one core, so there is no other program to fall back to (the v0.6.23 move from a chosen Python to the
+        /// bundled one went with the choice).
         private void FailedLocked()
         {
             failures++;
-            if (failures < MaxFailures) return;
-            if (string.Equals(python, bundled, StringComparison.OrdinalIgnoreCase))
-            {
-                givenUp.Restart();
-                return;
-            }
-            python = bundled;
-            once.UseBundled();
-            failures = 0;
+            if (failures >= MaxFailures) givenUp.Restart();
         }
 
         private Dictionary<string, object> Ask(string command, string argument)
@@ -267,13 +253,10 @@ namespace CodexAutoResume
         private void StartLocked()
         {
             var info = new ProcessStartInfo();
-            info.FileName = python;
-            string code = "import sys;sys.path.insert(0,sys.argv[1]);" +
-                          "from codex_auto_resume.controlcli import main;" +
-                          "sys.exit(main(sys.argv[2:]))";
-            // "-c", as the one-shot bridge has it: without it python.exe takes the code for a
-            // script path, exits, and every call silently falls back to the one-shot bridge.
-            info.Arguments = Bridge.NoRemoteDebug + "-c " + Bridge.Quote(code) + " " + Bridge.Quote(appSrc) + " serve";
+            // The core's `bridge serve` (v0.6.27): one request a line, one reply a line, as controlcli serve. The
+            // one-shot bridge's own program, so the two can never be two different installations' cores.
+            info.FileName = once.Core;
+            info.Arguments = "bridge serve";
             info.UseShellExecute = false;
             info.RedirectStandardInput = true;
             info.RedirectStandardOutput = true;

@@ -228,7 +228,9 @@ namespace CodexAutoResume
     /// it was told last time. A strings reply depends on three things, and a cached one is used
     /// only while all three are exactly what they were when it was written:
     ///   * the product and its catalogs: the window's version, and a digest of every file the
-    ///     words and the language rules are read from. Not their length and time: a release
+    ///     words and the language rules are read from - plugin.json, the core that answers
+    ///     `strings` (app\bin\codex-auto-resume.exe, v0.6.27: the rules are compiled into it, where
+    ///     they were five .py files) and the catalogs. Not their length and time: a release
     ///     archive gives every file one fixed time, which extracting and copying keep, so a word
     ///     corrected to one of the same length changed neither;
     ///   * the Interface language stored in settings: a digest of the settings file, so any save
@@ -269,16 +271,20 @@ namespace CodexAutoResume
         {
             try
             {
-                var key = new StringBuilder("2");
+                // "3" since v0.6.27, the Rust core: a v0.6.26 cache, keyed "2" over the Python files, is never read as
+                // current, whatever else in it matches.
+                var key = new StringBuilder("3");
                 key.Append("|window ").Append(typeof(StringsCache).Assembly.GetName().Version);
                 key.Append("|root ").Append(Path.GetFullPath(root));
                 using (var sha = System.Security.Cryptography.SHA256.Create())
                 {
                     string app = Path.Combine(root, "app");
                     Stamp(key, sha, Path.Combine(Path.Combine(app, ".codex-plugin"), "plugin.json"));
+                    // The program that answers `strings`: the words' rules (interface, l10n, settings, config and the
+                    // bridge) are compiled into it.
+                    Stamp(key, sha, CoreExe.Path(root));
+                    // The catalogs where the archive ships them, the path the core reads them from.
                     string package = Path.Combine(Path.Combine(app, "src"), "codex_auto_resume");
-                    foreach (string name in new[] { "interface.py", "l10n.py", "settings.py", "config.py", "controlcli.py" })
-                        Stamp(key, sha, Path.Combine(package, name));
                     string locales = Path.Combine(package, "locales");
                     string[] catalogs = Directory.Exists(locales) ? Directory.GetFiles(locales, "*.json") : new string[0];
                     Array.Sort(catalogs, StringComparer.OrdinalIgnoreCase);
