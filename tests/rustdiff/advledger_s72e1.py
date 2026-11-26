@@ -17,9 +17,10 @@ from rustdiff import advledger_s72a as base
 
 MINE = ("headless compact fallback silent retries emptyreply keepgoing goal subagent markerfree foropen opentarget "
         "steer promptqueue chat oncemore everyconversation parallel sessions admitted").split()
-# Ported and diffed in this seat (diffs_advturns_small.py, diffs_advturns_runs.py).
+# Ported and diffed in this seat (diffs_advturns_small.py, diffs_advturns_runs.py; S7.2e1b: diffs_advturns_cont.py).
 PORTED = {"silent", "everyconversation", "parallel", "sessions", "oncemore", "headless", "compact", "fallback",
-          "retries"}
+          "retries", "emptyreply", "keepgoing", "goal", "subagent", "markerfree", "foropen", "opentarget", "steer",
+          "promptqueue", "chat", "admitted"}
 DONE_SEATS = {"S7.1", "S7.2a", "S7.2c", "S7.3c", "S7.2e1"}
 
 

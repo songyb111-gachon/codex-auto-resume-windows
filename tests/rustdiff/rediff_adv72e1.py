@@ -3,7 +3,8 @@
     python -X utf8 tests/rustdiff/rediff_adv72e1.py --reference v0.6.26
 
 Says which of the ported Python files differ between v0.6.26 (what S7.2e1 ported) and the tag, rebuilds the example
-`advturns` (release), then runs the seat's diffs (`diffs_advturns_*.py`: AdvTurnsSmallDiff, AdvTurnsRunsDiff) with the
+`advturns` (release), then runs the seat's diffs (`diffs_advturns_*.py`: AdvTurnsSmallDiff, AdvTurnsRunsDiff and
+S7.2e1b's AdvTurnsContDiff) with the
 tag as the reference (`run.py --build --reference TAG`). Exit 0 only when all are equal.
 """
 from __future__ import annotations
@@ -17,14 +18,25 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 ENGINE = "advanced/src/codex_auto_resume_advanced/engine/"
 PORTED = [ENGINE + name + ".py" for name in ("silent", "everyconversation", "parallel", "sessions", "oncemore",
-                                             "headless", "compact", "fallback", "retries")] + [
+                                             "headless", "compact", "fallback", "retries",
+                                             # S7.2e1b
+                                             "emptyreply", "keepgoing", "goal", "subagent", "markerfree", "foropen",
+                                             "opentarget", "steer", "promptqueue", "chat", "admitted")] + [
     # what the ported code reads beside them
     "advanced/src/codex_auto_resume_advanced/codex/headless.py", "advanced/src/codex_auto_resume_advanced/runtime.py",
     "advanced/src/codex_auto_resume_advanced/state/runs.py", "src/codex_auto_resume/machine.py",
-    "src/codex_auto_resume/domain/gates.py"]
+    "src/codex_auto_resume/domain/gates.py",
+    # S7.2e1b: what the continuation family and the channels read beside them
+    "advanced/src/codex_auto_resume_advanced/state/continuations.py",
+    "advanced/src/codex_auto_resume_advanced/state/prompts.py", "advanced/src/codex_auto_resume_advanced/state/opens.py",
+    "advanced/src/codex_auto_resume_advanced/state/steers.py", "advanced/src/codex_auto_resume_advanced/state/chat.py",
+    "advanced/src/codex_auto_resume_advanced/state/choices.py", "advanced/src/codex_auto_resume_advanced/images.py",
+    "advanced/src/codex_auto_resume_advanced/codex/protocol.py", "advanced/src/codex_auto_resume_advanced/codex/ipc.py",
+    "advanced/src/codex_auto_resume_advanced/locales/en.json", "src/codex_auto_resume/engine/foropen.py",
+    "src/codex_auto_resume/failures.py", "src/codex_auto_resume/continuation.py"]
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-FAMILIES = ("AdvTurnsSmallDiff", "AdvTurnsRunsDiff")
+FAMILIES = ("AdvTurnsSmallDiff", "AdvTurnsRunsDiff", "AdvTurnsContDiff")
 
 
 def main(argv=None) -> int:
