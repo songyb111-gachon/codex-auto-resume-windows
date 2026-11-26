@@ -2850,3 +2850,88 @@ bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary
 diffs (after a62f53fd0)                               AdvTurnsSmallDiff + AdvTurnsRunsDiff: Ran 2, OK (32 scenarios)
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+
+## Seat S7.2e1b: the other eleven capabilities of sends and turns (branch `car-v0627-s72e1`, 2026-11-27)
+
+Finishes S7.2e1 in the same worktree, from `1cfe007f8`. Reference: the v0.6.26 final through `advref` (the advturns
+entry the first nine use; no interpreter of its own). **All twenty of S7.2e1's `engine/` modules are now ported and
+diffed**; every `make` of table 2.2 for this seat answers a code.
+
+### Ported (module -> crate)
+
+| Python (`advanced/.../engine/`) | here (car-adv `engine::`) |
+|---|---|
+| `emptyreply.py` | `emptyreply` (P8 errand, P2) - and the family's seams: [`Looks`] (`Turns(home)` recent/latest/between/plan_statuses, `Goals(home).read`, core's `LocalSource(home).latest` with P19's widening, `Lineage(home).children`), `Words` (`statement.CATALOGS.text`), `LookWorld`, and `Continuations` (the reference's `ContinuationsHandle`: on/get/mine/last/add/note/end/kept/stop_kept) |
+| `keepgoing.py` | `keepgoing` (P8, P2; `allowed`, every KeepReason stop) |
+| `subagent.py` | `subagent` (P4 lines + `words_sent`, P8 follow-up once MS, P2) |
+| `markerfree.py` | `markerfree` (P5 `MarkerFreeChannel`, P15, `carries`, `pools`; `send`/`queue_id`/`Open` reused by goal, promptqueue and chat) |
+| `goal.py` | `goal` (P16 `GoalRoute`, P3 hold + VERIFIED_RESET, P5 `GoalChannel` where M2b passed; `GoalWorld`, `GoalLook`, `m2b_passed`) |
+| `foropen.py` | `foropen` (P16 QUEUE_FOR_OPEN and its watch; `watching` - `seam_p7::for_open_watching` re-exports it) |
+| `opentarget.py` | `opentarget` (P8 errand under core's guard; `OpenWorld` also implements `seam_p7::OpenTarget` for autoswitch) |
+| `steer.py` | `steer` (P8 errand; `SteerWorld`; `outcome`) |
+| `promptqueue.py` | `promptqueue` (P2, `watched_due`, P5 `ImageChannel`, P15, `images_of`; `handed` - `seam_p7::prompt_handed` re-exports it) |
+| `chat.py` | `chat` (P2, P5 `ChatChannel`, P15; `handed`, `watched`, `paused_by_stop`, `TAKEN_WITHIN` - `seam_p7` re-exports them) |
+| `admitted.py` | `admitted` (structured_rules, unknown_failure_budget, codex_gave_up, sign_in_retry: P17, P3, `rule_for`, `taken`) |
+
+The core gaps the S7.2e1 section named: the continuations handle is `engine::emptyreply::Continuations` over
+`Scoped` (S7.1a's `Scoped::handle()` is another seat's file: a named seam, nothing added there); core's `LocalSource`
+and the goals reader are behind `Looks`/`GoalLook` (the live readers are the entry points', below); the global
+catalogs' text is `Words`.
+
+### The proof
+
+* `tests/rustdiff/diffs_advturns_cont.py` (**AdvTurnsContDiff**): 64 scenarios over the same `advturns` example and
+  `advturns.py` entry - empty 10, keep 6, subagent 7, marker-free 7, goal 6, for-open 5, open-to-send 6, prompts 7,
+  steer 3, chat 2, admitted 5 - all equal: every answer, every call a fake was asked, every advanced.sqlite row. New
+  fakes and steps (`advturnsworld.py` docstring, `world.rs`): the looks (`recent`, `between`, `plans`, `goals` - a
+  list read in turn for goal_continuation -, `own`, `children`), the view's `thread_enabled` (`enabled`) and
+  `records_in` (`core_records`, replaceable by a `seam` step), the PC (`pc`), the steer seams, `running`; the steps
+  `seam`, `keep`, `kept_used`, `override`, `steer_add`, `prompt_add`, `chat_add`, `rule`, `admit`, `send`/`pools` (the
+  P5 channel sent through once), `resume` (the P16 route resumed once). A session answer "timeout", "refused" or "no"
+  (Codex's own refusal of that method) raises as the reference's does; a fake session with no `submit` is called
+  whole, as `protocol.submitted` does (the first nine's scenarios still equal after that change: AdvTurnsSmallDiff
+  and AdvTurnsRunsDiff rerun, OK).
+* The edges: empty/damaged/wrong-type records and failures, a thread that is no text, kinds of count 0 and met
+  twice, a turn too fresh, a shape that changed between looks, unreadable turns/goals/plans/lineage/between, goals
+  active/blocked/paused, chains of one, two and three, words past 2,000 code points (é counted once), NUL, 30,000 and
+  30,001 code points, upper-case uuids, every pipe word, caps of opens a day/record/conversation, watched and off.
+* Mutation checks (scratchpad `car-v0627-s72e1-mutate2.py`, each rule broken alone, `advturns` rebuilt, its scenario
+  run, the file restored byte for byte): empty_response making a chain's third, continuing past a goal Codex's loop guard stopped; keep_going sending past three before MK; subagent_parent counting its words in bytes; marker-free taking a queue id that is no uuid; goal_continuation holding half as long; queue_for_open keeping one queued on its last second; open_to_send opening a minute apart; steer_send writing a steer asked over two minutes ago; prompt_queue keeping an occurrence two days; codex_chat leaving a message in Codex's queue five minutes; codex_gave_up taking a task up three times: **12 caught**. Two survived, both unobservable through the runtime: subagent_parent's 2,000-character limit raised to 2,100 (the runtime checks P4's words against core's own limit too) and queue_for_open's DEFAULT_DAYS (arming stores the option's default, so the fallback is never read).
+* Not reached by the harness (named, not diffed): subagent_parent's `words_sent` (core's claim is not driven by
+  `advturns`; P11 is S7.2a2's), unknown_failure_budget's `taken` sample, a P3 known_failure answer that the runtime
+  holds to its admission row, Longer messages on for prompt_queue (long_reset_message's own P2 is S7.2d's, still None),
+  sign_in_retry's `categories` (an array here, a tuple there: AUDIT line), pictures (no copy is staged in a trace).
+* The re-diff: `python -X utf8 tests/rustdiff/rediff_adv72e1.py --reference v0.6.26` (now with the eleven modules,
+  what they read and AdvTurnsContDiff). The ledger: `PYTHONPATH=tests python -X utf8 tests/rustdiff/advledger_s72e1.py`
+  - 35 advanced test files reach an S7.2e1 module, all 35 now reach only ported ones; all wait for the proxy (S7.2a3).
+
+### Seams left (the entry points', S7.3d, through each module's `make_with`)
+
+* `LookWorld` (emptyreply, keepgoing, subagent): the live `Looks` over car-adv's `codex::turns::Turns`,
+  `codex::goals::Goals`, `codex::lineage::Lineage` and car-codex's `LocalSource` of `inuse::home`; `Words` over the
+  shipped catalogs' directory (`statement::Catalogs::new`, the host's). Bare: every read raises, no words.
+* `markerfree::Open` (marker-free, goal, prompt queue, chat): `codex::headless::live_session`-style opener over
+  `inuse::backend` restricted to each capability's methods. Bare: no session ("not started").
+* `GoalWorld` (goal, and its `goal` reader for queue_for_open): goals of `inuse::home`, M2b from the view and
+  `compatdata::table_for`, `wall_clock`. `OpenWorld`: core's idle time, `control::opencodex::handler_registered`
+  (S7.3a), `app_running_now`, `codex_link`, the loaded check. `SteerWorld`: `codex::ipc::steer_turn` with a bridge from
+  car-policy's `Guards` to `ipc::Gate`, the turn history, `resource_users`, the loaded check. `TurnRunning`
+  (prompt_queue). `admitted::Items` (`inuse::told` + `turn_item_counts`). Every bare world refuses or reads nothing.
+* `seam_p7`'s chat/prompt/foropen helpers now re-export their modules (the runtime's names kept); its continued
+  helpers stay (`engine/continued.py` is S7.2d's).
+
+### Gates
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0; cargo deny: rc=0
+## advanced/rust   fmt --check rc=0; clippy rc=0 (after 301f6af7f); test --locked --no-fail-fast rc=0; cargo deny: rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
+diffs (release, run.py --build -k AdvTurns)           AdvTurnsSmallDiff + AdvTurnsRunsDiff + AdvTurnsContDiff: Ran 3, OK (96 scenarios)
+diffs (debug, after 301f6af7f's safety prelude)       the same three families again: OK (9 + 23 + 64)
+```
+Safety (the main session's notice of 2026-11-27): every trace now runs with `CODEX_AUTO_RESUME_CODEX_EXE` at a path
+where no codex.exe is, on both sides, and the reference's `inuse.backend`, `processes_named`, `resource_users` and
+`process_identity` refuse wherever they were bound (`advturnsworld.refuse_discovery`). No Rust code of this seat
+discovers or starts Codex: every `make` is bare (no session, no home), every trace's world a fake.
