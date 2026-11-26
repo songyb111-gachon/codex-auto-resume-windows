@@ -36,6 +36,9 @@ ENTRY_POINTS = {"codex_auto_resume.controlcli": "bridge", "codex_auto_resume.mcp
                 "codex_auto_resume.mcp.server": "mcp", "codex_auto_resume.cli": "cli"}
 # S4.2: the package whose `Engine` becomes the proxy (engineproxy.py).
 ENGINE = "codex_auto_resume.engine"
+# S6.4: the popup's pure half (words and view model), as car-surface (surfaceproxy.py).
+SURFACE = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model", "codex_auto_resume.ui.words",
+           "codex_auto_resume.ui.tray.model")
 STDIN_ARGUMENT = "-"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CRATE = Path(__file__).resolve().parents[2] / "rust" / "crates" / "car-harness"
@@ -108,7 +111,23 @@ def engine_proxy():
     return found
 
 
+def surface_proxy():
+    """surfaceproxy.py, loaded by path once."""
+    found = sys.modules.get("rustdiff_surfaceproxy")
+    if found is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("rustdiff_surfaceproxy", Path(__file__).resolve().with_name(
+            "surfaceproxy.py"))
+        found = importlib.util.module_from_spec(spec)
+        sys.modules["rustdiff_surfaceproxy"] = found
+        spec.loader.exec_module(found)
+    return found
+
+
 def patch(module) -> None:
+    if module.__name__ in SURFACE:
+        surface_proxy().install(module)
+        return
     if module.__name__ == ENGINE:
         engine_proxy().install(module)
         return
@@ -137,7 +156,7 @@ class _Loader(importlib.abc.Loader):
 
 class Finder(importlib.abc.MetaPathFinder):
     def find_spec(self, name, path, target=None):
-        if name not in ENTRY_POINTS and name != ENGINE:
+        if name not in ENTRY_POINTS and name != ENGINE and name not in SURFACE:
             return None
         for finder in sys.meta_path:
             if finder is self or not hasattr(finder, "find_spec"):
@@ -156,7 +175,7 @@ def install() -> bool:
         return False
     if not any(isinstance(finder, Finder) for finder in sys.meta_path):
         sys.meta_path.insert(0, Finder())
-    for name in (*ENTRY_POINTS, ENGINE):
+    for name in (*ENTRY_POINTS, ENGINE, *SURFACE):
         if name in sys.modules:
             patch(sys.modules[name])
     return True
