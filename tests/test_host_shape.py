@@ -139,5 +139,56 @@ class TipCardTests(unittest.TestCase):
         self.assertNotIn("TipWidth", text)
 
 
+def written(name: str) -> str:
+    """A source's code: no comment, no string - what its names and calls are."""
+    return re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', code(source(name)))
+
+
+def surfaces() -> tuple[str, ...]:
+    return (*guiscan.host_group("contract"), *host_files())
+
+
+class ReachTests(unittest.TestCase):
+    """Twin of test_tray_popup.SafetyTests: what the surfaces can reach is what their source says they can reach. They send,
+    submit and queue nothing (only the watcher sends: they post actions through the host's closed table), drive nobody else's
+    window and open no connection."""
+
+    # The names that match "send|submit|queue|dispatch|backend|engine" and are not a send: the message pump's own call, the
+    # COM interface id MSAA's IDispatch needs, the thread pool's work item (a surface's off-thread work is not a queue of
+    # recoveries), the probe's stand-in for a window message, and the end of a word.
+    NOT_SENDS = {"DispatchMessageW", "IidDispatch", "QueueUserWorkItem", "SendMessageW", "wordsEnd"}
+
+    def test_no_name_in_them_sends_submits_or_queues(self):
+        offenders = {}
+        for name in surfaces():
+            for word in set(re.findall(r"\b\w+\b", written(name))):
+                if re.search(r"send|submit|queue|dispatch|backend|engine", word, re.I) and word not in self.NOT_SENDS:
+                    offenders.setdefault(word, []).append(name)
+        self.assertEqual(offenders, {})
+
+    def test_they_drive_nobody_else_s_window_and_open_no_connection(self):
+        forbidden = re.compile(r"\bSendInput\b|\bkeybd_event\b|\bmouse_event\b|\bSetCursorPos\b|\bPrintWindow\b|\bBitBlt\b|"
+                               r"\bProcess\.Start\b|\bProcessStartInfo\b|System\.Net|\bSocket\b|\bHttpClient\b|\bWebClient\b|"
+                               r"\bAccessibleObjectFromWindow\b|\bUIAutomation\w*\b")
+        for name in surfaces():
+            with self.subTest(name):
+                self.assertEqual(forbidden.findall(written(name)), [])
+        # Explorer's overflow flyout is asked of, never driven (tray_place.py's rule): FindWindow is the icon's placement alone.
+        for name in surfaces():
+            if name not in ("gui/TrayPlace.cs", "gui/SurfaceRenderWindows.cs"):
+                with self.subTest(name):
+                    self.assertEqual(re.findall(r"\bFindWindow\w*\b", written(name)), [])
+
+    def test_they_use_nothing_that_can_submit(self):
+        allowed = {"Microsoft.Win32", "System", "System.Collections", "System.Collections.Generic", "System.Drawing",
+                   "System.Globalization", "System.IO", "System.Runtime.InteropServices", "System.Security.Cryptography",
+                   "System.Text", "System.Text.RegularExpressions", "System.Threading"}
+        used = {}
+        for name in surfaces():
+            for namespace in re.findall(r"(?m)^using ([\w\.]+);", code(source(name))):
+                used.setdefault(namespace, []).append(name)
+        self.assertEqual(sorted(set(used) - allowed), [])
+
+
 if __name__ == "__main__":
     unittest.main()
