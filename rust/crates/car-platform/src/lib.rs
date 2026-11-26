@@ -13,6 +13,7 @@
 //! | `links` | `Path.is_symlink()` on Windows: the one link probe (a junction is not a link) |
 //! | `localclock` | `time.localtime` and `time.mktime`: the C runtime's `_localtime64_s` and `_mktime64` |
 //! | `ipc_pipe` | the advanced edition's `codex/ipc.py` pipe calls (a pipe of the caller's name; the Desktop's refused in tests) |
+//! | `presence` | `notice_presence.py`'s probes (the pure `card_allowed` is car-surface's) |
 //! | `realengine` | (none: the guard that keeps every test away from this PC's installed Codex, `CAR_NO_REAL_ENGINE`) |
 //! | `wake` | the advanced edition's `win/waketimer.py` and `win/stopflag.py` calls, behind traits a test fills |
 //! | `network`, `ownprocess`, `power`, `powerdown`, `acl`, `authenticode`, `inventory`, `typeface`, `handover` | the module of the same name in `win/` |
@@ -39,6 +40,7 @@ pub mod ownprocess;
 pub mod paths;
 pub mod power;
 pub mod powerdown;
+pub mod presence;
 #[rustfmt::skip]
 mod printable_gen;
 pub mod pwsh;
