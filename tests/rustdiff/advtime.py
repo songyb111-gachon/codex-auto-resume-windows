@@ -598,6 +598,115 @@ def an_pure(case):
     if name == "toml_key":
         return anchor._toml_key(*arguments)
     return norm(getattr(anchor, name)(*arguments))
+
+
+@op("an.toml")
+def an_toml(case):
+    home = str(Path(case["home"]) / "codex")
+    return {"servers": list(anchor.declared_servers(home)), "unreadable": anchor.config_unreadable(home)}
+
+
+CHILD = ("import json,os,sys;open(os.environ['ADVTIME_ARGV'],'a',encoding='utf-8').write(json.dumps(sys.argv[1:])+chr(10));"
+         "sys.stdout.write(open(os.environ['ADVTIME_OUT'],encoding='utf-8').read());"
+         "sys.stderr.write(open(os.environ['ADVTIME_ERR'],encoding='utf-8').read());sys.exit(int(os.environ['ADVTIME_CODE']))")
+
+
+@op("an")
+def an(case):
+    made = Case(case)
+    home = Path(case["home"])
+    script = Script(case.get("script"), made.log)
+    permits = list(case.get("permitted") or [True])
+
+    class Session:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def call(self, method, params):
+            return script.answer("call:" + method, None)
+
+    def session():
+        made.log.append(["session"])
+        if case.get("session_raise"):
+            raise RuntimeError("stand-in")
+        return Session()
+
+    class Backend:
+        def _argv(self):
+            return [case["python"], "-c", case.get("child", CHILD)]
+
+        def _environment(self):
+            found = dict(os.environ)
+            found.update({"CODEX_HOME": str(home / "codex"), "ADVTIME_ARGV": str(home / "argv.txt"),
+                          "ADVTIME_OUT": str(home / "out.txt"), "ADVTIME_ERR": str(home / "err.txt"),
+                          "ADVTIME_CODE": str(case.get("code", 0))})
+            return found
+
+    def backend():
+        made.log.append(["backend"])
+        if case.get("backend_raise"):
+            raise RuntimeError("stand-in")
+        return Backend()
+
+    def begin(target):
+        made.log.append(["begin"])
+        if case.get("begin_runs", True):
+            target()
+    told = (lambda: ("codex.exe", str(home / "codex"))) if case.get("told", True) else (lambda: None)
+    code = anchor.WindowAnchor(made.paths, session=session, told=told, backend=backend, begin=begin,
+                               log=lambda line: made.log.append(["log", line]))
+    if case.get("bind", True):
+        code.bind(made.scoped)
+    view = View(case.get("view"), made.log)
+
+    @contextlib.contextmanager
+    def guard():
+        permitted = permits.pop(0) if len(permits) > 1 else permits[0]
+        made.log.append(["guard", permitted])
+        yield permitted
+    answers, errand = [], None
+    for step in case["steps"]:
+        if made.common(step):
+            answers.append(None)
+            continue
+        try:
+            if step[0] == "tick":
+                errand = code.tick(view)
+                answers.append(said(errand))
+            elif step[0] == "run":
+                if errand is None or errand is DEFER:
+                    answers.append("none")
+                else:
+                    try:
+                        answers.append(norm(errand.run(guard)))
+                    except Exception:
+                        answers.append({"error": "raised"})
+            else:
+                raise SystemExit("unknown step %s" % step[0])
+        except Exception as error:
+            answers.append({"error": type(error).__name__})
+    made.close()
+    return {"answers": answers, "log": made.log}
+
+
+@op("an.view")
+def an_view(case):
+    made = Case(case)
+
+    class Runtime:
+        state = made.state
+
+        def states(self):
+            return {anchor.CAPABILITY: case["state"]} if case.get("state") else {}
+
+        def clock(self):
+            return made.clock[0]
+    found = norm(anchor.view(Runtime()))
+    made.close()
+    return found
 '''
 
 REF_END = r'''
