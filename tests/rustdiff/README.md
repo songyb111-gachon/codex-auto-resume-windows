@@ -524,3 +524,21 @@ is the beta.2 stand-in these diffs read v0.6.26 (`surface_tag`); `CAR_SURFACE_DU
 | `diffs_surface_popup.py` | ui/popup/model.py (the final's) and its words, `PopupModel`, `perform`, ui/tray/model.py and stored.py |
 
 The re-diff: `python -X utf8 tests/rustdiff/rediff_surface.py --reference v0.6.26`.
+
+## car-watcher (seat S6.1)
+
+`car-harness serve` answers three calls of `rust/crates/car-harness/src/watcher.rs` (and its `watcher/` modules): `watcher.loop`
+{home, script} (the watch loop over a scripted world), `watcher.launcher` {here, argv, env, script} (the launcher's logic over a
+scripted world, the plug's answers checked by car-policy's own `Guarded`) and `watcher.batch` {cases} (the smaller pieces, case by
+case). Every world answers from the case: no named object of the product's, no timer, no window, no Codex, no process started; the
+store, the status file, the self-check file, launcher.log and errors.log are the real writers' files in the case's scratch folders.
+The reference is the v0.6.26 final (`--reference v0.6.26`).
+
+| Module | Proves |
+|---|---|
+| `diffs_watcher_loop.py` | the watch loop (runtime/loop.py) of the tag's own `App` and car-watcher's `watchloop::run` over 30 scenarios: each exit code (0 stop and once, 1 a refused mutex, a refused stop event and once with no engine, 3 the double look and a busy Codex home, 4 a newer state at the open and mid-tick, 5 the memory guard), a status probe lost to once, an abandoned mutex, no wake event, the open's backoff and a stop during it, failing ticks and builds (Unreadable, OSError, StoreError), Retry now's wake and its coalescing, the one-second watch, the memory guard's warning, the status file, the usage reading kept once, the self-check's detection rules, an unknown error code, the recovery facts' look, the poll interval. Equal: the exit code, every log line, every call of the world with its arguments, and the heartbeat row, status.json and selfcheck.json byte for byte |
+| `diffs_watcher_launcher.py` | the tag's `scripts/watcher_launcher.py` (`git show`) and car-watcher's `launcher` over 31 scenarios: the plugin root's three-way order, runtime.json missing or damaged, the relaunch mark, AFTER_STOP (let go, still running, not known, no probe), P13's SUPERVISE and RESTART (ended, restarted, the newer state's 4, no program, a child that cannot start), a supervisor held and taken up after, answers that are not the point's, the relaunch once, the memory guard's 5, a long launcher.log. Equal: the code, every question to the plug with its facts, every child, relaunch, sleep and watcher run, and launcher.log, both errors.log and unsupervised.txt (time stamps aside) |
+| `diffs_watcher_pieces.py` | `setaside.sweep` over 13 fixture homes made twice (names, `.sweep` twins, the journal, an installation running or not known, a home not ours, a running program, no program list, a read-only file, a junction) with what is left afterwards; the plug's notices over four sequences (DEFER, the meter, the update check, the account and the switch, a key seen again, past 64); the power action's looks over 13 step sequences (the file missing, invalid, unreadable, a countdown to the end, refused, input, a gap, presence, Codex busy, not available, the tasks, an administrator's key, a pause, a stop mid-countdown) |
+| `diffs_watcher_check.py` | the Diagnostics check's `lines` in all 22 languages over generated results, `_summary`, `_usage`, `_ago`, `_within`, `_reason`; Rescan's `proofs` and `judge` over a scripted engine (retired, rechecked, every unresolved reason, a call that raises at each step, out of time) |
+
+The re-diff: `python -X utf8 tests/rustdiff/rediff_watcher.py --reference v0.6.26`.
