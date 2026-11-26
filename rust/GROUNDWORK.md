@@ -2904,3 +2904,66 @@ Nothing of the five steps below is started; the tree is clean at this commit.
    timed out at ~580 s in foreground calls here and have no result.
 4. The five mutation checks listed above, and `tests/rustdiff/rediff_host.py --reference v0.6.26`.
 5. Gates in both workspaces, check_groundwork, check_rebuild; update this section.
+
+### The second part (seat S6.2b2, same branch, 2026-11-27)
+
+**1. The engine join (`0ffdd39fb`).** car-watcher `join`: `store::EngineStore` (moved from car-harness, which
+re-exports it; its second field is now a claim hook, `Option<fn(&Claim)>`, the harness's `note.claim`), `engine::Driven`
+(TickEngine over `car_engine::Engine`: tick, watch_needed, watch, last_usage, detection_failed, handed_waits,
+apply_policy, retiring, `source.latest_failures(since, (), True, True)`, after_sleep, activity, the follow option),
+`engine::Words` (car-control's `OnceWords` as the engine's), and `maker::Joined`, the product's `EngineMaker`:
+`App.backend()` (car-config `discover_codex_exe` with every candidate's `Backend::compatible` checks kept for the
+registry, the app asked through `pairing::app_engines`, its log line, `named_engine`, the engine line in the registry's
+word, `plug.codex(exe, home)`), `engine_moved` and `_served_elsewhere` (ELSEWHERE 60 s doubling to 15 min),
+`engine_state`, `_compatibility_tick` (car-codex `Evaluator`, a failure "unknown" and recorded) and `_layout_look`
+(`layout::Watch`), the engine's keywords (EngineLog in the watcher's one log - App's `Logbook` is now shared,
+`SharedLog`, and opened with the engine's STATE codes - Toasts over App's notifier, one dispatch lock, connectivity,
+the words for this time, `WATCHER_OPTIONS`), `home_backend`/`home_engine` (NULL plug, `require_holder`, the backend
+`home_backend` made reused by the next `home_engine`, as the reference's `run.backend`) and `_recovery_facts` (the
+Restart Manager through car-codex's `System::resource_users`). `App.app_runs` is `pairing::app_running_now`. Seams that
+moved: car-engine `Given.plug`/`Engine.plug` are `Arc<Guarded>`; car-engine `impl Backend for Arc<T>` (App and the
+engine hold one backend); `World::open_store` returns `Rc<Store>` and `World::engine`, `HomesApp::home_engine` and
+`Homes::sync` take `&Rc<Store>` (the engine shares the loop's store; `store.close()` at the end closes it once the
+engines are gone); `EngineMaker` gained `bind(Bound)`, `refresh_codex_exe` and the plug/values/managed arguments.
+car-host's `abi::start` passes `Joined` through `Watcher::start_with`.
+
+The notifier (`App::announce`): `notification_enabled` on the settings in force (shared with the Toasts thread),
+the identity, `notifier::build`, `with_open_codex`, the plug told (P20, `told` with a store of its own), and
+`notifier::deliver` with no card inbox and an empty presence answer, so the route is the toast
+(`notify::show_content` through `SystemPowerShell`). The card route waits for this PC's presence probes (car-platform,
+D3: not ported) and the notice event below.
+
+Safety: the host's tests and test_host_shell set `CODEX_AUTO_RESUME_CODEX_EXE` to a file that is not there, so
+discovery ends with ConfigError before any candidate is started; `host_watcher` asserts that line ("initialising Codex
+adapter failed (ConfigError)") and that EngineNotJoined is gone; `panic_feature` waits for it after the panicked tick.
+
+**2. The actions (`b29a3e138`).** car-watcher `dashboard` (ui/tray/dashboard.py, cut C6: the page and the row checked
+first - `row_argument`, PAGES, ROW_DIALOGS - the window asked to come forward through car-platform `handover`, else
+started with CREATE_NO_WINDOW; `open_chat` by a canonical UUID alone) and `surface::activate` (App._notice_action:
+`notifier::activate` over car-control with actor "toast", the openers, `open_in_codex`, and the toast route for what a
+cancel announces). `host_watcher` checks the refusals and that nothing starts where no Dashboard is installed.
+
+**3. Proofs.** `run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher -k diffs_bridge_acting`:
+Ran 29 tests in 1104 s, OK (the six watcher diffs and the 23 acting diffs, GoldenActsDiff's detection-check and rescan
+cases among them). `rediff_host.py` (`ffd55dcb0`) lists the followed files and reruns those and `diffs_engine`,
+`diffs_surface_notifier` against a tag. Mutation checks, each alone, all five failed their test: the second-start
+refusal removed (host_watcher:20), `icon_answers` not called in `update_tray` (host_watcher:52), `locale`/`letters`
+dropped from `start_surfaces` (host_watcher:31), the host started with no maker (host_watcher:116, the join's
+ConfigError line), the tick's trip moved outside `guarded` (panic_feature: the loop thread dies).
+
+### Still left after the second part (and why)
+
+* **The card route and the notice event** `{id, key, title, stays, view, letters}`, `notice_complete`: `deliver` needs
+  this PC's presence answers (car-surface `seam::Presence`, car-platform has no probe yet: every answer is "cannot
+  tell", so the route is always the toast) and a store of posted notices by id for `notice_complete`; watcher notices
+  are still car-watcher's `{event, detail, final}`.
+* **The detection-check and rescan goldens through the real host**: `SystemHost::checkup`/`rescan_judge` still refuse
+  (car-control's defaults); a car-watcher Host wrapper with `checkup::run` (`_conversations`: `passed_over`, the
+  engine's `not_taken_up`/`detection_since`) and `judge_for` (an engine with no backend per home) is the next piece.
+  The acting diffs pass over the stand-ins as before.
+* **car-adv-host `export_core!`** with the advanced factory (S7.3d) and `abi_exports` on the advanced release DLL.
+* Small differences recorded here, not hidden: `Words::prune` keeps every entry after `keep` raised and raises after
+  car-control's prune (the reference writes nothing when `keep` raises inside the change); the engine's `language` and
+  the notifier's locale read the environment's language (Windows' preferred languages are not in car-platform yet, as
+  for the icon's strings).
+* The release and install proofs and the gates of this part: in the checks below.
