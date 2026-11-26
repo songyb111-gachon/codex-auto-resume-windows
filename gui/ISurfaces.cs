@@ -24,9 +24,9 @@ namespace CodexAutoResume
     {
         /// icon, strings, settings, edition, demo: build the surfaces, then post tray_started.
         internal const string Surfaces = "surfaces";
-        /// snapshot: what the icon and the popup draw from, once per tick.
+        /// snapshot, popup: what the icon draws from and the popup's ready view, once per tick.
         internal const string Snapshot = "snapshot";
-        /// strings: a new catalog after a language change.
+        /// strings, locale, letters: a new catalog after a language change, its locale and the fonts' lacks rule.
         internal const string Strings = "strings";
         /// settings: the settings the surfaces adopt (theme, design, reduce_motion).
         internal const string Settings = "settings";
@@ -108,6 +108,27 @@ namespace CodexAutoResume
         internal IHostActions Actions { get; set; }
     }
 
+    /// The "snapshot" event: what the icon and the popup draw from now (DECISIONS.md, "The popup's model at the host
+    /// boundary": the core hands the popup's ready view, so the host computes no row or status).
+    internal sealed class SnapshotEvent
+    {
+        /// tray.snapshot_from's snapshot, with EXTRA and blocked in it: the icon, its tip and its menu draw from it.
+        internal Dictionary<string, object> Snapshot { get; set; }
+        /// car-surface's PopupModel.view: rows, status, header and row menus, as the popup draws them.
+        internal Dictionary<string, object> Popup { get; set; }
+    }
+
+    /// The "strings" event: the words in a new language.
+    internal sealed class StringsEvent
+    {
+        /// The catalog the surfaces' words come from.
+        internal Dictionary<string, object> Strings { get; set; }
+        /// The catalog's locale (the host has no locale_of).
+        internal string Locale { get; set; }
+        /// Every character the locale's words draw (typeface.letters): the fonts' lacks rule.
+        internal string Letters { get; set; }
+    }
+
     /// The surfaces as the host's pump drives them. Every method runs on the UI thread, which owns every window.
     internal interface ISurfaces
     {
@@ -115,10 +136,10 @@ namespace CodexAutoResume
         void Start(SurfacesEvent surfaces);
 
         /// "snapshot": what the icon and the popup draw from now.
-        void Snapshot(Dictionary<string, object> snapshot);
+        void Snapshot(SnapshotEvent snapshot);
 
         /// "strings": the words in a new language.
-        void Strings(Dictionary<string, object> strings);
+        void Strings(StringsEvent strings);
 
         /// "settings": theme, design and reduce_motion, adopted.
         void Settings(Dictionary<string, object> settings);

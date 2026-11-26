@@ -77,9 +77,12 @@ pub enum EventKind {
     /// The surfaces to build: `App._start_tray` building `tray.Tray(...)` (runtime/app.py:612-652). The core then waits
     /// up to 5 s for `tray_started` (`Tray.start`, ui/tray/icon.py:169-174).
     Surfaces,
-    /// `tray.snapshot_from` with `EXTRA` and `blocked` in it, once per tick (`_update_tray`, runtime/app.py:654-669).
+    /// `tray.snapshot_from` with `EXTRA` and `blocked` in it, once per tick (`_update_tray`, runtime/app.py:654-669), and
+    /// the popup's ready view beside it (car-surface `PopupModel.view`: rows, status, header, row menus), so the host
+    /// computes no row or status (DECISIONS.md, "The popup's model at the host boundary").
     Snapshot,
-    /// A new catalog after a language change (`refresh_settings`, runtime/app.py:443-447).
+    /// A new catalog after a language change (`refresh_settings`, runtime/app.py:443-447), with the catalog's locale and
+    /// the fonts' lacks rule (`letters`), which the host has no catalog to derive.
     Strings,
     /// The adopted settings (`popup.adopt_settings(values)`, runtime/app.py:439-440).
     Settings,
@@ -125,14 +128,16 @@ impl EventKind {
     /// * `surfaces`: `icon` (the icon file's path), `strings` (`interface.catalog()`), `settings` (the settings the
     ///   surfaces adopt: theme, design, reduce_motion, as `adopt_settings` reads them), `edition` (`edition.shown`),
     ///   `demo` (the demo's name, `str(paths.state_dir)`);
-    /// * `snapshot`: `snapshot`; `strings`: `strings`; `settings`: `settings`;
+    /// * `snapshot`: `snapshot` (the tray's snapshot), `popup` (the popup's view, `PopupModel.view`'s output);
+    /// * `strings`: `strings` (the catalog), `locale` (its locale), `letters` (the fonts' lacks rule);
+    /// * `settings`: `settings`;
     /// * `notice` and `demo`: `notice` (one card: its id, view and buttons);
     /// * `close`: none; `ended`: `exit_code`.
     pub const fn fields(self) -> &'static [&'static str] {
         match self {
             EventKind::Surfaces => &["icon", "strings", "settings", "edition", "demo"],
-            EventKind::Snapshot => &["snapshot"],
-            EventKind::Strings => &["strings"],
+            EventKind::Snapshot => &["snapshot", "popup"],
+            EventKind::Strings => &["strings", "locale", "letters"],
             EventKind::Settings => &["settings"],
             EventKind::Notice | EventKind::Demo => &["notice"],
             EventKind::Close => &[],
@@ -160,13 +165,28 @@ pub struct Surfaces {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Surfaces(Box<Surfaces>),
-    Snapshot { snapshot: Value },
-    Strings { strings: Value },
-    Settings { settings: Value },
-    Notice { notice: Value },
-    Demo { notice: Value },
+    Snapshot {
+        snapshot: Value,
+        popup: Value,
+    },
+    Strings {
+        strings: Value,
+        locale: Value,
+        letters: Value,
+    },
+    Settings {
+        settings: Value,
+    },
+    Notice {
+        notice: Value,
+    },
+    Demo {
+        notice: Value,
+    },
     Close,
-    Ended { exit_code: i32 },
+    Ended {
+        exit_code: i32,
+    },
 }
 
 impl Event {
@@ -193,8 +213,12 @@ impl Event {
                 surfaces.edition.clone(),
                 surfaces.demo.clone(),
             ],
-            Event::Snapshot { snapshot } => vec![snapshot.clone()],
-            Event::Strings { strings } => vec![strings.clone()],
+            Event::Snapshot { snapshot, popup } => vec![snapshot.clone(), popup.clone()],
+            Event::Strings {
+                strings,
+                locale,
+                letters,
+            } => vec![strings.clone(), locale.clone(), letters.clone()],
             Event::Settings { settings } => vec![settings.clone()],
             Event::Notice { notice } | Event::Demo { notice } => vec![notice.clone()],
             Event::Close => vec![],
@@ -877,6 +901,23 @@ mod tests {
             br#"{"kind": "surfaces", "icon": "i.ico", "strings": {}, "settings": null, "edition": "standard", "demo": "d"}"#
         );
         assert_eq!(written(&Event::Close.to_json()), br#"{"kind": "close"}"#);
+        let snapshot = Event::Snapshot {
+            snapshot: Value::Object(Map::new()),
+            popup: Value::Null,
+        };
+        assert_eq!(
+            written(&snapshot.to_json()),
+            br#"{"kind": "snapshot", "snapshot": {}, "popup": null}"#
+        );
+        let strings = Event::Strings {
+            strings: Value::Object(Map::new()),
+            locale: Value::Str(Str::new("ko")),
+            letters: Value::Str(Str::new("ab")),
+        };
+        assert_eq!(
+            written(&strings.to_json()),
+            br#"{"kind": "strings", "strings": {}, "locale": "ko", "letters": "ab"}"#
+        );
         for kind in EventKind::ALL {
             assert_eq!(EventKind::from_name(kind.name()), Some(kind));
         }
