@@ -2695,3 +2695,13 @@ session's pictures.
 * Move your function out of `seam_p7.rs` into your module at the integration (and point the runtime at it).
 * The proxy seat: `advtrace` is the runtime over a scripted code; turn its step loop into a serve loop (`proxy.rs` of
   car-harness is the model), and move files from "waits" to "green" in `advledger_<seat>.py`.
+
+### Gates (HEAD `5793a3f02`'s code, `CARGO_BUILD_JOBS=4`, rustc 1.100.0)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
+Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 51, OK
+```
