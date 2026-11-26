@@ -134,6 +134,8 @@ namespace CodexAutoResume
                     return CardRoom(task);
                 case "card_life":
                     return CardLife(task);
+                case "icon":
+                    return Icon(task);
             }
             throw new NotSupportedException("no surface " + surface);
         }
@@ -427,6 +429,62 @@ namespace CodexAutoResume
             return answers;
         }
 
+        private static string Digest(byte[] bytes)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                var text = new StringBuilder();
+                foreach (byte b in sha.ComputeHash(bytes)) text.Append(b.ToString("x2"));
+                return text.ToString();
+            }
+        }
+
+        /// The icon's motion: (position, level), the next frame's wait and the turn per state, moment, fine and reduce;
+        /// the head's colours per state and level; and the frames' pixels per size and fine, as digests.
+        private static Dictionary<string, object> Icon(Dictionary<string, object> task)
+        {
+            var frames = new List<object>();
+            foreach (object state in (List<object>)task["states"])
+                foreach (object fine in (List<object>)task["fines"])
+                    foreach (bool reduced in new[] { false, true })
+                        foreach (object moment in (List<object>)task["moments"])
+                        {
+                            string s = (string)state;
+                            double at = (double)moment;
+                            int steps = (int)(double)fine;
+                            frames.Add(new List<object> { TrayMotion.Frame(s, at, reduced, steps),
+                                                          TrayMotion.FrameMs(s, at, reduced, steps),
+                                                          TrayMotion.Turn(s, at) });
+                        }
+            var colours = new List<object>();
+            foreach (object state in (List<object>)task["states"])
+            {
+                int[] head = TrayMotion.HeadColour((string)state);
+                var levels = new List<object>();
+                for (int level = -1; level <= TrayMotion.Levels; level++) levels.Add(TrayMotion.LevelColour(head, level));
+                colours.Add(new List<object> { head, levels, TrayMotion.BrandState((string)state) });
+            }
+            var pictures = new List<object>();
+            foreach (object size in (List<object>)task["sizes"])
+                foreach (object fine in (List<object>)task["fines"])
+                {
+                    var made = new IconFrames((int)(double)size, (int)(double)fine);
+                    var composed = new List<object>();
+                    foreach (object state in (List<object>)task["states"])
+                        for (int position = 0; position < made.Count; position += (int)(double)task["stride"])
+                            composed.Add(Digest(made.Compose(position, TrayMotion.LevelColour(TrayMotion.HeadColour((string)state), position % 24))));
+                    pictures.Add(new List<object> { Digest(made.Ground), composed });
+                }
+            var allowed = new List<object>();
+            for (int bits = 0; bits < 64; bits++)
+                allowed.Add(TrayMotion.MotionAllowed((bits & 1) != 0, (bits & 2) != 0, (bits & 4) != 0, (bits & 8) != 0,
+                                                     (bits & 16) != 0, (bits & 32) == 0));
+            var lights = new List<object>();
+            foreach (object word in (List<object>)task["words"]) lights.Add(TrayMotion.ForLight(word as string));
+            return new Dictionary<string, object> { { "frames", frames }, { "colours", colours }, { "pictures", pictures },
+                                                    { "allowed", allowed }, { "lights", lights } };
+        }
+
         // ----------------------------------------------------------------------------- the dump
 
         /// Any plan value as Json.Write takes it: numbers as doubles, arrays and tuples as lists, a plan as the Python's
@@ -439,6 +497,7 @@ namespace CodexAutoResume
             if (value is uint) return (double)(uint)value;
             if (value is float) return (double)(float)value;
             if (value is int?) return (double)((int?)value).Value;
+            if (value is double?) return ((double?)value).Value;
             if (value is CardFrame) return Dump(FrameOf((CardFrame)value));
             var target = value as SurfaceTarget;
             if (target != null) return Dump(target.ToList());

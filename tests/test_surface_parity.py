@@ -489,6 +489,40 @@ class SurfaceJob:
             answers.append([answer] + state)
         return answers
 
+    def icon(self):
+        import hashlib
+        from codex_auto_resume.ui.tray import motion
+        states = ["watching", "recovering", "idle", "attention", "failed", "unknown"]
+        fines = [1, 4]
+        moments = [0.0, 1.0, 999.0, 4400.0, 13199.0, 13200.0, 13300.5, 14960.0, 16000.0, 17000.0, 17600.0, 20000.0,
+                   21999.0, 22000.0, 1000.0 * 3.3, 123456.7, 7777777.7]
+        frames = [[list(motion.icon_frame(state, moment, None, reduced=reduced, fine=fine)),
+                   motion.icon_frame_ms(state, moment, None, reduced=reduced, fine=fine), motion.icon_turn(state, moment)]
+                  for state in states for fine in fines for reduced in (False, True) for moment in moments]
+        colours = []
+        for state in states:
+            head = motion.icon_head_colour(state)
+            colours.append([list(head), [list(motion.icon_level_colour(head, level))
+                                         for level in range(-1, motion.ICON_MOTION["levels"] + 1)],
+                            motion.icon_brand_state(state)])
+        sizes, stride = [16, 20, 24, 32], 5
+        pictures = []
+        for size in sizes:
+            for fine in fines:
+                made = motion.IconFrames(size, fine)
+                composed = [hashlib.sha256(made.compose(position, motion.icon_level_colour(motion.icon_head_colour(state),
+                                                                                           position % 24))).hexdigest()
+                            for state in states for position in range(0, len(made.heads), stride)]
+                pictures.append([hashlib.sha256(made.ground).hexdigest(), composed])
+        allowed = [motion.icon_motion_allowed(reduced=bool(bits & 1), contrast=bool(bits & 2), battery_saver=bool(bits & 4),
+                                              locked=bool(bits & 8), hidden=bool(bits & 16), frames=not bits & 32)
+                   for bits in range(64)]
+        words = ["monitoring", "waiting", "checking", "recovering", "paused", "idle", "attention", "failed", "", None, "x"]
+        result = {"frames": frames, "colours": colours, "pictures": pictures, "allowed": allowed,
+                  "lights": [motion.ICON_FOR_LIGHT.get(word, "idle") for word in words]}
+        self.add("icon/all", {"surface": "icon", "states": states, "fines": fines, "moments": moments, "sizes": sizes,
+                              "stride": stride, "words": words}, result)
+
     def job(self) -> dict:
         return {"format": JOB_FORMAT, "tables": self.stand_in.job_tables(), "cases": self.cases}
 
@@ -543,6 +577,7 @@ class SurfaceParityTests(unittest.TestCase):
         job.place()
         job.popup_motion()
         job.card()
+        job.icon()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -596,6 +631,9 @@ class SurfaceParityTests(unittest.TestCase):
 
     def test_a_cards_life_is_the_references_step_for_step(self):
         self.compare("cardlife/")
+
+    def test_the_icons_frames_are_the_references_position_level_and_pixel(self):
+        self.compare("icon/")
 
 
 class SurfaceSourceTests(unittest.TestCase):
