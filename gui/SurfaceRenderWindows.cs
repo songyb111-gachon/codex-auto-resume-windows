@@ -35,6 +35,9 @@ namespace CodexAutoResume
                 case "card_stack":
                     plan = CardStackCase(task);
                     return true;
+                case "tray_icon":
+                    plan = TrayIconCase(task);
+                    return true;
             }
             plan = null;
             return false;
@@ -329,6 +332,7 @@ namespace CodexAutoResume
             SurfaceScreen.Keys.Clear();
             try
             {
+                var spoken = new List<Dictionary<string, object>>();
                 var popup = new PopupWindow(strings, (string)task["locale"], Field(task, "letters") as string,
                                             SurfaceMath.Truthy(Field(task, "days")), () => held);
                 popup.Log = line => logged.Add(line);
@@ -473,6 +477,7 @@ namespace CodexAutoResume
                             { "calls", kept }, { "menus", new List<object>(menu.Opened) },
                             { "posts", new List<object>(actions.Posts) }, { "returned", returned },
                             { "sweeping", popup.Sweeping() }, { "dpi", popup.Dpi },
+                            { "a11y", SurfaceAccess.Probe(popup, ref spoken) },
                         });
                     }
                 }

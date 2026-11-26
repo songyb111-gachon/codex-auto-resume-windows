@@ -43,6 +43,12 @@ namespace CodexAutoResume
             Probe.Add(string.Join(" ", parts));
         }
 
+        /// One call in the record, written as the others are (the icon's shell, its icons and its menus use it).
+        internal static void Record(string call, params object[] values)
+        {
+            Log(call, values);
+        }
+
         [DllImport("user32.dll", EntryPoint = "SetClassLongPtrW")] private static extern IntPtr SetClassLongPtrW(IntPtr hwnd, int index, IntPtr value);
         [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")] private static extern IntPtr GetClassLongPtrW(IntPtr hwnd, int index);
 

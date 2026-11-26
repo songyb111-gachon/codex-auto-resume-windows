@@ -53,8 +53,12 @@ gui/PopupWindow.cs
 gui/PopupMessages.cs
 gui/MenuWindow.cs
 gui/CardStack.cs
+gui/TrayIcon.cs
+gui/TrayMenu.cs
+gui/SurfaceAccess.cs
 gui/SurfaceRender.cs
 gui/SurfaceRenderWindows.cs
+gui/SurfaceRenderTray.cs
 
 [generated]
 gui/Brand.cs

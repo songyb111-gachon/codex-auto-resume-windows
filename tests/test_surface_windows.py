@@ -596,6 +596,49 @@ class WindowJob:
         layers.update = recorded_update
         window.time = messages.time = hidden_module.time = motion_module.time = Clock
         messages.threading = Threading
+        def a11y(popup):
+            """What a screen reader is told of the popup now (access.py): its children, the child each one's centre
+            picks, the events since the last step, and PopupAccessible's answers child by child through its methods."""
+            import ctypes as C
+            if state.get("a11y_popup") is not popup:
+                state["a11y_popup"], state["a11y"] = popup, []
+            # The words the window drew with: here the core's model takes a new catalog at once (the strings step), where
+            # the reference's own model took it at the window's next rebuild (_rebuild), as the C#'s window does.
+            from codex_auto_resume import interface as catalogs
+            drawn = popup.model.strings
+            if popup_words.locale_of(drawn) != popup.locale:
+                drawn = catalogs.STRINGS[popup.locale]
+            items = access.accessible_items(popup._vm, popup._plan, popup.focus if popup.keyboard else None, popup.hover,
+                                            drawn)
+            before, state["a11y"] = state["a11y"], items
+            picks = [access.pick(items, (item["rect"][0] + item["rect"][2]) // 2, (item["rect"][1] + item["rect"][3]) // 2)
+                     if item["rect"] else None for item in items]
+            target = access.PopupAccessible(popup)
+            answers, kept, popup.model.strings = [], popup.model.strings, drawn
+            for child in range(len(items) + 2):
+                variant = access.VARIANT()
+                variant.vt, variant.value.lVal = access.VT_I4, child
+                where = C.addressof(variant)
+                row = [child]
+                for method in (target._name, target._value, target._description, target._default_action):
+                    out = C.pointer(C.c_void_p())
+                    code = method(None, where, out)
+                    row.append([code, C.wstring_at(out[0]) if out[0] else None])
+                for method in (target._role, target._state):
+                    out = C.pointer(access.VARIANT())
+                    code = method(None, where, out)
+                    row.append([code, out.contents.vt, out.contents.value.lVal])
+                for direction in (1, 2, 7, 8):
+                    out = C.pointer(access.VARIANT())
+                    code = target._navigate(None, direction, where, out)
+                    row.append([code, out.contents.vt, out.contents.value.lVal])
+                answers.append(row)
+            count = C.pointer(C.c_long())
+            target._child_count(None, count)
+            popup.model.strings = kept
+            return {"items": plain(items), "picks": picks, "changes": plain(access.changes(before, items)),
+                    "count": count[0], "answers": answers}
+
         access.announce = lambda *unused: None
         access.answer = lambda *unused, **more: 0
         access.disconnect = lambda *unused: None
@@ -720,7 +763,7 @@ class WindowJob:
                                 "pixels": hashlib.sha256(canvas.pixels()).hexdigest() if canvas else None,
                                 "calls": [call for call in state["calls"] if not call.startswith("PostMessageW card %d " % RESULT)],
                                 "menus": list(state["menus"]), "posts": list(state["posts"]), "returned": returned,
-                                "sweeping": popup.sweeping(), "dpi": popup.dpi,
+                                "sweeping": popup.sweeping(), "dpi": popup.dpi, "a11y": a11y(popup),
                             })
                     finally:
                         popup.destroy()
@@ -1097,6 +1140,453 @@ class WindowJob:
         finally:
             (renderer_module.system_rgb, light_module.system_rgb, card_win32._dll, stack_module.FOCUS_AFTER) = saved
 
+    def tray_icon(self):
+        """The icon itself: the reference's Tray driven through a script - made, ticked, its frame table built off the
+        thread, the shell's words (hover, a silent shell, a click, a double click, the menu key), the session's changes,
+        TaskbarCreated, a new language, the end - with every call that would reach the shell, the screen or the session
+        recorded by a stand-in and not made, the popup, the tip, the drawn menu and the cards stood in by recorders, and the
+        C#'s TrayIcon over a window made and never shown, through the same script. After each step: the icon's state, the
+        calls in order, what the stand-ins were asked, what was posted to the core, the log."""
+        import hashlib
+        import types
+        from codex_auto_resume import interface, notice_window
+        from codex_auto_resume.ui import popup as popup_package
+        from codex_auto_resume.ui.popup import theme, words as popup_words, fonts
+        from codex_auto_resume.ui.tray import animation, cards as cards_module, icon as icon_module, menu as menu_module
+        from codex_auto_resume.ui.tray import motion, tipcard
+        CALLBACK, WM_TIMER, WM_WTS, WM_CLOSE, WM_DESTROY = 0x8001, 0x0113, 0x02B1, 0x0010, 0x0002
+        HWND, TASKBAR = 0x7000, 0xC123
+        saved = [(module, name, getattr(module, name)) for module, name in (
+            (icon_module, "_dll"), (animation, "_dll"), (menu_module, "_dll"), (icon_module, "time"), (animation, "time"),
+            (menu_module, "time"), (cards_module, "time"), (motion, "time"), (animation, "threading"),
+            (animation, "build_icon_frames"), (animation, "battery_saver"), (animation, "overflow_open"),
+            (animation, "IconPlacement"), (icon_module, "DemoEvent"), (menu_module, "prefer_app_mode"),
+            (popup_package, "icon_rect"), (popup_package, "high_contrast"), (popup_package, "reduced_motion"),
+            (popup_package, "apps_use_light_theme"), (popup_package, "_icon_from_pixels"), (popup_package, "Popup"),
+            (popup_package, "Menu"), (tipcard, "TipCard"), (notice_window, "CardStack"))]
+        real_build = motion.build_icon_frames
+        state = {}
+
+        def log(*parts):
+            state["calls"].append(" ".join(str(part) for part in parts))
+
+        def asked(*parts):
+            state["asked"].append(list(parts))
+
+        def name_of(handle):
+            return state["names"].get(handle, "0x%x" % (handle or 0)) if handle else "None"
+
+        def role(hwnd):
+            return "tray" if hwnd == HWND else "0x%x" % (hwnd or 0)
+
+        class User32:
+            @staticmethod
+            def RegisterClassW(*unused):
+                return 1
+
+            @staticmethod
+            def CreateWindowExW(*unused):
+                return HWND
+
+            @staticmethod
+            def RegisterWindowMessageW(name):
+                return TASKBAR
+
+            @staticmethod
+            def GetSystemMetrics(index):
+                return state["small"]
+
+            @staticmethod
+            def LoadImageW(instance, path, kind, width, height, flags):
+                log("LoadImageW", width, height)
+                return 0x1C0
+
+            @staticmethod
+            def LoadIconW(*unused):
+                return 0x1A0
+
+            @staticmethod
+            def DestroyIcon(handle):
+                log("DestroyIcon", name_of(handle))
+                return 1
+
+            @staticmethod
+            def SetTimer(hwnd, which, ms, proc):
+                log("SetTimer", role(hwnd), which, ms)
+                return 1
+
+            @staticmethod
+            def KillTimer(hwnd, which):
+                log("KillTimer", role(hwnd), which)
+                return 1
+
+            @staticmethod
+            def PostMessageW(hwnd, message, wparam, lparam):
+                log("PostMessageW", role(hwnd), message, wparam, lparam)
+                state["posted"].append((message, wparam, lparam))
+                return 1
+
+            @staticmethod
+            def DestroyWindow(hwnd):
+                log("DestroyWindow", role(hwnd))
+                return 1
+
+            @staticmethod
+            def PostQuitMessage(code):
+                log("PostQuitMessage", code)
+
+            @staticmethod
+            def SetForegroundWindow(hwnd):
+                log("SetForegroundWindow", role(hwnd))
+                return 1
+
+            @staticmethod
+            def GetCursorPos(point):
+                point._obj.x, point._obj.y = state["cursor"]
+                return 1
+
+            @staticmethod
+            def CreatePopupMenu():
+                return 0x3E0
+
+            @staticmethod
+            def AppendMenuW(menu, flags, identifier, text):
+                log("AppendMenuW", flags, identifier, "None" if text is None else text.replace("\n", "\\n"))
+                return 1
+
+            @staticmethod
+            def TrackPopupMenu(menu, flags, x, y, reserved, hwnd, rect):
+                log("TrackPopupMenu", flags, x, y)
+                return state["native"]
+
+            @staticmethod
+            def DestroyMenu(menu):
+                log("DestroyMenu")
+                return 1
+
+            def __getattr__(self, name):
+                if name in ("DefWindowProcW", "UnregisterClassW", "TranslateMessage", "DispatchMessageW"):
+                    return lambda *unused: 0
+                raise AttributeError(name)
+
+        class Shell32:
+            @staticmethod
+            def Shell_NotifyIconW(action, data):
+                data = data._obj
+                if action == 4:
+                    log("Shell_NotifyIconW", action, data.uVersion)
+                elif action == 2:
+                    log("Shell_NotifyIconW", action)
+                elif data.uFlags == 0x2:
+                    log("Shell_NotifyIconW", action, data.uFlags, name_of(data.hIcon))
+                else:
+                    log("Shell_NotifyIconW", action, data.uFlags, name_of(data.hIcon), data.szTip.replace("\n", "\\n"))
+                return 0 if action in state["refuse"] else 1
+
+        class Wts:
+            @staticmethod
+            def WTSRegisterSessionNotification(hwnd, flags):
+                log("WTSRegisterSessionNotification", role(hwnd), flags)
+                return 1
+
+            @staticmethod
+            def WTSUnRegisterSessionNotification(hwnd):
+                log("WTSUnRegisterSessionNotification", role(hwnd))
+                return 1
+
+        class Kernel32:
+            @staticmethod
+            def GetModuleHandleW(name):
+                return 0x400000
+
+        stand = {"user32": User32(), "shell32": Shell32(), "wtsapi32": Wts(), "kernel32": Kernel32()}
+        clock = types.SimpleNamespace(monotonic=lambda: state["clock"], time=lambda: state["now"],
+                                      perf_counter=lambda: state["perf"])
+
+        class Thread:
+            def __init__(self, target=None, name=None, daemon=None):
+                self.target = target
+
+            def start(self):
+                state["work"].append(self.target)
+
+        def build(size, fine=1, **more):
+            return real_build(size, clock=clock.perf_counter, fine=fine, **more)
+
+        def made(pixels, width, height):
+            state["made"] += 1
+            handle = 0x2000 + state["made"]
+            state["names"][handle] = "frame%d" % state["made"]
+            log("CreateIconIndirect", state["names"][handle], hashlib.sha256(bytes(pixels)).hexdigest())
+            return handle
+
+        class Placement:
+            def overflowed(self):
+                return state["overflowed"]
+
+        class Demo:
+            def __init__(self, name):
+                self.name = name
+
+            def __enter__(self):
+                log("CreateEventW", self.name)
+                return self
+
+            def taken(self):
+                taken, state["demo"] = state["demo"], False
+                return taken
+
+            def __exit__(self, *unused):
+                log("CloseHandle", self.name)
+
+        def prefer(mode):
+            log("SetPreferredAppMode", mode)
+            return state["prefer"]
+
+        class Popup:
+            def __init__(self, **unused):
+                asked("popup.make")
+
+            @property
+            def visible(self):
+                return state["popup"][0]
+
+            def attention(self):
+                return state["popup"][1]
+
+            def on_select(self, keyboard=False):
+                asked("popup.on_select", keyboard)
+                if state["popup"][2]:
+                    raise OSError("broken")
+
+            def on_double_click(self):
+                asked("popup.on_double_click")
+
+            def show(self):
+                asked("popup.show")
+
+            def hide(self):
+                asked("popup.hide")
+
+            def destroy(self):
+                asked("popup.destroy")
+
+            def set_strings(self, strings):
+                asked("popup.set_strings", popup_words.locale_of(strings))
+
+        class Menu:
+            def __init__(self, **unused):
+                asked("menu.make")
+                self.visible = False
+
+            def open(self, items, strings, on_choose):
+                asked("menu.open", plain(items), popup_words.locale_of(strings))
+                state["choose"] = on_choose
+                return state["drawn"]
+
+            def destroy(self):
+                asked("menu.destroy")
+
+        def refusing(**unused):
+            raise OSError("no menu")
+
+        class Tip:
+            def __init__(self, **unused):
+                asked("tip.make")
+
+            def show(self, icon=None, point=None):
+                asked("tip.show", list(point), plain(icon()))
+
+            def hide(self, at_once=True):
+                asked("tip.hide", at_once)
+
+            def destroy(self):
+                asked("tip.destroy")
+
+        class Cards:
+            def __init__(self, **unused):
+                pass
+
+            def create(self):
+                asked("cards.create")
+                state["posts"].append(["cards_attached", {}])
+                return self
+
+            def destroy(self):
+                asked("cards.destroy")
+                state["posts"].append(["cards_detached", {}])
+
+        class Control:
+            def failure_unseen(self, marks):
+                return state["unseen"]
+
+            def unconfirmed_unseen(self, marks):
+                return state["unconfirmed"]
+
+            def acknowledge_failure(self):
+                state["posts"].append(["failure_seen", {}])
+
+            def power_view(self):
+                return {"armed": state["armed"]}
+
+            def disarm_power_action(self, actor=None):
+                state["posts"].append(["disarm_power", {}])
+
+        def described(tray):
+            frames = tray._frames
+            key = tray._frame_key
+            return {"version4": tray._version4, "failed": tray._failed, "unconfirmed": tray._unconfirmed,
+                    "icon_state": tray._icon_state, "motion_allowed": tray._motion_allowed, "motion_ms": tray._motion_ms,
+                    "frame_key": None if key is None else "%d:%s" % (key[0], ",".join(str(part) for part in key[1])),
+                    "shown": name_of(tray._shown_icon or tray._icon), "last_tip": tray._last_tip,
+                    "tip_heard": tray._tip_heard, "tip_moves": plain(tray._tip_moves), "tip_silent": tray._tip_silent,
+                    "tip_fallback": tray._tip_fallback, "tip": "broken" if tray._tip is False else bool(tray._tip),
+                    "locked": tray._session_locked, "away": tray._session_away, "menu_mode": tray._menu_mode,
+                    "menu_theming": tray._menu_theming, "popup_failed": tray._popup_failed, "popup": tray._popup is not None,
+                    "menu": "broken" if tray._menu_drawn is False else bool(tray._menu_drawn),
+                    "frames": False if frames is False else (frames.size if frames else None)}
+
+        snapshots = [{"enabled": True, "waiting": 2, "running": 0, "held": 0, "unmatched": 0, "next_at": NOW + 300.0,
+                      "failures": None, "blocked": False},
+                     {"enabled": True, "waiting": 1, "running": 1, "held": 0, "unmatched": 0, "next_at": NOW - 5.0,
+                      "failures": {"failed_at": NOW - 60.0}, "blocked": False},
+                     {"enabled": False, "waiting": 0, "running": 0, "held": 0, "unmatched": 0, "next_at": None,
+                      "failures": {"failed_at": NOW - 60.0}, "blocked": True}]
+        ME, RECT = 0x0200, [1880, 1040, 1904, 1064]
+        script = [["create"], ["update", 0, False, False, None], ["timer", 1], ["work"], ["posted"], ["clock", 0.2],
+                  ["timer", 2], ["clock", 0.5], ["timer", 2], ["callback", 0, ME], ["clock", 2.5], ["timer", 3],
+                  ["callback", 0, ME], ["clock", 0.4], ["callback", 0, ME], ["clock", 1.7], ["timer", 3],
+                  ["callback", 0, ME], ["clock", 2.0], ["timer", 3],
+                  ["callback", (1890 & 0xFFFF) | (1050 << 16), 0x0406], ["callback", 0, 0x0407],
+                  ["update", 1, True, False, {"action": "sleep"}], ["clock", 1.0], ["timer", 1],
+                  ["clock", 0.3], ["callback", 0, 0x0400], ["work"], ["popup", True, True, False], ["clock", 1.0], ["timer", 1],
+                  ["callback", 0, 0x007B], ["choose", 2], ["work"], ["drawn", False], ["native", 5],
+                  ["callback", 0, 0x007B], ["work"], ["native", 6], ["callback", 0, 0x007B], ["work"],
+                  ["popup", False, False, False], ["callback", 0, 0x0203], ["callback", 0, 0x0201],
+                  ["callback", 0, 0x0204], ["update", 2, False, True, None], ["clock", 1.0], ["timer", 1],
+                  ["popup", False, False, True], ["callback", 0, 0x0401], ["callback", 0, 0x0203], ["work"],
+                  ["callback", 0, 0x007B], ["work"],
+                  ["session", 7], ["session", 8], ["session", 2], ["session", 1], ["session", 5],
+                  ["look", True, False, False, False, RECT], ["clock", 1.0], ["timer", 1],
+                  ["look", False, False, True, False, RECT], ["clock", 1.0], ["timer", 1],
+                  ["look", False, False, False, True, RECT], ["clock", 1.0], ["timer", 1],
+                  ["look", False, False, False, False, None], ["clock", 1.0], ["timer", 1],
+                  ["look", False, False, False, False, RECT], ["demo", True], ["clock", 1.0], ["timer", 1],
+                  ["strings", "ko"], ["timer", 1], ["taskbar"], ["message", WM_CLOSE], ["message", WM_DESTROY], ["work"]]
+        old_script = [["create"], ["update", 0, False, False, None], ["timer", 1], ["work"], ["posted"],
+                      ["callback", 0, 0x0202], ["callback", 0, 0x0203], ["callback", 0, 0x0205], ["work"],
+                      ["native", 4], ["callback", 0, 0x007B], ["work"], ["update", 1, True, False, None], ["timer", 1],
+                      ["callback", 0, 0x0202], ["work"], ["taskbar"], ["message", WM_CLOSE], ["message", WM_DESTROY],
+                      ["work"]]
+        folder = tempfile.TemporaryDirectory(prefix="car-tray-icon-")
+        self.keep = getattr(self, "keep", []) + [folder]
+        ico = Path(folder.name) / "codex-auto-resume.ico"
+        ico.write_bytes(b"\0\0\1\0")
+        runs = [("en", script, [], True, True, 16, True, "light", False),
+                ("ko", old_script, [4], False, False, 20, True, "dark", True),
+                ("ar", script, [], True, True, 24, False, "dark", False)]
+        for module in (icon_module, animation, menu_module):
+            module._dll = stand.__getitem__
+        for module in (icon_module, animation, menu_module, cards_module, motion):
+            module.time = clock
+        animation.threading = types.SimpleNamespace(Thread=Thread)
+        animation.build_icon_frames = build
+        animation.battery_saver = lambda: state["battery"]
+        animation.overflow_open = lambda: False
+        animation.IconPlacement = Placement
+        icon_module.DemoEvent = Demo
+        menu_module.prefer_app_mode = prefer
+        popup_package.icon_rect = lambda hwnd, uid=1: None if state["rect"] is None else tuple(state["rect"])
+        popup_package.high_contrast = lambda: state["contrast"]
+        popup_package.reduced_motion = lambda: state["reduced"]
+        popup_package.apps_use_light_theme = lambda: state["apps_light"]
+        popup_package._icon_from_pixels = made
+        popup_package.Popup, tipcard.TipCard, notice_window.CardStack = Popup, Tip, Cards
+        try:
+            for locale, steps_in, refuse, with_icon, inbox, small, prefer_answer, theme_word, broken_menu in runs:
+                strings = interface.STRINGS[locale]
+                path = ico if with_icon else Path(folder.name) / "missing.ico"
+                state.update(calls=[], asked=[], posts=[], names={0x1C0: "ico", 0x1A0: "app"}, clock=5000.0, now=NOW,
+                             perf=0.0, work=[], posted=[], small=small, cursor=[1890, 1050], native=0, refuse=refuse,
+                             rect=list(RECT), contrast=False, reduced=False, apps_light=theme_word == "light",
+                             battery=False, overflowed=False, demo=False, prefer=prefer_answer, popup=[False, False, False],
+                             drawn=True, choose=None, unseen=False, unconfirmed=False, armed=None, made=0)
+                theme.adopt_settings({"theme": theme_word})
+                popup_package.Menu = refusing if broken_menu else Menu
+                logged = []
+                tray = icon_module.Tray(icon_path=path, strings=strings, days=True, edition="standard", log=logged.append,
+                                        control=Control(), pending_source=None,
+                                        on_open=lambda: state["posts"].append(["open_dashboard", {"page": None, "row": None}]),
+                                        on_toggle=lambda paused: state["posts"].append(["toggle", {"paused": paused}]),
+                                        on_pending=lambda: state["posts"].append(["open_dashboard",
+                                                                                  {"page": "pending", "row": None}]),
+                                        on_stop=lambda: state["posts"].append(["stop", {}]),
+                                        on_dashboard=lambda row=None: None, inbox=object() if inbox else None,
+                                        on_notice_action=lambda uri: None, on_notice_complete=lambda *unused: None,
+                                        demo_name="demo-state", on_demo=lambda: asked("demo.shown"))
+                sharp, steps = [], []
+                for step in steps_in:
+                    op = step[0]
+                    state["calls"], state["asked"], state["posts"] = [], [], []
+                    del logged[:]
+                    mapped = list(step)
+                    if op == "create":
+                        tray._create()
+                    elif op == "update":
+                        tray.update(snapshots[step[1]])
+                        state["unseen"], state["unconfirmed"], state["armed"] = step[2], step[3], step[4]
+                        mapped = ["update", snapshots[step[1]], step[2], step[3], step[4]]
+                    elif op == "clock":
+                        state["clock"] += step[1]
+                        state["now"] += step[1]
+                    elif op == "timer":
+                        tray._wndproc(HWND, WM_TIMER, step[1], 0)
+                    elif op == "work":
+                        work, state["work"] = state["work"], []
+                        for target in work:
+                            target()
+                    elif op == "posted":
+                        posted, state["posted"] = state["posted"], []
+                        for message, wparam, lparam in posted:
+                            tray._wndproc(HWND, message, wparam, lparam)
+                    elif op == "callback":
+                        tray._wndproc(HWND, CALLBACK, step[1], step[2])
+                    elif op == "session":
+                        tray._wndproc(HWND, WM_WTS, step[1], 0)
+                    elif op == "taskbar":
+                        tray._wndproc(HWND, TASKBAR, 0, 0)
+                    elif op == "message":
+                        tray._wndproc(HWND, step[1], 0, 0)
+                    elif op == "popup":
+                        state["popup"] = list(step[1:])
+                    elif op == "drawn":
+                        state["drawn"] = step[1]
+                    elif op == "native":
+                        state["native"] = step[1]
+                    elif op == "choose":
+                        state["choose"](step[1])
+                    elif op == "look":
+                        state["contrast"], state["reduced"], state["battery"], state["overflowed"] = step[1:5]
+                        state["rect"] = step[5]
+                    elif op == "demo":
+                        state["demo"] = step[1]
+                    elif op == "strings":
+                        tray.set_strings(interface.STRINGS[step[1]])
+                        mapped = ["strings", interface.STRINGS[step[1]], step[1], fonts._letters(step[1])]
+                    sharp.append({"op": op, "do": plain(mapped)})
+                    steps.append({"op": op, "state": described(tray), "calls": list(state["calls"]),
+                                  "asked": plain(state["asked"]), "posts": plain(state["posts"]), "log": list(logged)})
+                self.add("trayicon/%s/%s-%d-%s" % (locale, "v3" if refuse else "v4", small, theme_word),
+                         {"surface": "tray_icon", "strings": strings, "locale": popup_words.locale_of(strings),
+                          "letters": fonts._letters(popup_words.locale_of(strings)), "edition": "standard",
+                          "icon": str(path), "inbox": inbox, "small": small, "refuse": refuse, "prefer": prefer_answer,
+                          "theme": theme_word, "broken_menu": broken_menu, "clock": 5000.0, "now": NOW, "script": sharp},
+                         {"steps": steps})
+        finally:
+            for module, name, value in saved:
+                setattr(module, name, value)
+            theme.adopt_settings({})
+
     def job(self):
         return {"format": JOB_FORMAT, "tables": {}, "cases": self.cases}
 
@@ -1125,6 +1615,7 @@ class SurfaceWindowTests(unittest.TestCase):
         job.popup_window()
         job.menu_window()
         job.card_stack()
+        job.tray_icon()
         cls.expected = job.expected
         job_path, out_path = folder / "job.json", folder / "job.out.json"
         job_path.write_text(json.dumps(job.job(), ensure_ascii=False), encoding="utf-8")
@@ -1134,6 +1625,8 @@ class SurfaceWindowTests(unittest.TestCase):
             raise AssertionError("the render mode wrote nothing (exit %d):\n%s"
                                  % (ran.returncode, ran.stdout.decode("utf-8", "replace")))
         cls.found = {case["id"]: case for case in json.loads(out_path.read_text(encoding="utf-8"))["cases"]}
+        for kept in getattr(job, "keep", []):
+            kept.cleanup()
 
     @classmethod
     def tearDownClass(cls):
@@ -1172,6 +1665,9 @@ class SurfaceWindowTests(unittest.TestCase):
 
     def test_the_notification_cards_stack_and_end_as_the_references_offscreen(self):
         self.compare("cardstack/")
+
+    def test_the_icon_lives_ticks_moves_and_answers_the_shell_as_the_references_offscreen(self):
+        self.compare("trayicon/")
 
 
 if __name__ == "__main__":

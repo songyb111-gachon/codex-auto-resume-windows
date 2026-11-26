@@ -2214,3 +2214,61 @@ in place - `TipCard.Accessible`, `PopupWindow.Accessible`/`Speaking`/`Spoken`, `
 `ISurfaces` over TrayIcon, PopupWindow, MenuWindow, TipCard and CardStack); step 3's live-path proof for the menu and card
 windows (the popup's is in `popupwindow/`: its own `Render()` against a fresh renderer's `Draw` of the same view and plan);
 step 4 (BGRA frames; the retargets, not run); step 5 (one `make_gui.ps1` at the end).
+
+### S6.3 sixth part (seat S6.3e, 2026-11-26): the surfaces event's locale, the icon, its menu and MSAA
+
+**The addendum (DECISIONS.md, "The popup's model at the host boundary", ~22:30), done.** car-host `abi.rs`:
+`EventKind::fields` gives `surfaces` `[icon, strings, settings, edition, demo, locale, letters]` and `Surfaces` carries and
+writes the two (the abi unit test writes them); `gui/ISurfaces.cs`'s `SurfacesEvent` has `Locale` and `Letters` before the
+pump's `Actions`; `test_host_contract` holds both, and names the seven fields. So the first frame is drawn in the catalog's
+language: nothing falls back to "en" before the first `strings` event once the class that implements `ISurfaces` reads
+`SurfacesEvent.Locale`/`Letters` (step 2 below).
+
+| C# (`[surface]`) | Python ported | Held by |
+|---|---|---|
+| `TrayIcon.cs` | `ui/tray/icon.py` (`Tray`: the hidden top-level window, `Shell_NotifyIconW` add/modify/version/delete, the tooltip card's rules - `_tip_shows`, the shell's silence timed by `TIMER_TIP`, the fallback to Windows' tooltip and back -, `TaskbarCreated`, `WM_WTSSESSION_CHANGE`, `WM_CLOSE`/`WM_DESTROY`), `win32.py`, `clicks.py`, `cards.py`, `animation.py` (the frame table built off the thread and its budget, `_observe`, `_frame_for`, `_sync_motion`, the day's look), the demo event | `trayicon/` (3 runs) |
+| `TrayMenu.cs` | `ui/tray/menu.py` whole: `menu_items`, `menu_app_mode`, `prefer_app_mode` (uxtheme by ordinal, the build read with `RtlGetVersion`), the drawn menu first, Windows' own as the fallback, `_act`, `_power_armed`, `_theme_menu` | `trayicon/` |
+| `SurfaceRenderTray.cs` | the probe's `tray_icon` case | |
+| `SurfaceAccess.cs` | `ui/popup/access.py` whole: `accessible_items`, `switch_name`, `pick`, `changes`; `PopupAccessible` as a vtable built by hand (the reference's three interfaces only, never freed while its window lives, E_FAIL for an exception), `MenuAccessible`, tipcard.py's `TipAccessible`; `answer`, `disconnect`, `tell`, `announce`; `Attach(...)` fills the windows' hooks | `popupwindow/` (each step's `a11y`: the children, the child each centre picks, the events since the step before, and the object's name/value/description/default action/role/state/navigation for every child and one past them, through the vtable's own slots), exact |
+
+**How the icon is held** (`tests/test_surface_windows.py`, 7 tests): the reference's `Tray` is driven by a script - made,
+ticked, its frames built (the building thread queued and run by the script, its budget clock fixed), a frame timer, three
+pointer visits with no word from the shell (the fallback to Windows' tooltip), the word (`NIN_POPUPOPEN`) and the card,
+a failure unseen (red, turning), a click (the popup made, `failure_seen` posted), the popup open with its attention, the
+menu drawn and a choice (`toggle`), the drawn menu refused (Windows' menu, `disarm_power`; then Open the popup), a
+double click, mouse downs, a broken popup, the session locked/unlocked/away/back, High Contrast, Reduce motion, battery
+saver, the overflow flyout, no icon rectangle, the demo signalled, a new language, `TaskbarCreated`, the end; a second
+script under a shell that refuses version 4 (the old messages) with no icon file and a menu that cannot be made - with
+every user32/shell32/wtsapi32 call recorded by a stand-in in the words `SurfaceScreen` records and not made, and the
+popup, tip, drawn menu and cards stood in by recorders; the C# runs the same script over a window made and **never
+shown**, no icon ever added to the notification area. After every step: version 4, unseen failure/sending, the icon's
+state, motion allowed, the frame timer, the frame key, the icon shown, the tooltip held, the tip's word/visits/fallback,
+the session, the menu's mode, the calls in order, what the stand-ins were asked, what was posted to the core, the log.
+3 runs (two scripts), exact. Mutations (each alone, restored): `TipSilentVisits` 3, the failure seen without its
+refresh (caught once the script waited 0.3 s before the click), `TaskbarCreated` without the version asked again, the
+lock ignoring a disconnected session: each fails; `PopupCanOpen` ignoring a broken popup was not caught by the first
+script, which then gained a right click after the popup broke. The MSAA object's answers are read in the probe through
+the same slots a screen reader calls (`AccessObject.Walk`); in the reference the harness's core model takes a new
+catalog at once, so its walk reads the catalog the window last drew with, as the reference's own `_rebuild` hands it.
+
+**The host boundary, as the icon meets it** (seams for S6.1/S6.2b; not decided here, the main session's):
+
+* What the reference asked its control layer the core answers: `TrayIcon.FailureUnseen`/`UnconfirmedUnseen` read the
+  snapshot's `failure_unseen`/`unconfirmed_unseen` (`control.failure_unseen(marks) is True`, which the reference asked
+  every second; the core would compute it on the tick it sends the snapshot), `PowerArmed` reads `power_armed` (the
+  `armed` of `control.power_view()`). Three keys in the snapshot's value, no new field in the table.
+* A failure seen posts `failure_seen`; the reference refreshed at once with a fresh answer, the host refreshes with the
+  snapshot it has until the core's next one (the next snapshot after the post brings the change).
+* The stored settings the icon read for itself on each opening and each motion tick (`StoredMixin`): the core's
+  `settings`/`strings` events; `AdoptSettings`/`AdoptReduceMotion` do nothing on the live host.
+* The demo event: `DemoName` must be the event's object name (car-platform's `watcher_names(state_dir).demo`); the
+  table has no action for a signalled demo (`OnDemo` is null, so no event is made, as the reference makes none without
+  `on_demo`). Either the core watches the event itself and sends `demo`, or a `demo` action is added.
+* Where the reference's own loop ended (`PostQuitMessage` in `WM_DESTROY`) the icon calls `Ended`; the surfaces' class
+  posts `closed` there. The cards' attach/detach are posted as `cards_attached`/`cards_detached` where the reference's
+  CardStack attached to and left the inbox.
+
+**Left, in this order:** step 2 (the probe mode as the host's own entry; the class implementing `ISurfaces` over
+TrayIcon - which already makes the popup, menu, tip and cards and attaches `SurfaceAccess` to the live ones - reading
+`SurfacesEvent.Locale`/`Letters`; a draft is `HostSurfaces` in the seat's scratch, not committed); step 3's live-path proof for the menu and card windows; step 4 (BGRA frames; the retargets, not run);
+step 5 (one `make_gui.ps1` at the end).
