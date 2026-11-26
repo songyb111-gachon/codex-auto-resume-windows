@@ -3,11 +3,11 @@
 //! A `str` pattern compiled with `re.I` matches a literal character when the text's character, lowered by the simple
 //! mapping (`_sre.unicode_tolower`), is the pattern's lowered character, or one of the few that `re._casefix` lists as
 //! the same letter (`ı` for `i`, `ſ` for `s`, the Greek symbol forms). The lowering is the reference interpreter's
-//! (car-policy's tables, Unicode 15.1), never Rust's own.
+//! (car-policy's tables, Unicode 16.0, the product's Python), never Rust's own.
 
 use car_policy::classify::text::{casefold, lower_point};
 
-/// `re._casefix._EXTRA_CASES` of Python 3.13: a lowered character and the others it matches.
+/// `re._casefix._EXTRA_CASES` (the same in 3.13.15 and 3.14.10): a lowered character and the others it matches.
 const EXTRA: &[(u32, &[u32])] = &[
     (105, &[305]),
     (115, &[383]),

@@ -1891,3 +1891,29 @@ test (`tests/test_review9_install.py`, seven) or one of `tests/test_rust_install
   both, and one installer proof with the real host and the real names (S5).
 * `-SkipStartup` on a migration keeps the Python-shaped Run value (note 4): PLAN 6.5's v0.6.28 removal of the stand-ins
   must re-register such values first.
+## The Unicode tables follow the product's Python (branch `car-v0627-unicode16`, 2026-11-26)
+
+REVIEW-surface S1: the tables were made by this PC's 3.13.15 (Unicode 15.1.0); the product bundles 3.14.10 (Unicode 16.0.0),
+whose `int()` reads 80 more digits and whose bidirectional classes and `isprintable` cover the scripts Unicode 16 added.
+
+* **Made by 3.14.10.** `pytext_tables.rs`, `bidi_tables.rs` (`gen_tables.py`), `printable_gen.rs` in car-codex and car-platform
+  (`gen_codex.py`), `text_tables.rs` and `unicode_gen.rs` of car-policy (`gen_policy.py`) are remade; each says "Python 3.14.10
+  (unicodedata 16.0.0, the product's bundled runtime)" on its first lines. `tests/rustdiff/productpy.py` finds the zip
+  (`build/cache/python-3.14.10-embed-amd64.zip`, this tree's or a sibling worktree's, its SHA-256 against `build/make_release.py`),
+  unpacks it beside the system temp folder (a `._pth` with `import site` and a `sitecustomize.py` that gives the embeddable runtime
+  PYTHONPATH back and then runs the tree's own `tests/sitecustomize.py`), and each generator runs itself under it whatever Python
+  started it. `--check` refuses a file stamped by another Python or Unicode (`productpy.stale`), then compares the text.
+* **car-store's copy.** `seam/python.rs` held a hand-pasted `DECIMAL_ZEROS` (68): it is car-machine's 76 now, and
+  `diffs_unicode16.py` compares the two files.
+* **Held by** `diffs_unicode16.py`: every code point of isspace/decimal, bidi L/R, isprintable, `\w`, lower, casefold against the
+  bundled interpreter; `int()` over the 80 new digits (countdown and `int(,16)`), review8's near-limit texts and the class of new
+  letters (`first_strong`, `embedded`). With the old tables it fails (446 of 1,735 cases).
+* **Not changed:** `re._casefix._EXTRA_CASES` is the same in 3.13.15 and 3.14.10; `str.isspace` the same 29 code points; the
+  NFKC netloc delimiters the same 19 (AUDIT-v0628's open question closes).
+* **For the integration:** car-surface's `ShippedInterpreterDiff` (review8) needs no change once these tables are in; the reference
+  runtime switch (`car-v0627-refpy`) makes the other table diffs (`diffs_leaves_machine.TextTables`, `BidiDiff`, `diffs_codex_pure`'s
+  printable, `diffs_classify_vocab`) agree under the default too - until then they pass only when the runner itself is 3.14.10
+  (`PYTHONPATH="src;tests" <productpy.interpreter()> -X utf8 tests/rustdiff/run.py ...`). Found beside it, not a Unicode matter:
+  3.14.10's `json.loads` reads arrays nested up to about 16,900 deep (3.13.15 about 3,000), so `diffs_settings_files` case 232
+  (`[` x 10,000) says RecursionError in Rust and reads in the product's interpreter (hand-written car-machine/json: not touched here).
+
