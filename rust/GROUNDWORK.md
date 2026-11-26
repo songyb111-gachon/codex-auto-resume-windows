@@ -1957,6 +1957,42 @@ cargo build --locked --release -p car-host, then CAR_CORE_DLL=<target/release/ca
 
 ## P6 seat S6.3: the surfaces the C# host draws, their plans (branch `car-v0627-s63`, 2026-11-26)
 
+### S6.3 done (seat S6.3f, 2026-11-27): what is proved, by which test, and what B and C need
+
+Every surface P6-DESIGN 2.3 names is C# on `gui/host.sources` `[surface]` (38 files), `HostSurfaces` implements
+`ISurfaces`, and the host's render mode and probe mode are in (`SurfaceRender.Run()`, `SurfaceRender.Probe(args)`).
+Nothing was shown, captured or drawn on a screen; no picture was made; nothing was pushed.
+
+| What is proved | By |
+|---|---|
+| Comparison A, the plans: popup, menu, tip, card (+ shadows, stack, lives), placement, popup motion, icon frames, paint, shape, GDI+ painter, elevation, days, bidi at Unicode 16.0.0, and every surface's pixels drawn offscreen by the reference's renderer and by the C#'s, byte for byte, 0 GDI+ objects left | `tests/test_surface_parity.py` (21 tests, exact) |
+| The windows' halves over windows never shown, the reference driven with its window calls stood in: the icon's words, where Windows keeps the icon, the tip card, the popup, the drawn menu, the card stack, the icon (shell, session, tooltip fallback, menu, MSAA), the surfaces' class | `tests/test_surface_windows.py` (8 tests, exact) |
+| The live-path proof (P6-DESIGN 3.3's last paragraph) for every window: its own paint offscreen == the render mode's drawing of the same input == the reference's paint, byte for byte, the plans equal, 0 GDI+ objects left - the tip (`tipwindow/`), the popup (`popupwindow/`), the drawn menu and its submenu (`menuwindow/`, six proofs a run, five runs) and the notification cards (`cardstack/`, ten proofs a run over every card on screen, four runs; each proof also holds in the reference itself) | `test_surface_windows` |
+| The retargeted picture makers: over the committed popup-en and hover-card plans' frames the popup's and the hover card's makers call the render mode with the same calls and arguments as the reference's renderer; the card's maker says the reference's motion, marks, breaths and paints; a real render-mode session lays the popup out as the reference does, answers every call and leaves 0 GDI+ objects | `tests/test_surface_render_retarget.py` (4 tests) |
+| The re-diff against the final | `python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26` (exact) |
+| The shipped window unchanged | `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions: every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`) |
+
+**What comparisons B and C need from the main session** (on the picture machine; agents never run them):
+
+* **B (stills)**: `CODEX_AR_SURFACE_RENDER=1 python build/make_screenshots.py` - `render_popup`, `popup_picture` and
+  `_SettledCard` (so `render_card`/`card_pixels`) then draw through the render mode (`build/surface_render.py`; the
+  surfaces compiled once into `%TEMP%\car-surface-render\<digest>`, or `CODEX_AR_SURFACE_EXE` naming a built host). Each
+  committed `tray-popup*.png`, `notification-card*.png`, `design-{classic,plain}-{popup,card}.png` must come out byte for
+  byte; any frame that differs is a finding for the owner (Q9), never a tolerance. `status-light.png` and `icon.png` are
+  drawn from brand's own arithmetic and the icon's frames, not by a renderer: they are unchanged by the switch (the icon's
+  frames are held by comparison A's `icon` cases). Then move each picture's staleness digest (`POPUP_CODE`, `CARD_CODE`,
+  `popup_drawing`, `card_drawing`) from the `.py` files to the `[surface]` C# sources - not done here (it is the pictures').
+* **C (motion)**: `CODEX_AR_SURFACE_RENDER=1 python build/make_motion.py <plan>` for `popup-*`, `card-*` and `readme-*`:
+  `PopupFrames`, `TipFrames` and `CardFrames` get one session (their `render=`), the plans unchanged; the APNG bytes must
+  equal the committed ones. A card frame whose motion the render mode answers otherwise than the reference's arithmetic
+  stops the run (`surface_render.Card.paint`).
+* **Expected stale until then**: this part edited `build/make_screenshots.py` (an input of every window still) and
+  `build/make_motion.py`, `motion_card.py`, `motion_popup.py`, `motion_tip.py` (inputs of the motion pictures), so
+  `test_motion_fidelity`'s made-picture digests (readme, card, popup x en/ko) and `test_screenshots`' recorded inputs read
+  stale until the main session makes the pictures again; no picture was regenerated here (rule 4).
+* **Left for later seats**: the ledger rows (`tests/rustdiff/surface_ledger.json`) are S6.4's; the host's `Main` (S6.2b)
+  asks `SurfaceRender.Run()` and `SurfaceRender.Probe(args)` before any DLL loads.
+
 Cut from `car-v0627-p6abi` `b1761926b` (Integration 7 + P6 step 0). `outputs/plans/v0627-rust/P6-DESIGN.md` 2.3 (the module map),
 3 (the proofs) and 4.1 row 1c, under the owner's Q1 (C# owns layout, motion, stack, shadow and corner), Q8 (the same flat GDI+/GDI
 calls) and Q9 (pictures byte for byte). No Rust changed. No window was shown, nothing was drawn on the screen or captured, no picture
@@ -2293,3 +2329,36 @@ its UI Automation focus test failed beside the set; alone under `quiet.sh` all 2
 own paint into its buffer against the render mode's bytes, as `popupwindow/` and `tipwindow/` hold theirs); step 4 (the
 render mode writes BGRA frames; retarget `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions
 to it, not run); then step 5 once more at the end.
+
+### S6.3 seventh part (seat S6.3f, 2026-11-27): the live-path proofs, the render mode's pictures, the retargets
+
+**Step 3, done.** `menuwindow/` and `cardstack/` in `test_surface_windows` gained `["proof"]` steps: the drawn menu (and
+its submenu) by its own `Render()` against a fresh renderer's `MenuLayout` + `DrawMenu` of the same entries, scale,
+language, work area and item in hand; each notification card's two windows as its own `Paint(now)` draws them against a
+card made offscreen (`windows=false`) from the same notice, born when it was, with its hover, press and last breath
+(`NoticeCard.Breathed`), painted for the live card's frame (`NoticeCard.PaintLayers`, which `Paint` now calls - the same
+calls in the same order). Both answer `[window digest, render digest, plans equal]`, against the reference's own
+`menu.render()` and its card driven the same way (where each card proof must hold in the reference itself). Mutations
+(each alone, restored, each fails): `DrawMenu` without the item in hand, the card's hover not carried, its last breath not
+carried.
+
+**Step 4, done (not run).** `gui/SurfaceRenderServe.cs`: a render-mode job with `"serve": true` answers one call per line
+on standard input/output (the reference renderers' own calls; see its header) and writes every picture to the job's
+`frames` folder as raw premultiplied BGRA with its digest. `NoticeCard.Born`/`Motion` are settable, as motion_card sets
+a card's. `build/surface_render.py` runs it (a built host named by `CODEX_AR_SURFACE_EXE`, or the `[contract]`,
+`[surface]` and `[generated]` files compiled once behind `SurfaceRender.Run() ?? 2`) and hands the makers stand-ins:
+`Renderer` (popup and tip: `layout`, `tip_layout`, `draw`, `draw_halo`, `draw_tip`, `draw_tip_light`, `face_colours`,
+`canvas.pixels()`, `card_still`, the look as attributes) and `Card` (`paint`, `body`/`shadow.pixels()`, `redraw`,
+`_draw_light`, `light_band`, `edge`, `follow` for the motion, every frame checked against the reference's motion). The
+retargets: `motion_popup.PopupFrames`, `motion_tip.TipFrames`, `motion_card.CardFrames` take `render=`; `make_motion.make`
+hands them one session when `CODEX_AR_SURFACE_RENDER` is set; `make_screenshots.render_popup`, `popup_picture` and
+`_SettledCard` draw through `surface_session()` likewise. Without the variable nothing changes. Held by
+`tests/test_surface_render_retarget.py` (4 tests; mutation: `draw`'s hover dropped fails it). Found on the way:
+`tests/test_surface_windows.py` spelled two known-folder ids as text, which `test_repo_hygiene`'s UUID rule refused
+(S6.3c); they are built from their parts now.
+
+**Step 5, done for this head**: `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions:
+every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`); `gui/window.sources`, its files and
+`build/make_gui.ps1` have no diff from the base. `rediff_host_surface.py` now also watches `ui/tray/icon.py`, `menu.py`,
+`animation.py`, `clicks.py`, `cards.py`, `win32.py`, `__init__.py` and `ui/popup/access.py`: exact against v0.6.26 (29
+tests; only `ui/popup/model.py` differs from the tag, as before).
