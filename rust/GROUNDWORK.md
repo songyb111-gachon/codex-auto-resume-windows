@@ -2775,3 +2775,112 @@ python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 sta
 bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+## Seat S7.2a3: the advanced proxy (owner Q3 (c)) (branch `car-v0627-s72a`, 2026-11-27)
+
+From `8e6362cbf` (S7.2a2). Reference: the advanced lane's own Python (the v0.6.26 tree), test by test. P7-DESIGN 3.1 and 7
+(Q3 (c): every advanced test file runs unedited on Rust, module by module, S4.2's method widened).
+
+### What is built
+
+* **`advserve`** (car-adv example, `examples/advserve/`: `main.rs` the loop, sessions and calls; `wire.rs` the pipe and the
+  nested asks; `proxied.rs` what is asked back). One process per test process, a JSON line each way, one session per
+  object the test made: a `Runtime` (car-adv `runtime::Shared`) or a standalone `AdvancedState`. Calls: `open`, `close`,
+  `runtime` (every `Runtime` method by its Python name; `make` = `_code_of`, `action`, and `fault`), `state`
+  (`state::calls`), `scoped` (a code's own `Scoped`, through its `Binding`), `made_scoped` (a `Scoped` the test made with
+  callables of its own), `arming` (every `Arming` method by its Python name and keywords), `object` (the errands of a
+  tick, run with the test's guard), `told` (`acted_when_told`), `op` (advprobe's pure ops: registry, statement, words,
+  policy). car-adv asks back: the clock, the policy, the view, the live view and the measurements handed in, the language,
+  a capability's `make` (the test's own definitions; a shipped definition's `make` is car-adv's `capabilities::make`
+  table - `registry.make` forwarded), every hook of the code made (`ProxyCode`: the 18 hooks at the points and the
+  optional ones its class defines, `runtime._own`), the objects a hook answers with (`ProxyThing`: channel, route,
+  errand, start route - the same Python object comes back to the caller), core's view (`ProxyView`), `Arming`'s edges
+  into modules not ported yet (`AskEdges`, each the reference's own function: `hookplugin.follow`, `powertasks.follow`,
+  `account.forget`, `usage.*`, `wrapwords.*`, `compatdata.table_for`, `autocheck.results_for`/`tend`, `_view_of`,
+  `_live_view_of`) and the watcher's log line (`_said_raised`).
+* **car-adv `runtime`** (S7.2a's own files): `Runtime::make(capability)` (`_code_of` for a caller that only needs it
+  made) and `runtime::faults` - `Faults`, the state methods a test made raise (`patch.object(runtime.state, "arming",
+  side_effect=StateError(...))`), and `Faulted`, the `StatePort` `Arming` reaches the state through (every method checks
+  `Faults` first; empty in the product, so every call goes on unchanged); the runtime's own direct calls that tests patch
+  (`admit`, `admission`, `record_moved`) check it too.
+* **`tests/rustdiff/advproxy/`** (loaded by path as `rustdiff_advproxy` by the core shim, `tests/rustdiff/shim.py`, whose
+  finder now also passes every `codex_auto_resume_advanced.*` module): `table.py` (THE table: all 149 modules of the
+  package at the tag, the seat of each, and what of it is FORWARDED, THROUGH, HANDED, DATA or WAITS), `pipe.py` (the
+  pipe, the JSON rule, the counts of calls a file made), `runtime.py` (S7.2a3's forwarders: `Runtime` - and so
+  `AdvancedPlug`, which builds `runtime.Runtime` lazily - `StateProxy`, `ArmingProxy`, `AdvancedState`, `ScopedProxy`,
+  `MadeScoped`, the edges), `ledger.py` (the per-file table of all 281 files). `CODEX_AR_ADVPROXY=0` leaves the advanced
+  edition the reference's under `CODEX_AR_CORE=rust` (core's proxies alone, to tell which side a difference is on).
+* `tests/rustdiff/rediff_advproxy.py --reference v0.6.26 [--build]`: the final's re-diff (the scope's changed files, then
+  every GREEN file on both lanes again).
+
+What a test reads of the reference's private names is kept where it is the test's arrangement, not its subject:
+`state._transaction()` / `_read()` are a connection of the test's own to the file car-adv keeps, with the reference's
+transaction rule; a fixture writer on that connection (`record_spend(connection, ...)`, `_prune`, `_prune_spend`,
+`AdvancedState._tables`) is the reference's own; `runtime.arming._policy` / `_view` / `_measured` / `_live` are the
+sources car-adv asks at each use, so a test's replacement takes effect; `runtime.arming.catalogs = other` refills the
+runtime's own catalogs folder before car-adv reads a language; `runtime._code` is the codes made.
+
+### Not forwarded (named in table.py and in the per-file table's reasons)
+
+* **P11 (`Runtime.claim`)**: it runs on core's own SQLite connection inside core's claim (car-store's `ledger_holds`
+  hands the raw `sqlite3*`), which a second process cannot share; held by `diffs_engine_records` (S7.2a2). Files whose
+  subject is the claim (`test_advanced_ledger`, `test_advanced_hook_claim`, the claim halves of `test_advanced_admission`)
+  wait for the integrated host (P6/S7.3d), where car-adv runs in core's process.
+* **A module constant a test patches** (`patch.object(session, "SCHEMA_VERSION", ...)`: "a build of version N" in
+  `test_advanced_state_v5`/`_v6`/`_v7`, `test_advanced_schema_v8`): car-adv's schema version is compiled in; these tests hold
+  the reference's own migration constants and stay on the reference (car-adv's migrations are held by `diffs_advstore`).
+* `run_measurement` / `complete_measurement` (S7.4), every module table.py marks WAITS.
+
+### The 26 files of S7.2a's row (advledger_s72a.py), run with `ledger.py --run` (both lanes, test by test)
+
+| result | files |
+|---|---|
+| **green on Rust** (7 files, 204 tests; every test equal to the Python lane, calls to advserve made) | `test_advanced_arming` (53), `test_advanced_registry` (65), `test_advanced_autocheck` (44), `test_advanced_state_v4` (17), `test_advanced_requires` (15), `test_advanced_window_switches` (6), `test_advanced_keep_on_every` (4) |
+| green but for the claim (P11 host) | `test_advanced_state` (61 of 63: AttachTests, RecordTests attach to core's connection), `test_advanced_hook_claim`, `test_advanced_ledger` |
+| green but for core's engine proxy (S4.2's, not this proxy: they fail with `CODEX_AR_ADVPROXY=0` too) | `test_advanced_admission` (21 of 27; EngineCase's 6) |
+| a shipped capability's code not ported yet | `test_advanced_goal_verified_resets` (goal_continuation, S7.2e1) |
+| the reference's own constants patched (reference only) | `test_advanced_state_v5`, `_v6`, `_v7` (12 of 13 green), `test_advanced_schema_v8`, `test_advanced_state_options` (17 of 20) |
+| pass under the proxy but reach no forwarded code: their subject is another module's own functions, which waits for its row | `test_advanced_credits`, `_headless` (codex.*, S7.2c), `_hook_input` (hook.*, S7.3c), `_credentials` (credentials, S7.2a), `_examples`, `_hidden` (statement, registry, S7.1b), `_word_keys` (statement, images), `_measure_m4b`, `_usage_refusal` |
+
+The design's estimate (P7-DESIGN 3.1, "146 advancedcase files only drive the runtime") does not hold by run either: a file
+that builds over `advancedcase` often tests a module's own function, a shipped capability or the claim.
+
+### How a later seat adds its modules (the how-to)
+
+1. **Serve it** in advserve: a session kind for a class (`open`'s `kind`, as `runtime` and `state`), or a `call` for its
+   methods, or an `op` of a probe already in the example (advprobe's families are compiled in; S7.2c's `advcodex` ops can
+   be added the same way, by `#[path]`).
+2. **Forward it**: a module of your own in `tests/rustdiff/advproxy/` (`<seat>.py`) with the reference's signature,
+   calling `pipe.PIPE.request(session, call, ...)`; what car-adv asks back is answered by the session owner's `answer`.
+   Values cross by `pipe.plain`; give answers their Python shapes back (tuples, frozensets, enums) as `runtime.py`'s
+   `TUPLES`, `STATE_SHAPES`, `ARMING_SHAPES` do - a test compares `(False, 0)` and `[False, 0]` as different.
+3. **Name it** in `table.py`: `forwards={"Name": "<seat>.Name"}` on its module's row - the one place per module.
+   A shipped capability's code needs nothing here: `registry.make` is car-adv's table already, so filling `make` in
+   car-adv makes it reach the proxy.
+4. **Prove it**: `python -X utf8 tests/rustdiff/advproxy/ledger.py --run <files>`; a file printed GREEN goes into
+   `GREEN`, one that still waits into `RUN_WAITS` with its reason; break one rule of your Rust and see a proxied test fail.
+   `python -X utf8 tests/rustdiff/advproxy/ledger.py --seat S7.2b` lists what waits for your seat.
+
+### The proof that the proxy runs on Rust (mutation checks)
+
+Scratchpad `car-v0627-s72a-mutate3.py`: each rule broken alone in car-adv, advserve's release rebuilt, one GREEN file's
+tests run with `CODEX_AR_CORE=rust`, the file restored. Caught: Arming refusing a forbidding policy as "not allowed"
+(`test_advanced_arming.RemainingRefusalTests`: 3 failures), the statement check of `arm` refusing an incomplete
+statement as stale (`DashboardOnlyTests`), the prompt queue's limit one short (`test_advanced_state_v4`), a stored
+Keep on read inverted (`test_advanced_keep_on_every`), the window switches never carried (`test_advanced_window_switches`:
+4 failures), the tick no longer tending the automatic check (`test_advanced_autocheck.WatcherOnlyTests`) - each green on
+the Python lane. One mutation survived, and says where the corpus is thin, not the proxy: `arm`'s own
+STATEMENT_INCOMPLETE return after the requirement check (arming.rs, the `refuse(...)` path) is reached by no test of
+these files, since `check` refuses first.
+
+### For later seats
+
+* Every seat: your done-check includes your modules' advanced tests through the proxy (Q3 (c)); the how-to above, and
+  `ledger.py --seat <you>` for your list. A shipped capability you port reaches the proxy with no proxy edit (its
+  `make` is car-adv's table).
+* S7.3d / P6 (the host): P11 through the proxy needs car-adv in core's process; until then the three claim files wait.
+* S4.2's proxy: `test_advanced_admission.EngineCase` (6 tests) fails on core's engine proxy with an advanced plug
+  (`CODEX_AR_ADVPROXY=0` shows it is core's side): the proxy's AskStore has no `reserve_record`/`record_guard` and keeps
+  `reserve_ledgered` without a ledger (S7.2a2's seams left).
+* The 25 "ready" files (no advancedcase, nothing they import waits) have not been run; most reach no forwarded code and
+  will go to RUN_WAITS with their module's seat.

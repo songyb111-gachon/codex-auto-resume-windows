@@ -6,6 +6,8 @@ last of them in the waves (2.3) - or the ledger's reason it runs on the referenc
 
 The table only shrinks (`tests/rustdiff/LEDGER` discipline): a seat that ports a module moves its files from "waits" to
 "green through the proxy" in its own ledger, `advledger_<seat>.py`. Reads the tag out of git; runs nothing of it.
+S7.2a3: the proxy's own per-file table, run by run, is tests/rustdiff/advproxy/ledger.py (this file is its import
+analysis).
 """
 from __future__ import annotations
 
