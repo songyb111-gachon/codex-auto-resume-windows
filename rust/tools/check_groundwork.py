@@ -66,7 +66,7 @@ STANDARD = {
     # S5.1a: it runs car-control's bridge over a scratch home (src/bridge.rs: `bridge.run`);
     # S6.0: it runs car-surface's models and decisions (src/surface.rs: `surface.batch`)
     "car-harness": {"car-brand", "car-codex", "car-config", "car-control", "car-engine", "car-machine", "car-platform",
-                    "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
+                    "car-policy", "car-scheduler", "car-store", "car-surface", "car-watcher", "car-words"},
 }
 # The advanced workspace: its three crates, and for car-adv every library of the standard one, the superset the
 # alpha's single advanced crate may reach through the plug; the S7 seats trim it to what is used.

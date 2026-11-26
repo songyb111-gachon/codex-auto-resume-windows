@@ -44,8 +44,8 @@ pub type Notice<'a> = &'a dyn Fn(&str, Map, bool) -> Res<()>;
 
 /// `Health(paths=, log=, notice=, port=, clock=)`: one watcher's memory readings, warning and status file.
 pub struct Health {
-    port: Box<dyn OwnProcess + Send>,
-    clock: Box<dyn Fn() -> f64 + Send>,
+    port: Box<dyn OwnProcess>,
+    clock: Box<dyn Fn() -> f64>,
     status_file: String,
     version: String,
     /// Private memory committed at the last look, and the most so far, in bytes; None until known.
@@ -71,8 +71,8 @@ impl Health {
     pub fn new(
         status_file: &str,
         version: &str,
-        port: Box<dyn OwnProcess + Send>,
-        clock: Box<dyn Fn() -> f64 + Send>,
+        port: Box<dyn OwnProcess>,
+        clock: Box<dyn Fn() -> f64>,
     ) -> Health {
         let sign_in = port.sign_in();
         let booted_at = port.booted_at();

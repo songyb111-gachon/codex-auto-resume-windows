@@ -52,5 +52,7 @@ car-scheduler = { path = "../car-scheduler" }
 car-control = { path = "../car-control" }
 # S6.0: car-surface's models, words and decisions (src/surface.rs: `surface.batch`), and car-brand's numbers they read.
 car-surface = { path = "../car-surface" }
+# S6.1: car-watcher's loop over a scripted world and its pieces (src/watcher.rs: `watcher.loop`, `watcher.batch`).
+car-watcher = { path = "../car-watcher" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

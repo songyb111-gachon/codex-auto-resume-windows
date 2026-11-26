@@ -82,6 +82,7 @@ dependencies = [
  "car-scheduler",
  "car-store",
  "car-surface",
+ "car-watcher",
  "car-words",
  "serde_json",
 ]
