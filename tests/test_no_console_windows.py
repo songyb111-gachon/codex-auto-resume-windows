@@ -612,10 +612,20 @@ class WindowStartTests(unittest.TestCase):
     def test_the_window_is_a_gui_program_and_the_mcp_launcher_a_console_one(self):
         # The tray and WindowReopen start the window; a console build of it would open a console.
         # The MCP launcher is a console program on purpose - it speaks to Codex over stdio - and
-        # its python.exe child is held above; Codex starts it windowless (measured 2026-09-26).
+        # Codex starts it windowless (measured 2026-09-26). v0.6.27: it is car-bin's Rust one (D18),
+        # and the advanced Stop hook launcher car-adv-bin's, both console programs (no
+        # windows_subsystem attribute) whose child, the core, car-platform's starter starts with
+        # CREATE_NO_WINDOW.
         script = _read("build/make_gui.ps1")
         self.assertRegex(script, r"Build -Name 'CodexAutoResumeSettings\.exe' -Target 'winexe'")
-        self.assertRegex(script, r"Build -Name 'codex-auto-resume-mcp\.exe' -Target 'exe'")
+        self.assertNotIn("codex-auto-resume-mcp.exe", script)
+        for main in ("rust/crates/car-bin/src/bin/mcp.rs", "advanced/rust/crates/car-adv-bin/src/bin/hook.rs"):
+            with self.subTest(main):
+                self.assertNotIn("windows_subsystem", _read(main))
+        for relay in ("rust/crates/car-bin/src/launcher.rs", "advanced/rust/crates/car-adv-bin/src/hook_launcher.rs"):
+            with self.subTest(relay):
+                self.assertIn("SystemStarter.start(", _read(relay))
+                self.assertNotIn("Command::new", _read(relay))
 
 
 # What a program at the end of a chain asks of its console, written where the test can read it.
