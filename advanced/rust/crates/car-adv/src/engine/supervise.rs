@@ -139,6 +139,24 @@ pub(crate) fn field<'a>(value: &'a Value, key: &str) -> &'a Value {
 /// One shared value a code and its errand or threads both reach (`self` in Python).
 pub(crate) type Shared<T> = Arc<Mutex<T>>;
 
+/// `car_config::Links` over car-platform's link test (what the product's paths are made with).
+#[derive(Debug)]
+pub(crate) struct PlatformLinks;
+
+impl car_config::Links for PlatformLinks {
+    fn is_symlink(&self, path: &Path) -> bool {
+        car_platform::links::is_symlink(path)
+    }
+}
+
+/// `inuse.home(paths)`: the Codex home the watcher told, else CODEX_HOME's as the watcher finds it; the reference's
+/// raise (`ConfigError`, `OSError`) where none can be named.
+pub(crate) fn codex_home(paths: &Paths) -> Result<String, Raised> {
+    let env = |name: &str| std::env::var(name).ok();
+    let os = car_config::Os::here(false, Arc::new(PlatformLinks));
+    crate::codex::inuse::home(Some(&paths.home), &env, &os).map_err(Raised::new)
+}
+
 /// The lock of a shared value, whatever a thread that held it last did.
 pub(crate) fn lock<T>(shared: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     shared.lock().unwrap_or_else(PoisonError::into_inner)
