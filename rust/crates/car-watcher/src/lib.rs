@@ -13,3 +13,5 @@ pub mod health;
 pub mod waking;
 pub mod afterwork;
 pub mod clock;
+pub mod homes;
+pub mod watchloop;
