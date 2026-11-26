@@ -355,6 +355,126 @@ def wk(case):
     return {"answers": answers, "log": made.log}
 '''
 
+REF_ANALYTICS = r'''
+from codex_auto_resume_advanced.engine import analytics
+
+
+@op("ua")
+def ua(case):
+    made = Case(case)
+    home = Path(case["home"])
+    homes = [str(home / each) for each in case.get("homes", ())]
+    ticks = list(case.get("clock") or [0.0])
+
+    def clock():
+        made.log.append(["clock"])
+        return ticks.pop(0) if len(ticks) > 1 else ticks[0]
+    keys = case.get("keys") or {}
+
+    class Source:
+        def project_key(self, thread):
+            made.log.append(["project_key", thread])
+            found = keys.get(thread)
+            if isinstance(found, dict) and "raise" in found:
+                raise RuntimeError("stand-in")
+            return found
+
+    def source(where):
+        made.log.append(["source", Path(where).name])
+        if case.get("source_raise"):
+            raise RuntimeError("stand-in")
+        return Source()
+    code = analytics.UsageAnalytics(made.paths, homes=lambda: homes, source=source, clock=clock)
+    if case.get("bind", True):
+        code.bind(made.scoped)
+    answers, errand = [], None
+    for step in case["steps"]:
+        if made.common(step):
+            answers.append(None)
+            continue
+        try:
+            if step[0] == "tick":
+                errand = code.tick(View({}, made.log))
+                answers.append(said(errand))
+            elif step[0] == "run":
+                answers.append(run_errand(errand, made.log))
+            else:
+                raise SystemExit("unknown step %s" % step[0])
+        except Exception as error:
+            answers.append({"error": type(error).__name__})
+    made.close()
+    return {"answers": answers, "log": made.log}
+
+
+@op("ua.pace")
+def ua_pace(case):
+    return norm(analytics.pace(case["samples"], case["row"], case["now"]))
+
+
+@op("ua.route")
+def ua_route(case):
+    return analytics.route(case["verdict"])
+'''
+
+REF_UPDATE = r'''
+from codex_auto_resume_advanced.engine import updatecheck
+
+
+@op("uc")
+def uc(case):
+    made = Case(case)
+    script = Script(case.get("script"), made.log)
+    home = str(made.paths.home)
+
+    def run(where, given):
+        made.log.append(["run", Path(where).name, str(given) == home])
+        found = script.answer("answer", None)
+        return None if found is None else tuple(found)
+
+    def start(target):
+        script.answer("start", None)
+        if case.get("start_runs", True):
+            target()
+    code = updatecheck.IdleUpdateCheck(made.paths, run=run, managed=lambda: script.answer("managed", False),
+                                       start=start, installed=lambda: script.answer("installed", None),
+                                       log=lambda line: made.log.append(["log", line]))
+    if case.get("bind", True):
+        code.bind(made.scoped)
+    view = View(case.get("view"), made.log)
+    answers, errand = [], None
+    for step in case["steps"]:
+        if made.common(step):
+            answers.append(None)
+            continue
+        try:
+            if step[0] == "tick":
+                errand = code.tick(view)
+                answers.append(said(errand))
+            elif step[0] == "run":
+                answers.append(run_errand(errand, made.log))
+            elif step[0] == "offered":
+                answers.append(norm(code.offered()))
+            elif step[0] == "script":
+                Path(made.paths.home, "app", "scripts").mkdir(parents=True, exist_ok=True)
+                Path(made.paths.home, "app", "scripts", "bootstrap.ps1").write_text("# stand-in", encoding="utf-8")
+                answers.append(None)
+            else:
+                raise SystemExit("unknown step %s" % step[0])
+        except Exception as error:
+            answers.append({"error": type(error).__name__})
+    made.close()
+    return {"answers": answers, "log": made.log}
+
+
+@op("uc.pure")
+def uc_pure(case):
+    name, arguments = case["name"], case["arguments"]
+    if name == "said":
+        answered = arguments[0]
+        return updatecheck.said(None if answered is None else tuple(answered), arguments[1])
+    return norm(getattr(updatecheck, name)(*arguments))
+'''
+
 REF_ANCHOR = r'''
 import time as _time
 from codex_auto_resume_advanced.engine import anchor
@@ -386,7 +506,7 @@ for case in request["cases"]:
 sys.stdout.write(json.dumps({"results": results}, ensure_ascii=False, allow_nan=False))
 '''
 
-PARTS = [REFERENCE, REF_SUPERVISE, REF_POWER, REF_WAKE, REF_ANCHOR]
+PARTS = [REFERENCE, REF_SUPERVISE, REF_POWER, REF_WAKE, REF_ANALYTICS, REF_UPDATE, REF_ANCHOR]
 
 
 def add_reference(part: str) -> None:
@@ -462,7 +582,8 @@ def left(home: Path, names) -> dict:
 
 
 def seed(home: Path, files: dict) -> None:
-    """A case's home from nothing: its files (relative path -> text, or {"hex": bytes}, or {"dir": True})."""
+    """A case's home from nothing: its files (relative path -> text, or {"hex": bytes, "mtime_ns": n}, or
+    {"dir": True}); a file's modification time is the one it names, so both sides see the same."""
     if home.exists():
         shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True)
@@ -474,8 +595,26 @@ def seed(home: Path, files: dict) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(content, dict):
             path.write_bytes(bytes.fromhex(content["hex"]))
+            if "mtime_ns" in content:
+                os.utime(path, ns=(content["mtime_ns"], content["mtime_ns"]))
         else:
             path.write_bytes(content.encode("utf-8"))
+
+
+def first_difference(want, got, path="") -> str:
+    """Where two answers first differ, and what each holds there."""
+    if isinstance(want, dict) and isinstance(got, dict):
+        for key in list(want) + [key for key in got if key not in want]:
+            if diffs.encode(want.get(key)) != diffs.encode(got.get(key)):
+                return first_difference(want.get(key), got.get(key), "%s.%s" % (path, key))
+    if isinstance(want, list) and isinstance(got, list):
+        for index, (one, other) in enumerate(zip(want, got)):
+            if diffs.encode(one) != diffs.encode(other):
+                return first_difference(one, other, "%s[%d]" % (path, index))
+        if len(want) != len(got):
+            return "%s: lengths %d and %d" % (path, len(want), len(got))
+    return "%s: reference %s, rust %s" % (path, json.dumps(want, ensure_ascii=False)[:400],
+                                          json.dumps(got, ensure_ascii=False)[:400])
 
 
 class Scene:
@@ -510,8 +649,9 @@ class Scene:
             self.test.assertEqual(len(expected), len(actual))
             for index, (want, got) in enumerate(zip(expected, actual)):
                 if diffs.encode(want) != diffs.encode(got):
-                    self.test.fail("%s: case %d differs\n  case      %s\n  reference %s\n  rust      %s" % (
-                        self.label, index, json.dumps(cases[index], ensure_ascii=False)[:600],
+                    self.test.fail("%s: case %d differs at %s\n  case      %s\n  reference %s\n  rust      %s" % (
+                        self.label, index, first_difference(want, got),
+                        json.dumps(cases[index], ensure_ascii=False)[:2500],
                         json.dumps(want, ensure_ascii=False)[:1500], json.dumps(got, ensure_ascii=False)[:1500]))
             return expected
         finally:

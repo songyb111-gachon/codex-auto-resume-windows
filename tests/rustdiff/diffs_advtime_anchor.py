@@ -121,7 +121,7 @@ class AnchorPureDiff(unittest.TestCase):
             add("next_due", options(rng), now, rng.choice([None, int(now) + 100, int(now) + 90000, True]),
                 seen, rng.choice([None, int(now) - 100, int(now) + 600]))
         for _ in range(200):
-            add("windows_of", reading(rng).get("windows") if rng.random() < 0.9 else rng.choice([None, 0, 7, "s", {}]))
+            add("windows_of", (reading(rng) or {}).get("windows") if rng.random() < 0.9 else rng.choice([None, 0, 7, "s", {}]))
             add("running_reset", reading(rng), NOW)
             add("judge", reading(rng), reading(rng))
         for at in (NOW, NOW + 0.5):

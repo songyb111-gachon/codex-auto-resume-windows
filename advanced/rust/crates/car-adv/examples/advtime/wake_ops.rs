@@ -1,4 +1,5 @@
-//! `wk`: wake_for_reset's P8 errand and its watch over a scripted timer, view and thread start.
+//! `wk`: wake_for_reset's P8 errand and its watch over a scripted timer, view and thread start; `ua`, `ua.pace`,
+//! `ua.route`: usage_analytics' pass over a scratch home's rollouts, with a scripted clock and project source.
 
 use std::sync::Arc;
 
@@ -32,9 +33,10 @@ impl Timer for StandTimer {
     }
     fn cancel(&mut self) -> Result<bool, Raised> {
         let had = Value::Bool(self.due.is_some());
-        let found = self.script.answer("cancel", had, vec![]);
+        // The reference's stand-in raises before it forgets its time.
+        let found = self.script.answer("cancel", had, vec![])?;
         self.due = None;
-        Ok(car_machine::pyval::truthy(&found?))
+        Ok(car_machine::pyval::truthy(&found))
     }
     fn allowed(&mut self) -> Result<bool, Raised> {
         Ok(matches!(
@@ -101,6 +103,18 @@ pub fn run_errand(errand: &dyn Errand, view: &dyn View, log: &Log) -> Value {
 pub fn answer(op: &str, case: &Map) -> Option<Result<Value, String>> {
     match op {
         "wk" => Some(Ok(wk(case))),
+        "ua" => Some(Ok(ua(case))),
+        "ua.pace" => Some(
+            car_adv::engine::analytics::pace(
+                &list(get(case, "samples")),
+                get(case, "row"),
+                f64_of(get(case, "now")).unwrap_or(0.0),
+            )
+            .map_err(str::to_owned),
+        ),
+        "ua.route" => Some(Ok(Value::Str(
+            car_adv::engine::analytics::route(get(case, "verdict")).into(),
+        ))),
         _ => None,
     }
 }
@@ -184,6 +198,100 @@ fn wk(case: &Map) -> Value {
                 Err(raised) => error(&raised),
             },
             "due" => number(code.due()),
+            other => object(vec![("unknown", Value::Str(other.into()))]),
+        };
+        answers.push(answer);
+    }
+    made.close();
+    object(vec![("answers", Value::Array(answers)), ("log", made.log())])
+}
+
+struct StandSource {
+    keys: Map,
+    log: Log,
+}
+
+impl car_adv::engine::analytics::ProjectSource for StandSource {
+    fn project_key(&mut self, thread: &str) -> Result<Value, Raised> {
+        crate::common::lock(&self.log).push(Value::Array(vec![
+            Value::Str("project_key".into()),
+            Value::Str(thread.into()),
+        ]));
+        let found = get(&self.keys, thread).clone();
+        if let Value::Object(map) = &found
+            && map.contains_key("raise")
+        {
+            return Err(Raised::new("RuntimeError"));
+        }
+        Ok(found)
+    }
+}
+
+fn ua(case: &Map) -> Value {
+    use car_adv::engine::analytics::UsageAnalytics;
+    let made = Case::new(case);
+    let home = std::path::PathBuf::from(text(get(case, "home")));
+    let homes: Vec<String> = list(get(case, "homes"))
+        .iter()
+        .map(|each| car_platform::paths::pathlib_text(&home.join(text(each)).to_string_lossy()))
+        .collect();
+    let ticks = std::sync::Mutex::new(match get(case, "clock") {
+        Value::Array(items) if !items.is_empty() => items.clone(),
+        _ => vec![Value::Float(0.0)],
+    });
+    let clock_log = made.log.clone();
+    let keys = match get(case, "keys") {
+        Value::Object(map) => map.clone(),
+        _ => Map::new(),
+    };
+    let source_log = made.log.clone();
+    let source_raise = matches!(get(case, "source_raise"), Value::Bool(true));
+    let code = UsageAnalytics::new(
+        Box::new(move || Ok(homes.clone())),
+        Box::new(move |place: &str| {
+            let name = std::path::Path::new(place)
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            crate::common::lock(&source_log).push(Value::Array(vec![
+                Value::Str("source".into()),
+                Value::Str(name.as_str().into()),
+            ]));
+            if source_raise {
+                return Err(Raised::new("RuntimeError"));
+            }
+            Ok(Box::new(StandSource {
+                keys: keys.clone(),
+                log: source_log.clone(),
+            }) as Box<dyn car_adv::engine::analytics::ProjectSource>)
+        }),
+        Box::new(move || {
+            crate::common::lock(&clock_log).push(Value::Array(vec![Value::Str("clock".into())]));
+            let mut held = crate::common::lock(&ticks);
+            let value = if held.len() > 1 { held.remove(0) } else { held[0].clone() };
+            f64_of(&value).unwrap_or(0.0)
+        }),
+        Box::new(car_platform::localclock::Crt),
+        std::sync::Arc::new(car_codex::system::PolicyOs),
+    );
+    if !matches!(get(case, "bind"), Value::Bool(false)) {
+        code.bind_to(made.bound());
+    }
+    let view = StandView::new(&Value::Object(Map::new()), made.log.clone());
+    let mut answers = Vec::new();
+    let mut errand: Option<Box<dyn Errand>> = None;
+    for step in list(get(case, "steps")) {
+        let step = list(&step);
+        if made.common(&step) {
+            answers.push(Value::Null);
+            continue;
+        }
+        let answer = match text(step.first().unwrap_or(&Value::Null)).as_str() {
+            "tick" => shown_tick(code.ticked(), &mut errand),
+            "run" => match &errand {
+                Some(errand) => run_errand(errand.as_ref(), &view, &made.log),
+                None => Value::Str("none".into()),
+            },
             other => object(vec![("unknown", Value::Str(other.into()))]),
         };
         answers.push(answer);
