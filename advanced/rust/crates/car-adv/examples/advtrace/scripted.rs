@@ -143,10 +143,11 @@ impl Scripted {
         arguments: &[&Value],
         told: Option<Box<dyn FnOnce() + Send>>,
     ) -> Spoke {
-        note(&self.asked, vec![text(&self.capability), text(hook)]);
+        // A hook the script has not is no attribute of the reference's code: raised before anything is asked.
         let Some(spec) = get(&self.script, hook).cloned() else {
             return Err(Raised::missing());
         };
+        note(&self.asked, vec![text(&self.capability), text(hook)]);
         self.said(hook, spec, arguments, told)
     }
 

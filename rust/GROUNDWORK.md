@@ -2571,3 +2571,127 @@ bash advanced/rust/tools/check_rebuild.sh            rc=0, all 8 binaries the sa
 cargo build --locked --release -p car-host, then CAR_CORE_DLL=<target/release/car_core.dll> cargo test -p car-host --test abi_exports
                                                      2 passed: the release DLL exports the same six
 ```
+
+## Seat S7.2a: the P7 skeleton, the plug's two halves, the shared Windows hands (branch `car-v0627-s72a`, 2026-11-27)
+
+From `car-v0627-cifix` `b5369c05d` (Integration 8). Reference: the v0.6.26 final on the bundled Python 3.14.10.
+`outputs/plans/v0627-rust/P7-DESIGN.md` 2.1, 2.2, S7.2a's row, 3, 6, 7 (the owner's answers: Q1 (a), Q3 (c), Q7 (a)).
+
+### The skeleton (commit `0a6b752b1`; no later seat edits these lists)
+
+* car-adv `lib.rs` and the `mod.rs` of `engine/` (40 modules), `control/` (19), `courier/` (12), `codex/` (+ `account`,
+  `authfile`, `restart`, `swap`), `win/` (+ `appclose`, `dpapi`), `runtime/` (8 files) list every module of the plan.
+  Each file a seat has not written names its seat in its first line and, where the registry names a `make`, holds that
+  `make(paths) -> Option<Box<dyn Code>>` returning None: a seat fills its own files and touches no list.
+* `capabilities/mod.rs`: a capability's code (`Code`: the 18 hooks at the points, whose default is the reference's
+  AttributeError - a raise; the 11 optional hooks of `runtime._own`, whose default is "the class has none"), what a hook
+  says (`Said`: DEFER, a word, a value, a tuple, a set, core's BACKEND, a channel, a route, an errand, a start route),
+  `Raised` (the exception's class, cause and frames, for `_said_raised`), `Binding` (what `bind` hands: the code's own
+  `Scoped`, made on demand under the runtime's lock), and **the `make` table over all 53 registry ids** (a test holds it to
+  the registry's shown, waiting and installed-only definitions; `python_choice` has no code, Q1 (a)).
+* `seam_p7.rs`: every cross-seat edge of the tag's import graph into a module not yet ported (the list is in the file),
+  as a trait or a constant; the pure functions S7.2a's P2 needs now (`continued_handed`, `reset_message_handed`,
+  `prompt_handed`, `chat_handed`/`chat_watched`/`paused_by_stop`, `for_open_watching`, `answer_key`, `words_pass`) are
+  ported there faithfully, and each owner moves its own into its module at the integration that merges it.
+* car-platform `lib.rs` (S7.2a's alone) lists `credman`, `dpapi`, `random` (S7.2a), `restart` (S7.2b), `job`, `winhttp`,
+  `tls` (S7.3b). The `schannel` crate (Q4 (a)) is not in the locks yet: it is in the local cargo cache (0.1.26) but brings
+  windows-sys 0.59 beside 0.61; S7.3b adds it with its first use, behind cargo-deny, in car-platform's `Cargo.toml` alone.
+
+### Ported (module -> crate)
+
+| Python | here |
+|---|---|
+| `credentials.py` | car-platform `credman` (the `Backend` trait, the real `Windows` one under the caller's prefix - no test reaches it - and `Memory`); car-adv `credentials` (`Secrets`, `SecretError`, the target rule, 2,560 bytes, `SystemTokens` over `random`) |
+| `win/dpapi.py` | car-platform `dpapi` (`CryptProtectData`/`CryptUnprotectData`, no prompt, the caller's label; its one test seals random bytes in memory); car-adv `win::dpapi` (the product's label) |
+| `secrets.token_hex`, `os.urandom` | car-platform `random` (`BCryptGenRandom`, system-preferred) |
+| `runtime.py` (but `run_measurement`, S7.4's) | car-adv `runtime/` (table in `runtime/mod.rs`) |
+| `plug.py` | car-adv `plug` (`AdvancedPlug`: the 22 hooks, `PLUG_API`, `NOTICE_KINDS`, `register_notice_kinds`, `create`) |
+| `engine/hookclaims.py` `StopHook` | car-adv `capabilities::stophook` (P3 `blocked_at`, P8 `follow_real`) |
+| `report/__init__.py` `make` | car-adv `capabilities::report` (`make_with(paths, Config)` = `Flow::new`; `report::seam::Runtime` for the runtime) |
+| `engine/storeview.py` | car-engine `storeview` (`StoreView` over the engine's store: the nine reads, this home's alone, `last_usage`, `now`) |
+| `engine/__init__.py` `_errand`, `StoreView(...)` at P8/P22 | car-engine `lib.rs` (`view`, `errand`: the view and the guards, a raise or a panic logged `plug_errand_failed`) |
+| `store/plugclaims.py` `errand_guard` | car-store `plugclaims` (and car-harness's `EngineStore`) |
+| `domain/plug.py` `View`, `_LedgerConnection`, `served_elsewhere`, a channel's `pools` | car-policy `plug` (`View`'s reads, `ReadFailed`, `Ledger::execute`/`sqlite`, `Plug::served_elsewhere`, `Guarded::served_elsewhere` (not counted, as `runtime/app.py` reads the property), `Channel::pools_said`, `Errand::run(view, guards)`) |
+
+How the runtime is held: Python runs it under the GIL, and a code may call back in (its `Scoped`). `runtime::Shared` is the
+runtime's fields in cells and a lock its own thread may take again (`Gil`); `Arming<'static>` borrows the boxed state,
+registry, catalogs and edges it is declared before (dropped first). Errands run outside the lock, then take it to trip.
+
+### Not ported, and why
+
+* **The core side's carrying of a record of the plug's own** (P2's flow: `engine/plugrecords.py`'s claim and launch,
+  `engine/recordchannel.py`, `store/plugclaims.py` `reserve_record`/`record_guard`), **P12's pool** (`engine/launches.py`),
+  **P11 inside car-store's claim** (`store/ledger.py` `_ledger_holds`: the savepoint, the authorizer, the handle), the
+  launch guard handed to a channel's `send` and a route's `resume`: the time went to the runtime and its proof. car-engine
+  still costs a handed record itself (`plug_record_check_failed`) and sends every claim inline; the plug side (`runtime.claim`
+  over `Ledger::sqlite`) is ready for the claim that asks it. These are the next S7.2 seat's (or Integration 9's) first work.
+* **The advanced proxy (Q3 (c))**: not built. What is here is its ledger (`tests/rustdiff/advledger_s72a.py`) and the
+  runtime it will drive. The proxy needs a serve loop in `advtrace` (one runtime per test, its codes the test's own Python
+  objects asked back over the pipe, as `engineproxy.py` asks the store) and forwarders for `runtime.state.*` (car-adv
+  `state::calls`) and `runtime.arming.*` (advprobe's ops). **Of the 146 `advancedcase` files only 26 need nothing but S7.2a
+  and the done seats** - the design's 146 assumed every capability test needs only the runtime; by import, 120 also need a
+  capability module of S7.2b-S7.3a or S7.4 (the table below).
+* `surfaces.answer` (P10): S7.3a's; the plug answers DEFER there (NULL's) until it is ported.
+* `runtime.run_measurement`/`complete_measurement`: S7.4's (`runtime/measurement.rs`).
+
+### The advanced tests by the seat that unlocks them (`python -X utf8 tests/rustdiff/advledger_s72a.py --markdown`)
+
+| unlocked by | files | of them advancedcase |
+|---|---:|---:|
+| S7.2a (the proxy over this runtime) | 68 | 26 |
+| S7.3b | 14 | 11 |
+| S7.2b | 9 | 3 |
+| S7.2d | 9 | 2 |
+| S7.2e1 | 19 | 13 |
+| S7.2e2 | 14 | 4 |
+| S7.3a | 79 | 51 |
+| S7.4 | 21 | 13 |
+| S6.2a (the C# page, `pagecase.py`) | 48 | 23 |
+| **all** | 281 | 146 |
+
+The per-file list: the script without `--markdown`. `test_advanced_shots*` are in S7.2a's row by import but are the main
+session's pictures.
+
+### The proof
+
+* **`diffs_advplug.py` (`AdvPlugDiff`, `advplug.py`, example `advtrace`)**: 37 scenarios, 128 steps (none an error on
+  the reference), 67 hooks asked, 179 rows of advanced.sqlite at the end, every answer, every hook asked and every row
+  equal to the v0.6.26 tag's `Runtime` on the bundled 3.14.10 (Ran 1, OK, 112 s on the debug `advtrace`). The first run
+  differed in one scenario, in the harness (the Rust script noted a hook it did not have before raising; the reference's
+  `__getattr__` raises first): fixed in `advtrace/scripted.rs`.
+* **The engine's traces after the core side (risk 1)**: `run.py --build --reference v0.6.26 -k EngineTraceDiff -k
+  EngineReview6 -k EnginePanicDiff -k EngineInputsDiff -k LaunchGuardHeld -k EnginePlugDiff -k ScriptDiff -k RefusalDiff`:
+  Ran 24, OK (expected failures=1, B1 as before), 834 s; corpus 81 / 1,023 steps, walks 60 / 5,153, scripted plug 63 /
+  878, deferring plug 81 / 1,023, walks with a plug 40 / 3,429 - all equal. The standard edition's equality did not move.
+* **Mutation checks** (each alone, `advtrace` rebuilt, `AdvPlugDiff` run, the file restored; scratchpad `mutate.py`): a
+  watched answer taken (`watched_is_a_would_have`), a raising hook leaving its capability on (`a_code_that_cannot_be_made`),
+  P2 handing a record twice (`records_of_the_edition_s_own`), P18 taking a list (`sessions_take_a_set_or_a_tuple`), Send
+  now never preferred over EARLY (`send_now_is_preferred_over_an_early_look`), keep on never passing a record over
+  (`kept_on_passes_over_the_record_alone`): **6 of 6 caught**, none survived.
+* Unit tests: car-platform `credman` 2, `dpapi` 1 (random bytes in memory), `random` 1; car-adv `credentials` 1, the make
+  table 1.
+* The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72a.py --reference v0.6.26`.
+
+### Seams left
+
+* car-policy `Ledger::sqlite`: car-store's claim must hand its connection's `sqlite3*` under the authorizer and savepoint
+  of `_ledger_holds` (and implement `execute` for a plug written otherwise). `runtime.claim` opens it with
+  `Connection::from_handle` (never closed there).
+* car-engine `Store::errand_guard` has a default (AttributeError) for stores that have none; car-harness's `EngineStore`
+  and car-store implement it. The proxy's `AskStore` does not yet (an errand under the proxy raises, as before).
+* `runtime::Options` is what an entry point hands: `edges` (the real `Edges` is the integration's, S7.3d), `maker`
+  (`capabilities::make`, or `make` with the world for `stophook`/`report`), `auto_check` (`autocheck::tend` with its
+  `World`), `log` (the logbook), `tokens` (`SystemTokens`). `plug::create(paths, options, os)` is the factory's call.
+* `capabilities::report::make_with(paths, Config)` and `stophook::make_with(paths, home_of)`: the entry points pass the
+  live world (S7.3d); the table's plain `make` has none for the report and the told home alone for the Stop hook.
+* `headless::stop_all(headless::follower(), 20.0)` at the watcher's exit (adv72d's note) is the watcher's (S6.1) to call
+  as it leaves; the runtime holds no exit of its own.
+
+### For later seats
+
+* Every capability seat: implement `Code` on your type; return `Said::Word` for an `Alternative` (the runtime's `is`
+  checks read it), `Said::Value` for anything else, `Said::Tuple`/`Set` where the reference returns one; bind through
+  `Binding::with`. Your `make` is already in the table.
+* Move your function out of `seam_p7.rs` into your module at the integration (and point the runtime at it).
+* The proxy seat: `advtrace` is the runtime over a scripted code; turn its step loop into a serve loop (`proxy.rs` of
+  car-harness is the model), and move files from "waits" to "green" in `advledger_<seat>.py`.
