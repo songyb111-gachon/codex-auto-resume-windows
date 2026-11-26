@@ -2,7 +2,7 @@
 
 * VocabParity - every word of vocab.json (`build/vocab_export.py --ref TAG`) of the eleven Python modules S2.1 ports
   is the same in Rust (`export()` of car-policy's `classify::vocab_gen::MODULES`, module by module), and the
-  generated files are what the tag and this interpreter generate (`gen_policy.py --check`).
+  generated files are what the tag and the product's bundled Python generate (`gen_policy.py --check`, run as its own process).
 * TextTables - Python's `str.lower()`, `str.casefold()` and `re`'s `\\w`, for each of the 1,114,112 code points, as the
   reference's interpreter answers them.
 * SeamParity - the copy of S2.2's `ownvalues` and plug words in car-policy's seam is the reference's (the functions are
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 from rustdiff import core, reference
@@ -46,10 +47,13 @@ class VocabParity(Leaves):
                       % (len(gen.MINE), words, reference.TAG))
 
     def test_the_generated_files_are_what_the_tag_generates(self):
-        gen = generator()
-        for path, text in gen.generate(reference.TAG).items():
-            self.assertEqual(path.read_bytes().decode("utf-8"), text,
-                             "%s is stale: gen_policy.py --write" % path.name)
+        # The generator's own --check: it runs itself under the product's bundled Python (productpy.py), whose Unicode
+        # tables text_tables.rs and unicode_gen.rs hold - generated in this process (3.13.15, say) they would differ.
+        done = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__).resolve().parent / "gen_policy.py"),
+                               "--check", "--ref", reference.TAG], cwd=str(core.ROOT), capture_output=True,
+                              creationflags=reference.NO_WINDOW, timeout=900)
+        self.assertEqual(done.returncode, 0, "gen_policy.py --check: %s%s" % (
+            done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")[-2000:]))
 
 
 class TextTables(Leaves):
