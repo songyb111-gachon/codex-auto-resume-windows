@@ -25,7 +25,7 @@ UI = tuple(PACKAGE + "." + name for name in SHORT)       # built, so this file's
 KINDS = ("pure", "drawn", "window", "scan")
 STATUSES = ("host", "pending", "python-only")
 # The ceiling for rows that are not yet on the host. Lower it when a row moves to `host`; never raise it.
-PENDING_CEILING = 66
+PENDING_CEILING = 63
 
 
 def imports_the_ui(path: Path) -> bool:

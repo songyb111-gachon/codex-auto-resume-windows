@@ -416,6 +416,8 @@ def _model(module):
     def select_action(visible, now, *, hidden_at=None, double_click_at=None, previous_key_at=None, keyboard=False):
         return case("popup.select", visible, now, hidden_at, double_click_at, previous_key_at, keyboard)
 
+    _perform(module)
+    _popup_model(module)
     for name, function in (("activity", activity), ("light_for", light_for), ("icon_attention", icon_attention),
                            ("watcher_known_running", watcher_known_running), ("snapshot_activity", snapshot_activity),
                            ("urgency", urgency), ("is_waiting", is_waiting), ("_blocked", _blocked),
@@ -426,6 +428,193 @@ def _model(module):
         function.__doc__ = original[name].__doc__
         function.__name__ = name
         setattr(module, name, function)
+
+
+# ------------------------------------------------------------------------------ perform and PopupModel: the objects asked back
+CONTROL_SHAPES = {
+    # Rust's recorded call name -> how the reference writes the call: (method, positional indexes, keyword name -> index)
+    "list_pending": ("list_pending", (), {"source": 0}),
+    "get_status": ("get_status", (), {}),
+    "set_enabled": ("set_enabled", (0,), {}),
+    "set_interruption_recovery": ("set_interruption_recovery", (0, 1, 2), {}),
+    "postpone": ("postpone", (0, 1), {"preset": 2}),
+    "unpostpone": ("unpostpone", (0, 1), {}),
+    "release_hold": ("release_hold", (0, 1), {}),
+    "set_thread_tier": ("set_thread_tier", (0, 1), {"interruption_id": 2}),
+    "set_project_rule": ("set_project_rule", (0, 1, 2), {"source": 3}),
+    "set_once_words": ("set_once_words", (0, 1, 2), {}),
+}
+
+
+def _plain(value):
+    """A control layer's answer as JSON carries it; what JSON cannot carry cannot be sent to car-surface."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _plain(each) for key, each in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(each) for each in value]
+    raise TypeError("an answer of %s cannot be sent to car-surface" % type(value).__name__)
+
+
+def _raised(error):
+    code = getattr(error, "code", None)
+    return {"raise": type(error).__name__, "code": code if isinstance(code, str) else None}
+
+
+def _perform(module):
+    """`perform(action, control, *, source, dashboard)`: car-surface decides which control calls the action makes, in what
+    order and with what; each is made here, once and in that order, on the control layer the test handed in, and its answer
+    (or the exception it raised, as its class and `code`) is what car-surface is run again with. The first call not yet
+    answered is the reference's next call: everything before it was answered for real, so the path to it is the reference's."""
+    original = module.perform
+
+    def ask(action, spec, source, dashboard):
+        return PIPE.case("popup.perform", list(action) if isinstance(action, (tuple, list)) else action, spec, source,
+                         dashboard)
+
+    def perform(action, control, *, source=None, dashboard=None):
+        spec, answered = {}, set()
+        # The Codex source is only ever handed on, and Rust only asks whether there is one: a token stands for the object.
+        token = None if source is None else "$source:%d" % id(source)
+        for _ in range(16):
+            found = ask(action, spec, token, None if dashboard is None else spec.get("dashboard", {"ok": True}))
+            fresh = [call for call in found["calls"] if call[0] not in answered]
+            if not fresh:
+                break
+            call = fresh[0]
+            name = call[0]
+            try:
+                if name == "dashboard":
+                    row = call[1]
+                    answer = _plain(dashboard() if row is None else dashboard(row=tuple(row)))
+                else:
+                    method, positional, keywords = CONTROL_SHAPES[name]
+                    args = [call[1 + index] for index in positional]
+                    kwargs = {key: (source if call[1 + index] == token and token is not None else call[1 + index])
+                              for key, index in keywords.items()
+                              if not (name == "list_pending" and call[1 + index] is None)}
+                    answer = _plain(getattr(control, method)(*args, **kwargs))
+            except Exception as error:
+                answer = _raised(error)
+            answered.add(name)
+            spec[name] = answer
+        else:
+            raise RuntimeError("car-surface asked more of the control layer than a perform makes")
+        names = [call[0] for call in found["calls"]]
+        if len(set(names)) != len(names):
+            raise TypeError("a perform that asks the same control call twice cannot be routed: the answers are by name")
+        return tuple(found["result"])
+
+    perform.rust_core = "surface"
+    perform.__wrapped__ = original
+    perform.__doc__ = original.__doc__
+    module.perform = perform
+
+
+def _popup_model(module):
+    """`PopupModel`: its state lives in car-surface's, which a test reaches by replay - every step the test took is sent again
+    with the question, as the `popup.model` script case takes them (diffs_surface_popup.py holds that case equal to the
+    reference's). Attributes are read from the state after the last step; assigning one is refused, which no routed test does."""
+    original = module.PopupModel
+    state_names = ("rows", "status", "read_failed", "notice_key", "notice_until", "busy", "drawn_paused", "wants_read")
+
+    class PopupModel:
+        rust_core = "surface"
+        __wrapped__ = original
+
+        def __init__(self, strings=None):
+            object.__setattr__(self, "strings", dict(strings or {}))
+            object.__setattr__(self, "_steps", [])
+            object.__setattr__(self, "_known", None)
+            object.__setattr__(self, "_view", {"tasks": []})
+            object.__setattr__(self, "_assigned", {})
+
+        def _flush(self):
+            """A test that sets `rows` and `status` directly: the same two values as one successful read (which also
+            clears `read_failed`, so a model that has failed cannot be set this way)."""
+            assigned = self._assigned
+            if not assigned:
+                return
+            current = (PIPE.case("popup.model", self.strings, _locale(), list(self._steps) + [["state"]])[-1]["ok"]
+                       if self._steps else {"rows": None, "status": None, "read_failed": False})
+            rows, status = assigned.get("rows", current["rows"]), assigned.get("status", current["status"])
+            if rows is None or status is None or current["read_failed"]:
+                raise TypeError("rows and status can be set only together, on a model whose last read did not fail")
+            assigned.clear()
+            self._steps.append(["apply", ["read"], ["ok", {"rows": rows, "status": status}], 0.0])
+            object.__setattr__(self, "_known", None)
+
+        def _run(self, *tail):
+            self._flush()
+            found = PIPE.case("popup.model", self.strings, _locale(), list(self._steps) + list(tail))
+            out = found[len(self._steps):]
+            for entry in out:
+                if "error" in entry:
+                    raise BUILTINS.get(entry["error"], RuntimeError)(entry["error"])
+            return [entry["ok"] for entry in out]
+
+        def _state(self):
+            self._flush()
+            if self._known is None:
+                object.__setattr__(self, "_known", self._run(["state"])[0])
+            return self._known
+
+        def _step(self, *step):
+            found = self._run(list(step))[0]
+            self._steps.append(list(step))
+            object.__setattr__(self, "_known", None)
+            return found
+
+        def __getattr__(self, name):
+            if name in state_names:
+                value = self._state()[name]
+                if name == "busy":
+                    return {tuple(json.loads(each)) for each in value}
+                return value
+            raise AttributeError(name)
+
+        def __setattr__(self, name, value):
+            if name not in ("rows", "status"):
+                raise TypeError("the popup's state is car-surface's: %s cannot be assigned" % name)
+            self._assigned[name] = value
+
+        @property
+        def drawn(self):
+            return {task["interruption_id"]: (task["thread_id"], task["checked"]) for task in self._view["tasks"]}
+
+        @property
+        def drawn_tasks(self):
+            return {task["interruption_id"]: dict(task) for task in self._view["tasks"]}
+
+        def view(self, now):
+            found = self._step("view", now)
+            found["counts"] = [tuple(each) for each in found["counts"]]
+            found["tasks"] = [_task(each) for each in found["tasks"]]
+            object.__setattr__(self, "_view", found)
+            return found
+
+        def action_for(self, target):
+            if not target:
+                return None
+            found = self._run(["action_for", list(target)])[0]
+            return None if found is None else tuple(found)
+
+        def menu_for(self, interruption_id):
+            return _menu(self._run(["menu_for", interruption_id])[0])
+
+        def begin(self, action):
+            return self._step("begin", list(action))
+
+        def apply_outcome(self, action, outcome, now):
+            self._step("apply", list(action), list(outcome), now)
+
+        def attention(self):
+            return self._run(["attention"])[0]
+
+    PopupModel.__name__ = "PopupModel"
+    PopupModel.__doc__ = original.__doc__
+    module.PopupModel = PopupModel
 
 
 def install(module) -> None:
