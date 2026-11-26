@@ -2775,3 +2775,29 @@ Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_cla
   it) and `EngineMaker::engine` gets the plug. car-host's `car_bridge` runs on the host's calling thread: a request line it
   parses should be read on a deep stack (`run_deep`), as follow314's rule asks.
 * The binaries budget is the stub core's plus the merged code; PLAN 6.6 still has P6 set it from its first full build.
+
+## Final port (seat finalport, branch `car-v0627-finalport`, 2026-11-27)
+
+Base: Integration 9 `cfdabfe59`. The rows of `outputs/plans/v0627-rust/FINAL-DELTA.md` whose crates exist, ported from the v0.6.26
+tag itself; FINAL-DELTA section 12 says where every row stands and who owns the rest. Reference v0.6.26 on the bundled 3.14.10.
+
+| FINAL-DELTA | Python (v0.6.26) | Rust |
+|---|---|---|
+| #1, #10 | `codex/errors.py` `HistoryNotYet(SourceError)` | car-codex `errors.rs`: `SourceError(message, not_yet)`; `SourceError::history_not_yet`, `is_history_not_yet`, `class()` "HistoryNotYet"; `Error::history_not_yet`, `Error::is_history_not_yet`. It stays `Error::Source`, so every catch of the refusal catches it, as `except SourceError` does |
+| #2-#4 | `history.py` `_no_conversation`, `schema.py` `resolve`'s `elif`, `_history_not_made` | `source.rs` `no_conversation` (through `with_db("state")`), `history_not_made` (any error: no), `resolve` (only where no history file exists) |
+| #5 | `compat/probes.py` `source_checks` | `compat/probes.rs`: `threads: Option<bool>`; a missing history with `Some(false)` is NOT_APPLICABLE for `history_schema` and `projection_table`; the lock folder FAILs on `Some(true)` only |
+| #6 | `win/kernel.py` `package_roots` | car-platform `kernel::package_roots` (GetPackagesByPackageFamily, GetPackagePathByFullName; `Win32_Storage_Packaging_Appx` was already a feature); car-codex `System::package_roots` |
+| #7 | `codex/pairing.py` `package_engines`, `PACKAGE_ENGINE_DEPTH` | `pairing.rs` `package_engines`: scandir as CPython (a junction is a folder, a symbolic link neither, partial listings kept), then `package_file` + `engine_row` + `!main_place` as written and resolved |
+| #8, #9 | `probes._package_engines`, `views._binding_holds` | `probes::package_engines` + `probes::official` (the generator's lazy filter); `views::binding_holds` asks the package's engines between the candidates and the served ones |
+| #11 | `engine/detect.py` `collect` | car-engine `detect.rs`: `Err("HistoryNotYet") => return Ok(())` |
+| #15 (+ #12) | `control/watcher.py` `get_status`, `domain/usage.newest` | car-control `status.rs`; car-machine `domain::usage::newest_made` (Some only where the rule made a new object: the reference tests `is not`), `newest` over it |
+
+**Seams.** (1) `System::package_roots` is a required method: every world names its own package folders (car-harness `World` and car-adv's
+example world read `packages`; the test stands and car-engine's/car-adv's empty systems answer none). A new `System` must answer it, never
+with this PC's packages (`tests/no_real_codex.py` `_guard_packages`). The reference worlds stub `pairing.package_roots` the same way
+(appserverdiff, advcodex, advcodexd): before this seat they asked this PC's real package manager. (2) A caller that tells HistoryNotYet
+apart asks `Error::is_history_not_yet()` (or meets the class "HistoryNotYet" where errors are class names, as car-engine's `Py`).
+
+**For the next seats.** S6.2b: `Outside::history` (car-bin doctor, #19) maps `is_history_not_yet()` to `History::NotYet`; the watcher's
+`checkup::_conversations` (#17) skips a home on it before the generic "cannot be read"; `_served_elsewhere` (#18) is the EngineMaker's, with
+S7.2a's plug hook. S7.2a/S7.2: rows 24-30 (AdvancedPlug.served_elsewhere, the UsageMeter's SKIP_WAIT, `_skipped_at`, `_held`, `_backend`).
