@@ -17,7 +17,7 @@
 //! | `guard.py`, `relaxed.py`, `resend.py` | [`guard`], [`relaxed`], [`resend`] |
 //! | `plugrecords.py`, `notices.py`, `storeview.py` | [`plugrecords`], [`notices`], [`storeview`] |
 //! | `impossible.py` | [`impossible`] (pure: the watcher's judge) |
-//! | `launches.py`, `recordchannel.py` | not ported (P12's pool and P2's channel: the advanced plug's alone; see GROUNDWORK) |
+//! | `launches.py`, `recordchannel.py` | [`launches`] (P12's pool), [`recordchannel`] (P2's marker-free channel) |
 //!
 //! What the engine is handed is [`seam`]'s: its store, its reader, its backend (S3.3's seam) and the watcher's
 //! questions. The plug is car-policy's [`Guarded`]; the standard edition's is `Guarded::null()`.
@@ -38,11 +38,13 @@ pub mod guard;
 pub mod host;
 pub mod impossible;
 pub mod kinds;
+pub mod launches;
 pub mod notices;
 pub mod options;
 pub mod outcome;
 pub mod plugrecords;
 pub mod py;
+pub mod recordchannel;
 pub mod relaxed;
 pub mod resend;
 pub mod routes;
@@ -92,7 +94,8 @@ pub struct Given {
     pub plug: Guarded,
     pub connectivity: Option<Box<dyn Fn() -> Py<Value>>>,
     pub home_key: String,
-    /// `open_store`: whether a worker could open a store of its own (P12's pool is not ported: always inline).
+    /// `open_store`: whether a worker could open a store of its own; the opener itself is handed with
+    /// `Engine::set_opener` (P12's pool, engine/launches.rs).
     pub open_store: bool,
     pub once_words: Option<Box<dyn OnceWords>>,
     /// The draw jitter asks (`random.Random().random()`), only while jitter is on.
@@ -171,6 +174,18 @@ pub struct Engine {
     pub(crate) loaded_since: HashMap<String, f64>,
     pub(crate) for_open_seen: HashMap<String, f64>,
     pub(crate) wrap_ups: HashMap<String, BTreeSet<String>>,
+    /// `_records_flying`: the plug's records watched in flight, by id, in the order first seen.
+    pub(crate) records_flying: Map,
+    /// `_back_refused`: the plug's records Codex would not give back out of its queue.
+    pub(crate) back_refused: HashSet<String>,
+    /// `_records_noted`: the plug's records whose would-send line was written.
+    pub(crate) records_noted: HashSet<String>,
+    /// P12: what opens a store for a worker (`open_store`), the pool open for this tick, the worker taken for the send
+    /// being dispatched, and whether that send goes to it (`_pool`, `_held_slot`, `_pooling`).
+    pub(crate) opener: Option<launches::Opener>,
+    pub(crate) pool: Option<launches::LaunchPool<Row>>,
+    pub(crate) held_slot: Option<launches::Slot>,
+    pub(crate) pooling: bool,
 }
 
 /// The uncertain submissions a look found no trace of, in the order found (`_no_trace`, a `dict`).
@@ -270,6 +285,13 @@ impl Engine {
             loaded_since: HashMap::new(),
             for_open_seen: HashMap::new(),
             wrap_ups: HashMap::new(),
+            records_flying: Map::new(),
+            back_refused: HashSet::new(),
+            records_noted: HashSet::new(),
+            opener: None,
+            pool: None,
+            held_slot: None,
+            pooling: false,
         }
     }
 
@@ -329,16 +351,25 @@ impl Engine {
         self.off_told = false;
         // P19 and P18: which conversations detection takes up from here on (engine/kinds.py).
         self.session_kinds()?;
-        let view = storeview::StoreView;
-        let errand = self.plug.tick(&view);
-        let result = self.tick_recover(&view);
+        // The view is made, its moment read from the clock, where the reference makes it.
+        let now = self.now();
+        let errand = {
+            let view = self.view(now);
+            self.plug.tick(&view)
+        };
+        let result = self.tick_recover(now);
         if let Answer::Is(errand) = errand {
-            self.errand(errand);
+            self.errand(errand, now);
         }
         result
     }
 
-    fn tick_recover(&mut self, view: &storeview::StoreView) -> Py<()> {
+    /// `StoreView(self.store, now, self.last_usage, home_key=self.home_key)`.
+    pub(crate) fn view(&self, now: f64) -> storeview::StoreView<'_> {
+        storeview::StoreView::new(self.store.as_ref(), now, self.last_usage(), &self.home_key)
+    }
+
+    fn tick_recover(&mut self, now: f64) -> Py<()> {
         if self.collect().is_err() {
             self.detection_failed = Some(true);
             self.log(None, "detection_unavailable_no_submission", Value::Null);
@@ -346,9 +377,21 @@ impl Engine {
         }
         self.detection_failed = Some(false);
         let due = self.records(UNSENT)?;
-        // P12: how many sends may wait for their receipts at once. The pool is not ported: every send is inline,
-        // which is what the reference does for the answer every plug but the advanced one gives (1).
-        let _workers = self.workers(&due);
+        // P12: how many sends may wait for their receipts at once - 1, one after another in this thread, unless the
+        // plug answers 2 to 8. Every claim and look stays here; a worker only waits for a receipt, and every one is
+        // joined and settled before the tick goes on (engine/launches.rs).
+        let workers = self.workers(&due);
+        if workers > 1
+            && let Some(opener) = &self.opener
+        {
+            let started = std::time::Instant::now();
+            self.pool = Some(launches::LaunchPool::new(
+                usize::try_from(workers).unwrap_or(1),
+                std::sync::Arc::clone(opener),
+                Box::new(move || started.elapsed().as_secs_f64()),
+                Box::new(|seconds| std::thread::sleep(std::time::Duration::from_secs_f64(seconds))),
+            ));
+        }
         for row in &due {
             if car_scheduler::caught(|| self.attempt(row)).is_err() {
                 let thread = py::s(row, "thread_id");
@@ -359,12 +402,15 @@ impl Engine {
                 );
             }
         }
+        if let Some(pool) = self.pool.take() {
+            pool.close(&mut |current, response| self.settle_launch(&current, &response, true));
+        }
         // v0.6.14: what the watch found no trace of, put to the plug for one more send (P7).
         if !self.plug.is_null() {
             self.resend_uncertain();
         }
-        // P2: the records of the advanced store that are due (engine/plugrecords.py).
-        self.plug_records(view);
+        // P2: the records of the advanced store that are due (engine/plugrecords.py), on the tick's view.
+        self.plug_records(now);
         Ok(())
     }
 
@@ -373,15 +419,36 @@ impl Engine {
         if self.plug.is_null() || !self.plug.wants(Point::Resident) {
             return;
         }
-        if let Answer::Is(errand) = self.plug.resident(&storeview::StoreView) {
-            self.errand(errand);
+        let now = self.now();
+        let errand = {
+            let view = self.view(now);
+            self.plug.resident(&view)
+        };
+        if let Answer::Is(errand) = errand {
+            self.errand(errand, now);
         }
     }
 
-    /// `_errand(errand)` (P8, v0.6.14): run once, last in the tick. The errand's guards (store/claims.py
-    /// `errand_guard`) are the advanced store's and not ported (S7.2): an errand here is one that raised.
-    fn errand(&mut self, _errand: Box<dyn car_policy::plug::Errand>) {
-        self.log(None, "plug_errand_failed", Value::Null);
+    /// `_errand(errand)` (P8, v0.6.14): run once, last in the tick, handed a way to ask for the store's errand guards
+    /// (`store.errand_guard(held=self.errand_held)`), each of which also asks what the engine knows and the store does
+    /// not (`errand_held`). One that raises - or panics (D15) - is logged from the fixed table and costs itself alone.
+    fn errand(&mut self, errand: Box<dyn car_policy::plug::Errand>, now: f64) {
+        let ran = {
+            let engine = &*self;
+            let view = engine.view(now);
+            let mut guards = |body: &mut dyn FnMut(bool) -> Value| {
+                engine
+                    .store
+                    .errand_guard(&mut || engine.errand_held(), body)
+                    .map_err(|_| car_policy::plug::HookFailed)
+            };
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                errand.run(&view, &mut guards)
+            }))
+        };
+        if !matches!(ran, Ok(Ok(_))) {
+            self.log(None, "plug_errand_failed", Value::Null);
+        }
     }
 
     /// `_records(states)`: this engine's own home's records in `states` (v0.6.15-beta): never another home's.

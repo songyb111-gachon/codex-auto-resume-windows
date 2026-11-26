@@ -261,6 +261,10 @@ WINDOWS_CALLERS = {"car-platform"}
 # everywhere. The export table itself is held by car-host's tests/abi_exports.rs.
 EXPORTERS = {"car-host"}
 EXTERN_DEFINITION = re.compile(r'extern\s+"C"\s+fn\b')
+# S7.2a2: car-store defines the one callback SQLite calls back into while the plug's ledger is asked (P11,
+# store/ledger.py `_ledger_authorizer`, set with `sqlite3_set_authorizer` on the claim's own connection): a definition
+# SQLite calls, not a call into Windows or the C runtime. Held to its file and its one function's name.
+SQLITE_CALLBACKS = {"rust/crates/car-store/src/ledger.rs": "authorizer"}
 TINY_BINARIES: set[str] = set()
 EXTERN_SYSTEM = re.compile(r'extern\s+"(system|C)"')
 # math.erfc: CPython calls the C library's, and so does car-brand's elevation colour (pyfmt.rs).
@@ -317,6 +321,9 @@ def check_windows_calls_in_platform() -> None:
                     if found.group(1) == "C" and c_math_only(source, text, number):
                         continue
                     if name in EXPORTERS and EXTERN_DEFINITION.search(line):
+                        continue
+                    callback = SQLITE_CALLBACKS.get(source.relative_to(ROOT).as_posix())
+                    if callback and re.search(r'extern\s+"C"\s+fn\s+%s\(' % callback, line):
                         continue
                     fail('%s:%d declares extern "%s": Windows calls live in car-platform (D3)'
                          % (source.relative_to(ROOT).as_posix(), number, found.group(1)))

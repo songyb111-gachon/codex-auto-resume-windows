@@ -116,6 +116,48 @@ pub trait Store: car_scheduler::Store {
     ) -> Py<Option<Row>>;
     fn early_check_asked(&self, now: f64) -> Py<bool>;
     fn early_check_taken(&self) -> Py<()>;
+    /// `with store.errand_guard(held=held) as permitted:` (P8's errand, store/plugclaims.py): `body` runs inside the
+    /// write lock; `held` is asked there only where the store permits. A store that has none raises AttributeError,
+    /// which the errand meets as the reference's raise.
+    fn errand_guard(
+        &self,
+        _held: &mut dyn FnMut() -> Py<bool>,
+        _body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        Err("AttributeError")
+    }
+    /// `reserve_detailed(..., ledger=plug)`: the claim with the plug's ledger asked last (P11). A store that cannot
+    /// ask it claims as with a ledger that defers.
+    fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        _ledger: &car_policy::plug::Guarded,
+    ) -> Py<Claimed> {
+        self.reserve_detailed(interruption_id, now, claim)
+    }
+    /// `reserve_record(record, now, ledger=plug, quiet_until=...)` (P2, store/plugclaims.py). AttributeError where the
+    /// store has none: the record costs itself (`plug_record_check_failed`).
+    fn reserve_record(
+        &self,
+        _record: &Map,
+        _now: f64,
+        _ledger: &car_policy::plug::Guarded,
+        _quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        Err("AttributeError")
+    }
+    /// `with store.record_guard(record, plug, now) as permitted:` - `body` runs inside the write lock.
+    fn record_guard(
+        &self,
+        _record: &Map,
+        _ledger: &car_policy::plug::Guarded,
+        _now: f64,
+        _body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        Err("AttributeError")
+    }
 }
 
 /// The engine's reader of Codex: `LocalSource`'s methods the engine calls, beyond the watch's.
@@ -210,7 +252,16 @@ pub trait Backend {
     fn holder(&self, _thread_id: &str) -> Option<Py<Value>> {
         None
     }
+    /// `send` as a worker may call it beside others (P12, engine/launches.rs): the backend's send bound so that it can
+    /// run on another thread. None where this backend's send cannot leave the tick thread: its sends go inline.
+    fn worker_send(&self) -> Option<WorkerSend> {
+        None
+    }
 }
+
+/// The backend's send as a worker calls it: `send(thread_id, prompt, launch_guard=...)`.
+pub type WorkerSend =
+    std::sync::Arc<dyn Fn(&str, &Str, &dyn LaunchGuard) -> Py<Value> + Send + Sync>;
 
 /// A person's words for this time (`control/oncewords.py`'s `OnceWords`).
 pub trait OnceWords {

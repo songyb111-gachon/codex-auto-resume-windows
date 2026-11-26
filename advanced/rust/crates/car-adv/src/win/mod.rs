@@ -1,7 +1,11 @@
 //! `win/`: the advanced edition's own Windows pieces (seat S7.2c remainder): [`stopflag`] (the supervisor's look at
 //! the watcher's stop event) and [`waketimer`] (a timer that wakes the PC, and whether Windows allows one). Their
-//! Windows calls are car-platform's `wake` traits (D3); nothing here calls Windows itself.
+//! Windows calls are car-platform's `wake` traits (D3); nothing here calls Windows itself. [`appclose`] (the Restart
+//! Manager's close of the app, no force) is seat S7.2b's over car-platform's `restart`; the skeleton (S7.2a) lists it.
+//! [`dpapi`] (seat S7.2a) is `win/dpapi.py`: this product's label over car-platform's `dpapi`.
 
+pub mod appclose;
+pub mod dpapi;
 pub mod stopflag;
 pub mod waketimer;
 

@@ -43,6 +43,12 @@ pub fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
 /// FILE_READ_ATTRIBUTES with every share, GetFileInformationByHandle). A new file is a new index, even where NTFS
 /// tunnelling hands it the old file's creation time. None where Windows will not say (no such file, no access).
 pub fn file_index(path: &Path) -> Option<u128> {
+    file_identity(path).map(|(_, index)| u128::from(index))
+}
+
+/// `(os.stat(path).st_dev, os.stat(path).st_ino)` as `os.path.samefile` compares them (store/ledger.py `_same_file`):
+/// the volume's serial number and the file index, links followed. None where `stat` would raise OSError.
+pub fn file_identity(path: &Path) -> Option<(u32, u64)> {
     let name = wide_os(path.as_os_str());
     // SAFETY: `name` is NUL-terminated and outlives the call.
     let handle = unsafe {
@@ -65,7 +71,8 @@ pub fn file_index(path: &Path) -> Option<u128> {
         let _ = CloseHandle(handle);
     }
     asked.ok()?;
-    Some(u128::from(
+    Some((
+        found.dwVolumeSerialNumber,
         (u64::from(found.nFileIndexHigh) << 32) | u64::from(found.nFileIndexLow),
     ))
 }

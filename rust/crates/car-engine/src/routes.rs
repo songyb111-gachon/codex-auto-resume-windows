@@ -204,7 +204,8 @@ impl Engine {
             forced,
             caps: self.caps(relaxed),
         };
-        let (claimed, refusing, reason) = self.store.reserve_detailed(&key, at, &claim)?;
+        let (claimed, refusing, reason) =
+            self.store.reserve_ledgered(&key, at, &claim, &self.plug)?;
         if !claimed {
             return self.refused(current, refusing.as_deref(), reason.as_deref());
         }
@@ -264,16 +265,22 @@ impl Engine {
             });
             let handed = handed.as_deref().map(Str::from);
             let client = message.as_ref().map(|_| ids::continuation_client_id(&key));
+            // `plughands.Route.resume(thread, launch_guard=store.submission_guard(key), ...)`: the guard entered
+            // first - a raise is the route's raise - and the route called only where it permitted the launch.
             let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                route.resume(
+                let permitted = self.store.submission_guard(&key, &mut Value::Bool)?;
+                if !matches!(permitted, Value::Bool(true)) {
+                    return Ok(crate::plugrecords::refused_launch());
+                }
+                Ok::<Value, &'static str>(route.resume(
                     &thread_id,
                     Some(&still_unloaded),
                     handed.as_ref(),
                     client.as_deref(),
-                )
+                ))
             }));
             match found {
-                Ok(Value::Object(response)) => response,
+                Ok(Ok(Value::Object(response))) => response,
                 _ => row(vec![("outcome", Value::from("unknown"))]),
             }
         };

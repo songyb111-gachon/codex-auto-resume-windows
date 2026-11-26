@@ -150,38 +150,15 @@ impl car_scheduler::Store for EngineStore {
     }
 }
 
-impl car_engine::Store for EngineStore {
-    fn record_gates(&self, interruption_id: &str, gates: &Vector, now: f64) -> Py<()> {
-        py(self.0.record_gates(interruption_id, gates, now))
-    }
-    fn record_would_send(
+impl EngineStore {
+    /// `reserve_detailed(...)`, noted for the traces, with the plug's ledger where the engine hands it.
+    fn claim_with(
         &self,
         interruption_id: &str,
-        gates: &Vector,
         now: f64,
-        next_retry_at: f64,
-    ) -> Py<bool> {
-        py(self
-            .0
-            .record_would_send(interruption_id, gates, now, next_retry_at))
-    }
-    fn submission_guard(
-        &self,
-        interruption_id: &str,
-        body: &mut dyn FnMut(bool) -> Value,
-    ) -> Py<Value> {
-        py(self.0.submission_guard(interruption_id, body))
-    }
-    fn recent_claims(&self, thread_id: &str, since: f64) -> Py<Vec<Value>> {
-        py(self.0.recent_claims(thread_id, since))
-    }
-    fn recent_claim_count(&self, thread_id: &str, since: f64) -> Py<i64> {
-        py(self.0.recent_claim_count(thread_id, since))
-    }
-    fn others_in_flight(&self, thread_id: &str, exclude: &str) -> Py<i64> {
-        py(self.0.others_in_flight(thread_id, exclude))
-    }
-    fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
+        claim: &Claim,
+        ledger: Option<&car_policy::plug::Guarded>,
+    ) -> Py<Claimed> {
         if self.1 {
             let number = |found: Option<f64>| found.map_or(Value::Null, Value::Float);
             let pair = |found: Option<(f64, f64)>| {
@@ -219,7 +196,79 @@ impl car_engine::Store for EngineStore {
             forced: claim.forced,
             caps: Some(claim.caps),
         };
-        py(self.0.reserve_detailed(interruption_id, now, &options))
+        py(self
+            .0
+            .reserve_ledgered(interruption_id, now, &options, ledger))
+    }
+}
+
+impl car_engine::Store for EngineStore {
+    fn record_gates(&self, interruption_id: &str, gates: &Vector, now: f64) -> Py<()> {
+        py(self.0.record_gates(interruption_id, gates, now))
+    }
+    fn record_would_send(
+        &self,
+        interruption_id: &str,
+        gates: &Vector,
+        now: f64,
+        next_retry_at: f64,
+    ) -> Py<bool> {
+        py(self
+            .0
+            .record_would_send(interruption_id, gates, now, next_retry_at))
+    }
+    fn submission_guard(
+        &self,
+        interruption_id: &str,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        py(self.0.submission_guard(interruption_id, body))
+    }
+    fn errand_guard(
+        &self,
+        held: &mut dyn FnMut() -> Py<bool>,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        py(self.0.errand_guard(Some(held), body))
+    }
+    fn recent_claims(&self, thread_id: &str, since: f64) -> Py<Vec<Value>> {
+        py(self.0.recent_claims(thread_id, since))
+    }
+    fn recent_claim_count(&self, thread_id: &str, since: f64) -> Py<i64> {
+        py(self.0.recent_claim_count(thread_id, since))
+    }
+    fn others_in_flight(&self, thread_id: &str, exclude: &str) -> Py<i64> {
+        py(self.0.others_in_flight(thread_id, exclude))
+    }
+    fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
+        self.claim_with(interruption_id, now, claim, None)
+    }
+    fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        ledger: &car_policy::plug::Guarded,
+    ) -> Py<Claimed> {
+        self.claim_with(interruption_id, now, claim, Some(ledger))
+    }
+    fn reserve_record(
+        &self,
+        record: &Map,
+        now: f64,
+        ledger: &car_policy::plug::Guarded,
+        quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        py(self.0.reserve_record(record, now, ledger, quiet_until))
+    }
+    fn record_guard(
+        &self,
+        record: &Map,
+        ledger: &car_policy::plug::Guarded,
+        now: f64,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        py(self.0.record_guard(record, ledger, now, body))
     }
     fn release_claim(
         &self,
@@ -354,6 +403,13 @@ impl Backend for AskBackend {
         // write lock, so a launch never uses consent withdrawn a moment before). The stand-in is asked while car-store's
         // write lock is held, told what the guard found, and refuses as SimBackend refuses. A product backend does the
         // same: its launch inside `enter`'s body, never after it.
+        // The stand-in writes the send down where it is called, before its guard is entered, as the reference's
+        // recording backend does: a guard that asks the plug's ledger (a record's `record_guard`, seat S7.2a2) puts
+        // that question after the send in both traces.
+        ask(
+            "backend.send_noted",
+            vec![Value::from(thread_id), Value::Str(prompt.clone())],
+        )?;
         let mut sent: Py<Value> = Ok(Value::Null);
         launch_guard.enter(&mut |permitted| {
             sent = ask(
@@ -362,6 +418,7 @@ impl Backend for AskBackend {
                     Value::from(thread_id),
                     Value::Str(prompt.clone()),
                     Value::Bool(permitted),
+                    Value::Bool(true),
                 ],
             );
             Value::Null

@@ -17,6 +17,10 @@ S4.2: `codex_auto_resume.engine` passes the same finder, and as it loads its `En
 are the test's own Python objects, asked back over the pipe. The Store and LocalSource stay Python's: what the
 engine decides is Rust's, what it reads and writes is the test's.
 
+S7.2a3 (owner Q3 (c)): every `codex_auto_resume_advanced.*` module passes the same finder too, and as it loads the
+advanced proxy (tests/rustdiff/advproxy/, loaded by path as `rustdiff_advproxy`) replaces the names its table forwards
+to car-adv's `advserve`; a module the table does not forward is the reference's own.
+
 Not yet here (later seats, PLAN 4.2): a `serve` that streams a live pipe line by line (the whole input is read first, which a test's StringIO
 allows); `python -m codex_auto_resume.<entry>`, which runs the module as __main__ and so never passes the
 finder (no test starts the product that way today). Self-contained: stdlib only, nothing else of rustdiff,
@@ -36,6 +40,8 @@ ENTRY_POINTS = {"codex_auto_resume.controlcli": "bridge", "codex_auto_resume.mcp
                 "codex_auto_resume.mcp.server": "mcp", "codex_auto_resume.cli": "cli"}
 # S4.2: the package whose `Engine` becomes the proxy (engineproxy.py).
 ENGINE = "codex_auto_resume.engine"
+# S7.2a3: the advanced package, each of whose modules the advanced proxy patches as it loads (advproxy/table.py).
+ADVANCED = "codex_auto_resume_advanced"
 STDIN_ARGUMENT = "-"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CRATE = Path(__file__).resolve().parents[2] / "rust" / "crates" / "car-harness"
@@ -108,7 +114,32 @@ def engine_proxy():
     return found
 
 
+def advanced_proxy():
+    """advproxy/, loaded by path once as the package `rustdiff_advproxy`."""
+    found = sys.modules.get("rustdiff_advproxy")
+    if found is None:
+        import importlib.util
+        directory = Path(__file__).resolve().with_name("advproxy")
+        spec = importlib.util.spec_from_file_location("rustdiff_advproxy", directory / "__init__.py",
+                                                      submodule_search_locations=[str(directory)])
+        found = importlib.util.module_from_spec(spec)
+        sys.modules["rustdiff_advproxy"] = found
+        spec.loader.exec_module(found)
+    return found
+
+
+def advanced(name: str) -> bool:
+    """A module of the advanced package, while the advanced proxy is wanted (CODEX_AR_ADVPROXY=0 leaves the advanced
+    edition the reference's under CODEX_AR_CORE=rust: core's proxies alone, to tell which side a difference is on)."""
+    if os.environ.get("CODEX_AR_ADVPROXY", "1") == "0":
+        return False
+    return name == ADVANCED or name.startswith(ADVANCED + ".")
+
+
 def patch(module) -> None:
+    if advanced(module.__name__):
+        advanced_proxy().patch(module)
+        return
     if module.__name__ == ENGINE:
         engine_proxy().install(module)
         return
@@ -137,7 +168,7 @@ class _Loader(importlib.abc.Loader):
 
 class Finder(importlib.abc.MetaPathFinder):
     def find_spec(self, name, path, target=None):
-        if name not in ENTRY_POINTS and name != ENGINE:
+        if name not in ENTRY_POINTS and name != ENGINE and not advanced(name):
             return None
         for finder in sys.meta_path:
             if finder is self or not hasattr(finder, "find_spec"):
@@ -159,5 +190,7 @@ def install() -> bool:
     for name in (*ENTRY_POINTS, ENGINE):
         if name in sys.modules:
             patch(sys.modules[name])
+    for name in [loaded for loaded in sys.modules if advanced(loaded)]:
+        patch(sys.modules[name])
     return True
 

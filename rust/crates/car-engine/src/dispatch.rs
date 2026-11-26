@@ -107,6 +107,7 @@ impl Engine {
         let result = self.attempt_once(row.clone());
         self.early_look = None;
         self.schedule_said = None;
+        self.free_slot(); // a worker taken for a send that did not go to it
         result
     }
 
@@ -437,6 +438,8 @@ impl Engine {
         let lock = self.dispatch_lock.clone();
         let _held = lock.as_ref().map(|lock| lock.lock());
         let key = s(row, "interruption_id");
+        // P12: before the re-checks, so they are fresh at the claim.
+        self.take_slot(resend, route.is_none_or(Route::queued));
         let Some(current) = self.store.get(&key)? else {
             return Ok(());
         };
@@ -530,6 +533,13 @@ impl Engine {
         // P5, decided before the claim like the words: core's own backend, unless the plug names a channel.
         let sender = self.plug.sender(&Value::Object(current.clone()));
         let channel = matches!(sender, Sender::Channel { .. });
+        let concurrent = matches!(
+            sender,
+            Sender::Channel {
+                concurrent: true,
+                ..
+            }
+        );
         let relaxed = py::text(&reset_carried(
             &relaxed.map_or(Value::Null, Value::from),
             &Value::Bool(channel),
@@ -562,6 +572,9 @@ impl Engine {
         } else {
             None
         }));
+        if self.pooled(!channel, concurrent, client.as_deref()) {
+            carried.insert(Point::Concurrency);
+        }
         if route.is_some_and(Route::queued) {
             carried.insert(Point::Unloaded);
         }
@@ -585,7 +598,8 @@ impl Engine {
                 self.caps(relaxed)
             },
         };
-        let (claimed, refusing, reason) = self.store.reserve_detailed(&key, at, &claim)?;
+        let (claimed, refusing, reason) =
+            self.store.reserve_ledgered(&key, at, &claim, &self.plug)?;
         if !claimed {
             if !resend {
                 // a resend refused stays as it was
@@ -638,6 +652,33 @@ impl Engine {
             None => format!("{message}\n\n{}", s(&claim, "marker")),
         };
         let claimed_thread = s(&claim, "thread_id");
+        if self.pooling {
+            // Its receipt is waited for on a worker, and settled by the pool (engine/launches.rs).
+            let slot = self.held_slot.take();
+            self.pooling = false;
+            let call: crate::launches::Call = match sender {
+                Sender::Backend => {
+                    let send = self.backend.worker_send().ok_or("AttributeError")?;
+                    Box::new(move |guard| send(&claimed_thread, &Str::from(words.as_str()), guard))
+                }
+                Sender::Channel { channel, .. } => {
+                    let client = client.clone();
+                    Box::new(move |guard| {
+                        crate::plugrecords::guarded_send(
+                            channel.as_ref(),
+                            &claimed_thread,
+                            &Str::from(words.as_str()),
+                            client.as_deref(),
+                            guard,
+                        )
+                    })
+                }
+            };
+            if let (Some(slot), Some(pool)) = (slot, self.pool.as_mut()) {
+                pool.launch(slot, call, Some(key.clone()), current.clone());
+            }
+            return Ok(());
+        }
         let response = {
             let guard = SubmissionGuard {
                 store: self.store.as_ref(),
@@ -647,9 +688,14 @@ impl Engine {
             // `try: response = sender.send(...) except Exception: response = {"outcome": "unknown"}`: a panic too.
             let sent = car_scheduler::caught(|| match &sender {
                 Sender::Backend => self.backend.send(&claimed_thread, &words, &guard),
-                Sender::Channel { channel, .. } => {
-                    Ok(channel.send(&claimed_thread, &words, client.as_deref()))
-                }
+                // `plughands.Channel.send`: the launch guard entered first, the channel called only where it held.
+                Sender::Channel { channel, .. } => crate::plugrecords::guarded_send(
+                    channel.as_ref(),
+                    &claimed_thread,
+                    &words,
+                    client.as_deref(),
+                    &guard,
+                ),
             });
             match sent {
                 Ok(Value::Object(response)) => response,

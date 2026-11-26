@@ -66,11 +66,74 @@ pub struct HookFailed;
 /// What a hook returns.
 pub type Hook<T> = Result<Answer<T>, HookFailed>;
 
-/// The engine's view of its store, as P2, P8 and P22 hand it (car-engine implements it).
-pub trait View {}
+/// A read through a [`View`] or a [`Ledger`] that failed: the class of the exception the reference raises there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadFailed(pub &'static str);
 
-/// The claim's own connection, as P11 hands it: writes reach the plug's own database only (car-store implements it).
-pub trait Ledger {}
+/// The engine's view of its store, as P2, P8 and P22 hand it (`engine/storeview.py`'s `StoreView`; car-engine
+/// implements it): the moment it was shown and the reads of `VIEW_READS`, each the store's own, and nothing that writes.
+/// NULL reads nothing through it; every read's default is the reference's AttributeError of a view that has none.
+pub trait View {
+    /// `view.now`.
+    fn now(&self) -> f64 {
+        0.0
+    }
+    /// `view.get(interruption_id)`: core's record, or None.
+    fn get(&self, _interruption_id: &str) -> Result<Value, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.records_in(states)`: this home's records in `states`.
+    fn records_in(&self, _states: &[&str]) -> Result<Vec<Value>, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.settings()`.
+    fn settings(&self) -> Result<Value, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.thread_enabled(thread_id)`.
+    fn thread_enabled(&self, _thread_id: &str) -> Result<bool, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.others_in_flight(thread_id, exclude)`.
+    fn others_in_flight(&self, _thread_id: &str, _exclude: &str) -> Result<i64, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.recent_claims(thread_id, since)`.
+    fn recent_claims(&self, _thread_id: &str, _since: f64) -> Result<Vec<Value>, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.recent_claim_count(thread_id, since)`.
+    fn recent_claim_count(&self, _thread_id: &str, _since: f64) -> Result<i64, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.claimed_on_thread(thread_id)`: this home's records that may have put a continuation there.
+    fn claimed_on_thread(&self, _thread_id: &str) -> Result<Vec<Value>, ReadFailed> {
+        Err(ReadFailed("AttributeError"))
+    }
+    /// `view.last_usage()`: (when, the windows) of the engine's own last usage reading, or None.
+    fn last_usage(&self) -> Value {
+        Value::Null
+    }
+}
+
+/// The claim's own connection, as P11 hands it (`store/ledger.py`'s `_LedgerConnection`): `execute`, under the claim's
+/// authorizer, savepoint and transaction, and nothing else (car-store implements it). Writes reach the plug's own
+/// database only; core's schemas and the claim's transaction are refused by the authorizer, not by this trait.
+pub trait Ledger {
+    /// `connection.execute(statement, parameters)`, its rows read out whole.
+    fn execute(
+        &mut self,
+        _statement: &str,
+        _parameters: &[Value],
+    ) -> Result<Vec<Vec<Value>>, ReadFailed> {
+        Err(ReadFailed("ProgrammingError"))
+    }
+    /// The same connection as SQLite's own handle (`sqlite3*`), for a plug built over the same SQLite library as core:
+    /// valid during this call only, and under the same authorizer. None where there is none.
+    fn sqlite(&mut self) -> Option<*mut std::ffi::c_void> {
+        None
+    }
+}
 
 /// A channel a plug named at P5: core calls `send` once, after its claim and inside its launch guard.
 pub trait Channel: Send {
@@ -78,6 +141,11 @@ pub trait Channel: Send {
     /// Whether this send may wait for its receipt on a worker beside others (P12); held to `true` itself.
     fn pools(&self) -> Result<bool, HookFailed> {
         Ok(false)
+    }
+    /// What `pools()` itself answered, for the plug's own runtime (`runtime._alone` reads a warning word there): None
+    /// where the channel has no `pools`. Core reads `pools` alone.
+    fn pools_said(&self) -> Option<Result<Value, HookFailed>> {
+        None
     }
 }
 
@@ -96,14 +164,16 @@ pub trait Route: Send {
     }
 }
 
-/// One guard an errand asked for: entered once; `permitted` read under the store's write lock.
-pub trait ErrandGuard {
-    fn enter(&mut self) -> bool;
-}
+/// The guards an errand may ask for (`with guard() as permitted:`, `store.errand_guard(held=engine.errand_held)`): each
+/// call runs `body` once inside one guard, with `permitted` read under the store's write lock, and answers what `body`
+/// answered - or the failure of a guard that could not be taken, which the errand lets go on as the reference's raise.
+pub type Guards<'a> = dyn FnMut(&mut dyn FnMut(bool) -> Value) -> Result<Value, HookFailed> + 'a;
 
-/// An errand a plug answered at P8 or P22: core runs it once, last in the tick, with a way to ask for guards.
+/// An errand a plug answered at P8 or P22: core runs it once, last in the tick, with the tick's view of its store (the
+/// one the hook was handed, which a Python errand keeps) and a way to ask for guards. An `Err` is the reference's raise:
+/// core logs `plug_errand_failed` and goes on.
 pub trait Errand: Send {
-    fn run(&self, guard: &mut dyn FnMut() -> Box<dyn ErrandGuard>) -> Value;
+    fn run(&self, view: &dyn View, guards: &mut Guards<'_>) -> Result<Value, HookFailed>;
 }
 
 /// A route that starts the watcher outside Codex's job (P9): core calls `start` with the command line it built.
@@ -274,6 +344,12 @@ pub trait Plug: Send + Sync {
     /// Not a point: why P13 named no supervisor, from a plug that says.
     fn supervise_held(&self) -> Result<Value, HookFailed> {
         Ok(Value::Null)
+    }
+
+    /// Not a point (v0.6.26 final, S5): the codex.exe paths the plug's own looks last found the app main running
+    /// instead of the engine this process drives, which core reads where its own pairing found none. NULL none.
+    fn served_elsewhere(&self) -> Result<Vec<String>, HookFailed> {
+        Ok(Vec::new())
     }
 }
 
@@ -688,6 +764,18 @@ impl Guarded {
 
     pub fn supervise_held(&self) -> Value {
         self.quietly(|plug| plug.supervise_held(), Value::Null)
+    }
+
+    /// `plug.served_elsewhere`, read as `runtime/app.py` reads it (the plug's own property, not through `consult`):
+    /// NULL's none, and none where it raised - which is not counted among the hooks that failed.
+    pub fn served_elsewhere(&self) -> Vec<String> {
+        if self.is_null() {
+            return Vec::new();
+        }
+        match catch_unwind(AssertUnwindSafe(|| self.plug().served_elsewhere())) {
+            Ok(Ok(found)) => found,
+            _ => Vec::new(),
+        }
     }
 
     /// Tell the plug which Codex this process drives: NULL is told nothing.

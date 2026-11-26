@@ -60,6 +60,13 @@ impl car_scheduler::Store for Caught<dyn Store> {
 }
 
 impl Store for Caught<dyn Store> {
+    fn errand_guard(
+        &self,
+        held: &mut dyn FnMut() -> Py<bool>,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        car_scheduler::caught(|| self.0.errand_guard(held, body))
+    }
     fn record_gates(&self, interruption_id: &str, gates: &Vector, now: f64) -> Py<()> {
         car_scheduler::caught(|| self.0.record_gates(interruption_id, gates, now))
     }
@@ -93,6 +100,33 @@ impl Store for Caught<dyn Store> {
     }
     fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
         car_scheduler::caught(|| self.0.reserve_detailed(interruption_id, now, claim))
+    }
+    fn reserve_ledgered(
+        &self,
+        interruption_id: &str,
+        now: f64,
+        claim: &Claim,
+        ledger: &car_policy::plug::Guarded,
+    ) -> Py<Claimed> {
+        car_scheduler::caught(|| self.0.reserve_ledgered(interruption_id, now, claim, ledger))
+    }
+    fn reserve_record(
+        &self,
+        record: &Map,
+        now: f64,
+        ledger: &car_policy::plug::Guarded,
+        quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        car_scheduler::caught(|| self.0.reserve_record(record, now, ledger, quiet_until))
+    }
+    fn record_guard(
+        &self,
+        record: &Map,
+        ledger: &car_policy::plug::Guarded,
+        now: f64,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        car_scheduler::caught(|| self.0.record_guard(record, ledger, now, body))
     }
     fn release_claim(
         &self,
@@ -268,6 +302,14 @@ impl Source for Caught<dyn Source> {
 impl Backend for Caught<dyn Backend> {
     fn app_identity(&self) -> Py<Value> {
         car_scheduler::caught(|| self.0.app_identity())
+    }
+    fn worker_send(&self) -> Option<crate::seam::WorkerSend> {
+        let send = self.0.worker_send()?;
+        Some(std::sync::Arc::new(
+            move |thread_id: &str, prompt: &Str, guard: &dyn LaunchGuard| {
+                car_scheduler::caught(|| send(thread_id, prompt, guard))
+            },
+        ))
     }
     fn loaded(&self, thread_id: &str, app_identity: &Value) -> Py<Value> {
         car_scheduler::caught(|| self.0.loaded(thread_id, app_identity))
