@@ -470,6 +470,10 @@ def window_reads():
     reads = []
     for path in sorted(GUI.glob("*.cs")):
         name = "gui/" + path.name
+        if name in guiscan.SURFACE:
+            # v0.6.27 (S6.3): the watcher host's surfaces read the core's events and their render jobs, never a bridge
+            # or MCP answer; the events' fields are car-host's tables (tests/test_host_contract.py).
+            continue
         text = path.read_text(encoding="utf-8")
         members = _members(text)
         line = lambda offset: text.count("\n", 0, offset) + 1  # noqa: E731

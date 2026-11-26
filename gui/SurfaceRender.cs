@@ -2,7 +2,7 @@
 // (v0.6.27, S6.3; P6-DESIGN 3.2).
 //
 // With CODEX_AR_RENDER_PLAN naming a job, CodexAutoResume.exe loads no DLL and makes no window anybody sees (the host's
-// Main, S6.2b, hands the job here before anything else: SurfaceRender.Run). A job is JSON:
+// Main, S6.2b, hands the job to Run below before anything else). A job is JSON:
 //
 //   {"format": "car-surface-job/1",
 //    "tables": {name: {"measure": [[role, text, width, flags, w, h], ...], "metrics": {role: [ascent, x]},
