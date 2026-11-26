@@ -6,11 +6,14 @@
 # Builds the standard workspace's release binaries twice from REF, in two different folders of a scratch directory:
 # once from an archive that holds both workspaces (the advanced one is built there too), once from an archive that
 # holds only rust/. Then compares every .exe and .dll byte for byte, and counts the profile path in each (the Windows
-# user name, the scratch folders, the cargo and rustup homes). Exit 0 only if they are identical and clean.
+# user name, the scratch folders, the cargo and rustup homes; tools/profile_scan.py, whose one allowance is the publisher
+# handle `songyb111-gachon` and which proves its own rules on planted cases first). Exit 0 only if they are identical and
+# clean.
 # CAR_REBUILD_DIR names the scratch directory (default: a new temporary one); it is left in place for a scan.
 set -euo pipefail
 ref="${1:-HEAD}"
 repo="$(git rev-parse --show-toplevel)"
+python "$repo/advanced/rust/tools/profile_scan.py" --self-test
 work="${CAR_REBUILD_DIR:-$(mktemp -d)}"
 rm -rf "$work/with" "$work/without"
 mkdir -p "$work/with" "$work/without"
@@ -32,29 +35,6 @@ for name in $names; do
     b="$(sha256sum "$work/without/rust/target/release/$name" | cut -d' ' -f1)"
     if [ "$a" = "$b" ]; then echo "same      $a  $name"; else echo "DIFFERENT $name: $a vs $b"; status=1; fi
 done
-python - "$work" "$(basename "${USERPROFILE:-$HOME}")" <<'PY' || status=1
-import sys
-from pathlib import Path
-work, user = Path(sys.argv[1]), sys.argv[2]
-needles = {user, str(work), work.as_posix(), work.as_posix().replace("/", "\\"), "scratchpad"}
-needles |= {part for part in work.parts if len(part) > 8 and part != "/"}
-bad = 0
-for path in sorted(work.rglob("*")):
-    # target/release/build/ holds the build scripts' own programs (build_script_build.exe), which run once on the
-    # builder's PC and ship nowhere; libsqlite3-sys's carries its CARGO_MANIFEST_DIR, which --remap-path-prefix does
-    # not reach. Every binary that can ship - target/release/*.exe|*.dll and their copies in deps/ - is still scanned.
-    parts = [part.lower() for part in path.parts]
-    if "release" in parts and parts[parts.index("release") + 1:parts.index("release") + 2] == ["build"]:
-        continue
-    if path.suffix.lower() in (".exe", ".dll", ".pdb") and "target" in path.parts and "release" in path.parts:
-        data = path.read_bytes()
-        for needle in sorted(needles):
-            for form, blob in (("utf-8", needle.encode()), ("utf-16", needle.encode("utf-16-le"))):
-                if blob.lower() in data.lower():
-                    print("PROFILE PATH %r (%s) in %s" % (needle, form, path.relative_to(work)))
-                    bad = 1
-print("profile-path scan: %s" % ("FOUND" if bad else "none in any .exe, .dll or .pdb"))
-sys.exit(bad)
-PY
+python "$repo/advanced/rust/tools/profile_scan.py" "$work" "$(basename "${USERPROFILE:-$HOME}")" || status=1
 echo "scratch: $work"
 exit $status
