@@ -61,6 +61,19 @@ from codex_auto_resume_advanced import profiles as profiles_
 from codex_auto_resume_advanced.codex import account, authfile, restart, swap
 from codex_auto_resume_advanced.win import appclose
 from codex_auto_resume_advanced.report.github import GhTimeout
+from codex_auto_resume_advanced.codex import inuse as inuse_
+
+
+def no_real_codex(*unused, **ignored):
+    """Nothing in a diff may find, start or ask the Codex installed on this PC: core's discovery, its process list
+    and a process's identity all refuse."""
+    raise AdapterError("a diff never finds a real Codex")
+
+
+inuse_.backend = no_real_codex
+pairing.processes_named = no_real_codex
+pairing.resource_users = no_real_codex
+pairing.process_identity = no_real_codex
 
 LOG = []
 CLASSES = {"AdapterError": AdapterError, "OSError": OSError, "ValueError": ValueError, "KeyError": KeyError,

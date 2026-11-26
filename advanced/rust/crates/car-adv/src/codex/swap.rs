@@ -203,8 +203,8 @@ fn hashed(value: &Value) -> Result<(), Fault> {
     pyval::hashable(value).map_err(|_| unhashable())
 }
 
-/// `other_engines(rows, app_open=)`: whether a Codex engine runs that may use this Codex home and is not the app's own
-/// - every codex.exe counts but the app main's descendants while the app is open (by parents through the rows, a
+/// `other_engines(rows, app_open=)`: whether a Codex engine runs that may use this Codex home and is not the app's own:
+/// every codex.exe counts but the app main's descendants while the app is open (by parents through the rows, a
 /// parent created after its child not being its parent) and the app servers this process holds; rows that cannot be
 /// read count as one. It ends no process. An unhashable pid or parent raises TypeError, as the reference's dict does.
 pub fn other_engines(

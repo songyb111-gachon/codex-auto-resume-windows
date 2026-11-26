@@ -68,7 +68,7 @@ class AuthFileActsDiff(AdvAccountDiff):
             accounts, home = root / "accounts", root / "codex"
             accounts.mkdir()
             home.mkdir()
-            names = {"scratch-0123456789ab": OLD, "scratch-aaaaaaaaaaaa": NOW - 10, "scratch-0123456789AB": OLD,
+            names = {"scratch-0123456789ab": OLD, "scratch-aaaaaaaaaaaa": NOW - 10, "scratch-0123456789AC": OLD,
                      "scratch-bbbbbbbbbbbb": NOW - 1300}
             for name, at in names.items():
                 (accounts / name).mkdir()

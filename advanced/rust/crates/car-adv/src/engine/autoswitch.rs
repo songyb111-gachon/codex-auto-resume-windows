@@ -201,7 +201,7 @@ impl AutoSwitch {
             Str::new("episode"),
             inner.episode.as_ref().map_or(Value::Null, |each| {
                 let mut sorted = each.clone();
-                sorted.sort_by_key(|value| car_machine::pytext::py_str(value));
+                sorted.sort_by_key(car_machine::pytext::py_str);
                 Value::Array(sorted)
             }),
         );
@@ -404,7 +404,7 @@ fn keep(inner: &Inner, times: &[i64]) {
 fn today(inner: &mut Inner, scoped: &Scoped<'_>, now: f64) -> Result<usize, Fault> {
     match recent(inner, scoped, now)? {
         None => {
-            keep(inner, &vec![now.trunc() as i64; PER_DAY]);
+            keep(inner, &[now.trunc() as i64; PER_DAY]);
             Ok(PER_DAY)
         }
         Some(found) => Ok(found.len()),

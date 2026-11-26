@@ -147,10 +147,9 @@ pub fn restart(
     let asked = hands
         .ask_close(&pid, &created)
         .is_ok_and(|answer| is_true(&answer));
-    let how = if asked && until(hands, END_SECONDS, &gone) {
+    // Closed on Windows' request, or closed although Windows did not say so (looked at once more, at once).
+    let how = if (asked && until(hands, END_SECONDS, &gone)) || until(hands, 0.0, &gone) {
         CLOSED
-    } else if until(hands, 0.0, &gone) {
-        CLOSED // it closed although Windows did not say so
     } else {
         let ended = hands
             .end_process(&pid, &created)

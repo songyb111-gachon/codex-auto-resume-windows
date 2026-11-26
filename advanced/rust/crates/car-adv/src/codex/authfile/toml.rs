@@ -180,14 +180,9 @@ impl Parser {
     }
 
     fn starts(&self, pos: usize, text: &str) -> bool {
-        let mut at = pos;
-        for c in text.chars() {
-            if self.at(at) != Some(c) {
-                return false;
-            }
-            at += 1;
-        }
-        true
+        (pos..)
+            .zip(text.chars())
+            .all(|(at, c)| self.at(at) == Some(c))
     }
 
     fn node(&mut self, node: Node) -> usize {

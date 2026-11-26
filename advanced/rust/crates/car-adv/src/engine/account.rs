@@ -108,16 +108,21 @@ pub fn forget(state: &crate::state::session::AdvancedState, secrets: &dyn SaltSt
     }
 }
 
+/// `hold(paths, keys, now)`: core's records held for the person; how many.
+pub type Hold = Box<dyn Fn(&[String], f64) -> Result<i64, Fault> + Send + Sync>;
+/// `ours(paths, text, after)`: whether account_auto_switch put that account in at or after `after`.
+pub type Ours = Box<dyn Fn(&Value, &Value) -> bool + Send + Sync>;
+
 /// The seams of [`AccountWatch`].
 pub struct Seams {
     /// `read(paths)`: codex/account.read's shape.
     pub read: Box<dyn Fn() -> Value + Send + Sync>,
     /// Credential Manager.
     pub secrets: Box<dyn SaltStore>,
-    /// `hold(paths, keys, now)`: core's records held for the person; how many.
-    pub hold: Box<dyn Fn(&[String], f64) -> Result<i64, Fault> + Send + Sync>,
-    /// `ours(paths, text, after)`: whether account_auto_switch put that account in at or after `after`.
-    pub ours: Box<dyn Fn(&Value, &Value) -> bool + Send + Sync>,
+    /// Core's hold.
+    pub hold: Hold,
+    /// The automatic switch's own record.
+    pub ours: Ours,
     /// `account.new_salt()`'s random source.
     pub tokens: Arc<dyn Tokens>,
     /// `engine/resetwatch.count`.

@@ -59,7 +59,7 @@ class AccountPureDiff(AdvAccountDiff):
                    {"run": [[True, "", ""]]}, {"run": [[0, "", ""], ["x", "", ""]]}, {"run": [[0, ""]]},
                    {"run": ["abc"]}, {"run": [[0, "", ""], "raise:ValueError"]}, {"run": [[0, "", ""], [None, 1, 2]]}]
         backends = [{}, {"argv": [["C:/codex.exe", "-c", "x=1"]], "env": [[["A", "1"], ["CODEX_HOME", "h2"]]],
-                         "home": ["C:/home"]}, {"argv": ["raise"]}, {"env": ["raise:OSError"]}, {"env": ["raise:ValueError"]},
+                         "home": ["home2"]}, {"argv": ["raise"]}, {"env": ["raise:OSError"]}, {"env": ["raise:ValueError"]},
                     "raise"]
         readers = [{"read": [present]}, {"read": [out]}, {"read": [{"present": None}]}, {"read": [{}]},
                    {"read": [{"present": 1}]}]
@@ -115,7 +115,7 @@ def toml_corpus() -> list:
         docs.append(("x = " + "[" * depth + "]" * depth).encode())
     for depth in (100, 200, 220, 230, 240, 245, 246, 247, 248, 249, 250, 260, 300):
         docs.append(("x = " + "{a = " * depth + "1" + "}" * depth).encode())
-    for parts in (998, 999, 1000, 1001):
+    for parts in (998, 999, 1000, 1002):
         docs.append((".".join(["a"] * parts) + " = 1").encode())
     rng = random.Random(72)
     alphabet = ["a", "b", ".", "=", " ", "\n", "[", "]", "{", "}", ",", "\"", "'", "1", "#", "\t", "\\", "x", "-", ":"]
