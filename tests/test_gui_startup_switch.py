@@ -27,6 +27,7 @@ import unittest
 
 import guiscan
 from codex_auto_resume import l10n, settings
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, compile_window, reply, run_probe
 
 
@@ -117,12 +118,10 @@ class BuiltSwitchTests(unittest.TestCase):
         work = Path(cls.folder.name)
         exe = compile_window(work)
         home = work / "home"
-        (home / "runtime").mkdir(parents=True)
         (home / "app" / "src").mkdir(parents=True)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(home / "runtime" / "python.exe"), str(source)],
-                       check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE), encoding="utf-8")
+        corestandin.place(CSC, source, home)
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
         (work / "settings.json").write_text(json.dumps(settings.defaults(), ensure_ascii=False), encoding="utf-8")
         (work / "strings-en.json").write_text(json.dumps(reply("en"), ensure_ascii=False), encoding="utf-8")

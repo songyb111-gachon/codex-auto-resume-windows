@@ -6,7 +6,7 @@ Dashboard's five-second read, the chat's two-second read, the previews - waited 
 page refreshed after a pipe that hung (the 30 s reply limit, the 2 s stop, then the 60 s one-shot limit). Now the
 one-shot call is made after the lock is left; the one-shot bridge needs none (each call is a process of its own).
 
-The built half compiles the real window and runs its bridge against a stand-in python.exe this test compiles: its
+The built half compiles the real window and runs its bridge against a stand-in core this test compiles (app/bin/codex-auto-resume.exe, tests/corestandin.py): its
 long-lived form reads one line and ends without answering, so every long-lived call fails; its one-shot form answers
 the command `slow` only after a few seconds. One worker calls `slow`; while its one-shot answer is on its way, a second
 read is made and must come back before it. Nothing of the real installation is read, nothing is shown.
@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, compile_window, run_probe
 
 FAKE = r"""
@@ -111,14 +112,11 @@ class FallbackPastTheLockTests(unittest.TestCase):
         cls.folder = tempfile.TemporaryDirectory()
         work = Path(cls.folder.name).resolve()
         cls.home = work / "home"
-        (cls.home / "runtime").mkdir(parents=True)
         (cls.home / "app" / "src").mkdir(parents=True)
         exe = compile_window(work)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        for name in ("python.exe", "pythonw.exe"):
-            subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(cls.home / "runtime" / name), str(source)],
-                           check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE), encoding="utf-8")
+        corestandin.place(CSC, source, cls.home, extra=("python.exe", "pythonw.exe"))
         cls.failed = work / "probe.failed"
         try:
             cls.answer = run_probe(PROBE, work, 300, CAR_EXE=str(exe), CAR_HOME=str(cls.home),
@@ -128,7 +126,7 @@ class FallbackPastTheLockTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        script = ("Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
+        script = ("Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
                   "$_.Path.StartsWith($env:CAR_HOME, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force")
         subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
                        timeout=120, creationflags=NO_WINDOW, env=dict(os.environ, CAR_HOME=str(cls.home)))

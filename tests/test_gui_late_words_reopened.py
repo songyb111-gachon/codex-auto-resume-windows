@@ -13,7 +13,7 @@ late words of its own. Any other reopen - an update's, a language's, a theme's, 
 person opened does, and decides as a first window does (DecidingGeneration), so even a second reopen in a row for its theme
 does not keep English (AdoptWhatWasRead).
 
-The built half compiles the real window and runs it against tests/test_gui_v0620_audit.py's stand-in python.exe in its
+The built half compiles the real window and runs it against tests/test_gui_v0620_audit.py's stand-in core in its
 `slow` mode (the strings, in Korean, after 3 s; the window waits 1.5). Each window's command line is set as ParseArguments
 makes it of `--reopened=1 --after-update`, `--reopened=1`, `--reopened=2` and `--reopened=1 --late-words`. Nothing of the
 real installation is read, no window is shown, and no reopen is started: what CheckReopen would decide and what Reopen would
@@ -30,8 +30,9 @@ import tempfile
 import unittest
 
 import guiscan
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, compile_window, run_probe
-from test_gui_v0620_audit import FAKE
+from test_gui_v0620_audit import AFTER_HANG, FAKE
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -103,7 +104,7 @@ function Late-Window([string[]]$arguments) {
     $result.nextForLateWords = [bool]$next.GetType().GetField('ForLateWords', $flags).GetValue($next)
     $null = $PB.GetMethod('Stop', $flags).Invoke($bridge, @())
     $window.Dispose()
-    Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Where-Object {
+    Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object {
         $_.Path -and $_.Path.StartsWith($home_, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force
     Start-Sleep -Milliseconds 300
     return $result
@@ -149,14 +150,11 @@ class BuiltTests(unittest.TestCase):
         cls.folder = tempfile.TemporaryDirectory()
         work = Path(cls.folder.name).resolve()
         cls.home = work / "home"
-        (cls.home / "runtime").mkdir(parents=True)
         (cls.home / "app" / "src").mkdir(parents=True)
         exe = compile_window(work)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        for name in ("python.exe", "pythonw.exe"):
-            subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(cls.home / "runtime" / name), str(source)],
-                           check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE, AFTER_HANG), encoding="utf-8")
+        corestandin.place(CSC, source, cls.home, extra=("python.exe", "pythonw.exe"))
         try:
             cls.answer = run_probe(PROBE, work, 300, CAR_EXE=str(exe), CAR_HOME=str(cls.home),
                                    CAR_FAKE_PIDS=str(work / "pids.txt"))
@@ -166,7 +164,7 @@ class BuiltTests(unittest.TestCase):
     @classmethod
     def end_ours(cls):
         """Whatever the stand-in started and still runs, by its path inside this test's folder."""
-        script = ("Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
+        script = ("Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
                   "$_.Path.StartsWith($env:CAR_HOME, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force")
         subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
                        timeout=120, creationflags=NO_WINDOW, env=dict(os.environ, CAR_HOME=str(cls.home)))

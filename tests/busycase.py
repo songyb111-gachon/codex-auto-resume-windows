@@ -1,7 +1,7 @@
 r"""What the tests of the header light while an action is in flight share (v0.6.20; test_gui_busy_light, and the advanced
 edition's test_advanced_busy_light).
 
-The real window is compiled by the caller and runs against a stand-in `python.exe` this module compiles into a home of its
+The real window is compiled by the caller and runs against a stand-in core (`app/bin/codex-auto-resume.exe`, tests/corestandin.py) this module compiles into a home of its
 own: the window's long-lived bridge starts it, and it answers every command at once with an empty result - except the
 ones named in CAR_FAKE_HOLD, which it answers only once the file CAR_FAKE_GATE exists - and `dashboard` with the case's own snapshot
 (CAR_FAKE_SNAPSHOT, set by the probe for each), so the re-read after a change shows what the window already shows. So an action can be held in flight,
@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 
 from codex_auto_resume import l10n
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, run_probe
 from test_gui_layout import fullest_snapshot
 
@@ -166,13 +167,10 @@ class BusyCase:
     def __init__(self, exe: Path, work: Path, cases: list, hold: str):
         self.work, self.exe = work, exe
         self.home = work / "home"
-        (self.home / "runtime").mkdir(parents=True)
         (self.home / "app" / "src").mkdir(parents=True)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        for name in ("python.exe", "pythonw.exe"):
-            subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(self.home / "runtime" / name), str(source)],
-                           check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE), encoding="utf-8")
+        corestandin.place(CSC, source, self.home, extra=("python.exe", "pythonw.exe"))
         (work / "strings.json").write_text(json.dumps({"ok": True, "language": "en", "strings": l10n.catalog("en")},
                                                       ensure_ascii=False), encoding="utf-8")
         shots = snapshots(1_800_000_000.0)
@@ -194,7 +192,7 @@ class BusyCase:
         return self.failed.read_text(encoding="utf-8") if self.failed.is_file() else ""
 
     def stop(self) -> None:
-        script = ("Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
+        script = ("Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
                   "$_.Path.StartsWith($env:CAR_HOME, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force")
         subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
                        timeout=120, creationflags=NO_WINDOW, env=dict(os.environ, CAR_HOME=str(self.home)))

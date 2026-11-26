@@ -38,6 +38,7 @@ import guiscan
 from codex_auto_resume import settings
 
 from test_gui_layout import fullest_snapshot
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, compile_window, reply, run_probe
 
 COMMON = r"""
@@ -347,19 +348,16 @@ class HeldPowerClickTests(unittest.TestCase):
         (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
         (work / "settings.json").write_text(json.dumps(settings.defaults(), ensure_ascii=False), encoding="utf-8")
         cls.home = work / "home"
-        (cls.home / "runtime").mkdir(parents=True)
         (cls.home / "app" / "src").mkdir(parents=True)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        for name in ("python.exe", "pythonw.exe"):
-            subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(cls.home / "runtime" / name), str(source)],
-                           check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE), encoding="utf-8")
+        corestandin.place(CSC, source, cls.home, extra=("python.exe", "pythonw.exe"))
         try:
             cls.answer = run_probe(HELD_CLICK, work, 300, CAR_EXE=str(_exe), CAR_HOME=str(cls.home),
                                    CAR_FAKE_GATE=str(work / "gate"), CAR_FAKE_LOG=str(work / "asked.log"))
         finally:
             # The stand-in, if the probe left it running: only processes run from this test's own home.
-            script = ("Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
+            script = ("Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
                       "$_.Path.StartsWith($env:CAR_HOME, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force")
             subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
                            timeout=120, creationflags=NO_WINDOW, env=dict(os.environ, CAR_HOME=str(cls.home)))
