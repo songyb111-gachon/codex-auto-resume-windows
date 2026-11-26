@@ -24,6 +24,8 @@ use crate::codex::session::SessionError;
 use crate::evidence::{self, Envelope, Fault};
 use crate::vocabulary::{Measurement, Verdict};
 
+#[path = "measure_looks.rs"]
+mod looks;
 #[path = "measure_usage.rs"]
 mod usage;
 
@@ -830,6 +832,9 @@ pub fn ported() -> Vec<Measurement> {
         M::Mu,
         M::Mn,
         M::Mr,
+        M::Mipc,
+        M::Maws,
+        M::Mcloud,
     ]
 }
 
@@ -855,6 +860,9 @@ fn dispatch(ctx: &mut Context<'_>) -> Res<Found> {
         M::Mu => usage::mu(ctx),
         M::Mn => usage::mn(ctx),
         M::Mr => usage::mr(ctx),
+        M::Mipc => looks::mipc(ctx),
+        M::Maws => looks::maws(ctx),
+        M::Mcloud => looks::mcloud(ctx),
         other => Err(Raised::Unported(other)),
     }
 }
@@ -921,14 +929,14 @@ pub fn versions(
     ])
 }
 
-/// `time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(now))`: `gmtime` floors; Windows refuses a time before 1970
-/// (OSError) and past year 3000 (OSError); a NaN is a ValueError.
+/// `time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(now))`: `gmtime` floors; on Windows the reference (3.14.10) takes
+/// -43200 to 32536850399 and raises OSError outside (OverflowError for an infinity, ValueError for a NaN).
 pub fn iso(now: f64) -> Res<String> {
     if now.is_nan() {
         return Err(Raised::Other("ValueError".into()));
     }
     let seconds = now.floor();
-    if !(0.0..=32_536_850_399.0).contains(&seconds) {
+    if !(-43_200.0..=32_536_850_399.0).contains(&seconds) {
         return Err(Raised::Other(
             if seconds.is_finite() {
                 "OSError"

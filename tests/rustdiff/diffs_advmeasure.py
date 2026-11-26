@@ -53,7 +53,7 @@ class Compare(unittest.TestCase):
         return want
 
 
-class EvidenceDiff(Compare):
+class MeasureEvidenceDiff(Compare):
     def test_pure(self):
         values = [None, True, False, 0, -1, 10 ** 30, 1.5, "", "pass", "fail", "blocked", "completed", "inProgress",
                   "usage_limit", "unknown", "thread-0123abcd", "thread-0123abcd\n", "thread-0123ABCD", "chain-00000000",
@@ -67,7 +67,7 @@ class EvidenceDiff(Compare):
         cases += [{"op": "no_content", "value": text} for text in texts]
         cases += [{"op": "iso", "value": value} for value in (0, 0.9, 59.999, 1790000000, 1790000000.5,
                                                               951782400, 4102444800, 32536850399, 32536850400,
-                                                              -1, -0.5, 86399.99)]
+                                                              -1, -0.5, 86399.99, -43200, -43200.5, -43201, -86400 * 400, 1e18)]
         cases += [{"op": "goal_status", "value": value} for value in ODD]
         events = [[], [completed(THREAD, "t-1", "failed")], [completed(THREAD, "t-1", "weird")],
                   [completed(THREAD, "t-1", 3)], [completed(OTHER, "t-1", "completed")],
@@ -149,7 +149,7 @@ class EvidenceDiff(Compare):
         self.held(cases)
 
 
-class ProbeDiff(Compare):
+class MeasureProbeDiff(Compare):
     def common(self, measurement):
         """Every probe through the same ways in and out: no session, a session that answers {}, odd answers,
         every raise, a failed open and enter, a thread given, versions read from a backend or unreadable."""
@@ -230,10 +230,10 @@ def usage(used=40, reset=1_800_003_600, count=2, listed=True, weekly=None, allow
     credits = [{"id": "credit-1", "grantedAt": 1_799_000_000, "expiresAt": 1_801_000_000, "status": "available"}]
     return {"rateLimitsByLimitId": {"codex": bucket},
             "ordinaryUsageAllowed": used < 100 if allowed is None else allowed,
-            "rateLimitResetCredits": {"availableCount": count, "credits": credits[:min(count, 1)] if listed else None}}
+            "rateLimitResetCredits": {"availableCount": count, "credits": credits[:min(count or 0, 1)] if listed else None}}
 
 
-class UsageProbeDiff(Compare):
+class MeasureUsageDiff(Compare):
     def test_panel(self):
         tool = {"name": "open_settings", "_meta": {"openai/outputTemplate": "ui://codex-auto-resume/settings",
                                                    "openai/ui": {"entrypoints": [{"type": "thread"}]}}}
@@ -294,6 +294,30 @@ class UsageProbeDiff(Compare):
         return [run_case(measurement, may_spend=True), run_case(measurement, {}, may_spend=True),
                 run_case(measurement, {}), run_case(measurement, {"replies": {"account/rateLimits/read": RAISES[3]}},
                                                     may_spend=True)]
+
+
+class MeasureLookDiff(Compare):
+    def test_looks(self):
+        cases = [run_case("MIPC"), run_case("MAWS"), run_case("MCLOUD")]
+        for look in ({}, {"exists": True, "opened": True, "frame_read": False, "no_answer": 1}, {"exists": "x"},
+                     [], None, "x", RAISES[0], RAISES[4], {"exists": [], "opened": 0.0, "frame_read": [1]}):
+            cases.append(run_case("MIPC", ipc=look))
+        helps = [None, 5, RAISES[4], "", "Usage: codex app-server\n  --ws CODEX_APP_SERVER_WS_URL",
+                 "a Shared Backend switch", "SHARED LOCAL APP-SERVER", "codex_app_server_ws_url",
+                 "line\r\nUsage: codex cloud [status]\u2028x", "  usage: codex cloud list\n",
+                 "usage: codex cloud\nunknown command", "usage: codex cloudy", "Usage:codex cloud",
+                 "usage: codex cloud\x0bstate", "\u0130 usage: codex cloud watch", "usage: codex  cloud"]
+        for app, cloud, top in itertools.product(helps[:8], helps[3:], (None, "usage: codex cloud list", "x")):
+            cli = {}
+            if app is not None:
+                cli["app-server --help"] = app
+            if cloud is not None:
+                cli["cloud --help"] = cloud
+            if top is not None:
+                cli["--help"] = top
+            cases.append(run_case("MAWS", cli=cli))
+            cases.append(run_case("MCLOUD", cli=cli))
+        self.held(cases)
 
 
 SAMPLE = "00000000-0000-7000-8000-000000000000"
