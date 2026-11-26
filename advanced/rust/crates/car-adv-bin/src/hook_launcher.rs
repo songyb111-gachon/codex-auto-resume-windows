@@ -340,8 +340,9 @@ mod tests {
             given(b""),
             BOUND,
         );
-        let text = String::from_utf8(got.expect("relayed")).unwrap();
-        assert!(text.starts_with("first"), "{text:?}");
+        // ping's own lines are in the console's code page, so the bytes are compared, not a text.
+        let bytes = got.expect("relayed");
+        assert!(bytes.starts_with(b"first"), "{bytes:?}");
         // The two relays are given their 2 s each, one after the other, as the C# launcher's two Joins were.
         assert!(
             started.elapsed() < Duration::from_secs(6),
