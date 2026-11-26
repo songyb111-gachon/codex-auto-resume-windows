@@ -38,7 +38,7 @@ def codex_home(config=None, auth=CUR):
 
 
 def spec(**more):
-    made = {"home": "prod", "codex": "codex", "saved": [[TGT, "pro", sign_in(TGT)]]}
+    made = {"home": "prod", "codex": "codex", "saved": [[TGT, "pro", {"hex": sign_in(TGT)}]]}
     made.update(more)
     return made
 
@@ -86,9 +86,9 @@ class SwitchDiff(AdvAccountDiff):
         switch([step()], [found(CUR), found(TGT)], target="0000000000000099")
         switch([step()], [found(TGT)])
         switch([step()], [found(CUR), found(TGT)],
-               store=spec(saved=[[TGT, "pro", sign_in(TGT)], [CUR, "plus", sign_in(CUR, "old")]]))
+               store=spec(saved=[[TGT, "pro", {"hex": sign_in(TGT)}], [CUR, "plus", {"hex": sign_in(CUR, "old")}]]))
         switch([step()], [found(CUR), found(TGT)], target={"saved": 1},
-               store=spec(saved=[[TGT, "pro", sign_in(TGT)], [CUR, "plus", sign_in(CUR, "old")]]))
+               store=spec(saved=[[TGT, "pro", {"hex": sign_in(TGT)}], [CUR, "plus", {"hex": sign_in(CUR, "old")}]]))
         switch([step()], [found(CUR), found(TGT)], now=None)
         switch([step()], [5])
         switch([step()], [found(CUR), 5])
@@ -111,7 +111,7 @@ def digest(email):
 
 class RecoverDiff(AdvAccountDiff):
     def test_recover_and_unwind(self):
-        two = [[TGT, "pro", sign_in(TGT)], [CUR, "plus", sign_in(CUR)]]
+        two = [[TGT, "pro", {"hex": sign_in(TGT)}], [CUR, "plus", {"hex": sign_in(CUR)}]]
         intent = {"from": 1, "to": 0}
         cases = []
 

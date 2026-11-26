@@ -957,4 +957,6 @@ class AdvAccountDiff(unittest.TestCase):
                 self.assertEqual(want_files[name], got_files[name], "%s: %s differs (case %s)" % (
                     label, name, json.dumps(batch[0])[:300]))
             answers += want
+        # A family whose every case raised (a seed or a store that cannot be made) would be equal and prove nothing.
+        self.assertTrue(any("ok" in each for each in answers), "%s: every case raised" % label)
         return answers

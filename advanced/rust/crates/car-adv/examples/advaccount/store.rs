@@ -79,12 +79,17 @@ fn get<'a>(value: &'a Value, key: &str) -> &'a Value {
     }
 }
 
-fn ids_at(ids: &[String], value: &Value) -> Value {
+/// `ids[value]` where `value` is an int (IndexError past the end), else `value` itself.
+fn ids_at(ids: &[String], value: &Value) -> Result<Value, Fault> {
     match value {
         Value::Int(_) => car_adv::state::py::small(value)
-            .and_then(|at| ids.get(at as usize))
-            .map_or(Value::Null, |id| text(id)),
-        other => other.clone(),
+            .and_then(|at| {
+                let at = if at < 0 { ids.len() as i64 + at } else { at };
+                usize::try_from(at).ok().and_then(|at| ids.get(at))
+            })
+            .map(|id| text(id))
+            .ok_or_else(|| Fault::new("IndexError", "list index out of range")),
+        other => Ok(other.clone()),
     }
 }
 
@@ -123,7 +128,7 @@ pub fn store_of(spec: &Value) -> Result<(Profiles, Vec<String>), Fault> {
     if let Value::Array(updates) = get(spec, "updates") {
         for each in updates {
             let Value::Array(parts) = each else { continue };
-            let id = ids_at(&ids, arg(parts, 0));
+            let id = ids_at(&ids, arg(parts, 0))?;
             let fields: Vec<(String, Value)> = match unhex(arg(parts, 1)) {
                 Value::Object(map) => map
                     .iter()
@@ -144,9 +149,13 @@ pub fn store_of(spec: &Value) -> Result<(Profiles, Vec<String>), Fault> {
             }
             other => unhex(other),
         };
+        let (source, target) = (
+            ids_at(&ids, get(intent, "from"))?,
+            ids_at(&ids, get(intent, "to"))?,
+        );
         store.begin(
-            &ids_at(&ids, get(intent, "from")),
-            &ids_at(&ids, get(intent, "to")),
+            &source,
+            &target,
             &field("step", text("swap")),
             &field("tries", Value::from(0)),
             &field("put_in", Value::Null),
@@ -158,9 +167,9 @@ pub fn store_of(spec: &Value) -> Result<(Profiles, Vec<String>), Fault> {
     Ok((store, ids))
 }
 
-fn target_of(value: &Value, ids: &[String]) -> Value {
+fn target_of(value: &Value, ids: &[String]) -> Result<Value, Fault> {
     match get(value, "saved") {
-        Value::Null => value.clone(),
+        Value::Null => Ok(value.clone()),
         at => ids_at(ids, at),
     }
 }
@@ -294,7 +303,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 Ok(Value::Object(swap::read_profile(
                     world,
                     &store,
-                    &target_of(arg(args, 1), &ids),
+                    &target_of(arg(args, 1), &ids)?,
                     &sessions,
                     number(arg(args, 3)),
                 )?))
@@ -310,7 +319,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                     world,
                     &store,
                     &folder(get(spec, "codex")),
-                    &target_of(arg(args, 1), &ids),
+                    &target_of(arg(args, 1), &ids)?,
                     &mut restart,
                     &read,
                     number(arg(args, 4)),

@@ -17,12 +17,12 @@ from rustdiff.diffs_advaccount_swap import CUR, OTH, TGT, codex_home, found, ste
 
 RECORD: list[str] = []
 SALT = "0" * 63 + "1"
-ARMED = [["move", ["account_switch", "armed"], {"actor": "gui", "at": 100.0}]]
+ARMED = [["move", ["account_switch", "armed"], {"actor": "dashboard", "at": 100.0}]]
 RULES = [["add_reset_rule", ["reset_credit", "codex", 300, 2], {"at": 50.0}],
          ["change_rule", [1], {"base": 3, "adopted_at": 60.0}],
          ["save_windows", [[{"bucket": "codex", "minutes": 300, "open_reset_at": None, "open_full": False,
                              "last_closed_at": None, "resets": 1, "hits": 4, "seen_at": 60.0, "misses": 0}]], {}]]
-WANTED = [["account_seen", [], {}], ["reset_rules", [], {"pending": False}],
+WANTED = [["account_seen", [], {}], ["reset_rules", [], {}],
           ["stamped", ["account_switch", "account_changed_at"], {}],
           ["counted_since", ["account_switch", "changed", 0], {}], ["counted_since", ["account_switch", "held", 0], {}]]
 WAITING = [{"interruption_id": "a1", "category": "usage_limit", "state": "waiting_for_usage", "detected_at": 100.0},
@@ -55,7 +55,7 @@ class AccountWatchDiff(AdvAccountDiff):
              view={"records": [[{"category": "usage_limit"}]]})
         look(ARMED, {"read": [found(CUR), {"present": True, "email": None, "kind": "apikey", "plan_word": "weird"}],
                      "secrets": {"read": [SALT]}}, [1000, 2000])
-        look(ARMED + [["move", ["account_switch", "armed"], {"actor": "gui", "at": 1500.0}]],
+        look(ARMED + [["move", ["account_switch", "off"], {"actor": "dashboard", "at": 1400.0}], ["move", ["account_switch", "armed"], {"actor": "dashboard", "at": 1500.0}]],
              {"read": [found(CUR), other], "secrets": {"read": [SALT]}}, [1000, 2000])
         look([["save_account_seen", ["0123456789abcdef", "plus"], {"at": 500.0}]] + ARMED,
              {"read": [found(CUR)], "secrets": {"read": [SALT]}, "hold": [3]}, [1000])
@@ -87,7 +87,7 @@ FULL = {"account/read": [{"account": {"type": "chatgpt", "email": TGT.lower(), "
 
 
 def saved(*emails):
-    return [[email, "plus", sign_in(email)] for email in emails]
+    return [[email, "plus", {"hex": sign_in(email)}] for email in emails]
 
 
 class AutoSwitchDiff(AdvAccountDiff):
