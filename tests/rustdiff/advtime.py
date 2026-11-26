@@ -121,6 +121,17 @@ def run_errand(errand, log):
         return {"error": "raised"}
 
 
+def homed(value, home):
+    """`value` with every text's "{home}" made the case's home."""
+    if isinstance(value, str):
+        return value.replace("{home}", home)
+    if isinstance(value, list):
+        return [homed(each, home) for each in value]
+    if isinstance(value, dict):
+        return {key: homed(each, home) for key, each in value.items()}
+    return value
+
+
 class Case:
     """One case's home, clock, state and Scoped (`state.scoped(capability, on=..., verdict=..., armed=...)`)."""
     def __init__(self, case):
@@ -131,7 +142,7 @@ class Case:
         self.armed = set(case.get("armed", ()))
         self.verdicts = dict(case.get("verdicts", {}))
         self.state = AdvancedState(self.paths, registry=REGISTRY, clock=lambda: self.clock[0])
-        for method, arguments, keywords in case.get("setup", ()):
+        for method, arguments, keywords in homed(case.get("setup", ()), case["home"]):
             getattr(self.state, method)(*arguments, **keywords)
         self.scoped = self.state.scoped(case["capability"], on=lambda: self.on[0],
                                         verdict=lambda measurement: self.verdicts.get(str(measurement)),
@@ -475,6 +486,99 @@ def uc_pure(case):
     return norm(getattr(updatecheck, name)(*arguments))
 '''
 
+REF_FLEET = r'''
+from codex_auto_resume_advanced.engine import fleet
+
+
+def raised(error):
+    if isinstance(error, FileNotFoundError):
+        return {"error": "FileNotFoundError"}
+    if isinstance(error, OSError):
+        return {"error": "OSError"}
+    return {"error": type(error).__name__}
+
+
+@op("fl")
+def fl(case):
+    made = Case(case)
+    ticks = list(case.get("clock") or [0.0])
+
+    def clock():
+        return ticks.pop(0) if len(ticks) > 1 else ticks[0]
+    alive = list(case.get("alive") or [False])
+
+    class Worker:
+        def is_alive(self):
+            made.log.append(["alive"])
+            return alive.pop(0) if len(alive) > 1 else alive[0]
+
+    def spawn(run):
+        made.log.append(["spawn"])
+        if case.get("spawn_raise"):
+            raise RuntimeError("stand-in")
+        if case.get("run_pass", True):
+            run()
+        return Worker()
+
+    def status(now):
+        made.log.append(["status", now])
+        if case.get("status") is None:
+            raise RuntimeError("stand-in")
+        found = dict(case["status"])
+        if found.get("written_at") == "now":
+            found["written_at"] = now
+        return found
+    code = fleet.FleetView(made.paths, status=status, spawn=spawn, clock=clock)
+    if case.get("bind", True):
+        code.bind(made.scoped)
+    answers, errand = [], None
+    for step in case["steps"]:
+        if made.common(step):
+            answers.append(None)
+            continue
+        try:
+            if step[0] == "tick":
+                errand = code.tick(View({}, made.log))
+                answers.append(said(errand))
+            elif step[0] == "run":
+                answers.append(run_errand(errand, made.log))
+            elif step[0] == "seen":
+                answers.append(norm(fleet.read_seen(made.paths)))
+            else:
+                raise SystemExit("unknown step %s" % step[0])
+        except Exception as error:
+            answers.append({"error": type(error).__name__})
+    made.close()
+    return {"answers": answers, "log": made.log}
+
+
+@op("fl.pure")
+def fl_pure(case):
+    name, arguments = case["name"], homed(case["arguments"], case["home"])
+    paths = config.Paths(Path(case["home"]))
+    try:
+        if name == "folder_problem":
+            return fleet.folder_problem(arguments[0], paths)
+        if name == "within":
+            return fleet._within(*arguments)
+        if name == "write":
+            return fleet.write(*arguments)
+        if name == "read_peers":
+            steps = []
+            found = fleet.read_peers(arguments[0], arguments[1], lambda: steps.append(1))
+            return {"found": norm(found), "steps": len(steps)}
+        if name == "remove_old_name":
+            return fleet.remove_old_name(*arguments)
+        if name == "seen":
+            fleet.write_seen(paths, *arguments)
+            return norm(fleet.read_seen(paths))
+        if name == "read_seen":
+            return norm(fleet.read_seen(paths))
+        return norm(getattr(fleet, name)(*arguments))
+    except Exception as error:
+        return raised(error)
+'''
+
 REF_ANCHOR = r'''
 import time as _time
 from codex_auto_resume_advanced.engine import anchor
@@ -506,7 +610,7 @@ for case in request["cases"]:
 sys.stdout.write(json.dumps({"results": results}, ensure_ascii=False, allow_nan=False))
 '''
 
-PARTS = [REFERENCE, REF_SUPERVISE, REF_POWER, REF_WAKE, REF_ANALYTICS, REF_UPDATE, REF_ANCHOR]
+PARTS = [REFERENCE, REF_SUPERVISE, REF_POWER, REF_WAKE, REF_ANALYTICS, REF_UPDATE, REF_FLEET, REF_ANCHOR]
 
 
 def add_reference(part: str) -> None:
