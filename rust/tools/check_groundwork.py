@@ -50,7 +50,7 @@ STANDARD = {
     "car-control": {"car-brand", "car-codex", "car-config", "car-machine", "car-platform", "car-policy",
                     "car-store", "car-surface", "car-words"},
     "car-watcher": {"car-codex", "car-config", "car-control", "car-engine", "car-machine", "car-platform",
-                    "car-policy", "car-store", "car-surface", "car-words"},
+                    "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
     # the entry points sit above control and watcher (C5)
     # S8.2: the stub core's test-double forward and the setup program start their child through car-platform's starter
     # S5.2: the command line reads the config, the store, the settings, the words and the vocabulary and asks
