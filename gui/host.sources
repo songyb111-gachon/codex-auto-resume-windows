@@ -40,7 +40,9 @@ gui/TipPlan.cs
 gui/CardPlan.cs
 gui/CardWindow.cs
 gui/TrayMotion.cs
+gui/TrayWords.cs
 gui/SurfaceRender.cs
+gui/SurfaceRenderWindows.cs
 
 [generated]
 gui/Brand.cs

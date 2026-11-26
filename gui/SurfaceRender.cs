@@ -22,7 +22,7 @@ using System.Text;
 
 namespace CodexAutoResume
 {
-    internal static class SurfaceRender
+    internal static partial class SurfaceRender
     {
         /// The variable that names a job.
         internal const string JobVariable = "CODEX_AR_RENDER_PLAN";
@@ -155,6 +155,8 @@ namespace CodexAutoResume
                 case "bidi":
                     return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
             }
+            object more;
+            if (WindowCase(surface, task, tables, out more)) return more;
             throw new NotSupportedException("no surface " + surface);
         }
 
