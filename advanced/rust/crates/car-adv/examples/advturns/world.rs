@@ -435,6 +435,7 @@ impl World {
         match definition.id.as_str() {
             "headless_run" => engine::headless::make_with(paths, self.run_world()),
             "empty_response" => engine::emptyreply::make_with(paths, self.look_world()),
+            "keep_going" => engine::keepgoing::make_with(paths, self.look_world()),
             "compact_continue" => engine::compact::make_with(paths, self.run_world()),
             "model_fallback" => engine::fallback::make_with(paths, self.run_world()),
             "codex_retry_settings" => {
@@ -510,6 +511,18 @@ impl World {
                     });
                 Some(Ok(Value::Null))
             }
+            "keep" => Some(
+                state
+                    .set_keep_going(&arg(0), &arg(1), &Value::Null)
+                    .map(|()| Value::Null)
+                    .map_err(|error| error.class().to_owned()),
+            ),
+            "kept_used" => Some(
+                state
+                    .keep_going_used(&arg(0), &Value::Null)
+                    .map(Value::Bool)
+                    .map_err(|error| error.class().to_owned()),
+            ),
             "stop_request" => Some(
                 state
                     .run_stop(&arg(0), &Value::Null)

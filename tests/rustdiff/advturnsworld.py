@@ -7,7 +7,8 @@ The seams (`scenario["seams"]`): `turns` {thread: turn | null | "raise"} and `co
 (a turn: turn_id, status, errored, completed_at, final_agent, ordinal, kinds [[kind, count], ...]); `session`
 {"open": "raise", "enter": "raise", "answers": {method: [answer | "raise", ...]}}; `unheld`: true | false | "raise".
 The steps: ["live", shown | null], ["told", key, capability, end, model_restored], ["stop_request", key],
-["retry_settings"], ["flag", "empty_refused", bool], ["seam", name, value] (a seam replaced from here on).
+["retry_settings"], ["flag", "empty_refused", bool], ["seam", name, value] (a seam replaced from here on),
+["keep", thread, count] and ["kept_used", thread] (keep_going's rows, as the Dashboard and a SENT write them).
 The continuation family's looks (S7.2e1b): `recent` [thread, ...] | "raise"; `between` {thread: n | "raise"}; `plans`
 {thread: [status, ...] | null | "raise"}; `goals` {thread: status | null | "raise"}; `own` {thread: bool | "raise"}
 (core's reader takes it for a conversation it recovers; default true); `children` {parent: [{thread_id, turn_id, status,
@@ -239,6 +240,10 @@ class World:
             self.follower.ends.append({"key": args[0], "capability": args[1], "end": RunEnd(args[2]),
                                        "model_restored": args[3]})
             return None
+        if op == "keep":
+            return runtime.state.set_keep_going(args[0], args[1])
+        if op == "kept_used":
+            return runtime.state.keep_going_used(args[0])
         if op == "stop_request":
             return runtime.state.run_stop(args[0])
         if op == "owe":

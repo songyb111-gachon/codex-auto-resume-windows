@@ -106,8 +106,60 @@ def empty_corpus() -> list:
     ]
 
 
+def thread(number) -> str:
+    return "0a1b2c3d-0001-7000-8000-%012d" % number
+
+
+PROGRESS = (("userMessage", 1), ("agentMessage", 1))
+
+
+def keep_corpus() -> list:
+    threads = [thread(number) for number in range(11, 27)]
+    stops = {threads[0]: turn(kinds=PROGRESS), threads[1]: turn(status="interrupted"),
+             threads[2]: turn(status="failed"), threads[3]: turn(errored=True, kinds=PROGRESS),
+             threads[4]: turn(), threads[5]: turn(kinds=PROGRESS), threads[6]: turn(kinds=PROGRESS),
+             threads[7]: turn(kinds=PROGRESS), threads[8]: turn(kinds=PROGRESS),
+             threads[9]: turn(kinds=PROGRESS), threads[10]: turn(status="inProgress"),
+             threads[11]: turn(kinds=PROGRESS, completed_at=int(NOW) - 30), threads[12]: "raise",
+             threads[13]: turn(kinds=PROGRESS), threads[14]: turn(kinds=PROGRESS), threads[15]: None}
+    return [
+        scenario("keep_found_used_and_spent", [KEEP],
+                 [["tick"], arm(KEEP), ["tick"], ["keep", THREAD, 2]] + looks(1) + [["records"], ["tick"]]
+                 + [["kept_used", THREAD], ["seam", "turns", {THREAD: turn("t2", 7, kinds=PROGRESS)}]]
+                 + looks(1, NOW + 61) + [["records"], ["kept_used", THREAD],
+                                         ["seam", "turns", {THREAD: turn("t3", 9, kinds=PROGRESS)}]]
+                 + looks(2, NOW + 122) + [["records"], ["tick"]],
+                 seams={"turns": {THREAD: turn(kinds=PROGRESS)}}),
+        scenario("keep_unmeasured_three", [KEEP],
+                 [arm(KEEP), ["keep", THREAD, 5], ["kept_used", THREAD], ["kept_used", THREAD], ["kept_used", THREAD]]
+                 + looks(1) + [["records"]],
+                 seams={"turns": {THREAD: turn(kinds=PROGRESS)}}),
+        scenario("keep_measured_past_three", [KEEP],
+                 [arm(KEEP), ["keep", THREAD, 5], ["kept_used", THREAD], ["kept_used", THREAD], ["kept_used", THREAD]]
+                 + looks(1) + [["records"]],
+                 measured={"mk": ["pass", "0.155.0"]},
+                 seams={"turns": {THREAD: turn(kinds=PROGRESS)}}),
+        scenario("keep_every_stop", [KEEP],
+                 [arm(KEEP)] + [["keep", each, 3] for each in threads] + looks(2) + [["records"], ["tick"]],
+                 enabled={threads[0]: False, threads[14]: "raise"},
+                 seams={"turns": stops,
+                        "goals": {threads[5]: "active", threads[13]: "raise", threads[9]: "paused"},
+                        "plans": {threads[6]: "raise", threads[7]: ["completed", "completed"], threads[8]: [],
+                                  threads[9]: ["completed", "pending"]}}),
+        scenario("keep_watched", [KEEP],
+                 [arm(KEEP, "shadow"), ["keep", THREAD, 2]] + looks(1) + [["records"]],
+                 seams={"turns": {THREAD: turn(kinds=PROGRESS)}}),
+        scenario("keep_sent_counts_through_the_runtime", [KEEP],
+                 [arm(KEEP), ["keep", THREAD, 1]] + looks(1)
+                 + [["moved", {"record_id": key(KEEP, THREAD, "t1")}, "sent"],
+                    ["seam", "turns", {THREAD: turn("t2", 7, kinds=PROGRESS)}]]
+                 + looks(1, NOW + 61) + [["records"]],
+                 seams={"turns": {THREAD: turn(kinds=PROGRESS)}}),
+    ]
+
+
 def corpus() -> list:
-    return empty_corpus()
+    return empty_corpus() + keep_corpus()
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):
