@@ -95,16 +95,22 @@ fn rule_get<'a>(row: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 /// `forget(state, secrets=)`: account_switch is off - the salt out of Credential Manager and then the account seen out
-/// of the state, where there is a row. Whether both went.
-pub fn forget(state: &crate::state::session::AdvancedState, secrets: &dyn SaltStore) -> bool {
+/// of the state, where there is a row. Whether both went; false leaves them for the next sweep. What the reference
+/// does not catch (anything but SecretError, StateError and OSError) goes on.
+pub fn forget(
+    state: &crate::state::session::AdvancedState,
+    secrets: &dyn SaltStore,
+) -> Result<bool, Fault> {
+    let caught = |fault: &Fault| {
+        fault.is_os() || ["SecretError", "StateError"].contains(&fault.class.as_str())
+    };
     match state.account_seen() {
-        Ok(None) | Err(_) => false,
-        Ok(Some(_)) => {
-            if secrets.delete(CAPABILITY, SALT).is_err() {
-                return false;
-            }
-            state.end_account_seen().unwrap_or(false)
-        }
+        Ok(None) | Err(_) => Ok(false),
+        Ok(Some(_)) => match secrets.delete(CAPABILITY, SALT) {
+            Ok(_) => Ok(state.end_account_seen().unwrap_or(false)),
+            Err(fault) if caught(&fault) => Ok(false),
+            Err(fault) => Err(fault),
+        },
     }
 }
 

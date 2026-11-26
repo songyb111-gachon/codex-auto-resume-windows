@@ -1,12 +1,11 @@
-//! The account switch's Windows hands (seat S7.2b; the advanced edition's `win/appclose.py` and the private access
-//! list of `codex/authfile.py`): the Restart Manager's request to close one process, the end of one process by its id
-//! and creation time, and a folder's access list made the current user's alone.
+//! Windows hands for restarting one application (seat S7.2b): the Restart Manager's request to close one process, the
+//! end of one process by its id and creation time, and a folder's access list made the current user's alone.
 //!
-//! Nothing here decides anything: car-adv's `win::appclose` makes the reference's checks and calls these in the
-//! reference's order, through the [`Manager`] and [`Kernel`] traits, so a diff can hand both sides a stand-in that
-//! logs every call (the real ones are [`Windows`]). The standard edition never calls any of it: only car-adv names
-//! this module. `RmShutdown` is asked with the flags the caller gives (car-adv: 0, never `RmForceShutdown`), and only
-//! for the one process registered by id AND creation time, so a reused id is never asked.
+//! Nothing here decides anything: the caller makes its own checks and calls these in its own order, through the
+//! [`Manager`] and [`Kernel`] traits, so a diff can hand both sides a stand-in that logs every call (the real ones are
+//! [`Windows`]). The standard edition never calls any of it. `RmShutdown` is asked with the flags the caller gives (0
+//! from the one caller there is, never `RmForceShutdown`), and only for the one process registered by id AND creation
+//! time, so a reused id is never asked.
 
 use std::path::Path;
 

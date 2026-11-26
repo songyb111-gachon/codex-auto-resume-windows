@@ -257,7 +257,7 @@ fn ea_forget(args: &[Value]) -> Out {
     set_now(0.0);
     seed(&state, arg(args, 1))?;
     let secrets = Secrets(Mutex::new(Script::new(arg(args, 2))));
-    let done = watch::forget(&state, &secrets);
+    let done = watch::forget(&state, &secrets)?;
     Ok(object([
         ("done", Value::Bool(done)),
         ("reads", reads(&state, arg(args, 3))?),
