@@ -126,9 +126,10 @@ SCRIPTS = [
     {"turn_observation": {"found": True, "ordinal": 3}, "later_turns": [{"reason": "x"}]},
     {"turn_observation": {"each": [{"found": True, "ordinal": 3}, None]}, "later_turns": [turn(4)]},
     {"turn_observation": {"found": False}, "rescan_evidence": ["a", "list"]},
+    {"turn_observation": {"found": False}, "rescan_evidence": {"a": "dict"}},
 ]
 for script in SCRIPTS:
-    for kin in (kin_rows(), [{"interruption_id": KEY, "marker": None, "recovery_client_id": ids.continuation_client_id(KEY)}]):
+    for kin in ([], kin_rows(), [{"interruption_id": KEY, "marker": None, "recovery_client_id": ids.continuation_client_id(KEY)}]):
         cases.append(["rescan_judge", ROW, kin, dict(script, clock=NOW), None, 5.0])
 cases.append(["rescan_judge", ROW, [], {"clock": NOW}, 4.0, 5.0])
 cases.append(["rescan_judge", ROW, [], {"clock": NOW, "turn_observation": {"found": False}}, 6.0, 5.0])

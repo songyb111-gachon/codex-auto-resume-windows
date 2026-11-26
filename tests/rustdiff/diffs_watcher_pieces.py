@@ -69,6 +69,7 @@ from codex_auto_resume.store import Store
 for state_dir, steps in cases:
     Path(state_dir).mkdir(parents=True, exist_ok=True)
     store = Store(state_dir)
+    store.set_enabled(True, 1.0)
     current, calls, clock = {}, [], {"now": 0.0}
 
     class Control:
@@ -355,6 +356,9 @@ AFTERWORK_STEPS = [
     [dict(now=NOW, read=["ok", document(tasks=None)]), dict(now=NOW + 86_400, read=["ok", document(tasks=None)])],
     # No engine to ask.
     [dict(GO, now=NOW, no_engine=True)],
+    # Looked at every 15 s to the end: the action taken, then refused at the end of another countdown.
+    [dict(GO, now=NOW + 15 * k, idle=600.0 + 15 * k) for k in range(10)],
+    [dict(GO, now=NOW + 15 * k, idle=600.0 + 15 * k, act=False, last_error=5) for k in range(10)],
 ]
 
 

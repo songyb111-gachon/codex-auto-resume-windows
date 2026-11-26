@@ -142,45 +142,62 @@ pub fn persons(engine: &mut dyn RescanEngine, row: &Map, ours: &[String]) -> Res
     Ok((found, unprojected))
 }
 
-/// `judge(engine, row, kin, deadline)`: (outcome, reason) for one waiting record.
+/// `judge(engine, row, kin, deadline)`: (outcome, reason) for one waiting record. What it raises is what the
+/// reference lets out of it: the record's own `thread_id` missing, and rollout's word unhashable (a dict lookup).
 pub fn judge(
     engine: &mut dyn RescanEngine,
     row: &Map,
     kin: &[Map],
     deadline: Option<f64>,
     monotonic: f64,
-) -> (&'static str, Option<String>) {
+) -> Res<(&'static str, Option<String>)> {
+    judged(engine, row, kin, deadline, monotonic)
+}
+
+fn judged(
+    engine: &mut dyn RescanEngine,
+    row: &Map,
+    kin: &[Map],
+    deadline: Option<f64>,
+    monotonic: f64,
+) -> Res<(&'static str, Option<String>)> {
     if deadline.is_some_and(|deadline| monotonic > deadline) {
-        return (UNRESOLVED, Some(OUT_OF_TIME.into()));
+        return Ok((UNRESOLVED, Some(OUT_OF_TIME.into())));
     }
-    let thread = get(row, "thread_id").clone();
+    let thread = row
+        .get("thread_id")
+        .cloned()
+        .ok_or_else(|| Failed::new("KeyError", "thread_id"))?;
     let (ours, free) = proofs(kin);
     let (found, unprojected) = match crate::fail::guarded(|| persons(engine, row, &ours)) {
         Ok(found) => found,
-        Err(_) => return (UNRESOLVED, Some(UNREADABLE.into())),
+        Err(_) => return Ok((UNRESOLVED, Some(UNREADABLE.into()))),
     };
     if !found.is_empty() {
-        return (RETIRED, Some(LATER_TURN.into()));
+        return Ok((RETIRED, Some(LATER_TURN.into())));
     }
     if unprojected {
-        return (UNRESOLVED, Some(UNPROJECTED.into()));
+        return Ok((UNRESOLVED, Some(UNPROJECTED.into())));
     }
     let now = engine.clock();
     let current = crate::fail::guarded(|| engine.fresh_throughout(&thread, now)).unwrap_or(false);
     if current {
-        return match crate::fail::guarded(|| engine.valid_interruption(row)) {
+        return Ok(match crate::fail::guarded(|| engine.valid_interruption(row)) {
             Ok(true) => (RECHECKED, None),
             Ok(false) => (UNRESOLVED, Some(CHANGED_LATEST.into())),
             Err(_) => (UNRESOLVED, Some(UNREADABLE.into())),
-        };
+        });
     }
     if free {
-        return (UNRESOLVED, Some(MARKER_FREE.into()));
+        return Ok((UNRESOLVED, Some(MARKER_FREE.into())));
     }
     let found = crate::fail::guarded(|| engine.rescan_evidence(&thread, get(row, "turn_id")))
         .unwrap_or_else(|_| Value::from(car_codex::rollout::UNREADABLE));
     if car_machine::pyval::is(&found, car_codex::rollout::LATER_MESSAGE) {
-        return (RETIRED, Some(LATER_TURN.into()));
+        return Ok((RETIRED, Some(LATER_TURN.into())));
+    }
+    if matches!(found, Value::Array(_) | Value::Object(_)) {
+        return Err(Failed::new("TypeError", "unhashable type"));
     }
     let word = car_machine::pyval::text(&found).unwrap_or_default();
     let reason = match word {
@@ -189,5 +206,5 @@ pub fn judge(
         w if w == car_codex::rollout::ROLLED_BACK => ROLLED_BACK,
         _ => STALE,
     };
-    (UNRESOLVED, Some(reason.into()))
+    Ok((UNRESOLVED, Some(reason.into())))
 }

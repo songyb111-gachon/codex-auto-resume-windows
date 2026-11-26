@@ -234,6 +234,10 @@ fn afterwork(args: &[Value]) -> Result<Value, String> {
     let _ = std::fs::create_dir_all(state_dir);
     let store = Store::open(Path::new(state_dir), crate::links::for_store())
         .map_err(|failed| failed.class().to_owned())?;
+    // Recovery on, as a person's state has it: a fresh state is paused, and the power action waits on a pause.
+    store
+        .set_enabled(true, 1.0)
+        .map_err(|failed| failed.class().to_owned())?;
     let current: Step = Rc::default();
     let calls: Calls = Rc::default();
     let now = Rc::new(RefCell::new(0.0_f64));

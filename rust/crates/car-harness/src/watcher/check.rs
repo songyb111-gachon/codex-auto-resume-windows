@@ -179,7 +179,10 @@ pub fn case(name: &str, args: &[Value]) -> Option<Result<Value, String>> {
                 found => Some(number(found)),
             };
             let (outcome, reason) =
-                car_watcher::rescan::judge(&mut engine, &row, &kin, deadline, number(args.get(4)));
+                match car_watcher::rescan::judge(&mut engine, &row, &kin, deadline, number(args.get(4))) {
+                    Ok(found) => found,
+                    Err(failed) => return Some(Err(failed.class)),
+                };
             Value::Array(vec![
                 Value::from(outcome),
                 reason.map_or(Value::Null, Value::from),
