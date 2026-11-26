@@ -3,6 +3,12 @@
 //!
 //! Python's `re` reads `\d` and `\s` as Unicode classes in a `str` pattern; the matchers here are written out by
 //! hand over code points for that reason (car-machine's `decimal_value`, `is_space`), not with an ASCII regex.
+//!
+//! One port for both readers (Integration 8 folded S7.3c's copy in): the Dashboard's report (`reading::read_all`) and
+//! the advanced edition's in-app report (car-adv `report::records`, which re-exports this module). The advanced reader
+//! asks what the Dashboard's never does - a spend ledger's `paid` times (`another_route`, `by_route`), `ledger_reach`,
+//! `place`'s count of records on another version and a record's progress counts (`body`); the Dashboard's report passes
+//! an empty ledger and every `progress` None, as `ownreport.write` does.
 
 use car_machine::compat::loads;
 use car_machine::domain::ids;
@@ -483,7 +489,7 @@ fn strptime(chars: &[char]) -> Option<(i64, i64, i64, i64, i64, i64)> {
 /// PC's zone (`time.mktime`).
 pub fn log_lines(
     texts: &[String],
-    clock: &dyn car_policy::classify::clock::LocalClock,
+    clock: &dyn car_machine::localclock::LocalClock,
 ) -> Vec<(f64, String)> {
     let mut lines = Vec::new();
     for text in texts {
@@ -586,22 +592,23 @@ pub fn placement(
     }
 }
 
-/// `place(rows, timeline, current, version)`: (the records on `version`, oldest first; how many could not be
-/// placed, by code).
+/// `place(rows, timeline, current, version)`: (the records on `version`, oldest first; how many are on another; how
+/// many could not be placed, by code).
 pub fn place(
     rows: &[Row],
     timeline: &[(f64, String)],
     current: &str,
     version: &str,
-) -> (Vec<Row>, Vec<(&'static str, i64)>) {
+) -> (Vec<Row>, i64, Vec<(&'static str, i64)>) {
     let mut placed = Vec::new();
+    let mut elsewhere = 0;
     let mut unplaced: Vec<(&'static str, i64)> = Vec::new();
     for row in rows {
         let (start, end) = span(row);
         let (found, why) = placement(timeline, start, end, current);
         match (found, why) {
             (Some(found), _) if found == version => placed.push(row.clone()),
-            (Some(_), _) => {}
+            (Some(_), _) => elsewhere += 1,
             (None, Some(why)) => match unplaced.iter_mut().find(|(code, _)| *code == why) {
                 Some(entry) => entry.1 += 1,
                 None => unplaced.push((why, 1)),
@@ -613,12 +620,15 @@ pub fn place(
         let (a, b) = (moment(col(a, "detected_at")), moment(col(b, "detected_at")));
         a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
     });
-    (placed, unplaced)
+    (placed, elsewhere, unplaced)
 }
 
 // ------------------------------------------------------------------------------ which route
-/// `another_route(row, paid={})`: carried by an advanced feature's route of its own, by the product's own marks.
-fn another_route(row: &Row) -> bool {
+/// The spend ledger's paid units: `{interruption id: the claim times a feature paid a unit at}`.
+pub type Paid = std::collections::BTreeMap<String, Vec<f64>>;
+
+/// `another_route(row, paid)`: carried by an advanced feature's route of its own, by the product's own marks.
+fn another_route(row: &Row, paid: &Paid) -> bool {
     if let Value::Str(key) = col(row, "interruption_id")
         && let Some(key) = key.as_str()
         && pyval::eq(
@@ -628,11 +638,21 @@ fn another_route(row: &Row) -> bool {
     {
         return true;
     }
-    gate_vector(row).iter().any(|(name, gate)| {
+    if gate_vector(row).iter().any(|(name, gate)| {
         name.as_str() != Some(CONSENT)
             && matches!(gate, Value::Array(pair) if pair.len() == 2
                 && pyval::text(&pair[1]).is_some_and(|word| PLUG_WORDS.contains(&word)))
-    })
+    }) {
+        return true;
+    }
+    // `claim in paid.get(key, ())`: a key that is not a text is never one the ledger's `isinstance(key, str)` kept.
+    match (
+        moment(col(row, "last_claim_at")),
+        pyval::text(col(row, "interruption_id")),
+    ) {
+        (Some(claim), Some(key)) => paid.get(key).is_some_and(|times| times.contains(&claim)),
+        _ => false,
+    }
 }
 
 /// `beyond_reach(row, reach)`.
@@ -643,12 +663,12 @@ fn beyond_reach(row: &Row, reach: Option<f64>) -> bool {
     }
 }
 
-/// `by_route(rows, {}, reach)`: (the records the standard route carried, how many another did, how many were
-/// claimed before the ledger can tell).
-pub fn by_route(rows: Vec<Row>, reach: Option<f64>) -> (Vec<Row>, i64, i64) {
+/// `by_route(rows, paid, reach)`: (the records the standard route carried, how many another did, how many were
+/// claimed before the ledger can tell); a report leaves out the last two.
+pub fn by_route(rows: Vec<Row>, paid: &Paid, reach: Option<f64>) -> (Vec<Row>, i64, i64) {
     let (mut kept, mut routed, mut unknown) = (Vec::new(), 0, 0);
     for row in rows {
-        if another_route(&row) {
+        if another_route(&row, paid) {
             routed += 1;
         } else if beyond_reach(&row, reach) {
             unknown += 1;
@@ -675,13 +695,14 @@ fn iso_or_null(when: Option<f64>) -> Result<Value, &'static str> {
     }
 }
 
-/// `body(version, rows, lines, watcher, progress)` with every `progress` None: what the records show for one engine
-/// version, as the reporter writes it.
+/// `body(version, rows, lines, watcher, progress)`: what the records show for one engine version, as the reporter
+/// writes it. `progress` is each record's counts of the four kinds (`None` where unread), in the order of `rows`.
 pub fn body(
     version: &str,
     rows: &[Row],
     lines: &[(f64, String)],
     watcher: Option<&Value>,
+    progress: &[Option<Map>],
 ) -> Result<Value, &'static str> {
     let reports: Vec<&(f64, String)> = lines
         .iter()
@@ -786,7 +807,7 @@ pub fn body(
     ]);
     let (categories, states, reasons, turns) = (categories(), states(), reasons(), turn_statuses());
     let mut records = Vec::new();
-    for row in rows {
+    for (row, counts) in rows.iter().zip(progress) {
         let passed = gate_vector(row)
             .values()
             .filter(|gate| {
@@ -805,7 +826,10 @@ pub fn body(
                 known(col(row, "recovery_turn_status"), &turns),
             ),
             ("gates_passed", Value::from(passed)),
-            ("progress_items", Value::Null),
+            (
+                "progress_items",
+                counts.clone().map_or(Value::Null, Value::Object),
+            ),
         ]));
     }
     let mut sorted: Vec<&(&str, Entry)> = capabilities.iter().collect();
@@ -865,4 +889,54 @@ pub fn graded(records: &[Value]) -> Value {
         ("neither", Value::Bool(!(worked || failed))),
         ("both", Value::Bool(worked && failed)),
     ])
+}
+
+// ------------------------------------------------------------------------------ which route: the ledger's reach
+/// `ledger_reach(units, oldest, given, now, max_age, limit)`: the earliest claim time a spend ledger holding `units`
+/// units, the oldest at `oldest`, and given `given` in all, can still tell at `now`; None when it has pruned none and
+/// tells every claim. `max_age` and `limit` are the ledger's own bounds (`state/journal.py`).
+pub fn ledger_reach(
+    units: i64,
+    oldest: &Value,
+    given: &Value,
+    now: f64,
+    max_age: f64,
+    limit: i64,
+) -> Reach {
+    // `isinstance(given, int) and not isinstance(given, bool) and given <= units`.
+    if let Value::Int(count) = given
+        && count.as_i64().is_some_and(|given| given <= units)
+    {
+        return Reach::All;
+    }
+    let mut bounds: Vec<f64> = Vec::new();
+    if units != 0
+        && let Some(oldest) = moment(oldest)
+    {
+        bounds.push(oldest);
+    }
+    if units < limit {
+        bounds.push(now - max_age);
+    }
+    match bounds.into_iter().reduce(f64::min) {
+        Some(bound) => Reach::From(bound),
+        None => Reach::From(f64::INFINITY),
+    }
+}
+
+/// What `ledger_reach` says: every claim told (`None`), or those from this time on (`math.inf`: none).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Reach {
+    All,
+    From(f64),
+}
+
+impl Reach {
+    /// The `reach` argument of `by_route`: `None` for every claim told.
+    pub fn bound(self) -> Option<f64> {
+        match self {
+            Reach::All => None,
+            Reach::From(bound) => Some(bound),
+        }
+    }
 }

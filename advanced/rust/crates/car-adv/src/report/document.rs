@@ -11,16 +11,20 @@
 //! most 1 MB as written. What a person can change - the login, or a report too big to send - is a refusal with a
 //! closed code; anything else would be a fault of this code, and is an error.
 //!
-//! SEAT S7.3c. The core half is car-control's `ownreport::document` at bridge6 (`acea87eb0`) as far as the
-//! Dashboard's report shares it (`check_parts` and the shapes); what only the Dashboard's own report uses (`assemble`
-//! of every version, `written`) is not here, and what only the advanced one uses (the envelope) is. The product's
+//! SEAT S7.3c. The core half is car-control's `ownreport::document`, imported (Integration 8 folded the two copies):
+//! `check_parts`, the shapes, `encode`, `Fault`; what only the Dashboard's own report uses (`assemble` of every
+//! version, `written`) stays there, and what only the advanced one uses (the envelope) is here. The product's
 //! version and the Windows build this process runs on are the [`Facts`] seam (`config.version()`,
 //! `sys.getwindowsversion()`).
 
-use car_machine::json::{Map, Options, Str, Value, to_string};
+use car_machine::json::{Map, Str, Value};
 use car_machine::pyval;
 
 use super::evidence;
+pub use car_control::ownreport::document::{Checked, Fault, encode};
+use car_control::ownreport::document::{
+    VERDICTS, at, check_parts, error, keys, moment, product_version, windows_shape,
+};
 
 pub const FORMAT: &str = "codex-auto-resume-compat-evidence/1";
 pub const TOOL: &str = "codex-auto-resume";
@@ -61,256 +65,12 @@ const REPORTER_KEYS: &[&str] = &[
     "windows",
 ];
 const ATTRIBUTION_KEYS: &[&str] = &["rule", "window", "basis"];
-const LOCAL_KEYS: &[&str] = &["reports", "first", "last", "covers"];
-const RECORD_KEYS: &[&str] = &[
-    "detected_at",
-    "delivered_at",
-    "outcome_at",
-    "category",
-    "state",
-    "reason",
-    "turn_status",
-    "gates_passed",
-    "progress_items",
-];
-const CAPABILITY_KEYS: &[&str] = &["confirmed", "missed", "last_confirmed", "level"];
-const VERDICTS: &[&str] = &["PASS", "CHECKED", "NONE"];
 
 /// What the report asks of the process it runs in: the product's version (`config.version()`) and the Windows build
 /// (`document.windows_version()`: `sys.getwindowsversion()`, never `platform`).
 pub trait Facts {
     fn product_version(&self) -> String;
     fn windows_version(&self) -> Option<String>;
-}
-
-/// What leaves a check: a refusal the project's rules make (`DocumentRefused`), or a fault (`DocumentError`, or the
-/// class of another exception).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Fault {
-    Refused(&'static str),
-    Error(&'static str),
-}
-
-type Checked<T> = Result<T, Fault>;
-
-fn error<T>() -> Checked<T> {
-    Err(Fault::Error("DocumentError"))
-}
-
-fn map(value: &Value) -> Option<&Map> {
-    match value {
-        Value::Object(map) => Some(map),
-        _ => None,
-    }
-}
-
-fn at<'a>(value: &'a Value, name: &str) -> &'a Value {
-    static NULL: Value = Value::Null;
-    map(value).and_then(|map| map.get(name)).unwrap_or(&NULL)
-}
-
-/// `keys(value, wanted, where)`.
-fn keys(value: &Value, wanted: &[&str]) -> Checked<()> {
-    let Some(map) = map(value) else {
-        return error();
-    };
-    if map.len() != wanted.len()
-        || !map
-            .keys()
-            .zip(wanted)
-            .all(|(key, want)| key.as_str() == Some(*want))
-    {
-        return error();
-    }
-    Ok(())
-}
-
-/// `word(value, words, where)`.
-fn word(value: &Value, words: &[&str]) -> Checked<()> {
-    match value {
-        Value::Null => Ok(()),
-        Value::Str(text) if text.as_str().is_some_and(|each| words.contains(&each)) => Ok(()),
-        _ => error(),
-    }
-}
-
-/// `ISO.match`: `\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z`, `\d` being any Unicode decimal digit.
-fn iso_shape(text: &str) -> bool {
-    let shape = "dddd-dd-ddTdd:dd:ddZ";
-    let chars: Vec<char> = text.chars().collect();
-    chars.len() == shape.len()
-        && chars.iter().zip(shape.chars()).all(|(c, want)| {
-            if want == 'd' {
-                car_machine::pytext::decimal_value(*c).is_some()
-            } else {
-                *c == want
-            }
-        })
-}
-
-/// `moment(value, where, required=...)`.
-fn moment(value: &Value, required: bool) -> Checked<()> {
-    match value {
-        Value::Null if required => error(),
-        Value::Null => Ok(()),
-        Value::Str(text) if text.as_str().is_some_and(iso_shape) => Ok(()),
-        _ => error(),
-    }
-}
-
-/// `count(value, where, limit=10 ** 6)`.
-fn count(value: &Value, limit: i64) -> Checked<()> {
-    match value {
-        Value::Int(int) if int.as_i64().is_some_and(|n| (0..=limit).contains(&n)) => Ok(()),
-        _ => error(),
-    }
-}
-
-/// `check_parts(part, where)`: a body's local_checks, records and capabilities held to the format.
-fn check_parts(part: &Value) -> Checked<()> {
-    let checks = at(part, "local_checks");
-    keys(checks, LOCAL_KEYS)?;
-    count(at(checks, "reports"), 1_000_000)?;
-    moment(at(checks, "first"), false)?;
-    moment(at(checks, "last"), false)?;
-    let reportable = evidence::reportable();
-    let Value::Array(covers) = at(checks, "covers") else {
-        return error();
-    };
-    let mut seen: Vec<&Value> = Vec::new();
-    for each in covers {
-        if seen.iter().any(|other| pyval::eq(other, each)) {
-            return error();
-        }
-        seen.push(each);
-        if !pyval::text(each).is_some_and(|name| reportable.contains(&name)) {
-            return error();
-        }
-    }
-    let Value::Array(records) = at(part, "records") else {
-        return error();
-    };
-    if records.len() > evidence::MAX_RECORDS {
-        return Err(Fault::Refused(TOO_MANY_RECORDS));
-    }
-    let with_other = |words: Vec<&'static str>| {
-        let mut words = words;
-        words.push(evidence::OTHER);
-        words
-    };
-    let (categories, states, reasons, turns) = (
-        with_other(evidence::categories()),
-        with_other(evidence::states()),
-        with_other(evidence::reasons()),
-        with_other(evidence::turn_statuses()),
-    );
-    for record in records {
-        keys(record, RECORD_KEYS)?;
-        moment(at(record, "detected_at"), true)?;
-        moment(at(record, "delivered_at"), false)?;
-        moment(at(record, "outcome_at"), false)?;
-        word(at(record, "category"), &categories)?;
-        word(at(record, "state"), &states)?;
-        word(at(record, "reason"), &reasons)?;
-        word(at(record, "turn_status"), &turns)?;
-        count(at(record, "gates_passed"), 64)?;
-        let items = at(record, "progress_items");
-        if !matches!(items, Value::Null) {
-            keys(items, evidence::PROGRESS)?;
-            for many in map(items)
-                .map(|map| map.values().collect::<Vec<_>>())
-                .unwrap_or_default()
-            {
-                count(many, 1_000_000)?;
-            }
-        }
-    }
-    let capabilities = at(part, "capabilities");
-    keys(capabilities, &reportable)?;
-    for entry in map(capabilities)
-        .map(|map| map.values().collect::<Vec<_>>())
-        .unwrap_or_default()
-    {
-        keys(entry, CAPABILITY_KEYS)?;
-        count(at(entry, "confirmed"), evidence::MAX_RECORDS as i64)?;
-        count(at(entry, "missed"), evidence::MAX_RECORDS as i64)?;
-        moment(at(entry, "last_confirmed"), false)?;
-        match at(entry, "level") {
-            Value::Null => {}
-            Value::Str(text)
-                if text.as_str().is_some_and(|level| {
-                    [evidence::VERIFIED, evidence::CHECKED].contains(&level)
-                }) => {}
-            _ => return error(),
-        }
-    }
-    Ok(())
-}
-
-/// `PRODUCT_VERSION.match`: `\A\d{1,4}\.\d{1,4}\.\d{1,4}(?:-(?:alpha|beta)(?:\.\d{1,3})?)?\Z`.
-fn product_version(text: &str) -> bool {
-    let chars: Vec<char> = text.chars().collect();
-    let run = |from: usize| {
-        chars[from..]
-            .iter()
-            .take_while(|c| car_machine::pytext::decimal_value(**c).is_some())
-            .count()
-    };
-    let mut at = 0;
-    for index in 0..3 {
-        let n = run(at);
-        if !(1..=4).contains(&n) {
-            return false;
-        }
-        at += n;
-        if index < 2 {
-            if chars.get(at) != Some(&'.') {
-                return false;
-            }
-            at += 1;
-        }
-    }
-    let tail: String = chars[at..].iter().collect();
-    if tail.is_empty() {
-        return true;
-    }
-    let Some(rest) = tail
-        .strip_prefix("-alpha")
-        .or_else(|| tail.strip_prefix("-beta"))
-    else {
-        return false;
-    };
-    if rest.is_empty() {
-        return true;
-    }
-    let Some(number) = rest.strip_prefix('.') else {
-        return false;
-    };
-    let digits: Vec<char> = number.chars().collect();
-    (1..=3).contains(&digits.len())
-        && digits
-            .iter()
-            .all(|c| car_machine::pytext::decimal_value(*c).is_some())
-}
-
-/// `WINDOWS.match`: `\A10\.0\.\d{5}\Z`.
-fn windows_shape(text: &str) -> bool {
-    let Some(build) = text.strip_prefix("10.0.") else {
-        return false;
-    };
-    let chars: Vec<char> = build.chars().collect();
-    chars.len() == 5
-        && chars
-            .iter()
-            .all(|c| car_machine::pytext::decimal_value(*c).is_some())
-}
-
-/// `encode(document)`: two-space JSON, ASCII, one newline at the end.
-pub fn encode(document: &Value) -> Checked<String> {
-    match to_string(document, &Options::new().indent(2)) {
-        Ok(text) => Ok(text + "\n"),
-        Err(_) => Err(Fault::Error("ValueError")),
-    }
 }
 
 /// `RESERVED`: the names Windows keeps for devices, which no folder can have.

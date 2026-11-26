@@ -4,6 +4,10 @@
 //! shown or exported - exactly the format's keys at every level, every string a time or a closed word, every count
 //! a count. A record set larger than the project takes is a refusal with a closed code; anything else that breaks
 //! the format would be a fault of this code (`DocumentError`).
+//!
+//! The advanced edition's report (car-adv `report::document`) imports the body's self-check [`check_parts`], the bytes
+//! a report is ([`encode`]), the closed refusals and the shapes of a time, a version and a Windows build from here
+//! (Integration 8 folded S7.3c's copy in), so those helpers are public.
 
 use car_machine::json::{Map, Options, Str, Value, to_string};
 use car_machine::pyval;
@@ -19,8 +23,8 @@ pub const MAX_BYTES: usize = 1_000_000;
 pub const TOO_MANY_RECORDS: &str = "too_many_records";
 pub const TOO_LARGE: &str = "too_large";
 
-const LOCAL_KEYS: &[&str] = &["reports", "first", "last", "covers"];
-const RECORD_KEYS: &[&str] = &[
+pub const LOCAL_KEYS: &[&str] = &["reports", "first", "last", "covers"];
+pub const RECORD_KEYS: &[&str] = &[
     "detected_at",
     "delivered_at",
     "outcome_at",
@@ -31,7 +35,7 @@ const RECORD_KEYS: &[&str] = &[
     "gates_passed",
     "progress_items",
 ];
-const CAPABILITY_KEYS: &[&str] = &["confirmed", "missed", "last_confirmed", "level"];
+pub const CAPABILITY_KEYS: &[&str] = &["confirmed", "missed", "last_confirmed", "level"];
 const BODY_KEYS: &[&str] = &[
     "codex_version",
     "verdict",
@@ -39,7 +43,7 @@ const BODY_KEYS: &[&str] = &[
     "records",
     "capabilities",
 ];
-const VERDICTS: &[&str] = &["PASS", "CHECKED", "NONE"];
+pub const VERDICTS: &[&str] = &["PASS", "CHECKED", "NONE"];
 pub const COUNTED: &[&str] = &["worked", "failed", "neither", "both"];
 const TOP_KEYS: &[&str] = &[
     "format",
@@ -65,26 +69,26 @@ pub enum Fault {
     Error(&'static str),
 }
 
-type Checked<T> = Result<T, Fault>;
+pub type Checked<T> = Result<T, Fault>;
 
-fn error<T>() -> Checked<T> {
+pub fn error<T>() -> Checked<T> {
     Err(Fault::Error("DocumentError"))
 }
 
-fn map(value: &Value) -> Option<&Map> {
+pub fn map(value: &Value) -> Option<&Map> {
     match value {
         Value::Object(map) => Some(map),
         _ => None,
     }
 }
 
-fn at<'a>(value: &'a Value, name: &str) -> &'a Value {
+pub fn at<'a>(value: &'a Value, name: &str) -> &'a Value {
     static NULL: Value = Value::Null;
     map(value).and_then(|map| map.get(name)).unwrap_or(&NULL)
 }
 
 /// `keys(value, wanted, where)`.
-fn keys(value: &Value, wanted: &[&str]) -> Checked<()> {
+pub fn keys(value: &Value, wanted: &[&str]) -> Checked<()> {
     let Some(map) = map(value) else {
         return error();
     };
@@ -100,7 +104,7 @@ fn keys(value: &Value, wanted: &[&str]) -> Checked<()> {
 }
 
 /// `word(value, words, where)`.
-fn word(value: &Value, words: &[&str]) -> Checked<()> {
+pub fn word(value: &Value, words: &[&str]) -> Checked<()> {
     match value {
         Value::Null => Ok(()),
         Value::Str(text) if text.as_str().is_some_and(|each| words.contains(&each)) => Ok(()),
@@ -109,7 +113,7 @@ fn word(value: &Value, words: &[&str]) -> Checked<()> {
 }
 
 /// `ISO.match`: `\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z`, `\d` being any Unicode decimal digit.
-fn iso_shape(text: &str) -> bool {
+pub fn iso_shape(text: &str) -> bool {
     let shape = "dddd-dd-ddTdd:dd:ddZ";
     let chars: Vec<char> = text.chars().collect();
     chars.len() == shape.len()
@@ -123,7 +127,7 @@ fn iso_shape(text: &str) -> bool {
 }
 
 /// `moment(value, where, required=...)`.
-fn moment(value: &Value, required: bool) -> Checked<()> {
+pub fn moment(value: &Value, required: bool) -> Checked<()> {
     match value {
         Value::Null if required => error(),
         Value::Null => Ok(()),
@@ -133,7 +137,7 @@ fn moment(value: &Value, required: bool) -> Checked<()> {
 }
 
 /// `count(value, where, limit=10 ** 6)`.
-fn count(value: &Value, limit: i64) -> Checked<()> {
+pub fn count(value: &Value, limit: i64) -> Checked<()> {
     match value {
         Value::Int(int) if int.as_i64().is_some_and(|n| (0..=limit).contains(&n)) => Ok(()),
         _ => error(),
@@ -141,7 +145,7 @@ fn count(value: &Value, limit: i64) -> Checked<()> {
 }
 
 /// `check_parts(part, where)`: a body's local_checks, records and capabilities held to the format.
-fn check_parts(part: &Value) -> Checked<()> {
+pub fn check_parts(part: &Value) -> Checked<()> {
     let checks = at(part, "local_checks");
     keys(checks, LOCAL_KEYS)?;
     count(at(checks, "reports"), 1_000_000)?;
@@ -222,7 +226,7 @@ fn check_parts(part: &Value) -> Checked<()> {
 }
 
 /// `PRODUCT_VERSION.match`: `\A\d{1,4}\.\d{1,4}\.\d{1,4}(?:-(?:alpha|beta)(?:\.\d{1,3})?)?\Z`.
-fn product_version(text: &str) -> bool {
+pub fn product_version(text: &str) -> bool {
     let chars: Vec<char> = text.chars().collect();
     let run = |from: usize| {
         chars[from..]
@@ -268,7 +272,7 @@ fn product_version(text: &str) -> bool {
 }
 
 /// `WINDOWS.match`: `\A10\.0\.\d{5}\Z`.
-fn windows_shape(text: &str) -> bool {
+pub fn windows_shape(text: &str) -> bool {
     let Some(build) = text.strip_prefix("10.0.") else {
         return false;
     };
