@@ -629,7 +629,7 @@ pub unsafe fn start(
                 return Some(refused(Refusal::BadRequest, true));
             }
             let root = project_root(&request);
-            match Watcher::start(&request, factory, &root) {
+            match Watcher::start_with(&request, factory, &root, Some(joined())) {
                 Ok(started) => {
                     *held = Some(Arc::new(started));
                     let mut map = Map::new();
@@ -867,6 +867,14 @@ macro_rules! export_core {
             unsafe { $crate::abi::free(buffer, len) }
         }
     };
+}
+
+/// The engine join (S6.2b2): the watcher's engine, its backend and the Compatibility Registry, over car-engine and
+/// car-codex on this machine.
+fn joined() -> Box<dyn FnOnce() -> Box<dyn car_watcher::app::EngineMaker> + Send> {
+    Box::new(|| {
+        Box::new(car_watcher::join::Joined::new()) as Box<dyn car_watcher::app::EngineMaker>
+    })
 }
 
 #[cfg(test)]

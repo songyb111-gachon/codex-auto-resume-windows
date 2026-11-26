@@ -102,5 +102,11 @@ fn the_exports_drive_one_watcher_from_start_to_ended() {
     assert!(next_event(50).is_none(), "nothing after ended");
     let log = log(&home);
     assert!(log.contains("watcher started (pid"), "{log}");
+    // The engine join: the product's maker reached discovery, which refused the named codex.exe that is not there.
+    assert!(
+        log.contains("initialising Codex adapter failed (ConfigError)"),
+        "{log}"
+    );
+    assert!(!log.contains("EngineNotJoined"), "{log}");
     assert!(log.contains("stop requested; watcher exiting"), "{log}");
 }

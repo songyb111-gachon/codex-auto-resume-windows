@@ -14,6 +14,7 @@ pub mod events;
 pub mod fail;
 pub mod health;
 pub mod homes;
+pub mod join;
 pub mod launcher;
 pub mod plugnotices;
 pub mod rescan;

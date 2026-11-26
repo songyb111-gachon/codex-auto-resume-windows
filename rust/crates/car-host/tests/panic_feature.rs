@@ -14,7 +14,9 @@ use std::time::{Duration, Instant};
 
 use common::*;
 
-const NOT_JOINED: &str = "initialising Codex adapter failed (EngineNotJoined)";
+/// The joined engine's discovery, refusing the named codex.exe that is not there (tests/common): every tick after the
+/// panicked one says it.
+const NOT_BUILT: &str = "initialising Codex adapter failed (ConfigError)";
 
 #[test]
 fn a_panic_costs_one_tick_and_one_call() {
@@ -31,13 +33,13 @@ fn a_panic_costs_one_tick_and_one_call() {
         let log = log(&home);
         let panicked = log.lines().position(|line| {
             line.contains("initialising Codex adapter failed (")
-                && !line.contains("EngineNotJoined")
+                && !line.contains(NOT_BUILT)
         });
         if let Some(at) = panicked
             && log
                 .lines()
                 .skip(at + 1)
-                .any(|line| line.contains(NOT_JOINED))
+                .any(|line| line.contains(NOT_BUILT))
         {
             break;
         }

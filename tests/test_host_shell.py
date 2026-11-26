@@ -156,7 +156,10 @@ class Scratch:
         self.env = {key: value for key, value in os.environ.items()
                     if not key.upper().startswith(("CODEX_AUTO_RESUME", "CAR_CORE"))}
         self.env.update(USERPROFILE=str(base / "profile"), HOME=str(base / "profile"), LOCALAPPDATA=str(base / "local"),
-                        APPDATA=str(base / "local"), CODEX_HOME=str(base / "codex"), PYTHONPATH=str(ROOT / "src"))
+                        APPDATA=str(base / "local"), CODEX_HOME=str(base / "codex"), PYTHONPATH=str(ROOT / "src"),
+                        # Both watchers discover codex.exe at their first tick: a named engine that is not there ends
+                        # discovery before any candidate - this PC's, or one the ChatGPT app runs - is started.
+                        CODEX_AUTO_RESUME_CODEX_EXE=str(base / "no-codex" / "codex.exe"))
 
     def host(self, cwd: Path | None = None, env: dict | None = None) -> subprocess.Popen:
         return self.keep(subprocess.Popen([str(self.bin / "CodexAutoResume.exe"), "--home", str(self.home), "run"],

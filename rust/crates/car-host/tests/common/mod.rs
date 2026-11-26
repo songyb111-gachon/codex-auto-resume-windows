@@ -49,6 +49,12 @@ pub fn scratch(name: &str, settings: Option<&str>) -> Scratch {
             std::env::set_var(name, &base);
         }
         std::env::set_var("CODEX_HOME", &codex);
+        // The engine join discovers codex.exe at the first tick: a named engine that is not there ends discovery
+        // before any candidate is asked (no codex.exe of this PC, nor the ChatGPT app's, is ever started by a test).
+        std::env::set_var(
+            "CODEX_AUTO_RESUME_CODEX_EXE",
+            base.join("no-codex").join("codex.exe"),
+        );
         std::env::set_var("LANG", "en_US.UTF-8");
         for name in [
             "CODEX_AUTO_RESUME_HOME",

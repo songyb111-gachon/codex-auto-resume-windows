@@ -11,8 +11,10 @@
 //! The icon is the host's to draw (P6-DESIGN 1.4, 1.5): `start_tray` queues the `surfaces` event and waits up to 5 s
 //! for `tray_started`; `update_tray` queues a `snapshot`; `stop_tray` queues `close` and waits up to 5 s for `closed`.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use car_config::Paths;
@@ -32,11 +34,18 @@ use crate::watchloop::{Adapter, Fired, TickEngine, World};
 /// The engine and everything it is built from, as App builds it (`backend`, `engine`, `engine_moved`,
 /// `_compatibility_tick`, `engine_state`, `home_backend`, `home_engine`).
 pub trait EngineMaker {
+    /// Told once, as App is made: what the engine and its backend are built from.
+    fn bind(&mut self, _bound: crate::join::Bound) {}
+    /// `self._codex_exe_override = self._codex_exe_arg or self.settings.get("codex_exe")`, as `engine()` sets it
+    /// again once the settings were read, while no backend is held.
+    fn refresh_codex_exe(&mut self, _codex_exe: Option<String>) {}
+    /// `Engine(store, source, self.backend(), plug=self.plug, ...)` with `apply_policy(values, managed)`.
     fn engine(
         &mut self,
-        store: &Store,
+        store: &Rc<Store>,
         values: &Map,
         managed: &Managed,
+        plug: Arc<car_policy::plug::Guarded>,
     ) -> Res<Box<dyn TickEngine>>;
     fn engine_moved(&mut self) -> bool {
         false
@@ -62,13 +71,16 @@ pub trait EngineMaker {
     fn home_backend(&mut self, _path: &str, _exe: &str) -> Res<Box<dyn HomeBackend>> {
         Err(Failed::new("EngineNotJoined", ""))
     }
+    #[allow(clippy::too_many_arguments)]
     fn home_engine(
         &mut self,
-        _store: &Store,
+        _store: &Rc<Store>,
         _path: &str,
         _exe: &str,
         _key: &str,
-        _held: std::rc::Rc<std::cell::RefCell<Box<dyn HeldLock>>>,
+        _held: Rc<std::cell::RefCell<Box<dyn HeldLock>>>,
+        _values: &Map,
+        _managed: &Managed,
     ) -> Res<Box<dyn TickEngine>> {
         Err(Failed::new("EngineNotJoined", ""))
     }
@@ -80,9 +92,10 @@ pub struct NotJoined;
 impl EngineMaker for NotJoined {
     fn engine(
         &mut self,
-        _store: &Store,
+        _store: &Rc<Store>,
         _values: &Map,
         _managed: &Managed,
+        _plug: Arc<car_policy::plug::Guarded>,
     ) -> Res<Box<dyn TickEngine>> {
         Err(Failed::new(
             "EngineNotJoined",
@@ -159,8 +172,7 @@ pub struct App {
     host: Arc<dyn car_control::host::Host>,
     events: Arc<Events>,
     maker: Box<dyn EngineMaker>,
-    log: car_config::logbook::Logbook,
-    clock: crate::clock::LogClock,
+    log: crate::join::SharedLog,
     os: Arc<dyn Os + Send + Sync>,
     managed: Managed,
     stored: Map,
@@ -171,9 +183,12 @@ pub struct App {
     mutex: Option<car_platform::sync::Mutex>,
     stop: Option<car_platform::sync::StopEvent>,
     wake: Option<car_platform::sync::WakeEvent>,
-    home_lock: Option<car_platform::homelock::HomeLock>,
+    /// The Codex home's lock, shared with the engines' `home_lock` question.
+    home_lock: Rc<RefCell<Option<car_platform::homelock::HomeLock>>>,
     lock_dir: String,
     tray: bool,
+    /// `self.settings`, as the notifier reads it on its own thread at every event.
+    shared_settings: Arc<std::sync::Mutex<Map>>,
     notices: crate::plugnotices::PlugNotices,
     popup: crate::surface::Popup,
 }
@@ -192,8 +207,16 @@ fn stamp(path: &str) -> Option<(u128, u64)> {
 impl App {
     pub fn new(start: Start) -> App {
         let _ = start.paths.ensure();
-        let log = car_config::logbook::Logbook::open(&start.paths.log_file, "", &[])
-            .with_rename(car_platform::files::rename);
+        // The engine's transitions are said by their state (logbook.STATE_CODES), in the one log of the watcher.
+        let log = crate::join::SharedLog::new(
+            car_config::logbook::Logbook::open(
+                &start.paths.log_file,
+                "",
+                car_machine::vocab_gen::domain_states::STATES,
+            )
+            .with_rename(car_platform::files::rename),
+            crate::clock::LogClock::here(),
+        );
         let os: Arc<dyn Os + Send + Sync> = Arc::new(car_control::host::PlatformOs);
         let managed = start.host.managed();
         let lock_dir = std::env::var("LOCALAPPDATA")
@@ -209,7 +232,6 @@ impl App {
             events: start.events,
             maker: start.maker,
             log,
-            clock: crate::clock::LogClock::here(),
             os,
             managed,
             stored: car_policy::settings::defaults(),
@@ -220,13 +242,14 @@ impl App {
             mutex: None,
             stop: None,
             wake: None,
-            home_lock: None,
+            home_lock: Rc::new(RefCell::new(None)),
             lock_dir: Path::new(&lock_dir)
                 .join("codex-auto-resume")
                 .join("homes")
                 .to_string_lossy()
                 .into_owned(),
             tray: false,
+            shared_settings: Arc::new(std::sync::Mutex::new(Map::new())),
             notices: crate::plugnotices::PlugNotices::new(),
             popup: start.popup,
         };
@@ -236,9 +259,25 @@ impl App {
             app.stored = stored;
         }
         app.settings = managed::clamp(&app.stored, &app.managed);
+        *app.shared_settings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = app.settings.clone();
         if app.settings_good {
             app.settings_stamp = stamp(&app.paths.settings_file);
         }
+        let held = Rc::clone(&app.home_lock);
+        let bound = crate::join::Bound {
+            paths: app.paths.clone(),
+            project_root: app.project_root.clone(),
+            codex_home: app.codex_home.clone(),
+            codex_exe: codex_exe_setting(&app.settings),
+            host: Arc::clone(&app.host),
+            log: app.log.clone(),
+            home_lock: Rc::new(move || held.borrow().as_ref().is_some_and(|lock| lock.held())),
+            announce: app.announce(),
+            plug: Arc::clone(&app.plug),
+        };
+        app.maker.bind(bound);
         app
     }
 
@@ -290,29 +329,10 @@ impl HomesApp for App {
         Value::Object(self.settings.clone())
     }
     fn info(&self, line: &str) {
-        self.log.info(line, &self.clock);
+        self.log.info(line);
     }
     fn record_failure(&self, label: &str, failed: &Failed) {
-        self.info(&format!(
-            "{label} failed ({}); no submission was made",
-            failed.class
-        ));
-        let path = PathBuf::from(&self.paths.error_log);
-        let _ = (|| -> std::io::Result<()> {
-            use std::io::Write;
-            let mut stream = car_machine::pyfile::options()
-                .create(true)
-                .append(true)
-                .open(&path)?;
-            let when = car_watcher_stamp(&self.clock);
-            let text = format!("{when}{label}\n{failed}\n");
-            stream.write_all(text.replace('\n', "\r\n").as_bytes())?;
-            drop(stream);
-            if std::fs::metadata(&path)?.len() > 2_000_000 {
-                car_platform::files::replace(&path, &path.with_extension("log.1"))?;
-            }
-            Ok(())
-        })();
+        crate::join::record_failure(&self.log, &self.paths.error_log, label, failed);
     }
     fn now(&mut self) -> f64 {
         crate::clock::wall()
@@ -331,6 +351,7 @@ impl HomesApp for App {
     }
     fn default_lock_identity(&self) -> Option<String> {
         self.home_lock
+            .borrow()
             .as_ref()
             .and_then(|lock| lock.identity.clone())
     }
@@ -348,13 +369,15 @@ impl HomesApp for App {
     }
     fn home_engine(
         &mut self,
-        store: &Store,
+        store: &Rc<Store>,
         path: &str,
         exe: &str,
         key: &str,
-        held: std::rc::Rc<std::cell::RefCell<Box<dyn HeldLock>>>,
+        held: Rc<RefCell<Box<dyn HeldLock>>>,
     ) -> Res<Box<dyn TickEngine>> {
-        self.maker.home_engine(store, path, exe, key, held)
+        let (values, managed) = (self.stored.clone(), self.managed.clone());
+        self.maker
+            .home_engine(store, path, exe, key, held, &values, &managed)
     }
 }
 
@@ -364,7 +387,7 @@ pub(crate) fn stamp_now() -> String {
 }
 
 /// `time.strftime("[%Y-%m-%d %H:%M:%S] ")` in this PC's zone.
-fn car_watcher_stamp(clock: &crate::clock::LogClock) -> String {
+fn car_watcher_stamp(_clock: &crate::clock::LogClock) -> String {
     use car_machine::localclock::LocalClock;
     let now = crate::clock::wall();
     match car_platform::localclock::Crt.localtime(now.floor()) {
@@ -372,11 +395,17 @@ fn car_watcher_stamp(clock: &crate::clock::LogClock) -> String {
             "[{:04}-{:02}-{:02} {:02}:{:02}:{:02}] ",
             tm.year, tm.mon, tm.mday, tm.hour, tm.min, tm.sec
         ),
-        Err(_) => {
-            let _ = clock;
-            "[0000-00-00 00:00:00] ".into()
-        }
+        Err(_) => "[0000-00-00 00:00:00] ".into(),
     }
+}
+
+/// `codex_exe or self.settings.get("codex_exe")`: the watcher has no argument; a setting that is text and not empty.
+fn codex_exe_setting(settings: &Map) -> Option<String> {
+    settings
+        .get("codex_exe")
+        .and_then(crate::join::text)
+        .filter(|found| !found.is_empty())
+        .map(str::to_owned)
 }
 
 fn adapter(error: car_machine::domain::errors::AdapterError) -> Adapter {
@@ -426,11 +455,12 @@ impl World for App {
             car_platform::homelock::HomeLock::new(&self.codex_home, Some(&self.lock_dir), false)
                 .map_err(adapter)?;
         lock.enter().map_err(adapter)?;
-        self.home_lock = Some(lock);
+        *self.home_lock.borrow_mut() = Some(lock);
         Ok(())
     }
     fn exit_home_lock(&mut self) {
-        if let Some(mut lock) = self.home_lock.take() {
+        let held = self.home_lock.borrow_mut().take();
+        if let Some(mut lock) = held {
             lock.exit();
         }
     }
@@ -485,26 +515,30 @@ impl World for App {
     fn edition_badge(&self) -> Option<String> {
         (!self.plug.is_null()).then(|| self.plug.badge().to_owned())
     }
-    fn open_store(&mut self) -> Res<(Store, Option<i64>)> {
+    fn open_store(&mut self) -> Res<(Rc<Store>, Option<i64>)> {
         let mut options = car_store::Options::new(Arc::new(Probe));
         options.migrate = true;
         options.check = true;
         let store = Store::open_with(Path::new(&self.paths.state_dir), options)?;
         let from = store.migrated_from;
-        Ok((store, from))
+        Ok((Rc::new(store), from))
     }
     fn engine_moved(&mut self) -> bool {
         self.maker.engine_moved()
     }
-    fn engine(&mut self, store: &Store) -> Res<Box<dyn TickEngine>> {
+    fn engine(&mut self, store: &Rc<Store>) -> Res<Box<dyn TickEngine>> {
         if !self.settings_good {
             self.refresh_settings(None);
             if !self.settings_good {
                 return Err(Failed::new("Unreadable", "not read yet"));
             }
+            self.maker
+                .refresh_codex_exe(codex_exe_setting(&self.settings));
         }
         let (values, managed) = (self.stored.clone(), self.managed.clone());
-        let engine = self.maker.engine(store, &values, &managed)?;
+        let engine = self
+            .maker
+            .engine(store, &values, &managed, Arc::clone(&self.plug))?;
         // `_observe_only` and `_managed_pause`, as App.engine makes them good before the first tick.
         if let Err(failed) = crate::fail::guarded(|| {
             store.set_observe_only(matches!(
@@ -553,6 +587,10 @@ impl World for App {
         }
         let previous = self.settings.get("interface_language").cloned();
         self.settings = values;
+        *self
+            .shared_settings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = self.settings.clone();
         if let Some(engine) = engine {
             engine.apply_policy(&Value::Object(self.stored.clone()), &held);
         }
@@ -717,10 +755,10 @@ impl World for App {
         Arc::clone(&self.os)
     }
     fn log_clock(&self) -> &dyn car_config::logbook::Clock {
-        &self.clock
+        &*self.log.clock
     }
     fn app_runs(&mut self) -> Option<bool> {
-        None
+        car_codex::pairing::app_running_now(&car_codex::system::Platform::new())
     }
     fn recovery_facts(
         &mut self,
@@ -803,5 +841,105 @@ impl App {
         if let Err(failed) = result {
             self.record_failure("administrator's pause", &failed);
         }
+    }
+}
+
+impl App {
+    /// `_notifier(source)`'s announce (`App._deliver` included): read from the settings in force on every event, built
+    /// into one Notice and shown by exactly one route. The card route is the host's (`cards_attached`); this PC's
+    /// presence probes are not in car-platform yet, so `card_allowed` reads "cannot tell" and the route is the toast.
+    fn announce(&self) -> crate::join::Announce {
+        let settings = Arc::clone(&self.shared_settings);
+        let plug = Arc::clone(&self.plug);
+        let state_dir = self.paths.state_dir.clone();
+        Arc::new(
+            move |event: &str, detail: &Map, identity: &dyn Fn() -> Value| {
+                let values = Value::Object(
+                    settings
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .clone(),
+                );
+                let fail = |class: &'static str| Failed::new(class, "");
+                if !car_policy::settings::notification_enabled(&values, event).map_err(fail)? {
+                    return Ok(false);
+                }
+                let identity = identity();
+                let field = |key: &str| match &values {
+                    Value::Object(map) => map.get(key).cloned().unwrap_or(Value::Null),
+                    _ => Value::Null,
+                };
+                let sound = event == car_policy::classify::vocab_gen::needsyou::EVENT
+                    && matches!(
+                        field(car_policy::classify::vocab_gen::needsyou::SOUND_FIELD),
+                        Value::Bool(true)
+                    );
+                let environ = |name: &str| std::env::var(name).ok();
+                let locale = car_words::interface::language(&environ, &Vec::new);
+                let clock = car_platform::localclock::Crt;
+                let speech = car_surface::speech::Speech::new(locale, &clock);
+                let stay = Value::Array(
+                    car_policy::settings::notice_kinds::chosen(&values)
+                        .into_iter()
+                        .map(Value::from)
+                        .collect(),
+                );
+                let built = car_surface::notifier::build(
+                    &speech,
+                    &Value::from(event),
+                    &Value::Object(detail.clone()),
+                    &identity,
+                    sound,
+                    car_surface::notifier::click_destination(&values, false),
+                    &stay,
+                )
+                .map_err(fail)?;
+                let Some(built) = built else {
+                    return Ok(false);
+                };
+                let notice = car_surface::notifier::with_open_codex(&built, false).map_err(fail)?;
+                // P20 (v0.6.19): told first to a plug that wants it.
+                let detail = Value::Object(detail.clone());
+                let opened = || -> Result<Value, car_surface::seam::Raised> {
+                    let store = Store::open_with(
+                        Path::new(&state_dir),
+                        car_store::Options::new(Arc::new(Probe)),
+                    )
+                    .map_err(|_| car_surface::seam::Raised::new("StoreError"))?;
+                    store
+                        .pending()
+                        .map(|rows| Value::Array(rows.into_iter().map(Value::Object).collect()))
+                        .map_err(|_| car_surface::seam::Raised::new("StoreError"))
+                };
+                plug.notice(&|| {
+                    car_surface::notifier::told(
+                        &notice,
+                        &detail,
+                        Some(&opened),
+                        Value::Float(crate::clock::wall()),
+                    )
+                    .ok()
+                });
+                let shell = car_surface::seam::SystemPowerShell::system();
+                let show = |content: &Map, silent: bool| {
+                    car_surface::notify::show_content(&shell, content, silent)
+                };
+                let setting = field(car_surface::notifier::CARD_SETTING);
+                let setting = if matches!(setting, Value::Null) {
+                    Value::Bool(true)
+                } else {
+                    setting
+                };
+                let (_, shown) = car_surface::notifier::deliver(
+                    &notice,
+                    None,
+                    &setting,
+                    &|| Ok(Value::Object(Map::new())),
+                    &show,
+                )
+                .map_err(fail)?;
+                Ok(shown)
+            },
+        )
     }
 }

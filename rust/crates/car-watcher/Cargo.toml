@@ -20,6 +20,7 @@ car-engine = { path = "../car-engine" }
 car-machine = { path = "../car-machine" }
 car-platform = { path = "../car-platform" }
 car-policy = { path = "../car-policy" }
+car-scheduler = { path = "../car-scheduler" }
 car-store = { path = "../car-store" }
 car-surface = { path = "../car-surface" }
 car-words = { path = "../car-words" }
