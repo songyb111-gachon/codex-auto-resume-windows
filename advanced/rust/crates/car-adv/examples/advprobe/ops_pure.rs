@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 
 use car_adv::arming::{self, Standing};
+use car_adv::autocheck::{self, Results, Settled};
 use car_adv::jsonx::{int, maybe_text, text, texts};
 use car_adv::measured::Table;
 use car_adv::policy::Policy;
 use car_adv::seam::ArmRow;
-use car_adv::seam_autocheck::{self, Results, Settled};
 use car_adv::vocabulary::{
     Actor, ArmingState, ArmingWarning, AutoResult, ClosedWord, Measurement, OffReason, Verdict,
     parse,
@@ -200,7 +200,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 Value::Null => None,
                 other => Some(as_text(other)?),
             };
-            let found = seam_autocheck::settled(
+            let found = autocheck::settled(
                 measurement,
                 version,
                 &table_of(arg(args, 2)?)?,
@@ -223,7 +223,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 Value::Null => None,
                 other => Some(as_text(other)?),
             };
-            let (word, earlier) = seam_autocheck::grade(
+            let (word, earlier) = autocheck::grade(
                 &measurements,
                 version,
                 &table_of(arg(args, 2)?)?,

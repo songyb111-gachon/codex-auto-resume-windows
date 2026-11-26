@@ -15,8 +15,8 @@ advanced, every home a scratch folder) and dumps, as JSON:
                 but `make`, the factory the plug seat attaches) and registry's constants -> car-adv/src/registry_gen.rs
 * `statement`:  the catalog key lists (statement.PAGE_KEYS, CONTINUATION_KEYS, EDITION_KEYS)
                                                                            -> car-adv/src/statement_gen.rs
-* `autocheck`:  autocheck.CHECKS' reach column, which arming's grade reads (the rest of autocheck is S7.2's)
-                                                                           -> car-adv/src/seam_autocheck_gen.rs
+(autocheck.CHECKS is no longer generated: S7.2c's car-adv/src/autocheck.rs holds the whole table, and
+diffs_advcodex_autocheck.py holds every row of it to the tag's.)
 
 Nothing here is written by hand: a word that changes in Python fails `--check`, and the diffs (diffs_advpolicy_*.py)
 hold what the Rust code does with the tables.
@@ -266,7 +266,6 @@ def generate(found: dict) -> dict:
             "measured_gen.rs": measured(found["measured"], enums),
             "registry_gen.rs": registry(found["registry"], enums),
             "statement_gen.rs": statement(found["statement"]),
-            "seam_autocheck_gen.rs": autocheck(found["autocheck"]),
             "standards_gen.rs": standards(found["standards"])}
 
 

@@ -2070,6 +2070,7 @@ new edges in EXPECTED). `check_rebuild.sh`: all eight binaries the same with and
 profile-path scan now reports the Windows user name in codex-auto-resume.exe and car-core-stub.exe - the publisher `songyb111-gachon`
 (car-platform `addremove::PUBLISHER`, linked now that the CLI registers the entry), not a path: the scan needs an allowance for
 that constant (the main session's call).
+
 ## The advanced compatibility report and the Stop hook (seat S7.3c, branch `car-v0627-adv73c`, 2026-11-26)
 
 Reference: the v0.6.26 tag (`--reference v0.6.26`); nothing of the scope changed on dev after v0.6.26-beta.2 (`rediff_adv73c.py` lists it).
@@ -2148,3 +2149,168 @@ Mutation checks (a rule broken in car-adv, the example rebuilt, the named diff r
 * S7.3b: `github::Jobs` (job object, `NtResumeProcess`).
 * S7.3d: `hook::handler::main` as the `hook` role; the live `Hands`; the `HomeMutex`.
 * Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv73c.py --reference v0.6.26`.
+## S7.2c: the advanced edition's codex parts, autocheck, compatdata and inuse (branch `car-v0627-adv72c`, 2026-11-26)
+
+Ported into `car-adv` (D19) from the **v0.6.26 final** itself (D17; `codex/inuse.py` is the final's, FINAL-DELTA rows 20-23):
+
+| Python (`advanced/src/codex_auto_resume_advanced/`) | car-adv |
+|---|---|
+| `compatdata.py` | `compatdata` (validate, `_read`, adopt, in_force, overlay, table_for, summary, dumps; the five trust rules) |
+| `autocheck.py` | `autocheck` (the whole `CHECKS` table by hand, judge, settled, grade, the record, due, `_write`, ask/run/probe_engine, run_once, tend); S7.1b's `seam_autocheck*.rs` are gone, `arming` and `advprobe` name `autocheck` |
+| `codex/inuse.py` (final) | `codex::inuse` (tell/told/forget, **saw/elsewhere**, home, `_pinned`, backend over car-codex's `Backend` and car-config's discovery; `Looked` is what `saw` reads of a backend) |
+| `codex/protocol.py` (tables, refusals) | `codex::protocol` (MEASUREMENT_/CAPABILITY_METHODS, FORBIDDEN, DECLINE_ANSWERS, ACCEPTING_WORDS, reply_to, methods_for, methods_for_capability) |
+| `codex/turns.py`, `lineage.py`, `threads.py`, `conversation.py`, `sessions.py`, `goals.py`, `credits.py` | `codex::{turns, lineage, threads, conversation, sessions, goals, credits}` over car-codex's `paths`, `sql`, `LocalSource`, `values`, `labels`, `eligibility`, `usage` |
+| `time.strptime` + `calendar.timegm` for the forms read | `pytime` (CPython's `_strptime` expressions, Unicode digits, backtracking) |
+| `str.isalpha` | `codex/alpha_gen.rs` (`tests/rustdiff/gen_advcodex.py --write/--check`, from the reference interpreter) |
+
+**Not ported (left for the next seat, named):** `codex/protocol.Session` and `submitted` (the one-turn app-server helper: the
+runtime's channel, S7.2a/S7.2e1, opened only when a person measures or core hands a capability a send), `codex/headless.py`
+(450, over `Session`), `codex/ipc.py` (490, the Desktop's named pipe: needs car-platform `ipc_pipe` and a pipe of the test's
+own name), `codex/tokens.py` (320, rollouts' token counts, local days), `codex/wmi_escape.py` (287, MW; never run), `win/stopflag.py`
+and `win/waketimer.py`, and `turns.booted_of` (core's store read: `Turns::running` takes the boot time as a value). S7.2c's
+time ran out before them; nothing in this seat's modules waits on them.
+
+### The seams
+
+* `seam::Edges::table_for` is `compatdata::table_for(Some(state_dir), engine, &measured::table(), now, this_product(version))`;
+  `Edges::checked_for` is `autocheck::results_for(advanced_dir, engine)` (an `Err` is Unavailable). A host's `Edges` delegates
+  to them as it delegates the views to `compat_views`.
+* `codex::inuse::elsewhere(Some(home))` is what `AdvancedPlug.served_elsewhere` answers (S7.2a; any failure the empty set);
+  the usage meter (S7.2d) calls `inuse::saw(Some(home), &backend)` after `app_identity()`; the plug's `codex` hook calls
+  `inuse::tell`; `autocheck::tend` is the runtime's tick's (S7.2a) and reads `inuse::told`.
+* `autocheck::World { system, product_version }` and `inuse::Discovery` are what the entry points hand in: car-codex's
+  `Platform` and `config.version()`. Module state (inuse's told/elsewhere, autocheck's looked/running) is per process;
+  `inuse::reset`, `autocheck::reset`/`join` are for the harness.
+
+### The diffs (`tests/rustdiff/advcodex.py`, `diffs_advcodex_{compatdata,autocheck,inuse,readers}.py`)
+
+The Rust side is car-adv's example `advcodex` (one request of cases, the world's signers and process list stand in for
+Windows: `examples/advcodex/world.rs`); fake engines are car-adv's example `advfake` (a codex.exe stand-in answering
+`--version`, `queue --help`, `app-server generate-json-schema` and `features list` from a script, logging every call). The
+reference is the tag's advanced edition (`advref.run`, tag `v0.6.26` unless CODEX_AR_REFERENCE names another) with
+`authenticode.signer`, `processes_named`, `resource_users`, `process_identity` and `os.getpid` replaced. Cases that write run
+the reference then the probe on the same folders (`Scene`): the answers, every file left (byte for byte: the autocheck
+record, the adopted data) and every child the engine was asked for are held equal. `core.build_rest` builds both examples.
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72c.py --reference v0.6.26`.
+
+### For later seats
+
+* S7.2a: `served_elsewhere` = `inuse::elsewhere`; `Plug::codex` = `inuse::tell`; the tick calls `autocheck::tend`; fill
+  `Edges::table_for`/`checked_for` as above. `protocol::methods_for_capability` is the allow-list a channel's session checks.
+* S7.2b: `inuse::backend`, `protocol`, `turns`, `threads` are here; `autocheck::AUTH_FILE` names codex/authfile's file.
+* S7.2d: `credits::parse`/`outcome`/`full`, `turns::Turns::running`, `inuse::saw`.
+* The next S7.2c seat: `Session`, `headless`, `ipc`, `tokens`, `wmi_escape`, `win/stopflag`, `win/waketimer` (above).
+
+### Found and not fixed (another seat's crate)
+
+car-config's `Paths::ensure()` ignores `create_dir_all`'s error (`let _ =`): where `config` is a file, Python's
+`directory.mkdir(parents=True, exist_ok=True)` raises FileExistsError and stops before `logs/`; car-config goes on, makes
+`logs\` and its marker, and answers Ok. `autocheck::write` still answers OSError there (its own folder cannot be made), but
+the files left differ, so `diffs_advcodex_autocheck.test_write` leaves that home out. For S1.1/the integration: raise on
+the mkdir as the reference does.
+
+### S7.2c's checks (reference v0.6.26, rustc 1.100.0, `CARGO_BUILD_JOBS=4`)
+
+```
+diffs_advcodex_compatdata  4 tests OK: ~2,300 validate/summary cases over the advanced data's history, the test file's
+                           shapes and their mutants (5 products); 41 tables x 24 documents x 5 engines overlaid; 160 homes
+                           adopted and read, the files left byte for byte
+diffs_advcodex_autocheck   6 tests OK: CHECKS row by row; judge over ~560 schemas; 64 record files; 600 due cases; _write over
+                           4 homes; run_engine/probe_engine over 12 fake engines and tend over 5 x 17 ticks, the record and
+                           every child equal
+diffs_advcodex_inuse       4 tests OK: 1,500-step walks of tell/told/forget/saw/elsewhere/home; backend told, pinned and
+                           discovered under a scratch LOCALAPPDATA; protocol's tables and ~300 replies
+diffs_advcodex_readers     3 tests OK: 5 full homes and 10 homes wrong as a whole (every reader), credits, str.isalpha over
+                           every code point
+advanced/rust, rust        fmt --check, clippy -D warnings, test --locked, deny: all ok
+check_groundwork.py OK; gen_advcodex.py / gen_advpolicy.py --check current; check_rebuild.sh: the standard binaries the
+same with and without advanced/, no profile path
+```
+
+Mutation checks (each alone, release probe, its diff, restored): compatdata rule 1 (a build fail no longer wins), autocheck
+SANE_COUNT 49, `inuse.saw` comparing paths as written, `inuse.tell` keeping what was seen elsewhere, turns keeping a
+`completed_at` of 0: all caught. A sixth, a `recorded_at` equal to publication refused, survived; the diff now holds a record
+made the very minute of publication and catches it.
+
+## S7.2c remainder (seat adv72d, branch `car-v0627-adv72d`, 2026-11-26)
+
+Everything S7.2c's section names under "Not ported", from the **v0.6.26 final**'s `advanced/src/codex_auto_resume_advanced/`
+(reference `v0.6.26`, `tests/rustdiff/advref.py`):
+
+| Python | Rust |
+|---|---|
+| `win/waketimer.py` | car-adv `win::waketimer` (`WakeTimer`, `filetime`: half-even rounding, the c_longlong's low 64 bits) |
+| `win/stopflag.py` | car-adv `win::stopflag` (`StopFlag`, `event_name`: core's StopEvent name of the folder as pathlib writes it) |
+| their ctypes calls | car-platform `wake` (new, D3): `TimerKernel`, `PowerSettings`, `EventKernel`; `SystemTimer`, `SystemPower`, `SystemEvents` the real ones, built only by the product's entry points |
+| `codex/turns.booted_of` | car-adv `codex::turns::booted_of(state_dir)` (core's `Store::open` as `Store(paths.state_dir)` opens it, made and migrated where missing; car-control's link probe) |
+| `codex/tokens.py` | car-adv `codex::tokens` (`file_key`, `watched_homes`, `rollouts`, `unchanged`, `read`; the local day from a `LocalClock`: the product hands car-platform's `Crt`) |
+| `codex/wmi_escape.py` | car-adv `codex::wmi_escape` (`probe` over a `Chain`, `helper_argv`, `heartbeat_command_line`, `helper_plan`, `heartbeat_record`, the script and bootstrap). **Never run**: nothing implements `Chain` but the diff's stand-in |
+| `codex/protocol.Session`, `submitted` | car-adv `codex::session` (`Session`, `Channel` - what `submitted` and `headless` need of a session -, `SessionError`, `Submitted`); over car-codex's `TextReader`/`next_message`, `Backend::{compatible, argv, environment}`, `pairing::own_server[_gone]` and car-platform's starter |
+| `codex/headless.py` | car-adv `codex::headless` (`HeadlessRun`, `Follower`, `follower()` - the process's one -, `stop_all`, `live_session`, `settings_allowed`, the readers, `EMPTY_REFUSED`, the retry settings) |
+| `codex/ipc.py` | car-adv `codex::ipc` (`stop_turn`, `start_turn`, `steer_turn`, `Channel`, `Gate`, `request_shape`, `filled`, `stopped`); its pipe calls car-platform `ipc_pipe` (new: `open`, `server_trusted`, `Pipe::io`, `uuid4`; the windows crate gained the `Win32_System_Pipes` feature, no new crate) |
+
+car-adv's `win::tests::car_adv_names_no_suspend_or_shutdown_call` holds P7-DESIGN 3.5's rule at the source: no
+`SetSuspendState`, `ExitWindowsEx`, `InitiateSystemShutdown*`, `SetSystemPowerState` and no `windows::Win32` anywhere in
+car-adv (src and examples); car-platform's `wake` test holds that it writes no power setting. `ipc_pipe::open` refuses
+the Desktop's own pipe name in car-platform's own tests and wherever `CAR_NO_REAL_IPC` is set (the ipc diff sets it).
+
+### The seams
+
+* `headless`: `HeadlessRun::new(capability, key, opener, follower())`, the opener `live_session(backend)` (a closure
+  making `inuse::backend(...)`); `resume(thread, launch_guard, still_unloaded, words, client_id)` takes core's guard and
+  look as closures answering what the reference's `__enter__`/callable gives. `stop_all(follower(), 20.0)` is the
+  runtime's to call as the watcher leaves (S7.2a): the reference registers it with `atexit`. `seconds` is an `f64`:
+  `owe(thread, model, seconds)` gets `8.0` where the reference passes the int it was given (see AUDIT).
+* `session::Session` owns its `Backend` (the follower thread takes the session); `Channel::call` is submit + receive.
+* `ipc`: the pipe name is a parameter (None = the Desktop's), the request ids a closure (`ipc_pipe::uuid4` in the
+  product), the guard a `Gate` (enter gives `permitted`, exit may fail).
+* `wmi_escape::Chain` has no real implementation: MW's live run needs the Rust edition's own helper and heartbeat roles
+  (S7.3d's `car-adv-bin`) and car-platform's job-object calls; until then the measurement is the main session's.
+* `tokens::read(rollout, known, budget, &Crt)`; `watched_homes(installation, settings_file, env, config_os, os)`.
+* `WakeTimer::new(Box::new(SystemTimer), Box::new(SystemPower))`, `StopFlag::new(state_dir, Box::new(SystemEvents))`
+  in the product; never in a test.
+
+### The diffs (`tests/rustdiff/advcodexd.py` + `diffs_advcodex_{win,booted,tokens,wmi,session,headless,ipc}.py`)
+
+`advcodexd.py` is S7.2c's harness with its own reference script (the same `advcodex` probe; op families `wn.`, `bt.`,
+`tk.`, `wm.`, `ss.`, `hl.`, `ip.`); its `scene` compares a SQLite file by its dump. Nothing real is asked of Windows: the
+timer, the power settings, the stop event and the WMI chain are scripted stand-ins on both sides that log each call,
+compared in order; the session's engine is car-harness's `car-fake-codex`; the IPC pipe is the test's own (fakeipc).
+
+* `win`: 1,507 timer walks, 160 `filetime` values (half-even ties, 2**80, inf, nan), 806 stop-flag walks, 6 names.
+* `booted`: 11 state folders x 2 (none, empty, heartbeats with every boot time, damaged, a file), files as dumps.
+* `tokens`: `read` over 220 generated rollouts x 11 `known` rows and budgets plus LOOK_BACK cases, and `unchanged`
+  (~4,900 cases), each under TZ unset, `JST-9` and `EST5EDT`; `rollouts` over 7 home lists x 6 clocks (nested folders,
+  a junction, `.JSONL`, a folder named `x.jsonl`, files past `keep_days`); `file_key`; `watched_homes` told and not x 8
+  `codex_homes` settings.
+* `wmi`: the constants, 1,511 probe walks, the helper's `pwsh.run` plan over 150 inputs, the pwsh variables, the
+  heartbeat record.
+* `session`: 20 sessions on 20 fake engines (measurements, capabilities, both, neither, an unknown word; requests Codex
+  makes of every kind, notifications, no-JSON lines, refusals with every code shape, a float id, another call's id, a
+  wait that runs out, submitted answered later, initialize answering another home / no home / a non-text home / no
+  object / an error, engines that fail the checks): answers, counts and every byte sent (stdin.bin) equal.
+* `headless`: 266 runs (turn, compact, fallback; app look, owe, guard, look again; every answer and raise; stops from
+  inside a drain) with every call, look, drain and clock reading logged; the pure readers over ~70 shapes.
+* `ipc`: 38 calls on fresh scratch pipes (every word: stopped, not_stopped, no_client, version_mismatch, no_pipe,
+  no_answer, unconfirmed, refused, broken, held, started, steered) with every request the app saw; the shapes.
+
+Mutation checks (each alone, its diff, restored): the timer's `LocalFree` skipped when the read raises; the stop
+flag's handle left open when its wait raises; `booted_of` refusing a missing state folder; a token pass counting a
+repeat of the same totals; the probe reading the helper's life after the job closed first; the session counting a
+declined request twice; the session's exit not unsubscribing; headless's app look every 5 s; the steer's broken pipe
+taken as broken instead of unconfirmed: all caught. One survived and is equivalent: headless's interrupt asking for a
+compaction's turn (a compaction never has one: its `turn_id` is always None).
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72d.py --reference v0.6.26`.
+
+### For later seats
+
+* S7.2a: the runtime calls `headless::stop_all(headless::follower(), 20.0)` at exit; capability channels open
+  `session::Session::new(backend, None, Some(capability), config)`; the supervisor (crash_restart) holds a `StopFlag`
+  and the wake capability a `WakeTimer`, over car-platform `wake`'s `System*` types.
+* S7.2d / S7.2e: `ipc::{stop_turn, start_turn, steer_turn}` with `ipc_pipe::uuid4` as the ids and core's errand guard
+  as the `Gate`; `headless::HeadlessRun` for headless_run, compact_continue, model_fallback (`owe` gets f64 seconds);
+  `turns::booted_of(state_dir)` for `Turns::running`; `tokens` for usage_analytics (the store's `token_files` rows are
+  the `known` maps).
+* S7.3d: `wmi_escape::Chain` over car-platform job objects and the edition's own helper/heartbeat roles.

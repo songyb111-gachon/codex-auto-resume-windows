@@ -12,6 +12,8 @@
 //! | `kernel`, `sync`, `homelock` | `win/kernel.py`, `win/sync.py`, `win/homelock.py`, `win/folderid.py` |
 //! | `links` | `Path.is_symlink()` on Windows: the one link probe (a junction is not a link) |
 //! | `localclock` | `time.localtime` and `time.mktime`: the C runtime's `_localtime64_s` and `_mktime64` |
+//! | `ipc_pipe` | the advanced edition's `codex/ipc.py` pipe calls (a pipe of the caller's name; the Desktop's refused in tests) |
+//! | `wake` | the advanced edition's `win/waketimer.py` and `win/stopflag.py` calls, behind traits a test fills |
 //! | `network`, `ownprocess`, `power`, `powerdown`, `acl`, `authenticode`, `inventory`, `typeface`, `handover` | the module of the same name in `win/` |
 //!
 //! Not ported: `win/dll.py` (a cache of ctypes handles and the window-class declarations the C# surfaces use: Rust
@@ -26,6 +28,7 @@ pub mod files;
 pub mod handover;
 pub mod homelock;
 pub mod inventory;
+pub mod ipc_pipe;
 pub mod kernel;
 pub mod links;
 pub mod localclock;
@@ -45,4 +48,5 @@ pub mod spawn;
 pub mod startup;
 pub mod sync;
 pub mod typeface;
+pub mod wake;
 pub mod widepath;
