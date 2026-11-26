@@ -14,6 +14,8 @@ whether it pools), ["resume", record, thread, still_unloaded] (the route P16 nam
 true | false | "raise" | null). A session answer "timeout" raises protocol_timeout, "refused" SessionRefused, "no"
 Codex's own refusal of that method (RefusedByCodex). A goal is a status or {goal_id, status}; for goal_continuation a list of
 them is read one after another (the last again).
+The admission capabilities' (S7.2e1b): ["rule", tag, from, to, category] (a person's rule), ["admit", key,
+capability, answer, rule_id] (an admission row as the runtime writes one).
 codex_chat's (S7.2e1b): ["chat_add", thread, words, record_id] writes a message as the Dashboard does.
 prompt_queue's (S7.2e1b): `running` {thread: bool | null} (a latest turn in progress; absent: false);
 ["prompt_add", thread, words, trigger, {at, every, occurrences, until, depends, while_running}] writes one as the
@@ -185,7 +187,8 @@ class World:
         "empty_response": "emptyreply", "keep_going": "keepgoing", "subagent_parent": "subagent",
         "marker_free_continuation": "markerfree", "goal_continuation": "goal", "queue_for_open": "foropen",
         "open_to_send": "opentarget", "steer_send": "steer", "prompt_queue": "promptqueue",
-        "codex_chat": "chat",
+        "codex_chat": "chat", "structured_rules": "admitted", "unknown_failure_budget": "admitted",
+        "codex_gave_up": "admitted", "sign_in_retry": "admitted",
     }
     LOOKING = {"empty_response": "EmptyResponse", "keep_going": "KeepGoing", "subagent_parent": "SubagentParent"}
 
@@ -247,6 +250,8 @@ class World:
                 return module.GoalContinuation(paths, session=lambda: self.open(capability), home="fake-codex-home",
                                                view=lambda: globals()["view"], measured=lambda: globals()["measured"],
                                                clock=lambda: self.clock[0])
+            if self.MODULES[capability] == "admitted":
+                return getattr(module, "make_" + capability)(paths)
             if capability == "codex_chat":
                 return module.CodexChat(paths, session=lambda: self.open(capability))
             if capability == "prompt_queue":
@@ -378,6 +383,11 @@ class World:
             return norm(channel.send(args[1], args[2], client_id=args[3]))
         if op == "override":
             return runtime.state.add_override(args[0], args[1], args[2])
+        if op == "rule":
+            return list(runtime.state.add_rule(args[0], args[1], args[2], args[3],
+                                               generation=runtime.state.meta()["generation"], actor="dashboard"))
+        if op == "admit":
+            return runtime.state.admit(args[0], args[1], args[2], rule_id=args[3])
         if op == "chat_add":
             return runtime.state.add_chat(args[0], args[1], args[2])
         if op == "prompt_add":

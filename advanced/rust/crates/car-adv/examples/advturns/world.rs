@@ -771,6 +771,40 @@ impl World {
                     .map(Value::from)
                     .map_err(|error| error.class().to_owned()),
             ),
+            "rule" => {
+                let generation = state
+                    .meta()
+                    .ok()
+                    .and_then(|meta| meta.get("generation").cloned())
+                    .unwrap_or(Value::Null);
+                Some(
+                    state
+                        .add_rule(
+                            &arg(0),
+                            &arg(1),
+                            &arg(2),
+                            &arg(3),
+                            &generation,
+                            &text("dashboard"),
+                            &Value::Null,
+                        )
+                        .map(|(rule, generation)| Value::Array(vec![Value::from(rule), generation]))
+                        .map_err(|error| error.class().to_owned()),
+                )
+            }
+            "admit" => Some(
+                state
+                    .admit(
+                        &arg(0),
+                        &arg(1),
+                        &arg(2),
+                        &arg(3),
+                        &Value::Null,
+                        &Value::Null,
+                    )
+                    .map(Value::Bool)
+                    .map_err(|error| error.class().to_owned()),
+            ),
             "keep" => Some(
                 state
                     .set_keep_going(&arg(0), &arg(1), &Value::Null)

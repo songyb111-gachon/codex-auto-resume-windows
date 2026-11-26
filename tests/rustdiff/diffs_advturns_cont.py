@@ -520,10 +520,79 @@ def chat_corpus() -> list:
     ]
 
 
+RULES, BUDGET, GAVE, SIGN = "structured_rules", "unknown_failure_budget", "codex_gave_up", "sign_in_retry"
+
+
+def admitted_corpus() -> list:
+    from rustdiff.advturns import KEY, OTHER_KEY, record
+
+    counter = [0]
+
+    def failure(category, code=None, status=None, **more):
+        """A failure as core puts it at P17: every answer core would carry out offered (`takes`), completed after the
+        capability was turned on, under an interruption id of its own (one admission each)."""
+        counter[0] += 1
+        made = {"category": category, "code": code, "status": status, "interruption_id": "%064x" % counter[0],
+                "completed_at": NOW + 1, "form": "tagged", "has_message": False,
+                "takes": ["admit", "as_timeout", "as_server_5xx", "as_network_transient"]}
+        made.update(more)
+        return made
+
+    def admission(found):
+        return ["ask", "admission", found]
+
+    def known(category, key=KEY, **more):
+        return ["ask", "gates", "known_failure", record(key, THREAD, category=category, **more), {}]
+    return [
+        scenario("rules_pace_a_named_code", [RULES],
+                 [admission(failure("unknown", "weirdError")), arm(RULES),
+                  ["rule", "weirdError", None, None, "timeout"], ["rule", "otherError", 500, 599, "server_5xx"],
+                  ["rule", "otherError", 400, 450, "network_transient"],
+                  admission(failure("unknown", "weirdError")), admission(failure("unknown", "otherError", 503)),
+                  admission(failure("unknown", "otherError", 404)), admission(failure("unknown", "otherError", 460)),
+                  admission(failure("unknown", "otherError", "503")), admission(failure("unknown", "otherError")),
+                  admission(failure("unknown", "badRequest")), admission(failure("server_5xx", "weirdError")),
+                  admission(failure("unknown", 7)), admission("not a failure"),
+                  known("unknown", "%064x" % 1), known("unknown", "%064x" % 2), known("unknown", "%064x" % 4),
+                  ["rule", "thirdError", None, None, "server_5xx"],
+                  known("unknown"), ["admit", KEY, RULES, "as_timeout", 1], known("unknown"),
+                  ["admit", OTHER_KEY, RULES, "as_server_5xx", 9], known("unknown", OTHER_KEY),
+                  known("server_5xx"), ["ask", "gates", "global_gates", record(KEY, THREAD, category="unknown"), {}]]),
+        scenario("budget_tries_a_task", [BUDGET],
+                 [admission(failure("unknown", "weirdError")), arm(BUDGET),
+                  admission(failure("unknown", "weirdError")),
+                  admission(failure("unknown", "weirdError", chain={"recovery_attempts": 0})),
+                  admission(failure("unknown", "weirdError", chain={"recovery_attempts": 1})),
+                  admission(failure("unknown", "weirdError", chain={"recovery_attempts": True})),
+                  admission(failure("unknown", "weirdError", chain="a chain")),
+                  ["choose", BUDGET, "attempts", 3],
+                  admission(failure("unknown", "weirdError", chain={"recovery_attempts": 2})),
+                  admission(failure("unknown", "weirdError", chain={"recovery_attempts": 3})),
+                  admission(failure("terminal_auth")), known("unknown"), known("terminal_auth"),
+                  ["ask", "gates", "known_failure", "a record", {}]]),
+        scenario("gave_up_twice_a_task", [GAVE],
+                 [arm(GAVE), admission(failure("terminal_failure", "responseTooManyFailedAttempts")),
+                  admission(failure("terminal_failure", chain={"recovery_attempts": 1})),
+                  admission(failure("terminal_failure", chain={"recovery_attempts": 2})),
+                  admission(failure("terminal_failure", chain={})), admission(failure("unknown")),
+                  known("terminal_failure"), known("unknown")]),
+        scenario("sign_in_once_a_task", [SIGN],
+                 [arm(SIGN), admission(failure("terminal_auth", "unauthorized")),
+                  admission(failure("terminal_auth", chain={"category": "terminal_auth"})),
+                  admission(failure("terminal_auth", chain={"category": "usage_limit"})),
+                  admission(failure("terminal_auth", chain={"category": "usage_limit", "categories": None})),
+                  admission(failure("terminal_auth", chain="a chain")), admission(failure("unknown")),
+                  known("terminal_auth"), known("terminal_failure")]),
+        scenario("admitted_watched", [RULES, BUDGET, GAVE, SIGN],
+                 [arm(RULES, "shadow"), arm(BUDGET, "shadow"), arm(GAVE, "shadow"), arm(SIGN, "shadow"),
+                  admission(failure("unknown", "weirdError")), admission(failure("terminal_auth"))]),
+    ]
+
+
 def corpus() -> list:
     return (empty_corpus() + keep_corpus() + subagent_corpus() + marker_corpus() + goal_corpus()
             + for_open_corpus() + open_target_corpus() + prompt_corpus() + steer_corpus()
-            + chat_corpus())
+            + chat_corpus() + admitted_corpus())
 
 
 class AdvTurnsContDiff(advturns.AdvTurnsCase, unittest.TestCase):
