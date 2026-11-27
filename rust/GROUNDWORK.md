@@ -5156,11 +5156,14 @@ probe mode with no window or the reference test's number.
 | WindowOnHostTests 6 (the kept-alive test in the host's terms: the procedure Windows calls is the popup's own delegate while its window exists, and the window goes with it) | `tests/test_host_popup_opening_motion.py` | Ran 6, OK |
 | WindowOnHostTests 1 (a SendMessageW from the test reaches the host's window for real, the look handed over first), GateOnHostTests 7 (the ask-still test also holds the host's own source rule: ReadLook's `Still = AskStill();`, the tick's `Still = AskStillNow();`), IconReadingOnHostTests 2 (plus gui/TrayIcon.cs's popup made with PopupHeld and PopupHeld's reading) | `tests/test_host_popup_motion_held.py` (HOST_SIDE) | Ran 10, OK |
 | FadeOnHostTests 4, ReducedFadeOnHostTests 4, ContrastFadeOnHostTests 4 | `tests/test_host_menu_opening_motion.py` | Ran 12, OK |
+| **`card_focus`**: CardStack.FocusLine, its private Plain, FocusSnapshot (this machine's front window, read only, as the original reads it), and a replay whose Focus answers the test's answers in order (asked back of the test one at a time; "raise" throws): after (FocusAfterNow), and with `create` a CardStack made by its own Create (its window message-only) in probe mode - card windows made, never shown - show and message. **`card_stack`**: the same stack with its actions posted to RecordingActions and its worker inline: show (the core's `notice` event: notice_card.view, title, stays, letters), message to a card's body window, tick, hold; per card: on the stack, the view's click and actions, size, targets, phase. **`card_motion`**: CardMotion's frame, gone, wait, pause, retire (an endless hold sent as "inf") | `HostProbe.cs` | - |
+| FocusLineOnHostTests 4, SecondLookOnHostTests 1 (the test module's `stack` and `win32` the host's) | `tests/test_host_card_focus.py` (HOST_SIDE) | Ran 5, OK |
+| CardClickOnHostTests 3 (test_notice_click), CardStayOnHostTests 2 (test_notice_stay; notice_window.CardStack and notice_card.CardMotion the host's) | `tests/test_host_notice_cards.py` (HOST_SIDE) | Ran 5, OK |
 
 Ledger: `test_popup_card_window` **host** (11 of 11), `test_popup_motion_held` **host** (10 of 10); `test_popup_opening_motion` 6 of
 11 (ArithmeticTests 3, FaceDrawnTests 2: the drawing, S6.4f), `test_menu_opening_motion` 7 of 8 (ReducedFadeTests' three tests counted
-as the UI tests they are: ui_tests 8, unaffected 0; WindowTests 1 left). **Host 32, pending 51** (the ceiling stays 54 for the
-integration to set).
+as the UI tests they are: ui_tests 8, unaffected 0; WindowTests 1 left); `test_card_focus` **host** (5 of 5), `test_notice_click`
+**host** (3 of 3), `test_notice_stay` **host** (2 of 2). **Host 35, pending 48** (the ceiling stays 54 for the integration to set).
 
 **Mutation checks** (each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut15.json` .. `-mut18.json`):
 on gui/ - the shadow window without WS_EX_TRANSPARENT, a light frame's dirty rows a row too far, the opening's first picture not
@@ -5170,20 +5173,26 @@ face taking twice its time, the tick not asking held again, the light breathing 
 drawn moving while held, a switch gliding while held, the sweep while held, a failing held question holding, the icon's reading
 forgetting a disconnected session, a held popup keeping its frame timer, the menu opening a little opaque, the fade's timer never
 stopped, a fading-out menu taking clicks, a fade frame drawing again, a refused opening fading out, High Contrast fading in, the
-faded-out menu never hidden; on the twin's side - the reader asked for the next child, the record's dirty dropped, a refused upload not
-handed on: **31 fail their test.** Survivor (equivalent, twice): a face started while held (FaceGlides' `Holds() ? null`) - SyncFrames
-clears every face while held right after (`if (Holds() && (Opening != null || Faces.Count > 0))`), the reference the same; the Python
-test cannot see it either. Invalid: `Still = Still;` does not compile (`-warnaserror`), rewritten as `Still = false;` (caught).
+faded-out menu never hidden, no change still a line, a failing focus look thrown on (an ERROR: the probe's ask-back relies on
+FocusNow's catch), a class name of 7 letters other, a title with spaces reaching the log, the look before taken from the last card, a
+click on the face opening nothing, a button opening the next button's page, a right click opening the face's page, a clicked card
+staying, a notice that stays running out, an endless hold asking for a timer (`-mut19.json`, `-mut20.json`); on the twin's side - the
+reader asked for the next child, the record's dirty dropped, a refused upload not handed on: **42 fail their test.** Survivors
+(equivalent): a face started while held (FaceGlides' `Holds() ? null`, twice) - SyncFrames clears every face while held right after
+(`if (Holds() && (Opening != null || Faces.Count > 0))`), the reference the same; a second focus timer finding the look again
+(`focusBefore` kept) - its second look asks Focus, the test's answers are spent, the question fails and FocusNow says nothing, exactly
+as the reference's `_focus_now` does with the same mutation; the Python tests cannot see either. Invalid: `Still = Still;` does not
+compile (`-warnaserror`), rewritten as `Still = false;` (caught).
 
 ### What is left of the window rows after S6.4d5 (per row, the route)
 
 `test_menu_opening_motion.WindowTests` 1 (a MenuWindow made by its own Create and kept on a pumping thread as `popup_live` keeps the
 popup, shown unactivated at (-32000, -32000) - needs the main session's word for a real menu window, the same rule as the card's;
-its fade's steps read around its own frames as `openings` are), `test_card_focus` 5 (FocusLineTests 4: CardStack's FocusAfterNow with
-Focus answered in order, FocusLine, the private Plain, FocusSnapshot's keys; SecondLookTests 1: a CardStack in probe mode - its windows
-made and never shown - showing two cards and the TimerFocus WM_TIMER, Focus asked back of the test), `test_notice_click` 3 and
-`test_notice_stay` 2 (CardStack's clicks and holds in probe mode), `test_tray_menu_drawn.LiveWindowTests` 3 and `test_tray.LiveIconTests`
-1 (the live icon, under the card window's rule), `test_tray_open_popup.OpensTests` 6 and `test_surface_properties`' opener test
+its fade's steps read around its own frames as `openings` are), `test_tray_menu_drawn.LiveWindowTests` 3 (a real MenuWindow shown
+off every screen and read by the test's own AccessibleObjectFromWindow across processes: the kept thread must then RUN messages between
+questions, not only peek, for COM's cross-apartment calls - a `menu_live` beside `popup_live` with a pumping idle loop) and
+`test_tray.LiveIconTests` 1 (the host's TrayIcon started for real - its window, NIM_ADD with the scratch .ico, its tooltip after an update
+read as LastTip, stopped and its thread ended; the main session allowed both live-icon routes under the card window's rule), `test_tray_open_popup.OpensTests` 6 and `test_surface_properties`' opener test
 (S6.4e), the first rest and live card of `test_tray_tip_messages` and the tip card's two hides (gui/ seams, S6.3e). The drawing's
 (S6.4f): `test_popup_opening_motion` ArithmeticTests 3 + FaceDrawnTests 2, `test_tray_menu_no_glow` 5, `test_tray_tip_header_ink` 4,
 `test_motion_popup` 3, `test_corners_by_design` 4.
@@ -5195,7 +5204,11 @@ test_host_popup_card_window (gui_lock.sh)                         Ran 11, OK
 test_host_popup_opening_motion (gui_lock.sh)                      Ran 6, OK
 test_host_popup_motion_held (gui_lock.sh)                         Ran 10, OK
 test_host_menu_opening_motion (gui_lock.sh)                       Ran 12, OK
-test_surface_ledger (wait_quiet.sh)                               Ran 7, OK (after test_host_popup_motion_held joined HOST_SIDE)
+test_host_card_focus (gui_lock.sh)                                Ran 5, OK
+test_host_notice_cards (gui_lock.sh)                              Ran 5, OK
+test_surface_ledger (wait_quiet.sh)                               Ran 7, OK (after test_host_popup_motion_held, test_host_card_focus and
+                                                                  test_host_notice_cards joined HOST_SIDE)
+privacy_scan.py on the new and changed files                      clean
 ```
 
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
