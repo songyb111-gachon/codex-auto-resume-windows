@@ -115,8 +115,16 @@ class TipCardTests(unittest.TestCase):
         # for the tests that drive it: the one other place, and never on the product's path.
         self.assertEqual(users, ["gui/TrayIcon.cs", "gui/SurfaceRenderWindows.cs"])
         icon = code(source("gui/TrayIcon.cs"))
-        # made inside the hover's own path, only when no card is held yet
-        at = icon.index("new TipCard(")
+        # S6.3e: made by the icon's maker (MakeTipCard, whose live default MakeLiveTip is the one `new TipCard(`), which the
+        # hover's own path calls only when no card is held yet - nothing else calls it
+        maker = icon.index("private static ITrayTip MakeLiveTip(")
+        self.assertEqual(icon.count("new TipCard("), 1)
+        self.assertGreater(icon.index("new TipCard("), maker)
+        self.assertLess(icon.index("new TipCard("), icon.index("\n        }", maker))
+        self.assertEqual(re.findall(r"\bMakeLiveTip\b", icon), ["MakeLiveTip", "MakeLiveTip"], "the default, and itself")
+        self.assertIn("MakeTipCard = MakeLiveTip;", icon)
+        self.assertEqual(icon.count("MakeTipCard("), 1, "called in one place")
+        at = icon.index("MakeTipCard(")
         self.assertIn("if (Tip == null)", icon[max(0, at - 400):at])
         self.assertIn("Tip.Show(IconRectReader, point)", icon[at:at + 600])
 

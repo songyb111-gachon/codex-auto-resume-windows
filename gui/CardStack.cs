@@ -149,7 +149,7 @@ namespace CodexAutoResume
             hwnd = IntPtr.Zero;
             if (window != IntPtr.Zero)
             {
-                foreach (int timer in new[] { TimerFrame, TimerWait, TimerFocus }) SurfaceScreen.KillTimer(window, timer);
+                foreach (int timer in SurfaceMath.Three(TimerFrame, TimerWait, TimerFocus)) SurfaceScreen.KillTimer(window, timer);
                 SurfaceNative.DestroyWindow(window);
             }
             focusBefore = null;

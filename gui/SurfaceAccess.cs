@@ -31,7 +31,7 @@ namespace CodexAutoResume
         internal const int E_INVALIDARG = -2147024809, DISP_E_MEMBERNOTFOUND = -2147352573;
         internal const int VT_EMPTY = 0, VT_I4 = 3;
         internal const int ROLE_SYSTEM_TOOLTIP = 0x0D, STATE_SYSTEM_READONLY = 0x40;
-        private static readonly int[] NavigateNext = { 2, 4, 5 }, NavigatePrevious = { 1, 3, 6 };
+        private static readonly int[] NavigateNext = SurfaceMath.Three(2, 4, 5), NavigatePrevious = SurfaceMath.Three(1, 3, 6);
         private const int NavigateFirst = 7, NavigateLast = 8;
         private static readonly string[] PickedFirst = { "switch", "button" }, Passing = { "focused", "hot" };
         internal static readonly Guid IidUnknown = new Guid(0x00000000, 0x0000, 0x0000, 0xC0, 0, 0, 0, 0, 0, 0, 0x46);
@@ -697,7 +697,7 @@ namespace CodexAutoResume
             }
 
             /// The probe's walk of one child: name, value, description and default action as [hr, text]; role and state as
-            /// [hr, vt, value]; navigate up, down, first and last as [hr, vt, value] - each through the method the vtable
+            /// [hr, vt, value]; navigate in each of the eight directions as [hr, vt, value] - each through the method the vtable
             /// holds, with a VARIANT of VT_I4 `child`.
             internal List<object> Walk(int child)
             {
@@ -708,15 +708,18 @@ namespace CodexAutoResume
                     for (int at = 0; at < 24; at++) Marshal.WriteByte(variant, at, 0);
                     Marshal.WriteInt16(variant, 0, VT_I4);
                     Marshal.WriteInt32(variant, 8, child);
-                    foreach (int slot in new[] { 10, 11, 12, 20 })
+                    foreach (int slot in SurfaceMath.Four(10, 11, 12, 20))
                     {
                         Marshal.WriteIntPtr(found, IntPtr.Zero);
                         int code = ((OfChild)callbacks[slot])(Pointer, variant, found);
                         IntPtr text = Marshal.ReadIntPtr(found);
                         row.Add(new List<object> { code, text == IntPtr.Zero ? null : Marshal.PtrToStringBSTR(text) });
                     }
-                    foreach (int direction in new[] { 0, 0, 1, 2, 7, 8 })
+                    // Two reads of the role and the state (the first two turns), then every direction the Python's walk asks
+                    // (1 to 8: up, down, left, right, next, previous, first, last).
+                    for (int turn = 0; turn < 10; turn++)
                     {
+                        int direction = turn < 2 ? 0 : turn - 1;
                         for (int at = 0; at < 24; at++) Marshal.WriteByte(found, at, 0);
                         int code;
                         if (row.Count == 5) code = ((OfChild)callbacks[13])(Pointer, variant, found);

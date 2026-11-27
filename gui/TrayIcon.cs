@@ -162,6 +162,11 @@ namespace CodexAutoResume
         /// The surfaces it makes (the probe hands its own).
         internal Func<ITrayPopup> MakePopup;
         internal Func<ITrayTip> MakeTip;
+        /// How the icon's card is made when MakeTip is not set (icon.py: TipCard(content=, held=, log=, days=)): what it shows,
+        /// whether the popup holds it still, the log and whether it looks at the date, handed in as the reference hands them,
+        /// so a probe can answer the making and see what it was made with (S6.3e). The live icon's: TipCard, attached to
+        /// SurfaceAccess, as its ITrayTip.
+        internal Func<Func<TipCard.Content>, Func<bool>, Action<string>, bool, ITrayTip> MakeTipCard = MakeLiveTip;
         internal Func<ITrayMenu> MakeMenu;
         internal Func<ITrayCards> MakeCards;
         /// Whether it hosts the notification cards (an inbox was given).
@@ -496,12 +501,7 @@ namespace CodexAutoResume
                 if (Tip == null)
                 {
                     if (MakeTip != null) Tip = MakeTip();
-                    else
-                    {
-                        var card = new TipCard(TipContent, PopupHeld, Log, Days);
-                        SurfaceAccess.Attach(card);
-                        Tip = new TipSurface(card);
-                    }
+                    else Tip = MakeTipCard(TipContent, PopupHeld, Log, Days);
                 }
                 Tip.Show(IconRectReader, point);
             }
@@ -1213,6 +1213,14 @@ namespace CodexAutoResume
             public void SetStrings(Dictionary<string, object> strings, string locale, string letters) { window.SetStrings(strings, locale, letters); }
             public void Snapshot(Dictionary<string, object> popup) { window.Snapshot(popup); }
             public void FollowSettings(Dictionary<string, object> values) { window.FollowSettings(values); }
+        }
+
+        /// The live icon's card (MakeTipCard's default): a TipCard a screen reader can ask, as the icon's ITrayTip.
+        private static ITrayTip MakeLiveTip(Func<TipCard.Content> content, Func<bool> held, Action<string> log, bool days)
+        {
+            var card = new TipCard(content, held, log, days);
+            SurfaceAccess.Attach(card);
+            return new TipSurface(card);
         }
 
         private sealed class TipSurface : ITrayTip

@@ -36,7 +36,7 @@ namespace CodexAutoResume
         internal Action OnLeave;
         private MenuWindow child;
         private int? childIndex, hover;
-        internal int[] Work = { 0, 0, 0, 0 };
+        internal int[] Work = new int[4];
         private IntPtr hwnd;
         internal bool Visible;
         internal List<object> Entries = new List<object>();

@@ -5291,3 +5291,219 @@ control/codexstart.py and runs `test_start_for_codex` beside diffs_advsurface).
 * **S7.3d**: the seams listed under "The seam wired" above.
 * test_screenshots / test_motion_fidelity / test_install_motion / test_advanced_shots: stale pictures, the main
   session's.
+## Seat S6.3d: the C# host builds reproducibly (branch `car-v0627-s63d`, from Integration 11 `8cbcd6ac3`, 2026-11-27)
+
+Integration 11 found that `build/make_gui.ps1` compiled `CodexAutoResume.exe` and `build/normalize_pe.py` refused it: the
+in-box C# 5 compiler names a class `<PrivateImplementationDetails>{GUID}` with a fresh random GUID for (a) a string switch
+of **six or more** labels (it builds a Dictionary) and (b) a constant primitive array initializer of **three or more**
+elements (`RuntimeHelpers.InitializeArray`). Measured on this compiler (14.8.10001.0) with one-file programs: string
+switches of 5 labels build none, 6 do (stacked `case "a": case "b":` labels each count); arrays of 1 and 2 constants
+none, 3 and more do, for every primitive type tried (int, uint, long, double, float, byte, char, bool, ushort). The
+host's own `Starts` table had 1,820 of them (7,280 bytes). The window's sources had none (that is why only the host
+failed).
+
+### What was done (nothing about behaviour changes)
+
+| Commit | What |
+|---|---|
+| `3b54120c9` | Every constant array: `new int[4]` / `new int[3]` where the elements are zero (`SurfaceLayers.Nothing`, `MenuWindow.Work`, `TrayMotion`'s two), `" :  ".ToCharArray()` (TrayWords), and `SurfaceMath.Three(a, b, c)` / `Four(a, b, c, d)` (in `gui/PopupLayout.cs`, filled one element at a time) for the others: the timer lists of TipCard, PopupWindow (x2) and CardStack, the opening's `{255, 0, 1}`, MSAA's tables, the icon's rectangle in the render mode (x2). The 1,820-entry `Starts` of `gui/SurfaceBidi.cs`: the generator (`tests/surfacebidi.py`, regenerated on the bundled 3.14.10, `--check` exact) now writes the runs' first code points as a packed string (the distance from the one before, 5 bits to a base 64 character, the sixth bit set while more follow, 2,137 characters) and the C# `Unpack` builds the `int[]` once when `SurfaceBidi` is first used. `KindOf` and `FirstStrong` are the same lines. |
+| `815d30970` | Every string switch of six labels or more became an if chain by a mechanical rewrite (`==` on a string is the ordinal compare a switch does; a null falls through to the default as before; the chains that had `break` are `else if` chains): SurfaceFonts x2 (RoleBase, RoleWeight), SurfaceTheme x3 (SystemIndex, ContrastColour, Token), SurfaceDays (the motion kinds), SurfaceLight x2 (StatusFill, StatusSystem), PopupLayout.StateInk, TrayMotion x2 (ForLight, StatusFill), SurfaceRender x3 (the surface, the card-life verbs, the painter's calls), SurfaceRenderWindows, SurfaceRenderServe (the serve calls). A `string word = state as string;` is read once where the switch expression was not a name. |
+| `0c4eab0b5`, `4590ef199`, `e045d52b0` | The guards, the re-diff's build proof and the widened MSAA walk, below. |
+
+### The guards
+
+* `tests/test_reproducible.py`: `HostSourceRuleTests` reads gui/host.sources' files (`guiscan.SEPARATE` plus its
+  `[generated]`) and fails on a string switch of six labels or more and on a constant primitive array of three elements
+  or more (constants = the numbers and chars written out and the names of `const` primitives), and on the same array in
+  the window's sources; its own test shows the two readers a switch/array to refuse and ones to let through (comments,
+  an int switch, strings, a variable). `HostBuildTests` compiles the host with the real compiler twice and asserts no
+  random class, the normaliser accepts it and two builds are equal after it. `VersionResourceTests` also checks that
+  `make_gui.ps1` leaves `CodexAutoResume.exe` normalised and stamped (`gui_stamp.check(.., "standard", "host")`).
+  Run against `8cbcd6ac3`'s sources the readers find all 16 switches and 17 arrays (the base's compile showed 12 dictionaries and 13 data blocks, equal constants sharing one).
+* Three tests were stale since the host joined `make_gui.ps1` and are corrected, not weakened: `test_reproducible`'s
+  `-Description` count (2, the window and the host), `test_tooling_round2`'s `-Kind` count (2: window, host) and
+  `test_edition_build`'s `Read-SourceList` count (3: window, overlay, host).
+* `tests/rustdiff/rediff_host_surface.py --reference v0.6.26` (the re-diff) now ends with the build proof: it reruns
+  `test_surface_parity` and `test_surface_windows` against the tag's package, then `HostSourceRuleTests`,
+  `HostBuildTests` and `test_host_shape` on this checkout.
+* One probe widened: `SurfaceAccess.Walk` (the MSAA probe) and `test_surface_windows` navigate in all eight directions
+  (1 to 8), not 1, 2, 7 and 8. Elements 3 to 6 of `NavigateNext` / `NavigatePrevious` were not compared at all: a mutation
+  of `NavigateNext`'s last element passed (hollow); with the walk widened it fails the test.
+
+### The proof
+
+* `make_gui.ps1` and `make_gui.ps1 -Edition advanced`, each built twice into fresh folders: every `.exe` byte-identical
+  and normalised: standard `CodexAutoResume.exe` `a805c4152be2...bd4d4bbf6d3cdfe8` (532,992 bytes; the base's source
+  built raw 532,480), `CodexAutoResumeSettings.exe` `c7b4879a551f...` (unchanged: the window's sources are untouched),
+  the advanced window `80fb42457bf7...` (unchanged).
+* Comparison A exact: `test_surface_parity` (21), `test_surface_windows` (8), `rediff_host_surface.py --reference v0.6.26`
+  (29 + 22 tests: exact, builds reproducibly), `test_host_shape` (14), `test_host_shell` (8, 3 skipped for want of a built
+  `car_core.dll`), `test_host_app` (46), `test_host_contract` (12), `test_guiscan` (12), `test_reproducible` (28).
+* Start time (the render mode, `CODEX_AR_RENDER_PLAN`, no DLL and no window: the host's process start, its first JIT
+  and one job), the base's raw build against this head's, interleaved, 30 starts each, median of the wall time:
+  empty job 124.0 ms -> 123.3 ms (-0.6 %), one bidi case 131.8 -> 130.6 ms (-0.9 %), the popup-motion case 162.6 ->
+  160.1 ms (-1.6 %); the answers are byte-identical. The packed table's decode is about 1,820 small steps, below the
+  noise. Integration 11's whole-start figure (about 1.0 s, DLL included) is not what this moves.
+* Mutation checks (each alone, the file restored by `git checkout`, the test named run under `gui_lock.sh`): an
+  attention/recovering swap in `TrayMotion.ForLight` (the icon's frames), `StatusFill`'s stacked `recovering` label
+  dropped (the menu and icon card, byte for byte), `Token`'s `muted` answering `Line` (every plan painted), one
+  character of the packed direction table shifted (the first-strong comparison over the whole code space),
+  `Three(255, 0, 1)` -> `(255, 1, 0)` (the popup's motion), the drift chain's x and y swapped (the special days), the
+  card-life chain's `pause` and `retire` swapped (a card's life step for step), `NavigateNext`'s last element 5 -> 4
+  (the popup window's MSAA walk, after the widening), and the two guards (a six-label switch and a constant array of
+  four put back: `HostSourceRuleTests`). 9 of 10 failed their test at once; the 10th, `StatusFill`'s unknown-state
+  default `idle` -> `active`, passes `test_surface_parity` whole: no plan the matrix paints carries an unknown state
+  there. That is a gap in comparison A that this seat did not close (a case with a state the Python does not know, for
+  `SurfaceLight.StatusFill`, `StatusSystem` and `TrayMotion.BrandState`/`ForLight`/`StatusFill`).
+
+### Seams and what later seats need
+
+* Nothing in `rust/` or in the advanced workspace changed; no new dependency. No picture was made.
+* A source that adds a string switch of six labels or a constant array of three elements to gui/host.sources fails
+  `HostSourceRuleTests` with the file and line; write an if chain, `new int[n]`, `SurfaceMath.Three`/`Four`, or build a
+  table once from a compact string as `gui/SurfaceBidi.cs` does. A generated source changes through its generator.
+* The window's sources are not touched; `HostSourceRuleTests` also holds them to the array rule.
+
+## Seat S6.3e: the host's seams the UI tests wait for (branch `car-v0627-s63e`, from S6.3d `cec10a859`, 2026-11-28)
+
+The S6.4 seats found host code that called Windows directly where every other surface goes through `SurfaceScreen`, so
+these Python tests could not be held on the host: `test_popup_row_menu_drawn` ParityTests' choice-versus-Windows and
+FallbackTests' three, `test_tray_tipcard` CardStateTests' hide at once and the backstop's hide count,
+`test_tray_tip_messages` ShowTests' first rest and its two LiveCardTests. Each call is now a seam; on a live host every
+one is the same Windows call it was (same arguments, same order, same DPI context).
+
+### The seams, and how a probe answers each
+
+| Seam | Live host | With `SurfaceScreen.Probe` set (the record's words) | The probe answers with |
+|---|---|---|---|
+| `SurfaceScreen.CreatePopupMenu()` | `user32.CreatePopupMenu` | `CreatePopupMenu 0x3e0` - a handle numbered from `SurfaceScreen.NextMenu` (0x3E0 up; reset it per run), never made | - |
+| `SurfaceScreen.AppendMenu(menu, flags, id, text)` | `AppendMenuW(menu, flags, id, text)` | `AppendMenuW 0x3e0 <flags> <id> <text>` (text `None` for a line, a newline as `\n`) | - |
+| `SurfaceScreen.AppendSubmenu(menu, flags, sub, text)` | `AppendMenuW(menu, flags \| MF_POPUP, sub, text)` | `AppendMenuW 0x3e0 <flags> 0x3e1 <text>`: the submenu by its handle's name, its own lines before it (the reference builds it first) | - |
+| `SurfaceScreen.TrackPopupMenu(menu, flags, x, y, hwnd)` | `TrackPopupMenu(menu, flags, x, y, 0, hwnd, NULL)` | `TrackPopupMenu 0x3e0 <flags> <x> <y> <hwnd's name>`; nothing is shown | `SurfaceScreen.MenuChoice(menu)`: the command chosen (null: 0, a click away) |
+| `SurfaceScreen.DestroyMenu(menu)` | `DestroyMenu` (its submenus go with it) | `DestroyMenu 0x3e0` | - |
+| `SurfaceScreen.Tell(hwnd, event)` | `SurfaceAccess.Tell` (= access.tell: NotifyWinEvent(event, hwnd, OBJID_CLIENT, CHILDID_SELF), nothing where it cannot be said) | `NotifyWinEvent <hwnd's name> <event>` (the words the menu probe's `Telling` writes) | - |
+| TipCard's `ShowWindow`, `SetWindowPos` (Place), `UpdateLayeredWindow` (Blit), `SetTimer`/`KillTimer` (its own and Dispose's) | `SurfaceScreen.ShowWindow`/`SetWindowPos`/`UpdateLayered`/`SetTimer`/`KillTimer`, the existing seams: the same calls | `ShowWindow tip 0`, `SetTimer tip 3 16`, `KillTimer tip 1`, ... | - |
+| `TrayIcon.MakeTipCard(content, held, log, days)` | `MakeLiveTip`: `new TipCard(content, held, log, days)`, `SurfaceAccess.Attach(card)`, as `TipSurface` | ShowTip calls it once, on the first rest, with the icon's `TipContent`, `PopupHeld`, `Log` and `Days` (icon.py: `TipCard(content=self._tip_content, held=self._popup_held, log=self.log, days=self.days)`) | the probe's own `ITrayTip`; `content.Method.Name`/`Target` tell which method it was handed |
+
+Notes for the twins:
+* `PopupWindow.ContextMenu` (private; HostProbe's popup_steps reaches it by reflection) now runs whole under the probe:
+  `ThemeMenu` (the icon's `TrayMenu.ThemeMenu` records `SetPreferredAppMode` itself), the menus, `TrackPopupMenu`,
+  `PostMessageW <hwnd> 0 0 0`, `DestroyMenu`, then the chosen action through `Begin`/`Run`. HostProbe's
+  `WindowsMenuReached` stop can go; HostPopup hands the record to the test's patched user32 as hosticon's `_windows_menu`
+  does - but the popup's lines carry the menu handle (the icon's `TrayMenu.NativeMenu` keeps its older words without one,
+  untouched, since S6.4d's hosticon parses them).
+* `TipCard.OnScreen` keeps its meaning (false: no ShowWindow on show, no Place, no Blit); with Probe set and OnScreen left
+  true every screen call is a record and none is made. `Gone`'s `ShowWindow(SW_HIDE)` and the timers are seams whatever
+  OnScreen says (they were Windows' own even with OnScreen false before). On a live host SurfaceScreen's `Name` is unused.
+* `TrayIcon.MakeTip` (no arguments) still wins where a probe sets it (SurfaceRenderTray, S6.4d3's tip_icon); a probe that
+  wants to see what the card is made with sets `MakeTipCard` and leaves `MakeTip` null.
+
+### How they are held
+
+`tests/test_host_seams.py` (new, 7 tests, a driver compiled with the host's [contract]+[surface]+[generated], run with
+CREATE_NO_WINDOW; no window shown, no menu tracked, nothing captured):
+* the row menu probed, compared call for call with the reference's `Popup._context_menu` over a recording user32
+  (test_popup_row_menu_drawn's popup): six shapes - pointer and keyboard, left to right, right to left (TPM_LAYOUTRTL |
+  TPM_RIGHTALIGN), a choice, a click away (0), a command no item has - each record and the action posted
+  (`popup {call, args}` for the action the reference ran);
+* the row menu's live calls: a real menu made, filled (commands, a line, a submenu, grayed, checked, a newline) and read
+  back by GetMenuItemCount/GetMenuItemID/GetMenuState/GetMenuStringW/GetSubMenu, destroyed with its submenu (IsMenu);
+  TrackPopupMenu's live line is pinned from the source (a tracked menu would be on the screen);
+* the tip card probed against the reference TipCard as CardStateTests drives it (hide at once, a fade out to its end, a
+  hide ending a fade on its way, no motion, the backstop hiding and keeping, a suspend, a display change): every
+  ShowWindow/SetTimer/KillTimer/NotifyWinEvent line and visible/fade after each step;
+* the tip card live over a message-only window of the driver's own: the fade's timer is Windows' after a fading hide and
+  gone at its end, ShowWindow(SW_HIDE) clears WS_VISIBLE, a WinEvent hook of its own hears EVENT_OBJECT_HIDE for
+  OBJID_CLIENT once per hide (Windows' own show/hide of the window arrive as OBJID_WINDOW and are not ours);
+* the icon makes its card once, with TipContent/PopupHeld/Log/Days, for days true and false; the live maker's TipCard
+  holds exactly those, is attached (Accessible set) and has no window yet.
+
+### Comparison A gap closed (S6.3d's survivor)
+
+`test_surface_parity`'s drawn tip cases now include the first tip case drawn with the light `idle`, `unknown` and `""`
+in every PIXEL_LOOK (High Contrast included): `SurfaceLight.StatusFill`'s default (`idle`) and `StatusSystem`'s
+(`GrayText`) are painted and compared byte for byte. `TrayMotion.BrandState`/`ForLight` were held already (the icon's
+`unknown` state and the words `""`, `None`, `"x"`); `TrayMotion.StatusFill`'s default is reached through `idle`'s head
+colour (mutation below).
+
+### notice_card.corner_coverage (item 3): resolved by S6.4f2, nothing ported
+
+Its C# counterpart is `CardCorner.Coverage` (gui/CardWindow.cs; a naming miss in S6.4f's note), held by
+test_surface_parity's `cards/corners` (5 radii x 3 smoothings, by digest) and routed by the plan proxy on
+car-v0627-s64f. Not changed here. Found on the way, for whoever owns that row next (not fixed, the coordinator's
+word): at radii no card has, the C# differs from the reference - a radius at or below -1 (size `Ceiling` < 0) throws
+OverflowException where the Python gives no rows; NaN throws OverflowException where the Python raises ValueError;
+infinity is OverflowException as the Python's OverflowError. `(int)Math.Ceiling` of a negative or NaN radius is where
+it starts; a `Size()` that mirrors `int(math.ceil())` (NaN -> ArgumentException, infinity -> OverflowException, below
+zero -> 0) made all 18 edge pairs equal in a scratch probe.
+
+### Two more seams (the coordinator's go-on, from S6.4f3), and two names
+
+| Seam | What it answers | The reference's counterpart | Held by |
+|---|---|---|---|
+| `SurfaceRenderer.TextFlags(PlanItem item, bool? rtl)` (static) | the DrawTextW flags a text item is drawn with: DT_NOPREFIX; wrapped DT_WORDBREAK \| DT_EDITCONTROL, else DT_SINGLELINE \| DT_VCENTER \| DT_END_ELLIPSIS; DT_CENTER / DT_RIGHT by `align`; DT_RTLREADING in a right-to-left plan unless a `name` whose first strong letter is L. `DrawText` now calls it (same flags, same order of calls) | the flags `_text` hands `user32.DrawTextW`, which test_right_to_left reads by standing in for DrawTextW | test_host_seams: item by item against the reference's recorded flags (ar, en, he; a left-to-right name in an Arabic popup) |
+| `SurfaceRenderer.TextDrawn` (`Action<string, uint>`, null on a live host) | told each line as it goes to DrawTextW with its flags (the wrapped value, as DrawTextW gets it) | what a stood-in DrawTextW records | test_host_seams: every text item drawn once, its flags TextFlags', no GDI+ object left |
+| `SurfaceRenderer.ScenePieces` (int), `SceneBrushes` (`List<uint>`) | what the last drawing of the day's scene used: the pieces it filled (one per `SceneShape` call, both loops: the specks band by band and the scene's own) and the ARGB of each solid brush the painter made outside a rounded fill. Reset at the start of `Scene` | test_day_frame_cost's stand-ins for `Renderer._scene_shape` (pieces) and `_Painter._brush` outside `fill_round` (brushes) | test_host_seams: every look at 100 % and 150 %, three moments, pieces and brushes equal to the reference's |
+| `SurfacePainter.Brushes` (`List<uint>`, null: not counted) | the colours `Brush()` made outside `FillRound` (a depth counter `rounding` around FillRound's body) | `_Painter._brush` outside `fill_round` | through SceneBrushes |
+
+Nothing drawn changes: the counts are kept beside the drawing and read by nobody on the product's path (comparison A and
+test_surface_windows rerun exact). For test_day_frame_cost's twin: `a frame fills no speck out of sight` = ScenePieces
+minus the look's scene elements; `brush once` = SceneBrushes has no repeat; `the specks in sight are all drawn` needs a
+whole-band SpeckFrame (no `within`) - the C# has `SurfaceDays.SpeckFrame(look, ms, within)`, with `within` null for the
+whole band, so a twin can compare DrawScene's pixels with a frame drawn with `within` null (not a seam added here).
+
+**test_corners_by_design's two names:** the reference's `renderer._corner(item, scale)` is `SurfaceRenderer.Corner(PlanItem
+item, double scale)` (gui/SurfaceRenderer.cs: `corner` role -> the design's radius x scale rounded, else the item's
+`radius`); `canvas.smoothing` is `SurfaceCanvas.Smoothing` (double?, gui/SurfaceGdip.cs), set by the renderer from
+`SurfaceRenderer.Smoothing()` (`Brand.DesignSmoothing` of the design, Soft's in High Contrast) whenever the look is set
+(`_corners_follow_the_look`), and read by each `SurfacePainter` it makes. Both exist; nothing added.
+
+### Mutation checks (S6.3e; each alone, the file put back byte for byte, the module run through gui_lock.sh)
+
+21 of 21 failed their test (`scratchpad/car-v0627-s63e-mut2.out.json`, `-mut3.out.json`). Seams, probe path: TrackPopupMenu
+answering 0 instead of MenuChoice; a submenu's handle written as a number; SurfaceScreen.Tell not recorded; Gone hiding
+through SurfaceNative again (unrecorded). Live path: AppendMenu dropping the text; DestroyMenu doing nothing;
+TrackPopupMenu owned by no window (the source pin); Tell telling no one (the WinEvent hook); TipCard's timers never
+reaching Windows. Behaviour through the seams: the row menu's RTL direction dropped. The icon: the card made with the days
+negated; the live maker not attaching SurfaceAccess. Comparison A: SurfaceLight.StatusFill's unknown default idle ->
+active and StatusSystem's GrayText -> WindowText (the new drawn light cases), TrayMotion.StatusFill's default idle ->
+active (icon/). The renderer: TextFlags reading a left-to-right name right to left; a centred line not centred;
+TextDrawn telling nobody; ScenePieces missing the scene's own pieces; a rounded fill's brush counted; keep_solids dropped
+(each colour's brush made again). A first mutation run was hollow (Windows' WSL `bash` started gui_lock.sh and failed to
+find it; every "caught" was that error): the runner now names Git's bash and counts a mutation caught only on a FAIL/ERROR
+line with no compile error.
+
+### Checks (S6.3e)
+
+```
+make_gui.ps1 / -Edition advanced, each twice into fresh folders    byte-identical, normalize_pe leaves them unchanged:
+  CodexAutoResume.exe 534,016 2fb0a7b1c1bf6767..., Settings c7b4879a551f... (unchanged), advanced 80fb42457bf7... (unchanged)
+rediff_host_surface.py --reference v0.6.26 (gui_lock.sh)            exact (39 on the tag's Python: parity, windows, seams),
+                                                                   builds reproducibly (22)
+host-compiling modules, both lanes, one at a time (gui_lock.sh)     17 x 2 OK after the last C# change: test_surface_parity,
+  test_surface_windows, test_host_seams, test_reproducible, test_host_shape, test_host_app, test_host_contract,
+  test_host_shell, test_host_tray_place, test_surface_properties, test_surface_render_retarget, test_motion_window_icon,
+  test_guiscan, test_no_console_windows, test_edition_build, test_tooling_round2, test_build_tooling_audit
+36 modules that read host sources or build files, both lanes (before the renderer seams): 33 + 34 OK; failing on the base
+  too, none reading what changed: test_install_motion 2 and test_screenshots 1 (stale picture inputs: window sources,
+  make_gui.ps1, make_screenshots.py - the main session's pictures), test_gui_v065_controls 6 in the standard lane only
+  (the settings window under load; quiet.sh alone: Ran 26, OK)
+test_consumer_fields (window set, standard)                       FAIL on the base too: 4 HostMain.cs `answer` receivers
+  unplaced (neither file changed here)
+the other ~180 window-set modules                                  not rerun: they read gui/window.sources only, and no
+  window source changed (the window exe's digest is the base's)
+cargo fmt --check, clippy -D warnings, test, deny (rust/, advanced/rust/)   OK (241 and 29 tests); check_groundwork OK;
+  check_rebuild OK (same digests)
+privacy_scan.py on every added or changed file                     clean
+```
+
+### What later seats need
+
+* S6.4 (window rows): twin test_popup_row_menu_drawn's choice-versus-Windows and FallbackTests with popup_steps over
+  SurfaceScreen.Probe + MenuChoice (drop WindowsMenuReached); CardStateTests' hide at once and the backstop's hide count,
+  and test_tray_tip_messages' LiveCardTests, with TipCard under Probe (OnScreen true: every screen call is a record);
+  ShowTests' first rest with TrayIcon.MakeTipCard; test_right_to_left's flags test with TextFlags/TextDrawn;
+  test_day_frame_cost with ScenePieces/SceneBrushes; test_corners_by_design with Corner and SurfaceCanvas.Smoothing.
+* tests/test_host_seams.py is the model for a probe that compares the host's record with the reference over a recording
+  user32; its driver compiles with [contract]+[surface]+[generated].
+* The notice card's corner at radii no card has (above) is not this seat's; AUDIT-v0628.md has the line.

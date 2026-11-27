@@ -144,151 +144,147 @@ namespace CodexAutoResume
 
             internal object Call(string name, Dictionary<string, object> args)
             {
-                switch (name)
+                if (name == "open_renderer")
                 {
-                    case "open_renderer":
-                    {
-                        SurfaceRenderer renderer = SurfaceRenderer.Open();
-                        renderer.Theme = (string)args["theme"];
-                        renderer.Design = (string)args["design"];
-                        renderer.Contrast = SurfaceMath.Truthy(Field(args, "contrast"));
-                        renderer.Lone = SurfaceMath.Truthy(Field(args, "lone"));
-                        renderer.Letters = Field(args, "letters") as string;
-                        return new Dictionary<string, object> { { "renderer", Keep(renderer) } };
-                    }
-                    case "layout":
-                    {
-                        SurfacePlan plan = Look(args).Layout((Dictionary<string, object>)args["vm"],
-                                                                                         (double)args["scale"], (string)args["locale"]);
-                        return new Dictionary<string, object> { { "plan", Keep(plan) }, { "dump", plan } };
-                    }
-                    case "tip_layout":
-                    {
-                        SurfaceRenderer renderer = Look(args);
-                        SurfacePlan plan = renderer.TipLayout((Dictionary<string, object>)args["parts"], Field(args, "light"),
-                                                              (double)args["scale"], (string)args["locale"], Field(args, "day") as string);
-                        return new Dictionary<string, object> { { "plan", Keep(plan) }, { "dump", plan } };
-                    }
-                    case "draw":
-                    {
-                        SurfaceRenderer renderer = Look(args);
-                        object scene = Field(args, "scene_ms");
-                        renderer.Draw(Get<SurfacePlan>(args, "plan"), FrameFrom(Field(args, "frame")), TargetOf(Field(args, "hover")),
-                                      TargetOf(Field(args, "pressed")), TargetOf(Field(args, "focus")), Glides(Field(args, "glides")),
-                                      scene == null ? 0.0 : (double)scene, Faces(Field(args, "faces")));
-                        return null;
-                    }
-                    case "draw_halo":
-                    case "draw_tip":
-                    case "draw_tip_light":
-                    {
-                        SurfaceRenderer renderer = Look(args);
-                        SurfacePlan plan = Get<SurfacePlan>(args, "plan");
-                        LightFrame frame = FrameFrom(Field(args, "frame"));
-                        if (name == "draw_halo") renderer.DrawHalo(plan, frame);
-                        else if (name == "draw_tip") renderer.DrawTip(plan, frame);
-                        else renderer.DrawTipLight(plan, frame);
-                        return new Dictionary<string, object> { { "rows", renderer.HaloRows } };
-                    }
-                    case "face_colours":
-                    {
-                        SurfacePlan plan = Get<SurfacePlan>(args, "plan");
-                        return Look(args).FaceColours(plan.Items[(int)(double)args["index"]], (string)args["state"]);
-                    }
-                    case "pixels":
-                    {
-                        SurfaceRenderer renderer = Get<SurfaceRenderer>(args, "renderer");
-                        SurfaceNative.GdiFlush();
-                        return Picture(renderer.Canvas.Pixels());
-                    }
-                    case "card_still":
-                    {
-                        object pad = Field(args, "pad");
-                        object[] still = SurfaceLayers.CardStill(Look(args), Get<SurfacePlan>(args, "plan"),
-                                                                 pad == null ? (int?)null : (int)(double)pad);
-                        return Picture((byte[])still[2], (int)still[0], (int)still[1]);
-                    }
-                    case "open_card":
-                    {
-                        var card = new NoticeCard(null, (Dictionary<string, object>)args["vm"], PopupWords.Str(Field(args, "title")),
-                                                  Equals(Field(args, "stays"), true), (double)args["hold"], (double)args["now"],
-                                                  (double)args["dpi"], Ints(args["work"]), (Dictionary<string, object>)args["drawn"], false,
-                                                  Field(args, "letters") as string);
-                        return new Dictionary<string, object>
-                        {
-                            { "card", Keep(card) }, { "size", card.Size }, { "margin", card.Margin }, { "plan", card.Plan },
-                            { "vm", card.Vm },
-                        };
-                    }
-                    case "card_motion":
-                    {
-                        NoticeCard card = Get<NoticeCard>(args, "card");
-                        double born = (double)args["born"];
-                        var motion = new CardMotion(born, (double)args["hold"]);
-                        motion.MoveTo(born, Ints(args["place"]));
-                        object leave = Field(args, "leave");
-                        if (leave != null) motion.Retire((double)leave);
-                        card.Motion = motion;
-                        card.Born = born;
-                        return null;
-                    }
-                    case "card_set":
-                    {
-                        NoticeCard card = Get<NoticeCard>(args, "card");
-                        if (args.ContainsKey("hover")) card.Hover = TargetOf(args["hover"]);
-                        if (args.ContainsKey("pressed")) card.Pressed = TargetOf(args["pressed"]);
-                        if (args.ContainsKey("breathed")) card.Breathed = (double)args["breathed"];
-                        if (args.ContainsKey("edge")) card.Edge = (string)args["edge"];
-                        return null;
-                    }
-                    case "card_redraw":
-                        Get<NoticeCard>(args, "card").Redraw();
-                        return null;
-                    case "card_light":
-                    {
-                        NoticeCard card = Get<NoticeCard>(args, "card");
-                        card.DrawLight((double)args["ms"]);
-                        int[] rows = card.Renderer.HaloRows;
-                        int row = card.Size[0] * 4;
-                        var band = new byte[(rows[1] - rows[0]) * row];
-                        Array.Copy(card.Image.Pixels, rows[0] * row, band, 0, band.Length);
-                        return new Dictionary<string, object> { { "rows", rows }, { "band", Picture(band, card.Size[0], rows[1] - rows[0]) } };
-                    }
-                    case "card_paint":
-                    {
-                        NoticeCard card = Get<NoticeCard>(args, "card");
-                        Dictionary<string, object> painted = card.Paint((double)args["ms"]);
-                        return new Dictionary<string, object>
-                        {
-                            { "frame", FrameOf((CardFrame)painted["frame"]) }, { "x", painted["x"] }, { "y", painted["y"] },
-                            { "margin", painted["margin"] }, { "key", painted["key"] }, { "gone", card.Motion.Gone },
-                        };
-                    }
-                    case "card_layers":
-                    {
-                        NoticeCard card = Get<NoticeCard>(args, "card");
-                        SurfaceNative.GdiFlush();
-                        return new Dictionary<string, object>
-                        {
-                            { "body", Picture(card.Body.Pixels(), card.Body.Width, card.Body.Height) },
-                            { "shadow", Picture(card.Shadow.Pixels(), card.Shadow.Width, card.Shadow.Height) },
-                        };
-                    }
-                    case "close":
-                    {
-                        int handle = (int)(double)args["handle"];
-                        object value;
-                        if (objects.TryGetValue(handle, out value))
-                        {
-                            objects.Remove(handle);
-                            var disposable = value as IDisposable;
-                            if (disposable != null) disposable.Dispose();
-                        }
-                        return null;
-                    }
-                    case "objects":
-                        return SurfaceGdip.GdipObjects;
+                    SurfaceRenderer renderer = SurfaceRenderer.Open();
+                    renderer.Theme = (string)args["theme"];
+                    renderer.Design = (string)args["design"];
+                    renderer.Contrast = SurfaceMath.Truthy(Field(args, "contrast"));
+                    renderer.Lone = SurfaceMath.Truthy(Field(args, "lone"));
+                    renderer.Letters = Field(args, "letters") as string;
+                    return new Dictionary<string, object> { { "renderer", Keep(renderer) } };
                 }
+                if (name == "layout")
+                {
+                    SurfacePlan plan = Look(args).Layout((Dictionary<string, object>)args["vm"],
+                                                                                     (double)args["scale"], (string)args["locale"]);
+                    return new Dictionary<string, object> { { "plan", Keep(plan) }, { "dump", plan } };
+                }
+                if (name == "tip_layout")
+                {
+                    SurfaceRenderer renderer = Look(args);
+                    SurfacePlan plan = renderer.TipLayout((Dictionary<string, object>)args["parts"], Field(args, "light"),
+                                                          (double)args["scale"], (string)args["locale"], Field(args, "day") as string);
+                    return new Dictionary<string, object> { { "plan", Keep(plan) }, { "dump", plan } };
+                }
+                if (name == "draw")
+                {
+                    SurfaceRenderer renderer = Look(args);
+                    object scene = Field(args, "scene_ms");
+                    renderer.Draw(Get<SurfacePlan>(args, "plan"), FrameFrom(Field(args, "frame")), TargetOf(Field(args, "hover")),
+                                  TargetOf(Field(args, "pressed")), TargetOf(Field(args, "focus")), Glides(Field(args, "glides")),
+                                  scene == null ? 0.0 : (double)scene, Faces(Field(args, "faces")));
+                    return null;
+                }
+                if (name == "draw_halo" || name == "draw_tip" || name == "draw_tip_light")
+                {
+                    SurfaceRenderer renderer = Look(args);
+                    SurfacePlan plan = Get<SurfacePlan>(args, "plan");
+                    LightFrame frame = FrameFrom(Field(args, "frame"));
+                    if (name == "draw_halo") renderer.DrawHalo(plan, frame);
+                    else if (name == "draw_tip") renderer.DrawTip(plan, frame);
+                    else renderer.DrawTipLight(plan, frame);
+                    return new Dictionary<string, object> { { "rows", renderer.HaloRows } };
+                }
+                if (name == "face_colours")
+                {
+                    SurfacePlan plan = Get<SurfacePlan>(args, "plan");
+                    return Look(args).FaceColours(plan.Items[(int)(double)args["index"]], (string)args["state"]);
+                }
+                if (name == "pixels")
+                {
+                    SurfaceRenderer renderer = Get<SurfaceRenderer>(args, "renderer");
+                    SurfaceNative.GdiFlush();
+                    return Picture(renderer.Canvas.Pixels());
+                }
+                if (name == "card_still")
+                {
+                    object pad = Field(args, "pad");
+                    object[] still = SurfaceLayers.CardStill(Look(args), Get<SurfacePlan>(args, "plan"),
+                                                             pad == null ? (int?)null : (int)(double)pad);
+                    return Picture((byte[])still[2], (int)still[0], (int)still[1]);
+                }
+                if (name == "open_card")
+                {
+                    var card = new NoticeCard(null, (Dictionary<string, object>)args["vm"], PopupWords.Str(Field(args, "title")),
+                                              Equals(Field(args, "stays"), true), (double)args["hold"], (double)args["now"],
+                                              (double)args["dpi"], Ints(args["work"]), (Dictionary<string, object>)args["drawn"], false,
+                                              Field(args, "letters") as string);
+                    return new Dictionary<string, object>
+                    {
+                        { "card", Keep(card) }, { "size", card.Size }, { "margin", card.Margin }, { "plan", card.Plan },
+                        { "vm", card.Vm },
+                    };
+                }
+                if (name == "card_motion")
+                {
+                    NoticeCard card = Get<NoticeCard>(args, "card");
+                    double born = (double)args["born"];
+                    var motion = new CardMotion(born, (double)args["hold"]);
+                    motion.MoveTo(born, Ints(args["place"]));
+                    object leave = Field(args, "leave");
+                    if (leave != null) motion.Retire((double)leave);
+                    card.Motion = motion;
+                    card.Born = born;
+                    return null;
+                }
+                if (name == "card_set")
+                {
+                    NoticeCard card = Get<NoticeCard>(args, "card");
+                    if (args.ContainsKey("hover")) card.Hover = TargetOf(args["hover"]);
+                    if (args.ContainsKey("pressed")) card.Pressed = TargetOf(args["pressed"]);
+                    if (args.ContainsKey("breathed")) card.Breathed = (double)args["breathed"];
+                    if (args.ContainsKey("edge")) card.Edge = (string)args["edge"];
+                    return null;
+                }
+                if (name == "card_redraw")
+                {
+                    Get<NoticeCard>(args, "card").Redraw();
+                    return null;
+                }
+                if (name == "card_light")
+                {
+                    NoticeCard card = Get<NoticeCard>(args, "card");
+                    card.DrawLight((double)args["ms"]);
+                    int[] rows = card.Renderer.HaloRows;
+                    int row = card.Size[0] * 4;
+                    var band = new byte[(rows[1] - rows[0]) * row];
+                    Array.Copy(card.Image.Pixels, rows[0] * row, band, 0, band.Length);
+                    return new Dictionary<string, object> { { "rows", rows }, { "band", Picture(band, card.Size[0], rows[1] - rows[0]) } };
+                }
+                if (name == "card_paint")
+                {
+                    NoticeCard card = Get<NoticeCard>(args, "card");
+                    Dictionary<string, object> painted = card.Paint((double)args["ms"]);
+                    return new Dictionary<string, object>
+                    {
+                        { "frame", FrameOf((CardFrame)painted["frame"]) }, { "x", painted["x"] }, { "y", painted["y"] },
+                        { "margin", painted["margin"] }, { "key", painted["key"] }, { "gone", card.Motion.Gone },
+                    };
+                }
+                if (name == "card_layers")
+                {
+                    NoticeCard card = Get<NoticeCard>(args, "card");
+                    SurfaceNative.GdiFlush();
+                    return new Dictionary<string, object>
+                    {
+                        { "body", Picture(card.Body.Pixels(), card.Body.Width, card.Body.Height) },
+                        { "shadow", Picture(card.Shadow.Pixels(), card.Shadow.Width, card.Shadow.Height) },
+                    };
+                }
+                if (name == "close")
+                {
+                    int handle = (int)(double)args["handle"];
+                    object value;
+                    if (objects.TryGetValue(handle, out value))
+                    {
+                        objects.Remove(handle);
+                        var disposable = value as IDisposable;
+                        if (disposable != null) disposable.Dispose();
+                    }
+                    return null;
+                }
+                if (name == "objects") return SurfaceGdip.GdipObjects;
                 throw new NotSupportedException(name);
             }
 

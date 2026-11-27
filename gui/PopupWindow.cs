@@ -249,7 +249,7 @@ namespace CodexAutoResume
             Visible = false;
             if (hwnd != IntPtr.Zero)
             {
-                foreach (int timer in new[] { TimerTick, TimerFrame, TimerFirst }) SurfaceScreen.KillTimer(hwnd, timer);
+                foreach (int timer in SurfaceMath.Three(TimerTick, TimerFrame, TimerFirst)) SurfaceScreen.KillTimer(hwnd, timer);
                 SurfaceNative.DestroyWindow(hwnd);
             }
             CardLayers layers = Layers;
@@ -470,7 +470,7 @@ namespace CodexAutoResume
             if (menu != null) menu.Close();
             IntPtr hwnd = Hwnd;
             if (hwnd == IntPtr.Zero) return;
-            foreach (int timer in new[] { TimerTick, TimerFrame, TimerFirst }) SurfaceScreen.KillTimer(hwnd, timer);
+            foreach (int timer in SurfaceMath.Three(TimerTick, TimerFrame, TimerFirst)) SurfaceScreen.KillTimer(hwnd, timer);
             FrameRunning = false;
             if (Visible)
             {
@@ -895,14 +895,14 @@ namespace CodexAutoResume
             Func<List<object>, IntPtr> build = null;
             build = items =>
             {
-                IntPtr menu = SurfaceNative.CreatePopupMenu();
+                IntPtr menu = SurfaceScreen.CreatePopupMenu();
                 menus.Add(menu);
                 foreach (object one in items)
                 {
                     var entry = one as Dictionary<string, object>;
                     if (entry == null)
                     {
-                        SurfaceNative.AppendMenuW(menu, SurfaceNative.MF_SEPARATOR, UIntPtr.Zero, null);
+                        SurfaceScreen.AppendMenu(menu, SurfaceNative.MF_SEPARATOR, 0, null);
                         continue;
                     }
                     uint flags = SurfaceNative.MF_STRING | (SurfaceMath.Truthy(entry["enabled"]) ? 0 : SurfaceNative.MF_GRAYED)
@@ -910,11 +910,10 @@ namespace CodexAutoResume
                     var sub = entry["items"] as List<object>;
                     if (SurfaceMath.Truthy(sub))
                     {
-                        SurfaceNative.AppendMenuW(menu, flags | SurfaceNative.MF_POPUP, new UIntPtr((ulong)build(sub).ToInt64()),
-                                                  PopupWords.Str(entry["text"]));
+                        SurfaceScreen.AppendSubmenu(menu, flags | SurfaceNative.MF_POPUP, build(sub), PopupWords.Str(entry["text"]));
                         continue;
                     }
-                    SurfaceNative.AppendMenuW(menu, flags, new UIntPtr(Convert.ToUInt64(entry["id"])), PopupWords.Str(entry["text"]));
+                    SurfaceScreen.AppendMenu(menu, flags, Convert.ToUInt64(entry["id"]), PopupWords.Str(entry["text"]));
                 }
                 return menu;
             };
@@ -922,13 +921,13 @@ namespace CodexAutoResume
             try
             {
                 uint direction = plan.Rtl == true ? SurfaceNative.TPM_LAYOUTRTL | SurfaceNative.TPM_RIGHTALIGN : 0;
-                picked = SurfaceNative.TrackPopupMenu(build(numbered), SurfaceNative.TPM_RIGHTBUTTON | SurfaceNative.TPM_RETURNCMD
-                                                      | SurfaceNative.TPM_NONOTIFY | direction, point.X, point.Y, 0, Hwnd, IntPtr.Zero);
+                picked = SurfaceScreen.TrackPopupMenu(build(numbered), SurfaceNative.TPM_RIGHTBUTTON | SurfaceNative.TPM_RETURNCMD
+                                                      | SurfaceNative.TPM_NONOTIFY | direction, point.X, point.Y, Hwnd);
                 SurfaceScreen.Post(Hwnd, 0, 0, 0);
             }
             finally
             {
-                SurfaceNative.DestroyMenu(menus[0]);
+                SurfaceScreen.DestroyMenu(menus[0]);
             }
             run(picked);
         }

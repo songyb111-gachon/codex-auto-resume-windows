@@ -24,7 +24,7 @@ namespace CodexAutoResume
         internal const int WM_POPUP_PAINT = SurfaceNative.WM_APP + 4;
         internal const int GCL_STYLE = -26;
         /// A dirty rectangle that uploads no pixel: a move or a fade (NOTHING).
-        internal static readonly int[] Nothing = { 0, 0, 0, 0 };
+        internal static readonly int[] Nothing = new int[4];
 
         /// float_shadows: the card recipe's outer shadows as they may be drawn over a wallpaper.
         internal static List<FloatShadow> FloatShadows(string theme, string design = "soft")

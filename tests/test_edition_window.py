@@ -302,11 +302,14 @@ class WindowTests(unittest.TestCase):
         self.assertIn("(d) %s holds the literal 'the advanced window was built'" % edition_audit.WINDOW, found)
 
     def test_the_advanced_run_builds_its_window_alone_in_its_own_folder(self):
-        """And the standard run its own, since v0.6.27: the launcher is car-bin's, built by cargo."""
+        """And the standard run its own, since v0.6.27: the launcher is car-bin's, built by cargo; the standard run also
+        builds the watcher host (gui/host.sources) beside its window, and the advanced run does not."""
         self.assertEqual(sorted(path.name for path in self.advanced_folder.iterdir()),
                          [WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"])
+        host = "CodexAutoResume.exe"
         self.assertEqual(sorted(path.name for path in (self.work / "standard").iterdir()),
-                         [WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"])
+                         sorted([host, host + ".VersionInfo.cs", host + ".stamp",
+                                 WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"]))
 
     def test_both_windows_come_out_normalised(self):
         for data in (self.standard, self.advanced):

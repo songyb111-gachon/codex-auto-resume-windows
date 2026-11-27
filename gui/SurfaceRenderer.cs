@@ -344,6 +344,12 @@ namespace CodexAutoResume
             Marshal.Copy(pixels, 0, Canvas.Bits, pixels.Length);
         }
 
+        /// What the last drawing of the day's scene used (S6.3e; test_day_frame_cost counts them by standing in for
+        /// _scene_shape and _Painter._brush): the pieces it filled, and the colours of the solid brushes it made outside a
+        /// rounded fill. Counted only; nothing drawn depends on them.
+        internal int ScenePieces;
+        internal List<uint> SceneBrushes = new List<uint>();
+
         /// Only the day's scene, for an animation frame (draw_scene).
         internal SurfaceCanvas DrawScene(SurfacePlan plan, double milliseconds)
         {
@@ -434,6 +440,8 @@ namespace CodexAutoResume
                             SurfaceMath.Round(Radius("card") * plan.Scale) - hairline);
             paint.ClipRect(rect);
             paint.KeepSolids();
+            ScenePieces = 0;
+            SceneBrushes = paint.Brushes = new List<uint>();
             try
             {
                 string ground, bodyTop, bodyBottom;
@@ -448,12 +456,20 @@ namespace CodexAutoResume
                     double here = offset;
                     Func<double, double, double[]> place = (x, y) => new[] {
                         mirrored ? left + here + x * unit : right - here - (SurfaceDays.SpeckBand - x) * unit, top + y * unit };
-                    foreach (DayShape shape in SurfaceDays.SpeckFrame(look, milliseconds, within)) SceneShape(paint, shape, place, unit);
+                    foreach (DayShape shape in SurfaceDays.SpeckFrame(look, milliseconds, within))
+                    {
+                        ScenePieces++;
+                        SceneShape(paint, shape, place, unit);
+                    }
                     offset += band;
                 }
                 object shown = item.Get("scene_shown");
                 if (shown == null || SurfaceMath.Truthy(shown))
-                    foreach (DayShape shape in SurfaceDays.SceneFrame(look, milliseconds)) SceneShape(paint, shape, at, unit);
+                    foreach (DayShape shape in SurfaceDays.SceneFrame(look, milliseconds))
+                    {
+                        ScenePieces++;
+                        SceneShape(paint, shape, at, unit);
+                    }
                 int[] cardGround = SurfaceTheme.Rgb(CardGround());
                 double solid = fade[0], clear = fade[1], inner = left;
                 if (mirrored)
@@ -759,6 +775,25 @@ namespace CodexAutoResume
                 && SurfaceBidi.FirstStrong(Convert.ToString(item["text"], CultureInfo.InvariantCulture)) == "L";
         }
 
+        /// The DrawTextW flags a text item of a plan (`rtl`: the plan's) is drawn with, as _text works them out (S6.3e):
+        /// wrapped or one line cut with an ellipsis, centred or to the right as laid out, read right to left in a
+        /// right-to-left plan but for a name whose first strong letter is left to right.
+        internal static uint TextFlags(PlanItem item, bool? rtl)
+        {
+            uint flags = SurfaceNative.DT_NOPREFIX;
+            if (SurfaceMath.Truthy(item["wrap"])) flags |= SurfaceNative.DT_WORDBREAK | SurfaceNative.DT_EDITCONTROL;
+            else flags |= SurfaceNative.DT_SINGLELINE | SurfaceNative.DT_VCENTER | SurfaceNative.DT_END_ELLIPSIS;
+            string align = item["align"] as string;
+            if (align == "center") flags |= SurfaceNative.DT_CENTER;
+            else if (align == "right") flags |= SurfaceNative.DT_RIGHT;
+            if (rtl == true && !OwnDirectionLeft(item)) flags |= SurfaceNative.DT_RTLREADING;
+            return flags;
+        }
+
+        /// Told each line as it goes to DrawTextW, with its flags (null: nobody): what a test that stands in for DrawTextW
+        /// sees (S6.3e). The live host leaves it null.
+        internal Action<string, uint> TextDrawn = null;
+
         /// The words, by GDI (_text).
         private void DrawText(IntPtr dc, SurfacePlan plan, List<object> busy)
         {
@@ -781,18 +816,13 @@ namespace CodexAutoResume
                     bool waiting = false;
                     foreach (object entry in busy) if (Equals(entry, target)) { waiting = true; break; }
                     SurfaceNative.SetTextColor(dc, ColorRef(waiting ? "muted" : (string)item["colour"]));
-                    uint flags = SurfaceNative.DT_NOPREFIX;
+                    uint flags = TextFlags(item, plan.Rtl);
                     bool wrap = SurfaceMath.Truthy(item["wrap"]);
-                    if (wrap) flags |= SurfaceNative.DT_WORDBREAK | SurfaceNative.DT_EDITCONTROL;
-                    else flags |= SurfaceNative.DT_SINGLELINE | SurfaceNative.DT_VCENTER | SurfaceNative.DT_END_ELLIPSIS;
-                    string align = item["align"] as string;
-                    if (align == "center") flags |= SurfaceNative.DT_CENTER;
-                    else if (align == "right") flags |= SurfaceNative.DT_RIGHT;
-                    if (plan.Rtl == true && !OwnDirectionLeft(item)) flags |= SurfaceNative.DT_RTLREADING;
                     double[] rect = Box(item["rect"]);
                     string text = item["text"] as string;
                     string value = wrap ? Text.Lines(role, text, (int)(rect[2] - rect[0])) : text;
                     var box = new SurfaceNative.RECT((int)rect[0], (int)rect[1], (int)rect[2], (int)rect[3]);
+                    if (TextDrawn != null) TextDrawn(value, flags);
                     SurfaceNative.DrawTextW(dc, value, -1, ref box, flags);
                 }
             }

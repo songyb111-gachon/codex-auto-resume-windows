@@ -8,9 +8,14 @@ car-harness diff: the C# plans against the Python reference's, exactly, over the
 car-surface's, S6.0's, the decision half). This says, in order: which of the ported Python files - and the ones the
 matrix's view models are made from - differ between the tag and this checkout (`git diff --stat`, so a change is seen
 even where no case reaches it); then runs test_surface_parity and test_surface_windows (the windows' halves, S6.3c-f: the
-icon, its menu, MSAA, the live-path proofs) with the tag's own package as the reference (its `src`,
+icon, its menu, MSAA, the live-path proofs) and test_host_seams (S6.3e: the popup's Windows row menu, the tip card's
+screen, timer and reader calls and the icon's card making, through SurfaceScreen and TrayIcon.MakeTipCard) with the
+tag's own package as the reference (its `src`,
 taken out of git as tests/released.py takes it, first on the path; this checkout's tests/ and build/ for the matrix).
-Exit 0 only when the comparison is exact; a file that changed is printed, not failed on - the comparison decides.
+Then (S6.3d) the host's build: no string switch of six labels or constant array of three elements in the sources, two
+builds the same bytes once normalised (test_reproducible's HostSourceRuleTests and HostBuildTests, test_host_shape).
+Exit 0 only when the comparison is exact and the build reproducible; a file that changed is printed, not failed on - the
+comparison decides.
 """
 from __future__ import annotations
 
@@ -62,11 +67,22 @@ def main(argv=None) -> int:
     source = released.package(tag)
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)
-    status = subprocess.run(refpython.command(UNITTEST, "test_surface_parity", "test_surface_windows",
+    status = subprocess.run(refpython.command(UNITTEST, "test_surface_parity", "test_surface_windows", "test_host_seams",
                                               paths=[source, ROOT / "tests"]), cwd=ROOT,
                             env=environment, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("rediff of the host's surfaces against %s: %s" % (tag, "exact" if status == 0 else "DIFFER"))
-    return 0 if status == 0 else 1
+    sys.stdout.flush()
+    # S6.3d: the host builds reproducibly - none of the sources' string switches of six labels or constant arrays of
+    # three elements the in-box compiler turns into a randomly named class (tests/test_reproducible.py), and two builds of
+    # the host are the same bytes once normalised. A rewrite of a switch or an array is shown to be the reference's
+    # exactly by the run above; this shows the host still compiles to an image build/normalize_pe.py accepts.
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT / "tests")]))
+    environment.pop("CODEX_AR_EDITION", None)
+    built = subprocess.run([sys.executable, "-m", "unittest", "test_reproducible.HostSourceRuleTests",
+                            "test_reproducible.HostBuildTests", "test_host_shape"], cwd=ROOT, env=environment,
+                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
+    print("the host builds reproducibly: %s" % ("yes" if built == 0 else "NO"))
+    return 0 if status == 0 and built == 0 else 1
 
 
 if __name__ == "__main__":

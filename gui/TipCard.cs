@@ -9,7 +9,9 @@
 // (P6-DESIGN 1.4). Nothing here acts: hovering shows, and that is all.
 //
 // Its clocks (`Monotonic`, `Now`) and the pointer (`Pointer`) are fields, so the probe mode can drive it with a window that
-// is never shown; the live icon leaves them as they are.
+// is never shown; the live icon leaves them as they are. Every call by which it reaches the screen - ShowWindow, SetWindowPos,
+// UpdateLayeredWindow, its timers and what a screen reader is told (NotifyWinEvent) - goes through gui/SurfaceScreen.cs, so
+// with SurfaceScreen.Probe set they are records in the reference's words and none is made (S6.3e).
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -35,9 +37,6 @@ namespace CodexAutoResume
         internal const int OBJID_CLIENT = -4, CHILDID_SELF = 0;
         /// About thirty frames a second, and only while something moves (window.FRAME_MS).
         internal const int FrameMs = 33;
-
-        [DllImport("user32.dll")]
-        private static extern void NotifyWinEvent(uint winEvent, IntPtr hwnd, int objectId, int childId);
 
         // ------------------------------------------------------------------ the pure halves
         /// model.snapshot_activity: the popup header's word from the icon's own tick snapshot.
@@ -257,8 +256,8 @@ namespace CodexAutoResume
             fadeWay = null;
             if (hwnd != IntPtr.Zero)
             {
-                foreach (int timer in new[] { TipTick, TipFrame, TipFade, TipWatch })
-                    SurfaceNative.KillTimer(hwnd, new UIntPtr((uint)timer));
+                foreach (int timer in SurfaceMath.Four(TipTick, TipFrame, TipFade, TipWatch))
+                    SurfaceScreen.KillTimer(hwnd, timer);
                 SurfaceNative.DestroyWindow(hwnd);
             }
             frameRunning = false;
@@ -289,7 +288,7 @@ namespace CodexAutoResume
             if (!Visible || fading) Appear();
             Push();
             Place();
-            if (OnScreen) SurfaceNative.ShowWindow(Hwnd, SurfaceNative.SW_SHOWNOACTIVATE);
+            if (OnScreen) SurfaceScreen.ShowWindow(Hwnd, SurfaceNative.SW_SHOWNOACTIVATE);
             if (!Visible) Tell(EVENT_OBJECT_SHOW);
             Visible = true;
             awaySince = null;
@@ -308,7 +307,7 @@ namespace CodexAutoResume
                 return;
             }
             Visible = false;
-            foreach (int timer in new[] { TipTick, TipFrame, TipWatch }) KillTimer(timer);
+            foreach (int timer in SurfaceMath.Three(TipTick, TipFrame, TipWatch)) KillTimer(timer);
             frameRunning = false;
             Tell(EVENT_OBJECT_HIDE);
             if (atOnce || !Moves() || Alpha <= 0)
@@ -444,24 +443,15 @@ namespace CodexAutoResume
         private void Blit()
         {
             if (!OnScreen) return;
-            var blend = new SurfaceNative.BLENDFUNCTION { BlendOp = 0, BlendFlags = 0, SourceConstantAlpha = (byte)Alpha,
-                                                          AlphaFormat = SurfaceNative.AC_SRC_ALPHA };
-            var where = new SurfaceNative.POINT { X = Origin[0], Y = Origin[1] };
-            var size = new SurfaceNative.SIZE { Cx = Plan.Size[0], Cy = Plan.Size[1] };
-            var source = new SurfaceNative.POINT();
-            bool ok;
-            using (new SurfaceNative.PerMonitorDpi())
-                ok = SurfaceNative.UpdateLayeredWindow(Hwnd, IntPtr.Zero, ref where, ref size, renderer.Canvas.Dc, ref source, 0,
-                                                       ref blend, SurfaceNative.ULW_ALPHA);
-            if (!ok) throw new InvalidOperationException("UpdateLayeredWindow");
+            if (!SurfaceScreen.UpdateLayered(Hwnd, Origin, Plan.Size, renderer.Canvas.Dc, Alpha))
+                throw new InvalidOperationException("UpdateLayeredWindow");
         }
 
         private void Place()
         {
             if (!OnScreen) return;
-            using (new SurfaceNative.PerMonitorDpi())
-                SurfaceNative.SetWindowPos(Hwnd, SurfaceNative.HWND_TOPMOST, Origin[0], Origin[1], Plan.Size[0], Plan.Size[1],
-                                           SurfaceNative.SWP_NOACTIVATE);
+            SurfaceScreen.SetWindowPos(Hwnd, SurfaceNative.HWND_TOPMOST, Origin[0], Origin[1], Plan.Size[0], Plan.Size[1],
+                                       SurfaceNative.SWP_NOACTIVATE);
         }
 
         // ------------------------------------------------------------------ its motion
@@ -545,27 +535,18 @@ namespace CodexAutoResume
         {
             KillTimer(TipFade);
             fadeWay = null;
-            SurfaceNative.ShowWindow(Hwnd, SurfaceNative.SW_HIDE);
+            SurfaceScreen.ShowWindow(Hwnd, SurfaceNative.SW_HIDE);
             Alpha = 255;
         }
 
         private double NowMs() { return Monotonic() * 1000.0; }
 
-        private void SetTimer(int id, int ms) { SurfaceNative.SetTimer(Hwnd, new UIntPtr((uint)id), (uint)ms, IntPtr.Zero); }
+        private void SetTimer(int id, int ms) { SurfaceScreen.SetTimer(Hwnd, id, ms); }
 
-        private void KillTimer(int id) { SurfaceNative.KillTimer(Hwnd, new UIntPtr((uint)id)); }
+        private void KillTimer(int id) { SurfaceScreen.KillTimer(Hwnd, id); }
 
-        private void Tell(uint winEvent)
-        {
-            if (Hwnd == IntPtr.Zero) return;
-            try
-            {
-                NotifyWinEvent(winEvent, Hwnd, OBJID_CLIENT, CHILDID_SELF);
-            }
-            catch (Exception)
-            {
-            }
-        }
+        /// access.tell, through SurfaceScreen (SurfaceAccess.Tell on a live host: nothing where it cannot be said).
+        private void Tell(uint winEvent) { SurfaceScreen.Tell(Hwnd, winEvent); }
 
         // ------------------------------------------------------------------ messages
         private IntPtr WindowProc(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam)

@@ -15,32 +15,45 @@ namespace CodexAutoResume
         private static bool WindowCase(string surface, Dictionary<string, object> task, Dictionary<string, TableTextCalc> tables,
                                        out object plan)
         {
-            switch (surface)
+            if (surface == "tray_words")
             {
-                case "tray_words":
-                    plan = TrayWordsCase(task);
-                    return true;
-                case "tray_place":
-                    plan = TrayPlaceCase(task);
-                    return true;
-                case "tip_window":
-                    plan = TipWindowCase(task);
-                    return true;
-                case "popup_window":
-                    plan = PopupWindowCase(task);
-                    return true;
-                case "menu_window":
-                    plan = MenuWindowCase(task);
-                    return true;
-                case "card_stack":
-                    plan = CardStackCase(task);
-                    return true;
-                case "tray_icon":
-                    plan = TrayIconCase(task);
-                    return true;
-                case "host_surfaces":
-                    plan = HostSurfacesCase(task);
-                    return true;
+                plan = TrayWordsCase(task);
+                return true;
+            }
+            if (surface == "tray_place")
+            {
+                plan = TrayPlaceCase(task);
+                return true;
+            }
+            if (surface == "tip_window")
+            {
+                plan = TipWindowCase(task);
+                return true;
+            }
+            if (surface == "popup_window")
+            {
+                plan = PopupWindowCase(task);
+                return true;
+            }
+            if (surface == "menu_window")
+            {
+                plan = MenuWindowCase(task);
+                return true;
+            }
+            if (surface == "card_stack")
+            {
+                plan = CardStackCase(task);
+                return true;
+            }
+            if (surface == "tray_icon")
+            {
+                plan = TrayIconCase(task);
+                return true;
+            }
+            if (surface == "host_surfaces")
+            {
+                plan = HostSurfacesCase(task);
+                return true;
             }
             plan = null;
             return false;

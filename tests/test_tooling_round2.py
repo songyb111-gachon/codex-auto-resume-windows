@@ -285,7 +285,7 @@ class StampedBuildTests(unittest.TestCase):
     def test_make_gui_stamps_each_executable_it_builds_after_normalising_it(self):
         script = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
         self.assertIn("gui_stamp.py", script)
-        # The window and, in the standard run, the watcher host (S6.2b): every executable through Build, each stamped.
+        # v0.6.27: the window and, in the standard run, the watcher host (gui/host.sources).
         self.assertEqual(script.count(" -Kind '"), 2)
         self.assertIn("-Kind 'window'", script)
         self.assertIn("-Kind 'host'", script)
