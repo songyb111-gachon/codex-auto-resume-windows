@@ -381,7 +381,7 @@ fn sent_now(
         &[key.clone(), capability.clone()],
     )?;
     let Some(found) = found else { return Ok(false) };
-    if !hooks::fresh(&found[0], &found[1], &found[2], since, now) {
+    if !crate::control::sendnow::fresh_columns(&found[0], &found[1], &found[2], since, now) {
         return Ok(false);
     }
     sql::exec(

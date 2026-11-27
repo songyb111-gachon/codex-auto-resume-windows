@@ -817,6 +817,11 @@ impl Errand for CheckErrand {
 }
 
 impl Code for IdleUpdateCheck {
+    /// The surfaces (S7.3a) read the code's own view through this downcast.
+    fn as_any(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
+    }
+
     fn bind(&mut self, binding: Binding) -> Option<Result<(), Raised>> {
         self.bind_to(Bound::of(binding));
         Some(Ok(()))

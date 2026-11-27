@@ -17,17 +17,12 @@
 //! | engine/emptyreply, keepgoing, subagent (S7.2e1) | engine/continued (S7.2d) | `continued::{handed, answer_key_text, words_pass}` |
 //! | engine/anchor (S7.2e2) | engine/wrapwords (S7.2d) | `wrapwords::ON` (anchor read it there already) |
 //! | engine/retries (S7.2e1) | codex/account (S7.2b) | `codex::account::parse` (the `AccountReply` trait is gone) |
+//! | engine/opentarget (S7.2e1) | control/opencodex (S7.3a) | `opencodex::handler_registered`, which the entry points hand `OpenWorld` (the `OpenCodex` trait, which nothing asked, is gone) |
 //!
 //! What is left waits for a seat not merged yet:
 //!
 //! | from (seat) | to (owner) | here |
 //! |---|---|---|
-//! | engine/opentarget (S7.2e1) | control/opencodex (S7.3a) | [`OpenCodex`] |
 //! | runtime (S7.2a) | measure (S7.4) | `runtime::measurement` (S7.4's own file) |
 //! | surfaces (S7.3a) | control/courier, control/remote, courier/feed (S7.3b) | the entries S7.3a adds against S7.3b's modules, merged here |
 //! | measure, evidence (S7.4) | codex/account, authfile, restart, swap (S7.2b); engine/emptyreply, retries, subagent (S7.2e1); engine/anchor (S7.2e2) | S7.4 calls the owners (all merged) |
-
-/// `control/opencodex.handler_registered(read=None) -> bool` (S7.3a), for `engine/opentarget` (S7.2e1).
-pub trait OpenCodex {
-    fn handler_registered(&self) -> bool;
-}

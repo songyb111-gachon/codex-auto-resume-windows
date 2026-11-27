@@ -5,7 +5,7 @@
 //! makes it once for each home ([`create`]). Every hook hands its question to the runtime (`crate::runtime`), which asks
 //! the registry's capabilities in the state each one is in; nothing is opened, read or written until a hook needs it,
 //! and with no capability on every decision point answers as NULL does. What it adds is on its surfaces (P10,
-//! `surfaces.answer`, seat S7.3a: until it is ported this plug adds no field there, which is NULL's answer).
+//! `crate::surfaces::answer`, seat S7.3a).
 
 use std::sync::{Arc, OnceLock};
 
@@ -222,9 +222,16 @@ impl Plug for AdvancedPlug {
         })
     }
 
-    fn surface(&self, _name: Surface, _facts: &Value) -> Hook<Value> {
-        // `surfaces.answer(self.runtime, name, facts)`: seat S7.3a's. Until it is ported, NULL's answer.
-        Ok(Answer::Defer)
+    fn surface(&self, name: Surface, facts: &Value) -> Hook<Value> {
+        // `surfaces.answer(self.runtime, name, facts)` (seat S7.3a); what it lets out is a hook that raised.
+        match self
+            .runtime()
+            .enter(|runtime| crate::surfaces::answer(runtime, name, facts))
+        {
+            Ok(Some(found)) => Ok(Answer::Is(found)),
+            Ok(None) => Ok(Answer::Defer),
+            Err(_) => Err(HookFailed),
+        }
     }
 
     fn claim_ledger(

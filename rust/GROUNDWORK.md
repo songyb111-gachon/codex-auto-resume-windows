@@ -4905,3 +4905,131 @@ Python guards (wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privac
 * **The host's reproducibility** (above): S6.3's writer rewrites the string switches and constant arrays, then
   make_gui.ps1 both editions and the GUI set; until then the host is built only by csc directly (tests).
 * test_screenshots / test_motion_fidelity: stale inputs after S6.2a/S6.3 are the main session's pictures.
+
+## Seat S7.3a: control and surfaces - the bridge commands, the MCP tools, status, tray, diagnostics (branch `car-v0627-s73a`, 2026-11-27)
+
+Ported from the v0.6.26 final's own sources (nothing in the scope moved since: `git diff --stat v0.6.26 -- surfaces.py control/`
+is empty). The plug's P10 (`AdvancedPlug::surface`) now answers through `crate::surfaces::answer` under the runtime's GIL;
+what the reference lets out of `surfaces.answer` is a hook that failed (HookFailed), as a Python hook that raised.
+
+### Ported (module -> crate)
+
+| Python (`advanced/src/codex_auto_resume_advanced/`) | car-adv |
+|---|---|
+| `surfaces.py` (999) | `surfaces.rs`: `answer`, `badge`, `status`, `meter_view`, `notice_view`, `update_view`, `account_view`, `autoswitch_view`, `diagnostics`, `feed_view`, `fleet_view`, `headless_stop`, `runs`, `rows` (with `_silent`, `_compacting`, `_listed`, `_kind` and its KIND_SECONDS cache), `bridge` (ARGUMENTS as `arguments(command)`), `report`, `measure`, `measure_verdict`, `tools()` (TOOLS), `mcp` |
+| `control/resets.py` (305) | `control/resets.rs`, with the helpers every card shares (`_refused`, `_stale`, `_on`, `_standing`, `switched_off`, `words_limit`, `occasion_problem`, `count_unproven`) and the state's call surface by Python name (`resets::call`, which checks `runtime.faults` first, so a test's `patch.object(runtime.state, ...)` reaches it through the proxy) |
+| `control/sendnow.py` (111) | `control/sendnow.rs`: `fresh` (replaces `state/seam/hooks.rs::fresh`; the claim ledger calls `sendnow::fresh_columns`), `wake`, `request`, `SendNow` (P7) and `make` |
+| `control/keepgoing.py`, `steer.py`, `prompts.py` (with the pictures), `chat.py`, `conversations.py`, `follow.py`, `earlycheck.py`, `fleet.py` (and `engine/fleet.bounded`, which S7.2e2 left), `account.py`, `opencodex.py` | the same names under `control/` |
+
+`seam_p7::OpenCodex` is gone: `control::opencodex::handler_registered(None)` is what the entry points hand
+`engine::opentarget::OpenWorld.handler_registered`. `Arming::catalogs()` (advanced-words) and `as_any` on `UsageStop` and
+`IdleUpdateCheck` (the tray's meter notices and update offer) were added for the surfaces.
+
+### Not ported, and why (exactly what is left)
+
+* **`control/autoswitch.py`, `powertasks.py`, `analytics.py`, `codexstart.py`**: ported by S7.3a2 (below); nothing is
+  passed over any more (`surfaces::unported` is gone).
+* **`measure` / `measure-verdict`**: S7.4's (`runtime::measurement`): until then the run is a raise, which the tag answers
+  STATE_UNAVAILABLE (the argument checks before it are the tag's).
+* **`advanced-python*`** (D8, Q1 (a)): python_choice is never offered and no choice is ever recorded, so each answers
+  `not_on`, as the tag does then; `_nothing_stays_chosen` is nothing to do.
+* **The report's commands**: `runtime.action(compat_report)` finds no code while the table's `capabilities::report::make`
+  gives none (the entry points use `make_with`), so they answer STATE_UNAVAILABLE and trip it, as the tag does when the
+  action raises. S7.3d: make the shipped table's `compat_report` with `make_with(paths, Config)`.
+
+### Seams left
+
+* `surfaces::World` (`install_world`, S7.3d): the Credential Manager backend, the pairing code, the courier's `start`/`run`,
+  `running`, `watcher`, the addresses, the token, the account read / switch, the restart and `busy`, the thread `spawn`, and
+  the Windows UI languages. `World::bare()` (no entry point) reaches nothing real: an empty in-memory Credential Manager,
+  no courier, an account read that says Codex could not be asked, a switch and a restart that fail.
+* `engine::usage::World::installed()` is the meter view's world (`of_account`'s switch time), as S7.2d left it.
+
+### The proof (`tests/rustdiff/advsurface.py`, `diffs_advsurface.py`; advserve's `surface` call; `advproxy/s73a.py`)
+
+* **`diffs_advsurface.AdvSurfaceDiff`**: one scenario script over five scratch homes (nothing on; the reset actions; the
+  prompt queue, steer and follow; keep going, chat, send now, headless stop and MCP; fleet, the early check, the feed and
+  Open Codex), run on the tag's trees and the bundled 3.14.10 twice - as the tag ships, and with tests/rustdiff/shim.py
+  under CODEX_AR_CORE=rust so the runtime, its state and arming and every forwarded `surfaces.*` are car-adv's (advserve).
+  184 answers, every one equal byte for byte (26 s on the debug advserve). The first run differed in two lines only:
+  `system`'s language (the tag reads Windows' UI languages, car-adv's World has none - AUDIT; the script now pins
+  CODEX_AUTO_RESUME_LANG on both sides) - and once in a random temporary folder's name (now one fixed name).
+* **The proxy**: `advproxy/table.py`'s `surfaces` row forwards `answer`, `bridge`, `mcp`, `rows` (only without a test's own
+  store or source), `badge`, `status` and the nine views to `s73a.py`, which asks advserve's `surface` call for a runtime of
+  car-adv's and hands any other runtime to the reference's own function.
+* **`advproxy/ledger.py --run`** (debug advserve, bundled 3.14.10) over the ten files that import only `surfaces`:
+  `test_advanced_words_v019` GREEN (into GREEN); `test_advanced_surfaces` 29 of 34 equal, `test_advanced_watch_log` 18 of
+  20 (RUN_WAITS names each held test: the one-shot bridge's core stub, Python patches of `Arming.arm` and
+  `control.sendnow.wake` car-adv cannot see, state methods patched to raise that watchlog's own reads do not consult);
+  the queue's five files and `test_advanced_rows` reach no advserve call - they drive core's engine proxy (car-harness's
+  serve, not built in the seat's tree) or hand `rows` a store and a source of their own.
+* **Mutation checks** (scratchpad `car-v0627-s73a-mutate.py`: each alone, debug advserve rebuilt, the family run,
+  restored): a weekly window offered past its next reset, one picture more than MOST_IMAGES taken, keep going's count of
+  10 refused, an MCP argument the schema does not name taken by the list tool, a Send now request lapsing a second
+  early, the fleet's stand ok and held swapped - **6 of 6 caught**, none survived.
+* Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv73a.py --reference v0.6.26`.
+
+### For later seats
+
+* S7.3d: `surfaces::install_world` with the live hands (Credential Manager, the courier's launcher, account read/switch,
+  restart and busy, Windows UI languages); `opencodex::handler_registered(None)` into `OpenWorld`; the shipped table's
+  `compat_report` through `capabilities::report::make_with`; an `Edges::power_tasks_follow` that calls
+  `control::powertasks::follow`; the saved accounts' five World hands (S7.3a2 below).
+* Done by S7.3a2 (below): the four cards, their commands, and forwarders for the cards' functions a test calls by name.
+  Still without a forwarder: `earlycheck.view`/`check`, `follow.follow`, `fleet.*`, `opencodex.handler_registered` and the
+  cards' write functions (`set_one`, `add`, ...), which their tests call with Python stand-ins.
+
+### Gates (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `. tools/rustflags.sh` first; rustc 1.100.0)
+
+```
+## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after 7e29aa966); test --locked --no-fail-fast rc=0; cargo deny --locked check rc=0
+## rust            fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
+diffs_advsurface (debug advserve, after the clippy fixes)   Ran 1, OK (184 answers equal)
+privacy_scan.py on every file added                  clean
+```
+
+### S7.3a2: the last four cards (branch `car-v0627-s73a`, 2026-11-27)
+
+* **Ported**: `control/powertasks.py` -> `control/powertasks.rs` (`view`, `arm`, `follow`; the arming through car-control's
+  `Control` with a plug bound to this runtime, `Bound`, so P21's `wants` reads this request's state); `control/autoswitch.py`
+  -> `control/autoswitch.rs` (the six commands; `_ADDING`/`_READING`/`_SWITCHING` as one per-process table by home);
+  `control/analytics.py` -> `control/analytics.rs` (the card, `aggregate`, the paces, `behind`, and the CSV: a BOM,
+  `\r\n`, QUOTE_MINIMAL, `x`/`w`); `control/codexstart.py` -> `control/codexstart.rs` (`make` now gives the code: the
+  P9 route, the WMI script byte for byte - a unit test reads it out of the Python file - `bind`, `acted_when_told`, `told`).
+  The ten commands are dispatched by `surfaces::dispatch`.
+* **Seams**: `surfaces::World` grew the saved accounts' hands - `accounts_add` (`swap.add_by_login`), `accounts_read_one`
+  (`swap.read_profile`), `accounts_put_in` (the automatic switch's `put_in(manual=True)`), `accounts_busy`
+  (`restart.busy(usage_waiting_ok=True)`), `other_engine`; the bare world adds nothing, reads `present: None`, fails a switch,
+  is always busy and sees no other engine. S7.3d hands the live ones (`engine::autoswitch::live_seams`, `swap::Live`,
+  `account::Live`). `powertasks::follow(paths, armed)` is what an `Edges::power_tasks_follow` calls (advserve's AskEdges
+  still asks the reference's, so a test's patches hold). car-control's StartRoute has no `told` (S5.1b): core tells the
+  route nothing yet; `codexstart::Route::told` waits for it.
+* **Proof**: `diffs_advsurface` grew scenarios 6-8 over a Codex home the script writes into the scratch profile (threads,
+  a running and a finished turn, a `tokens_used` column, token_days through `ingest_file`): every refusal of the two
+  power-tasks commands, the card with a running conversation, a real arming for tasks (core's power action, read-only
+  Windows power query) and its list, its turning off with the capability; the accounts card off, watched and on, every
+  switch/delete refusal, delete all, save with no sign-in file; analytics' days, the card per day and lifetime, eleven CSV
+  saves and the written bytes. All equal on bundled 3.14.10 (release and debug advserve). Add, Read usage and a real
+  switch are not driven: they reach Codex (`codex login`, app-server reads) - the bare World's hands stand in on Rust.
+  codexstart has unit tests (each outcome word, the pid as `int()` reads it, the script) and no reference diff (its
+  `start` creates a process through WMI).
+* **Proxy**: `advproxy/table.py` forwards the cards' own functions a test calls by name (powertasks `view`/`arm`, analytics
+  `view`/`save_csv`, autoswitch `view`/`save`/`delete`, keepgoing/conversations/resets/prompts `view`) through
+  `s73a._card`: asked as their bridge command for a runtime of car-adv's; a call with a seam of the test's own goes to the
+  reference. The `control` package row is DATA (a docstring).
+* Re-diff: `python -X utf8 tests/rustdiff/rediff_adv73a.py --reference v0.6.26` now lists the four files too.
+* **Mutation checks** (scratchpad `car-v0627-s73a2-mutate.py`, each alone, debug advserve rebuilt, the family run,
+  restored): a grace of 30 minutes refused, seventeen tasks taken, delete all counting one more, account_switch's standing
+  not counted, the CSV's lines ending in LF, a project key cut to 15 - **6 of 6 caught**. One weaker mutation (a key of 16
+  digits dropped) survived against core's 64-digit keys and was replaced by the cut; seventeen tasks survived until the
+  family asked for 16 and 17 different conversations (it now does).
+* **Ledger** (`ledger.py --debug --run`, bundled 3.14.10): GREEN grew by test_advanced_account_card_findings and
+  test_advanced_autoswitch_control (12 green files); test_advanced_power_tasks 23 of 24, test_advanced_analytics 17 of
+  23, test_advanced_manual_switch 16 of 17, test_advanced_conversations 6 of 12 (the same with the card's forwarder off) -
+  RUN_WAITS names what holds each.
+* **Gates** (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, rustflags): advanced/rust and rust fmt --check, clippy
+  --all-targets -D warnings, test --no-fail-fast and cargo deny all rc=0 (advanced fmt after 28be6d482);
+  check_groundwork OK (17 standard, 3 advanced crates); check_rebuild rc=0, every standard binary the same, no profile path;
+  privacy_scan clean on every file the pass touched; diffs_advsurface 269 answers equal (release, `run.py --build`).

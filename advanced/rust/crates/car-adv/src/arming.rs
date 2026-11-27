@@ -618,6 +618,11 @@ impl<'a> Arming<'a> {
     }
 
     /// `why`: {capability: why it does not stand on now} as the last read that worked found it.
+    /// `self.catalogs`: the catalogs the statements are read from (the bridge's advanced-words, S7.3a's surfaces).
+    pub fn catalogs(&self) -> &Catalogs {
+        self.catalogs
+    }
+
     pub fn why(&self) -> Vec<(String, String)> {
         self.why.borrow().clone()
     }
