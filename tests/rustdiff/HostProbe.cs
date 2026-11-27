@@ -154,6 +154,7 @@ namespace CodexAutoResume
                     { "MENU_POPUP", (double)TrayIcon.MenuPopup },
                 };
             if (name == "popup_live") return PopupLive(call);
+            if (name == "menu_fade") return MenuFade(call);
             if (name == "popup_gate") return PopupGate(call);
             if (name == "icon_held") return IconHeld(call);
             throw new ArgumentException("no call " + name);
@@ -2544,6 +2545,103 @@ namespace CodexAutoResume
             }
             finally
             {
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        // ------------------------------------------------------------------ the drawn menu's fade (S6.4d5)
+        /// The drawn menu's fade (tests/test_menu_opening_motion.py FadeTests) over a history of steps run again from the
+        /// start: a MenuWindow whose window is the number 900, as the reference test's (every call it makes of Windows
+        /// recorded, none made: SurfaceScreen's probe mode, its extended style kept in SurfaceScreen.Styles), its plan the
+        /// host renderer's of the entries at `scale`, at `origin`, visible, High Contrast as `contrast`, Reduce motion
+        /// answering `reduced`, its clock the step's `now` (ms). Its picture is drawn once before the steps and filled with
+        /// a mark, so a step that draws it again (Render) is seen. Steps: appear (the private Appear), close (Close, quietly
+        /// or not), timer (WM_TIMER for the fade's timer through its window procedure), visible. After each: alpha, below,
+        /// the fade's way, visible, whether it drew; then the whole record and the style.
+        private static object MenuFade(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            Func<IntPtr, string> savedName = SurfaceScreen.Name;
+            SurfaceScreen.Probe = new List<string>();
+            var own = new IntPtr(900);
+            SurfaceScreen.Name = hwnd => hwnd == own ? "menu" : savedName(hwnd);
+            SurfaceScreen.Styles.Remove(900);
+            var menu = new MenuWindow(line => { });
+            SurfaceRenderer renderer = SurfaceRenderer.Open();
+            try
+            {
+                System.Reflection.BindingFlags hidden = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                typeof(MenuWindow).GetField("renderer", hidden).SetValue(menu, renderer);
+                typeof(MenuWindow).GetField("hwnd", hidden).SetValue(menu, own);
+                menu.Entries = MenuEntries((List<object>)call["entries"]);
+                menu.Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]);
+                menu.Plan = renderer.MenuLayout(menu.Entries, (double)call["scale"], menu.Locale, 1920);
+                menu.Origin = IntsOf(call["origin"]);
+                menu.Contrast = (bool)call["contrast"];
+                bool reduced = (bool)call["reduced"];
+                menu.AskReduced = () => reduced;
+                menu.Visible = true;
+                double now = 0;
+                menu.Monotonic = () => now / 1000.0;
+                menu.Render();
+                SurfaceCanvas canvas = renderer.Canvas;
+                int bytes = canvas.Width * canvas.Height * 4;
+                Action mark = () =>
+                {
+                    var filled = new byte[bytes];
+                    for (int at = 0; at < bytes; at++) filled[at] = 0x5A;
+                    System.Runtime.InteropServices.Marshal.Copy(filled, 0, renderer.Canvas.Bits, bytes);
+                };
+                Func<bool> drew = () =>
+                {
+                    if (!ReferenceEquals(canvas, renderer.Canvas)) return true;
+                    var read = new byte[bytes];
+                    System.Runtime.InteropServices.Marshal.Copy(renderer.Canvas.Bits, read, 0, bytes);
+                    foreach (byte one in read) if (one != 0x5A) return true;
+                    return false;
+                };
+                mark();
+                SurfaceScreen.Probe.Clear();
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    now = (double)step[1];
+                    if (what == "appear") typeof(MenuWindow).GetMethod("Appear", hidden).Invoke(menu, null);
+                    else if (what == "close") menu.Close((bool)step[2]);
+                    else if (what == "timer") menu.Message(SurfaceNative.WM_TIMER, MenuWindow.FadeTimer, 0);
+                    else if (what == "visible") menu.Visible = (bool)step[2];
+                    else throw new ArgumentException("no menu_fade step " + what);
+                    bool drawn = drew();
+                    if (drawn)
+                    {
+                        canvas = renderer.Canvas;
+                        bytes = canvas.Width * canvas.Height * 4;
+                        mark();
+                    }
+                    after.Add(new Dictionary<string, object>
+                    {
+                        { "alpha", (double)menu.Alpha }, { "below", (double)menu.Below }, { "fade", menu.FadeWay },
+                        { "visible", menu.Visible }, { "drew", drawn }, { "records", (double)SurfaceScreen.Probe.Count },
+                    });
+                }
+                int style;
+                return new Dictionary<string, object>
+                {
+                    { "steps", after }, { "records", new List<object>(SurfaceScreen.Probe) },
+                    { "style", SurfaceScreen.Styles.TryGetValue(900, out style) ? (double)style : 0.0 },
+                    { "origin", Plain(menu.Origin) }, { "scale", menu.Plan.Scale },
+                };
+            }
+            finally
+            {
+                typeof(MenuWindow).GetField("hwnd", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                  .SetValue(menu, IntPtr.Zero);
+                renderer.Dispose();
+                SurfaceScreen.Styles.Remove(900);
+                SurfaceScreen.Posted.Clear();
+                SurfaceScreen.Name = savedName;
                 SurfaceScreen.Probe = saved;
             }
         }
