@@ -4813,3 +4813,95 @@ The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_s74.py --refere
 * S7.3d: implement `runtime::measurement::Live` (the real session over car-codex's backend, MW's WMI chain, the hands).
 * The next S7.4 seat: port the probes above in that order, each a case family in `diffs_advmeasure.py`, and move it
   into `measure::ported()` and `advledger_s74.PORTED`.
+
+## Integration 11 (branch `car-v0627-rust`, 2026-11-27)
+
+P6, the final-port and S7.4's first part. Six branches merged with `git merge --no-ff`, both sides kept, in this order;
+then one commit per step.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `55714ad89` | car-v0627-finalport `d20bd1b4c` | FINAL-DELTA #1-#11, #15: HistoryNotYet, the package engines, get_status's newest usage reading |
+| `7b9a6b4cc` | car-v0627-s62a `ec40a5481` | the window starts codex-auto-resume.exe (gui/CoreExe.cs); the MCP and Stop hook launchers are Rust's |
+| `90b09dd63` | car-v0627-s63 `8753199c7` | every surface the host draws, in C# (gui/host.sources `[surface]`, `[generated]`) |
+| `948ef9304` | car-v0627-s62b `c0800cee3` | the host shell, the engine join, the real-engine guard, cards, checkup/rescan, demo, `main_with`, car-core-proof.exe |
+| `7e8260c98` | car-v0627-s64 `7cd03bf02` | S6.4's ledger and the UI tests routed to the C# host (tests/ only) |
+| `79a1843b1` | car-v0627-s74 `d907afb8c` | S7.4 part 1: evidence and 22 measurement probes |
+
+Conflicts and how each was kept: `rust/GROUNDWORK.md` in every merge (sections appended in merge order; for s62b the
+whole of this branch's file and then s62b's own sections, since diff3 had split them). `tests/guiscan.py`: s62a's
+launchers are gone, so `SEPARATE = HOST + SURFACE` with `HOST = [host] + [contract]` (s62b) and `SURFACE` (s63);
+`ScanError` is defined before `host_group`, which runs at import. `gui/host.sources`: `[host]` HostCore/HostMain/HostPump,
+`[contract]`, S6.3's `[surface]` and `[generated]`; `gui/HostStandIn.cs` and `[standin]` removed, so Main's
+`SurfaceRender.Run()`/`Probe(args)` are S6.3's. `build/make_gui.ps1` and `build/gui_stamp.py`: kinds `window` and `host`
+(no `launcher`: Rust's since S6.2a). `car-engine` seam: `WorkerSend` (Integration 10) and s62b's `impl Backend for Arc<T>`,
+which now forwards `worker_send` too (otherwise a shared backend's sends would go inline). car-harness `engine.rs`
+re-exports car-watcher's `join::store::EngineStore`, which took Integration 10's claim with the plug's ledger
+(`claim_with`, `reserve_ledgered`), `errand_guard`, `reserve_record` and `record_guard`. car-harness `bridge.rs`:
+`StatusPlug` (finalport) and `real_checks` (s62b) both. car-platform: `random`, `realengine`, `restart`.
+`check_groundwork.py`: car-adv-bin -> car-platform (S6.2a), car-adv-host -> car-policy (S6.2b). `tests/rustdiff/shim.py`:
+the popup's pure half through surfaceproxy (S6.4) and the advanced package through advproxy (S7.2a3).
+
+### The joins
+
+* `e902e8da8`: car-watcher `checkup::history_not_yet` is `Error::is_history_not_yet()`. CheckupDiff's new world (a Codex
+  home with no history database and a state with no conversation) is "readable": true on both sides; the AUDIT gap line
+  is removed. Mutation: `history_not_yet` answering false -> CheckupDiff FAILS on that world (byte 286, `readable`).
+* `4487b5659`: `core.build_rest` builds `advmeasure`; test_rustdiff_script_command holds advmeasure.py.
+* `3149b0ba1`: diffs_advcourier_state's served token is `example-token-0123456789` (same length and characters) for
+  test_listing_scan.
+* `b7edb2d51`: the guards meet the merged host - test_host_shell (other host files import only Windows' own libraries,
+  `SYSTEM_DLLS`; gui/Brand.cs is the palette both lists share), test_repo_hygiene and test_privacy_bare_hosts read
+  gui/host.manifest as gui/app.manifest, test_window_core pins S6.3's deliberate consumer-field change (`0622dbeb3`),
+  rediff_host_surface/rediff_ui_tests start the tag's tests through `refpython.command` with refguard's boot.
+* `39f981e49`: tests/data/rust_release_budget.json `standard_binaries_mib` 0.8 -> 8.3 (PLAN 6.6, P6's first full build:
+  8.244 measured).
+* `8cbcd6ac3`: diffs_review4's skill lines run on `car-core-proof.exe`; with the real core, `enable` was refused (2).
+  The real core ran those ten lines against a scratch home first: the Run value is still the installed Python
+  watcher's, and no AUMID key of ours exists.
+
+### Not done: the host is not reproducible (make_gui.ps1, standard run)
+
+`CodexAutoResume.exe` compiles (555,520 bytes) but `build/normalize_pe.py` refuses it: S6.3's sources make the in-box
+compiler emit `<PrivateImplementationDetails>{GUID}` - 12 string switches of 6 or more cases (Dictionary fields: PopupWords
+`Code`/`CodePoints`, SurfaceFonts x2, SurfaceTheme x3, SurfaceDays, SurfaceLight x2, PopupLayout, TrayMotion x2,
+SurfaceAccess, SurfaceRender `IntsOrNull`, SurfaceRenderer `PointsOf`/`SceneShape`, GdiTextCalc/TableTextCalc) and
+constant primitive array initializers (SurfaceBidi's 1,820-entry `Starts`, 7,280 bytes, and about ten of 3-6 constants:
+TrayPlace, SurfaceScreen, MenuWindow, PopupWindow `ContextMenu`, SurfaceAccess, SurfaceRender). The repository's way
+(gui/DashboardData.cs, gui/SoftEdit.cs, build/make_brand.py) is an if chain and arrays filled one by one; that rewrite is
+S6.3's code (one writer per design) and every GUI module must be rerun after it. The advanced run built (the window).
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `CAR_NO_REAL_ENGINE=1`; reference v0.6.26 on the bundled 3.14.10; rustc 1.100.0)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0
+make_gui.ps1 (scratch -Out)                          standard: window built (c7b4879a...), host REFUSED by normalize_pe
+                                                     (above); advanced: window built
+run.py --build --reference v0.6.26 --reference-python bundled -v
+                                                     Ran 468 in 7,331 s: 1 FAIL (diffs_review4 LegacySkillLines, the real
+                                                     core; fixed in 8cbcd6ac3, then -k LegacySkillLines: Ran 1, OK, 10 lines,
+                                                     0 refused). The two HistoryNotYet reds of Integration 10 are gone.
+CheckupDiff after the join                           Ran 3, OK (25 worlds)
+the 15 frozen modules (test_parts --worker; CODEX_AR_CORE=rust)    456 pass on both, 0 differ (Python 283 s, Rust 249 s)
+advproxy/ledger.py --run (bundled 3.14.10)           GREEN 9 of 32, as Integration 10 (the 23 wait for their seats' rows)
+test_rust_release, standard and advanced (detached)  Ran 25, OK each (after the budget)
+test_rust_install, standard and advanced (detached)  Ran 11, OK each
+test_listing_scan, standard and advanced             Ran 6, OK each
+GUI lock, one at a time: test_host_shell 8 OK, test_surface_parity OK, test_surface_windows 8 OK, test_host_tray_place
+  16 OK, test_surface_askback 5 skipped (CODEX_AR_CORE=rust only: rediff_ui_tests runs it)
+Python guards (wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit
+  test_srcscan test_stack test_layers test_structural_invariants test_rust_power_guard test_rustdiff_reference_python
+  test_review9_install test_host_contract test_python315_encoding test_rustdiff_script_command test_rustdiff_refguard
+  test_no_console_windows test_guiscan test_host_shape test_surface_ledger test_window_core
+                                                     Ran 246: 5 FAIL (the merged host meeting the guards), fixed in
+                                                     b7edb2d51; the five modules again: Ran 44, OK
+```
+
+### For the next seats
+
+* **The host's reproducibility** (above): S6.3's writer rewrites the string switches and constant arrays, then
+  make_gui.ps1 both editions and the GUI set; until then the host is built only by csc directly (tests).
+* test_screenshots / test_motion_fidelity: stale inputs after S6.2a/S6.3 are the main session's pictures.
