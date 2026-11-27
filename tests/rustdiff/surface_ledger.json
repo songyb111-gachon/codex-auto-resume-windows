@@ -2402,12 +2402,31 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 17 UI tests run on the host (none); 17 are still on the Python UI (17 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "14 of 17 UI tests are held by a twin (tests/test_host_tray_tip_messages.py); 3 are still on the Python UI: ShowTests.test_the_first_rest_makes_the_card_with_what_the_tooltip_says (it reads what the card is made with: the host's ShowTip makes new TipCard(TipContent, PopupHeld, Log, Days) itself, and the probe's MakeTip replaces that making whole) and LiveCardTests 2 (the real card shown far off the screen: gui/TipCard.cs calls ShowWindow and user32's timers directly)",
+   "needs": "gui/TrayIcon.cs: a MakeTip seam that takes the content, held and days the host would make its card with (seat S6.3d's gui/); gui/TipCard.cs's ShowWindow, SetTimer, KillTimer through SurfaceScreen while probed, then a tip_steps run of show and hide (or a live run of the host's card off the screen, the main session's to allow)",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "ShowTests.test_the_pointer_resting_shows_the_card_at_the_shells_anchor": "test_host_tray_tip_messages.py::ShowOnHostTests.test_the_pointer_resting_shows_the_card_at_the_shells_anchor",
+    "ShowTests.test_not_over_the_popup_or_the_menu": "test_host_tray_tip_messages.py::ShowOnHostTests.test_not_over_the_popup_or_the_menu",
+    "ShowTests.test_without_version_4_there_is_no_card": "test_host_tray_tip_messages.py::ShowOnHostTests.test_without_version_4_there_is_no_card",
+    "HideTests.test_each_way_away_hides_it": "test_host_tray_tip_messages.py::HideOnHostTests.test_each_way_away_hides_it",
+    "HideTests.test_the_icons_end_destroys_it": "test_host_tray_tip_messages.py::HideOnHostTests.test_the_icons_end_destroys_it",
+    "FlagTests.test_windows_tooltip_is_left_out_only_while_the_card_can_be_shown": "test_host_tray_tip_messages.py::FlagOnHostTests.test_windows_tooltip_is_left_out_only_while_the_card_can_be_shown",
+    "FlagTests.test_version_4_drops_windows_tooltip_as_the_icon_is_added_and_after_explorer_restarts": "test_host_tray_tip_messages.py::FlagOnHostTests.test_version_4_drops_windows_tooltip_as_the_icon_is_added_and_after_explorer_restarts",
+    "FlagTests.test_a_refused_version_keeps_windows_tooltip": "test_host_tray_tip_messages.py::FlagOnHostTests.test_a_refused_version_keeps_windows_tooltip",
+    "FallbackTests.test_a_card_that_cannot_be_made_gives_windows_tooltip_back": "test_host_tray_tip_messages.py::FallbackOnHostTests.test_a_card_that_cannot_be_made_gives_windows_tooltip_back",
+    "FallbackTests.test_a_card_that_cannot_be_shown_gives_windows_tooltip_back": "test_host_tray_tip_messages.py::FallbackOnHostTests.test_a_card_that_cannot_be_shown_gives_windows_tooltip_back",
+    "SilentShellTests.test_a_resting_pointer_brings_windows_tooltip_back_after_two_silent_visits": "test_host_tray_tip_messages.py::SilentShellOnHostTests.test_a_resting_pointer_brings_windows_tooltip_back_after_two_silent_visits",
+    "SilentShellTests.test_a_pointer_that_only_passed_by_is_not_a_silent_visit": "test_host_tray_tip_messages.py::SilentShellOnHostTests.test_a_pointer_that_only_passed_by_is_not_a_silent_visit",
+    "SilentShellTests.test_a_slow_drift_before_the_word_switches_nothing_off_for_good": "test_host_tray_tip_messages.py::SilentShellOnHostTests.test_a_slow_drift_before_the_word_switches_nothing_off_for_good",
+    "SilentShellTests.test_the_word_after_a_fallback_turns_the_card_back_on_at_once": "test_host_tray_tip_messages.py::SilentShellOnHostTests.test_the_word_after_a_fallback_turns_the_card_back_on_at_once"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_tray_tip_messages.py",
+    "tests/rustdiff/hosttipicon.py",
+    "tests/rustdiff/HostProbe.cs"
+   ]
   },
   "test_tray_tip_shape.py": {
    "holds": "The shape of the icon's tooltip card (v0.6.24): two files, one pure and one that calls Windows, loaded only on a hover.",
