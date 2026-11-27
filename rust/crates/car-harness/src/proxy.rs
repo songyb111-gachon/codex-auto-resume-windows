@@ -37,6 +37,9 @@ use car_policy::plug::Guarded;
 use car_policy::settings::managed::Managed;
 
 use crate::object;
+
+#[path = "proxyplug.rs"]
+mod plug;
 use crate::policy::PlatformOs;
 
 /// A Python exception class as a `'static` word.
@@ -570,6 +573,43 @@ impl car_engine::Store for AskStore {
     fn early_check_taken(&self) -> Py<()> {
         store("early_check_taken", Vec::new()).map(|_| ())
     }
+    /// `reserve_record(record, now, ledger=plug, quiet_until=...)`: the test's store with the engine's own plug as
+    /// its ledger (the plug the test handed the engine, kept on the Python side), its answer as `reserve_detailed`'s.
+    fn reserve_record(
+        &self,
+        record: &Map,
+        now: f64,
+        _ledger: &car_policy::plug::Guarded,
+        quiet_until: Option<f64>,
+    ) -> Py<Claimed> {
+        let found = values(store(
+            "reserve_record",
+            vec![Value::Object(record.clone()), f(now), opt_f(quiet_until)],
+        ))?;
+        let word = |index: usize| {
+            found
+                .get(index)
+                .and_then(|value| text(value).map(str::to_owned))
+        };
+        Ok((found.first().is_some_and(truthy), word(1), word(2)))
+    }
+    /// `with store.record_guard(record, plug, now) as permitted:` - entered on the Python side with the engine's own
+    /// plug, `body` run here, then left (as `submission_guard`).
+    fn record_guard(
+        &self,
+        record: &Map,
+        _ledger: &car_policy::plug::Guarded,
+        now: f64,
+        body: &mut dyn FnMut(bool) -> Value,
+    ) -> Py<Value> {
+        let permitted = boolean(store(
+            "record_guard_enter",
+            vec![Value::Object(record.clone()), f(now)],
+        ))?;
+        let found = catch_unwind(AssertUnwindSafe(|| body(permitted)));
+        store("guard_exit", Vec::new())?;
+        found.map_err(|_| "RuntimeError")
+    }
 }
 
 // ------------------------------------------------------------------ the reader of Codex
@@ -989,7 +1029,9 @@ fn open(request: &Map) -> Engine {
         language,
         home_lock: Some(Box::new(|| boolean(ask("home_lock", Vec::new())))),
         engine_state: Some(Box::new(|| ask("engine_state", Vec::new()))),
-        plug: std::sync::Arc::new(Guarded::null()),
+        plug: std::sync::Arc::new(
+            plug::named(request).map_or_else(Guarded::null, |made| Guarded::new(Box::new(made))),
+        ),
         connectivity: Some(Box::new(|| ask("connectivity", Vec::new()))),
         home_key,
         open_store: false,

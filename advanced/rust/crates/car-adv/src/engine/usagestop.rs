@@ -1016,7 +1016,7 @@ impl StopInner {
 }
 
 impl Code for UsageStop {
-    /// The surfaces (S7.3a) read the code's own view through this downcast.
+    /// The surfaces (S7.3a) and advserve's `code_call` (proxy2) read the code's own view through this downcast.
     fn as_any(&mut self) -> Option<&mut dyn std::any::Any> {
         Some(self)
     }

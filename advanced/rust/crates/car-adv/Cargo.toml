@@ -24,3 +24,9 @@ car-watcher = { path = "../../../../rust/crates/car-watcher" }
 car-words = { path = "../../../../rust/crates/car-words" }
 # D4, as car-store: the advanced state is its own SQLite file, and the claim ledger works on core's connection.
 rusqlite = { version = "0.43", features = ["bundled"] }
+
+# advserve's own tests (refused.rs: no code it makes reaches this PC) run with `cargo test`.
+[[example]]
+name = "advserve"
+path = "examples/advserve/main.rs"
+test = true

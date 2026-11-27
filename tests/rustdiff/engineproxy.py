@@ -21,6 +21,7 @@ Not a test module (no `test_` prefix), and stdlib only at import: the product's 
 from __future__ import annotations
 
 from contextlib import nullcontext
+import enum
 import json
 import os
 from pathlib import Path
@@ -131,6 +132,42 @@ class Panic(Exception):
     call raising, which is what it catches; a diff holds the two to the same outcome."""
 
 
+class _HarnessView:
+    """The view car-engine handed a plug's hook (P2, P8, P22), read from the Python side: each read is car-engine's own
+    view's, by a callback while car-harness waits (the innermost view it holds - at an errand's run, that run's)."""
+
+    def __init__(self, engine):
+        object.__setattr__(self, "_engine", engine)
+
+    @property
+    def now(self):
+        return self._engine._callback(["view", "now", []])
+
+    def __getattr__(self, name):
+        from codex_auto_resume.engine.storeview import VIEW_READS
+        if name not in VIEW_READS:
+            raise AttributeError(name)
+
+        def read(*arguments, **keywords):
+            return self._engine._callback(["view", name, plain(list(arguments))])
+        return read
+
+
+class _HarnessGuard:
+    """One of core's errand guards, as an errand enters it: `permitted` read by car-engine under the store's lock, the
+    guard held while the block runs (car-harness proxyplug.rs `guard_entered`)."""
+
+    def __init__(self, engine):
+        self._engine = engine
+
+    def __enter__(self):
+        return self._engine._callback(["guard_enter"])
+
+    def __exit__(self, *unused):
+        self._engine._callback(["guard_exit"])
+        return False
+
+
 class Engine:
     """car-engine's `Engine`, with the reference's constructor."""
 
@@ -164,8 +201,11 @@ class Engine:
         set_(self, "_session", PIPE.session())
         weakref.finalize(self, PIPE.let_go, self._session)
         given = dict(options or {})
+        set_(self, "_plug_objects", {})
+        handed = None if self.plug.null else {"edition": str(getattr(self.plug.edition, "value", self.plug.edition)),
+                                              "badge": str(self.plug.badge)}
         reply = self._request("proxy.open", options=plain(given), home_key=home_key, language=language,
-                              once_words=once_words is not None)
+                              once_words=once_words is not None, plug=handed)
         self._raise_if(reply)
         # car-engine's own defaults with what was given applied, as it holds them; a name it does not know is kept as
         # given (the reference's dict keeps every name).
@@ -247,7 +287,10 @@ class Engine:
     # ------------------------------------------------------------------ what car-engine asks
     def _answer(self, name, args):
         try:
-            return {"value": plain(self._asked(name, args))}
+            found = {"value": plain(self._asked(name, args))}
+            if os.environ.get("CODEX_AR_ENGINEPROXY_TRACE"):
+                sys.stderr.write("ASK %s %s -> %s\n" % (name, str(args)[:160], str(found)[:200]))
+            return found
         except Panic as exc:                # this call panics in car-harness, as a Rust seam's would (D15's boundaries)
             return {"panic": str(exc)}
         except Exception as exc:          # handed to car-engine as its class, and raised again here if it leaves
@@ -258,6 +301,8 @@ class Engine:
         kind, _, method = name.partition(".")
         if kind == "store":
             return self._store_call(method, args)
+        if kind == "plug":
+            return self._plug_call(method, args)
         if kind == "source":
             return self._source_call(method, args)
         if kind == "backend":
@@ -315,6 +360,15 @@ class Engine:
             permitted = held.__enter__()
             self._guards.append(held)
             return permitted
+        if method == "record_guard_enter":
+            record, now = args
+            held = store.record_guard(record, self.plug, now)
+            permitted = held.__enter__()
+            self._guards.append(held)
+            return permitted
+        if method == "reserve_record":
+            record, now, quiet_until = args
+            return store.reserve_record(record, now, ledger=self.plug, quiet_until=quiet_until)
         if method == "guard_exit":
             return self._guards.pop().__exit__(None, None, None)
         if method == "reserve_detailed":
@@ -337,6 +391,61 @@ class Engine:
             key, now, read, source = args
             return store.usage_checked(key, now, read, source=source)
         return getattr(store, method)(*args)
+
+    # ------------------------------------------------------------------ the plug the test handed (car-harness proxyplug.rs)
+    def _plug_call(self, method, args):
+        """A hook of the test's own plug, as car-policy's `Guarded` in car-engine asks it: the plug's own method, its
+        answer said as car-harness reads it. What it answers with that core runs later is kept here by number."""
+        from codex_auto_resume.domain.plug import BACKEND, Edition, Point, Surface
+        if method == "object":
+            number, name, arguments = args
+            return self._plug_object(self._plug_objects[number], name, arguments)
+        raw = self.plug.plug
+        if method in ("records", "tick", "resident"):
+            args = [_HarnessView(self)]
+        elif method == "sender":
+            args = [args[0], BACKEND]
+        elif method == "wants":
+            args = [Point(args[0])]
+        elif method == "surface":
+            args = [Surface(args[0]), args[1]]
+        elif method == "edition_changed":
+            args = [Edition(args[0])]
+        return self._plug_said(getattr(raw, method)(*args))
+
+    def _plug_said(self, answer):
+        from codex_auto_resume.domain.plug import BACKEND, DEFER, Alternative
+        if answer is DEFER or answer is BACKEND:
+            return {"defer": True}
+        if isinstance(answer, Alternative):
+            return {"word": answer.value}
+        if answer is None or isinstance(answer, (bool, int, float, str, dict, list, tuple, set, frozenset, enum.Enum)):
+            return {"value": plain(answer)}
+        number = len(self._plug_objects) + 1
+        self._plug_objects[number] = answer
+        return {"object": number, "has": [name for name in ("run", "send", "pools", "resume", "takes_words", "start")
+                                          if getattr(answer, name, None) is not None]}
+
+    def _plug_object(self, found, name, arguments):
+        if name == "run":
+            return {"value": plain(found.run(lambda: _HarnessGuard(self)))}
+        if name == "send":
+            thread_id, prompt, client_id = arguments
+            sent = found.send(thread_id, prompt) if client_id is None else found.send(thread_id, prompt,
+                                                                                    client_id=client_id)
+            return {"value": plain(sent)}
+        if name == "resume":
+            thread_id, still, words, client_id = arguments
+            handed = {} if words is None else {"words": words, "client_id": client_id}
+            unloaded = (lambda: bool(self._callback(["still_unloaded"]))) if still else None
+            return {"value": plain(found.resume(thread_id, launch_guard=nullcontext(True), still_unloaded=unloaded,
+                                                **handed))}
+        if name == "takes_words":
+            taken = getattr(found, "takes_words")
+            return {"value": plain(taken() if callable(taken) else taken)}
+        if name == "start":
+            return {"value": plain(found.start(arguments[0]))}
+        return {"value": plain(getattr(found, name)(*arguments))}
 
     def _source_call(self, method, args):
         source = self.source

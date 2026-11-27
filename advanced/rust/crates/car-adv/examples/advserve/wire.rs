@@ -20,14 +20,61 @@ pub fn read() -> Option<Value> {
             return None;
         }
         if !line.trim().is_empty() {
-            return from_str(line.trim_end()).ok();
+            return from_str(line.trim_end()).ok().map(floats_in);
         }
+    }
+}
+
+/// JSON has no NaN or infinity: the pipe carries one as `{"__float__": "nan" | "inf" | "-inf"}` (pipe.py's rule).
+fn floats_in(value: Value) -> Value {
+    match value {
+        Value::Object(map) if map.len() == 1 && map.contains_key("__float__") => {
+            match word(field(&Value::Object(map.clone()), "__float__")) {
+                Some("nan") => Value::Float(f64::NAN),
+                Some("inf") => Value::Float(f64::INFINITY),
+                Some("-inf") => Value::Float(f64::NEG_INFINITY),
+                _ => Value::Object(map),
+            }
+        }
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(key, item)| (key, floats_in(item)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.into_iter().map(floats_in).collect()),
+        other => other,
+    }
+}
+
+fn floats_out(value: &Value) -> Value {
+    match value {
+        Value::Float(number) if !number.is_finite() => {
+            let said = if number.is_nan() {
+                "nan"
+            } else if *number > 0.0 {
+                "inf"
+            } else {
+                "-inf"
+            };
+            let mut map = Map::new();
+            map.insert(Str::new("__float__"), text(said));
+            Value::Object(map)
+        }
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, item)| (key.clone(), floats_out(item)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(floats_out).collect()),
+        other => other.clone(),
     }
 }
 
 /// One line to the test.
 pub fn write(value: &Value) {
-    let text = to_string(value, &Options::new()).unwrap_or_else(|_| "{}".to_owned());
+    let text = to_string(value, &Options::new())
+        .or_else(|_| to_string(&floats_out(value), &Options::new()))
+        .unwrap_or_else(|_| "{}".to_owned());
     let mut out = std::io::stdout().lock();
     let _ = out.write_all(text.as_bytes());
     let _ = out.write_all(b"\n");
