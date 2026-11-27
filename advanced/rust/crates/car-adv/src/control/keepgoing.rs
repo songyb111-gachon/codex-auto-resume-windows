@@ -106,7 +106,7 @@ pub fn stop(runtime: &Runtime, argument: &Map) -> Result<Value> {
         return Ok(refused_here(Refusal::InvalidRequest, runtime));
     }
     let stopped = (|| -> Result<bool> {
-        let row = call(runtime, "keep_going", &[thread.clone()], &[])?;
+        let row = call(runtime, "keep_going", std::slice::from_ref(&thread), &[])?;
         let Value::Object(row) = row else {
             return Ok(false);
         };

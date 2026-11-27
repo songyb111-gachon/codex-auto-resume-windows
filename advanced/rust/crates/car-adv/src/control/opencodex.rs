@@ -33,6 +33,7 @@ fn registered(read: &dyn Fn(&str, &str, &str) -> Result<bool, ()>) -> bool {
 }
 
 /// `_read_registry(root, path, value)`: the key opened for KEY_READ alone, the value queried, the key closed.
+#[allow(clippy::result_unit_err)] // the reference raises; what it raises is not read
 pub fn read_registry(root: &str, path: &str, value: &str) -> Result<bool, ()> {
     use car_platform::registry::{Open, Root, WinRegistry};
     let root = match root {
@@ -80,10 +81,11 @@ impl OpenCodexButton {
     /// `available()`: whether Windows can open a `codex:` link here now, reused for REUSE seconds.
     pub fn available(&mut self) -> bool {
         let now = self.clock.as_ref().map_or_else(monotonic, |clock| clock());
-        if let Some((at, answer)) = self.known {
-            if 0.0 <= now - at && now - at < REUSE {
-                return answer;
-            }
+        if let Some((at, answer)) = self.known
+            && 0.0 <= now - at
+            && now - at < REUSE
+        {
+            return answer;
         }
         let answer = handler_registered(self.read.as_ref());
         self.known = Some((now, answer));

@@ -173,6 +173,17 @@ pub fn arguments(command: BridgeCommand) -> &'static [&'static str] {
 
 // ------------------------------------------------------------------ the world of the cards that reach Windows
 
+/// `run(arguments, seconds)`: the courier run and waited for.
+pub type RunFn = Arc<dyn Fn(&[&str], i64) -> Option<i32> + Send + Sync>;
+/// A read of Codex for an installation's paths.
+pub type PathsFn<T> = Arc<dyn Fn(&car_config::Paths) -> T + Send + Sync>;
+/// `restart(paths)`'s answer: what it came to, and how the app ended.
+pub type Restarted = (&'static str, Option<&'static str>);
+/// `start(arguments)`: the courier started.
+pub type StartFn = Arc<dyn Fn(&[&str]) -> bool + Send + Sync>;
+/// A job started on a thread of its own.
+pub type SpawnFn = Arc<dyn Fn(Box<dyn FnOnce() + Send>) -> bool + Send + Sync>;
+
 /// What the courier's, the remote's and the accounts' cards reach of Windows; the entry points' to hand (S7.3d).
 #[derive(Clone)]
 pub struct World {
@@ -181,9 +192,9 @@ pub struct World {
     /// Telegram's pairing code (`courier.telegram.pairing_code`).
     pub code: Arc<dyn Fn() -> String + Send + Sync>,
     /// The courier started with these arguments (`courier.launch.start`).
-    pub start: Arc<dyn Fn(&[&str]) -> bool + Send + Sync>,
+    pub start: StartFn,
     /// The courier run with these arguments and waited for (`courier.launch.run`).
-    pub run: Arc<dyn Fn(&[&str], i64) -> Option<i32> + Send + Sync>,
+    pub run: RunFn,
     /// The resident courier running (`courier.resident.running`).
     pub running: Arc<dyn Fn() -> bool + Send + Sync>,
     /// A watcher running here.
@@ -193,16 +204,15 @@ pub struct World {
     /// A new local API token.
     pub token: Arc<dyn Fn() -> String + Send + Sync>,
     /// `codex/account.read(paths)`: the account signed in, as Codex says it (an app-server session of its own).
-    pub account_read: Arc<dyn Fn(&car_config::Paths) -> Value + Send + Sync>,
+    pub account_read: PathsFn<Value>,
     /// `codex/account.switch(paths)`: Codex's own sign-out and sign-in, and what it came to.
-    pub account_switch: Arc<dyn Fn(&car_config::Paths) -> &'static str + Send + Sync>,
+    pub account_switch: PathsFn<&'static str>,
     /// `codex/restart.busy(paths)`: why Codex may not be restarted now.
-    pub restart_busy: Arc<dyn Fn(&car_config::Paths) -> Vec<&'static str> + Send + Sync>,
+    pub restart_busy: PathsFn<Vec<&'static str>>,
     /// `codex/restart.restart(paths)`: (what the restart came to, how the app ended).
-    pub restart_run:
-        Arc<dyn Fn(&car_config::Paths) -> (&'static str, Option<&'static str>) + Send + Sync>,
+    pub restart_run: PathsFn<Restarted>,
     /// `threading.Thread(target=job, daemon=True).start()`; false where it could not start.
-    pub spawn: Arc<dyn Fn(Box<dyn FnOnce() + Send>) -> bool + Send + Sync>,
+    pub spawn: SpawnFn,
     /// The Windows user's preferred UI languages (`GetUserPreferredUILanguages`, which `l10n` reads for `system`):
     /// none in the bare world, as car-control's system host (car-platform has no reader yet).
     pub windows_languages: Arc<dyn Fn() -> Vec<String> + Send + Sync>,
@@ -576,13 +586,13 @@ fn notices_of(runtime: &Runtime, capability: &str, name: &str, found: Option<Val
     if runtime.registry.get(capability).is_none() || !armed(runtime, capability) {
         return answer;
     }
-    if let Some(found @ Value::Object(_)) = found {
-        if pyval::truthy(&found) {
-            answer.insert(
-                Str::new(name),
-                object(vec![("notices", Value::Array(vec![found]))]),
-            );
-        }
+    if let Some(found @ Value::Object(_)) = found
+        && pyval::truthy(&found)
+    {
+        answer.insert(
+            Str::new(name),
+            object(vec![("notices", Value::Array(vec![found]))]),
+        );
     }
     answer
 }
@@ -632,10 +642,9 @@ pub fn diagnostics(runtime: &Runtime) -> Map {
     }
     if let Ok(Some(check)) =
         crate::autocheck::diagnostics(std::path::Path::new(&runtime.paths.advanced_dir))
+        && pyval::truthy(&check)
     {
-        if pyval::truthy(&check) {
-            shown.insert(Str::new("auto_check"), check);
-        }
+        shown.insert(Str::new("auto_check"), check);
     }
     shown
 }
@@ -700,7 +709,7 @@ pub fn headless_stop(runtime: &Runtime, interruption_id: &Value) -> Result<Value
     let stopped = match call(
         runtime,
         "run_stop",
-        &[interruption_id.clone()],
+        std::slice::from_ref(interruption_id),
         &[("at", at)],
     ) {
         Ok(stopped) => stopped,
@@ -929,10 +938,10 @@ fn kind_of(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .get(&key)
+        && 0.0 <= now - at
+        && now - at < KIND_SECONDS
     {
-        if 0.0 <= now - at && now - at < KIND_SECONDS {
-            return Some(*kind);
-        }
+        return Some(*kind);
     }
     let mut found = None;
     if !source.taken(&thread, &BTreeSet::new(), None).ok()? {

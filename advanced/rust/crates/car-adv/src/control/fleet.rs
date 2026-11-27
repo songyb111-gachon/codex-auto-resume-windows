@@ -29,6 +29,7 @@ fn access() -> &'static Mutex<Option<JoinHandle<()>>> {
 /// `bounded(call, bound=None)`: call()'s answer from a thread of its own waited on `bound` seconds at most; Err (the
 /// reference's TimeoutError) where it did not answer in time, or where the access before it is still held past the same
 /// bound - at most one is in flight.
+#[allow(clippy::result_unit_err)] // the reference raises; what it raises is not read
 pub fn bounded<T: Send + 'static>(
     call: impl FnOnce() -> T + Send + 'static,
     bound: Option<f64>,

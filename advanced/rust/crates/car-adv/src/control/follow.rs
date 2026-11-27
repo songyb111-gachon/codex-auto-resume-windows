@@ -297,7 +297,7 @@ pub fn view(runtime: &Runtime, prompt: &Value, reader: Option<Reader<'_>>) -> Re
     if !standing(runtime, CAPABILITY) {
         return Ok(refused_here(Refusal::NotOn, runtime));
     }
-    let row = match super::resets::call(runtime, "prompt", &[prompt.clone()], &[]) {
+    let row = match super::resets::call(runtime, "prompt", std::slice::from_ref(prompt), &[]) {
         Ok(row) => row,
         Err(_) => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
     };

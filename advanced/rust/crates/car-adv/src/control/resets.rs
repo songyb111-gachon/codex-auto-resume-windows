@@ -231,10 +231,10 @@ pub fn refused(refusal: &str, runtime: Option<&Runtime>) -> Value {
     let mut map = Map::new();
     map.insert(Str::new("done"), Value::Bool(false));
     map.insert(Str::new("refusal"), text(refusal));
-    if let Some(runtime) = runtime {
-        if let Ok(generation) = generation(runtime) {
-            map.insert(Str::new("generation"), generation);
-        }
+    if let Some(runtime) = runtime
+        && let Ok(generation) = generation(runtime)
+    {
+        map.insert(Str::new("generation"), generation);
     }
     Value::Object(map)
 }
@@ -659,7 +659,7 @@ pub fn cancel(runtime: &Runtime, rule: &Value, asked: &Value) -> Result<Value> {
     let done = match call(
         runtime,
         "cancel_reset_rule",
-        &[rule.clone()],
+        std::slice::from_ref(rule),
         &[("at", Value::Float(runtime.now()))],
     ) {
         Ok(done) => done,
@@ -681,7 +681,7 @@ pub fn go_on(runtime: &Runtime, rule: &Value, asked: &Value) -> Result<Value> {
     if stale(runtime, asked) {
         return Ok(refused_here(Refusal::StaleGeneration, runtime));
     }
-    let Value::Object(found) = call(runtime, "reset_rule", &[rule.clone()], &[])? else {
+    let Value::Object(found) = call(runtime, "reset_rule", std::slice::from_ref(rule), &[])? else {
         return Ok(refused_here(Refusal::UnknownRule, runtime));
     };
     if !is(&get(&found, "state"), RuleState::Held.as_str()) {
@@ -697,7 +697,7 @@ pub fn go_on(runtime: &Runtime, rule: &Value, asked: &Value) -> Result<Value> {
     let moved = call(
         runtime,
         "change_rule",
-        &[rule.clone()],
+        std::slice::from_ref(rule),
         &[
             ("expect", text(RuleState::Held.as_str())),
             ("state", text(RuleState::Counting.as_str())),
@@ -782,7 +782,7 @@ pub fn credit_now(runtime: &Runtime, argument: &Map) -> Result<Value> {
         call(
             runtime,
             "change_rule",
-            &[rule.clone()],
+            std::slice::from_ref(&rule),
             &[
                 ("state", text(RuleState::Ready.as_str())),
                 ("due_at", Value::Float(now)),

@@ -65,6 +65,7 @@ pub fn fresh_columns(
 
 /// `wake(paths)`: wake the watcher, as Retry now does (core's control/actions.py); Err where the event cannot be
 /// made, as the reference raises.
+#[allow(clippy::result_unit_err)] // the reference raises; what it raises is not read
 pub fn wake(paths: &Paths) -> Result<bool, ()> {
     let name = &paths.state_dir;
     car_platform::sync::WakeEvent::new(name)

@@ -355,12 +355,17 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if !chosen.is_empty() {
         if images::place(folder(runtime), &key(&prompt), &chosen).is_err() {
             let at = Value::Float(runtime.now());
-            let _ = call(runtime, "cancel_prompt", &[prompt.clone()], &[("at", at)]);
+            let _ = call(
+                runtime,
+                "cancel_prompt",
+                std::slice::from_ref(&prompt),
+                &[("at", at)],
+            );
             images::drop_staged(folder(runtime), &made);
             sweep(runtime);
             return Ok(refused_here(Refusal::StateUnavailable, runtime));
         }
-        if call(runtime, "placed_prompt", &[prompt.clone()], &[]).is_err() {
+        if call(runtime, "placed_prompt", std::slice::from_ref(&prompt), &[]).is_err() {
             return Ok(refused_here(Refusal::StateUnavailable, runtime));
         }
     }
@@ -380,7 +385,12 @@ pub fn cancel(runtime: &Runtime, prompt: &Value, asked: &Value) -> Result<Value>
         return Ok(refused_here(Refusal::InvalidRequest, runtime));
     }
     let at = Value::Float(runtime.now());
-    let how = match call(runtime, "cancel_prompt", &[prompt.clone()], &[("at", at)]) {
+    let how = match call(
+        runtime,
+        "cancel_prompt",
+        std::slice::from_ref(prompt),
+        &[("at", at)],
+    ) {
         Ok(how) => how,
         Err(error) => return Ok(write_refusal(runtime, error)),
     };
@@ -400,7 +410,12 @@ pub fn go_on(runtime: &Runtime, prompt: &Value, asked: &Value) -> Result<Value> 
         return Ok(refused_here(Refusal::InvalidRequest, runtime));
     }
     let at = Value::Float(runtime.now());
-    match call(runtime, "go_on_prompt", &[prompt.clone()], &[("at", at)]) {
+    match call(
+        runtime,
+        "go_on_prompt",
+        std::slice::from_ref(prompt),
+        &[("at", at)],
+    ) {
         Ok(moved) if pyval::truthy(&moved) => {}
         Ok(_) => return Ok(refused_here(Refusal::InvalidRequest, runtime)),
         Err(_) => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
@@ -421,7 +436,7 @@ pub fn edit(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if !standing(runtime, CAPABILITY) {
         return Ok(refused_here(Refusal::NotOn, runtime));
     }
-    let row = match call(runtime, "prompt", &[prompt.clone()], &[]) {
+    let row = match call(runtime, "prompt", std::slice::from_ref(&prompt), &[]) {
         Ok(row) => row,
         Err(_) => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
     };
@@ -469,7 +484,7 @@ pub fn edit(runtime: &Runtime, argument: &Map) -> Result<Value> {
         if placed.is_err() {
             images::drop_staged(folder(runtime), &made);
         }
-        let _ = call(runtime, "placed_prompt", &[prompt.clone()], &[]);
+        let _ = call(runtime, "placed_prompt", std::slice::from_ref(&prompt), &[]);
         if placed.is_err() {
             return Ok(refused_here(Refusal::StateUnavailable, runtime));
         }
