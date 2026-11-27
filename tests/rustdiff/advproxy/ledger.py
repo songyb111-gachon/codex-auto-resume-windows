@@ -98,6 +98,7 @@ RUN_WAITS = {
 # imported by name is its own rule, not yet forwarded. ALL-CAPS names are constants and always data.
 HANDED_NAMES = {
     "registry": {"CapabilityDef", "Ceilings", "Option", "Registry", "RegistryError"},
+    "arming": set(),
     "policy": {"Policy"},
     "statement": {"Catalogs"},
     "state": {"StateError", "StaleGeneration", "Refused", "Scoped"},

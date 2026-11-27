@@ -177,6 +177,18 @@ SEAMS = {"home": lambda runtime, capability, code: _home(runtime, capability, co
 
 
 def answer(runtime, line):
+    import os
     capability = line["capability"]
     code = runtime._code.get(capability)
-    return SEAMS[line["seam"]](runtime, capability, code, *(line.get("args") or []))
+    try:
+        found = SEAMS[line["seam"]](runtime, capability, code, *(line.get("args") or []))
+    except BaseException as error:
+        if os.environ.get("CODEX_AR_ENGINEPROXY_TRACE"):
+            import sys
+            sys.stderr.write("WORLD %s %s %s raised %r\n" % (capability, line["seam"], line.get("args"), error))
+        raise
+    if os.environ.get("CODEX_AR_ENGINEPROXY_TRACE"):
+        import sys
+        sys.stderr.write("WORLD %s %s %s -> %s\n" % (capability, line["seam"], str(line.get("args"))[:120],
+                                                     str(found)[:160]))
+    return found
