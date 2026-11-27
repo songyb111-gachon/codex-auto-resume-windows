@@ -1,9 +1,9 @@
 {
   "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
   "format": "codex-auto-resume-compat-advanced/1",
-  "sequence": 2,
-  "published_at": "2026-11-07T21:59:48Z",
-  "expires_at": "2027-02-05T21:59:48Z",
+  "sequence": 3,
+  "published_at": "2026-11-27T21:52:34Z",
+  "expires_at": "2027-02-25T21:52:34Z",
   "min_product": "0.6.20",
   "engines": [
     {
@@ -258,6 +258,26 @@
           "verdict": "pass",
           "recorded_at": "2026-11-07T16:42Z",
           "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mxa.json"
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.167.0-alpha.4.1",
+      "measurements": {
+        "manchor": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-15T10:59Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.4.1/measurement-manchor.json"
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.171.0-alpha.13.2",
+      "measurements": {
+        "m2b": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-27T20:57Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.171.0-alpha.13.2/measurement-m2b.json"
         }
       }
     }
