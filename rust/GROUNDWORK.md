@@ -4740,6 +4740,70 @@ model, `busy` returned as strings, a raised control error answered as a value: *
   whose reference side must stay Python's (under `CODEX_AR_CORE=rust` its words are Rust's, and the run did not end in 25 minutes); `rediff_host_surface.py`
   re-runs them against the tag. Result at the end of S6.4b (through `gui_lock.sh`): 129 ledger tests + `test_surface_askback` on the shim against the tag
   pass, the ledger and the host twins pass (`test_status_newest_usage.py` listed as above).
+
+### S6.4c (continuation, 2026-11-27): the scan group re-counted, and the first window rows on the probe
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown, nothing captured, nothing
+pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`; the shim runs used
+`CODEX_AR_HARNESS_EXE` = S6.4b's copy of the finalport `car-harness.exe` (this worktree has no `rust/target`).
+
+| What | Where | State |
+|---|---|---|
+| **Step 1 not possible here**: `tests/test_status_newest_usage.py` is a v0.6.26 file (commits 2d0ee345e, 755b6294c on dev/main) that this base does not have: `car-v0627-rust` at 8cbcd6ac3 does not contain the v0.6.26 tag, and `domain/usage.newest` is not in `src/`. A row for a file that is not there fails `test_surface_ledger` ("a row names a file that no longer imports the UI"), so the row waits for the rebase onto the final; `rediff_ui_tests.py --reference v0.6.26` prints it as "with no row" until then. | - | left |
+| **Scan, re-counted per test** (step 2): in every scan class of a pending row, a test that names no UI module and reads no UI source is `unaffected` (the Dashboard window's own C# - `test_gui_v0623_*`, `test_focus_rings`, `test_notice_stay`, `WindowSideTests`' first test -, the compat registry's closure, which reaches no UI module, the engine's and the store's sources, the demo module); a scan of the whole Python package (srcscan's `modules`, `package_asts`, `holders`, `closure`, `sites()`, every shipped `src/*`) is `no_twin` with its reason (the UI's modules are only its sample; nothing of the UI is called or computed); the Python tray package's own packaging (`test_tray_shape.ShapeTests`, five) is `no_twin`, naming the host's counterpart rule; a rule that holds a UI value or reads the Python icon's source has a twin. | `tests/rustdiff/surface_ledger.json` (applied by a scratch script; the decisions are the rows' `no_twin`/`twins`) | ledger |
+| Twins read from the port's sources: `EditionTwinTests` (the panel's heading and the Dashboard's version line name no edition where the host's `TrayWords.UnnamedEdition` names none; the watcher's surfaces event carries `edition::shown(plug)`, `HostPump`/`HostSurfaces` hand it to the icon, every tooltip `TrayIcon` makes is given it), `VocabularyTwinTests` (car-surface's `STATES`, `ATTENTION_OVERLAYS` and the host's `IconStates` by test_vocabulary's own digests and vocabularies), `HandoverTwinTests` (the Dashboard's WM_COPYDATA mark and answer against car-platform's `handover.rs`) | `tests/test_host_shape.py` | 20 tests, OK |
+| **Window, first rows** (step 3): `card_layers` (a NoticeCard with no window, both layers through PaintLayers at the settled frame, pixels dumped; the uncut shadow is a second card's whose image says nothing is wholly opaque, so CutUnderBody clears nothing), `icon_tick` (a TrayIcon with no window, Observe + SyncMotion under SurfaceScreen's probe record, the timers left), `icon_overflowed`, `icon_demo` (LookForDemo over a stand-in event; OpenDemo of an icon named for no demo). The probe's `Answer` is an if-chain now, no string switch (S6.3d's reproducible-build rule). | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| The twins over them: each subclasses the Python test class and keeps its assertions - inherited helpers, or the original bodies through `super()` - with only the hook that made the Python window (`settled`/`each_look`, `tick`) answered by the host | `tests/test_host_card_layers.py` (3), `tests/test_host_icon_tick.py` (5), `tests/test_host_icon_demo.py` (1) | OK through `gui_lock.sh`, one module at a time |
+| The re-diff runs every file a row names as a twin's home | `tests/rustdiff/rediff_ui_tests.py` | see Checks |
+
+Ledger: **host 28** (was 20: `test_control`, `test_compat_surfaces`, `test_plug_points`, `test_vocabulary`, `test_edition_label`,
+`test_card_shadow_under_body`, `test_tray_overflow_open`, `test_diagnostics_tools`), **pending 55** (ceiling 63 to 55), python-only 1.
+
+**Mutation checks** (each alone, restored with the file's own bytes): `TrayWords.UnnamedEdition` misspelt (3 fail), `IconStates` without "failed"
+(2), car-surface's `codex_changed` renamed (2), `OPEN_REQUEST_TAKEN` off by one (1), one `TrayWords.Tooltip` call given `null` for the edition
+(1), `HostSurfaces` dropping the edition (1); CutUnderBody's opaque test at 0xFE (6), the cut one pixel wider (2), the probe's uncut pass
+cutting (2); `Overflowed` ignoring the flyout (4), asking the flyout first (1), Observe not asking `Overflowed` (1); LookForDemo acting on an
+unsignalled look (1) and OpenDemo making an event with no name (1). One mutant survived and is equivalent here: SyncMotion's
+KillTimer made a SetTimer - a fresh icon's `MotionMs` is already null, so neither runs (the Python test cannot see it either).
+
+### What is left (per row, the route), for the next seat
+
+* **Pure** (24 tests, 4 rows): `test_notice_click_chat` 2, `test_popup_row_menu_parity` 11 (OpenerTests, RemoveTests, OpensTheDashboardTests),
+  `test_postpone_and_tiers` 1, `test_tray_reuses_window` 10, `test_single_rules.PageTests` 1 (and `test_tray_open_popup`'s opener tests among its
+  window count): the Dashboard opener. Route unchanged (step 5): a car-harness case over car-platform's `handover.rs` and the process start
+  through a scratch stand-in, then a proxy for `open_dashboard`/`open_chat` beside perform's. Not started: the seat's time went to steps 2-3.
+* **Window** (248 tests, 23 rows): `test_tray_menu_drawn` 36, `test_popup_row_menu_drawn` 27, `test_tray_tipcard` 22, `test_popup_access` 21,
+  `test_tray_tip_messages` 17, `test_popup_card_still` 14, `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11, `test_popup_opening_motion` 11,
+  `test_tray_open_popup` 11, `test_popup_motion_held` 10, `test_surface_properties.TrayMenuTests` 9, `test_failure_seen.IconTests` 6,
+  `test_menu_opening_motion` 6, `test_card_focus` 5, `test_tray` 5, `test_tray_menu_no_glow` 5, `test_corners_by_design` 4, `test_tray_shape.CompositionTests` 4,
+  `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3, `test_notice_stay.CardTests` 2. Route: the pattern of
+  `test_host_icon_tick.py` - subclass the Python class, keep its bodies through `super()`, answer only its window-making hook with a HostProbe
+  call that makes the C# window unshown under `SurfaceScreen.Probe` (which records every window call instead of making it), sets the same
+  stand-ins the test patches (TrayIcon's `Ask*`, `IconRectReader`, `DemoTaken`; the menu's and popup's own seams), runs the private steps by
+  reflection and reports state. `test_corners_by_design` is drawn-like (Renderer pixels of the popup, the menu and the tip): the render
+  mode's `pixels` surface gives them.
+* **Drawn** (424 tests, 25 rows): not started; the plan proxy of S6.4's notes (record the measures under test_surface_parity's StandIn, run
+  the render mode, rebuild the reference's plan objects) is the route. The largest: `test_tray_popup` 80, `test_tray_icon_motion` 60,
+  `test_notice_card` 57, `test_tray_popup_v064` 42, `test_gui_v0623_days` 31, `test_gui_v065_taskbar` 27, `test_tray_popup_depth` 22.
+* **Scan** (39 tests, 3 rows): `test_screenshots` 34 (the pictures' manifest, digests and run tool: the main session's, B and C - it moves
+  with the pictures), `test_motion_tray_story` 4 (the tray story's frames are drawn by the UI's motion: a drawn route, not a scan),
+  `test_single_rules.PageTests` 1 (the opener, above).
+* `test_status_newest_usage.py`: a row once this branch has the v0.6.26 tests (above).
+
+### Checks
+
+```
+test_host_shape test_surface_ledger test_vocabulary test_edition_label test_tray_shape          Ran 72, OK
+test_host_card_layers / test_host_icon_tick / test_host_icon_demo (gui_lock.sh, one each)      OK 3 / 5 / 1
+test_surface_ledger test_tray_overflow_open test_host_tray_place test_host_card_layers          Ran 36, OK
+test_card_shadow_under_body, test_diagnostics_tools (the Python originals)                     OK
+CODEX_AR_CORE=rust: test_tray_tip_whole test_edition_label.TooltipTests test_app_server_surfaces.IconTests
+  test_tray_menu_fallbacks (the probe's tray_words, menu_items, icon_state through the if-chain)  Ran 13, OK
+python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26 (gui_lock.sh, detached)
+  129 ledger tests on the shim pass, the ledger and every twin home pass; no row: test_status_newest_usage.py   exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are S6.3's and Integration 11's;
+`python -X utf8 rust/tools/check_groundwork.py`: OK.
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
