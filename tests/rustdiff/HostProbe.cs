@@ -1991,6 +1991,12 @@ namespace CodexAutoResume
             internal bool Contrast, Reduced, Still, StillRaises;
             internal double Text = 1.0;
             internal object Answer;
+            /// The test's clock (its time.monotonic) less the host's, read as each question comes; a frame's or a
+            /// render's own instant while it runs (`Frozen`), as the reference reads the clock around one.
+            internal double Offset;
+            internal double? Frozen;
+            /// Each frame of the opening as motion.opening answered it: (elapsed ms, alpha, below, arrived).
+            internal List<object> Openings;
         }
 
         private static readonly Dictionary<long, HeldPopup> heldPopups = new Dictionary<long, HeldPopup>();
@@ -2060,6 +2066,7 @@ namespace CodexAutoResume
                 popup.AskReduced = () => held.Reduced;
                 popup.AskAppsLight = () => null;
                 popup.AskTextScale = () => held.Text;
+                popup.Monotonic = () => held.Frozen ?? TrayPlace.Monotonic() + held.Offset;
                 popup.Held = () =>
                 {
                     if (held.StillRaises) throw new InvalidOperationException("held");
@@ -2099,6 +2106,7 @@ namespace CodexAutoResume
                 held.Text = (double)look["text"];
                 held.Still = look["still"] is bool && (bool)look["still"];
                 held.StillRaises = look["still"] as string == "raise";
+                if (look["clock"] is double) held.Offset = (double)look["clock"] - TrayPlace.Monotonic();
                 SurfaceTheme.SetTheme(look["theme"]);
                 SurfaceTheme.SetDesign(look["design"]);
             }
@@ -2175,12 +2183,56 @@ namespace CodexAutoResume
                 held.Answer = named != null ? named.ToList() : Plain(target);
             }
             else if (what == "client_offset") held.Answer = Plain(popup.ClientOffset());
+            else if (what == "snapshot") popup.Snapshot((Dictionary<string, object>)step[1]);
+            else if (what == "openings") held.Openings = (bool)step[1] ? (held.Openings ?? new List<object>()) : null;
+            else if (what == "kept")
+            {
+                // the window procedure Windows calls is the delegate this popup holds (PopupWindow.proc), so the popup
+                // being held keeps it callable for as long as its window exists
+                var proc = (Delegate)typeof(PopupWindow).GetField("proc", Hidden).GetValue(popup);
+                IntPtr called = popup.Hwnd == IntPtr.Zero ? IntPtr.Zero : GetWindowLongPtrW(popup.Hwnd, -4);
+                held.Answer = new Dictionary<string, object>
+                {
+                    { "held", heldPopups.ContainsValue(held) }, { "window", popup.Hwnd != IntPtr.Zero },
+                    { "its_own", proc != null && called != IntPtr.Zero
+                                 && called == System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(proc) },
+                };
+            }
             else if (what == "render")
             {
-                SurfaceCanvas canvas = popup.Render();
+                // where the test reads the faces its renderer's draw is given: the same instant for both (the test's
+                // clock as the question came), FaceGlides read as Render reads it first, and whether Render drew whole
+                bool faces = step.Count > 1 && step[1] is bool && (bool)step[1];
+                SurfaceRenderer drawing = popup.Renderer;
+                bool whole = popup.Plan == null || popup.StaticDirty || popup.Glides.Count > 0 || popup.Faces.Count > 0
+                             || drawing.HaloPlan != popup.Plan || drawing.Theme != popup.Theme || drawing.Design != popup.Design
+                             || drawing.Contrast != popup.Contrast;
+                held.Frozen = TrayPlace.Monotonic() + held.Offset;
+                object given = null;
+                SurfaceCanvas canvas;
+                try
+                {
+                    if (faces)
+                    {
+                        var shown = (Dictionary<object, ButtonFace>)typeof(PopupWindow).GetMethod("FaceGlides", Hidden).Invoke(popup, null);
+                        var pairs = new List<object>();
+                        foreach (KeyValuePair<object, ButtonFace> pair in shown)
+                        {
+                            var named = pair.Key as SurfaceTarget;
+                            pairs.Add(new List<object> { named != null ? named.ToList() : Plain(pair.Key), Plain(pair.Value.Fill),
+                                                         Plain(pair.Value.Edge), pair.Value.Amount });
+                        }
+                        given = pairs;
+                    }
+                    canvas = popup.Render();
+                }
+                finally
+                {
+                    held.Frozen = null;
+                }
                 var bytes = new List<object>();
                 for (int at = 0; at < 4; at++) bytes.Add((double)System.Runtime.InteropServices.Marshal.ReadByte(canvas.Bits, at));
-                held.Answer = bytes;
+                held.Answer = new Dictionary<string, object> { { "first", bytes }, { "whole", whole }, { "faces", whole ? given : null } };
             }
             else if (what == "access") held.Answer = HeldAccess(popup, (int)(double)step[1]);
             else throw new ArgumentException("no popup_live step " + what);
@@ -2199,8 +2251,14 @@ namespace CodexAutoResume
                 SurfaceNative.MSG message;
                 while (PeekMessageW(out message, IntPtr.Zero, 0, 0, 1))
                 {
-                    SurfaceNative.TranslateMessage(ref message);
-                    SurfaceNative.DispatchMessageW(ref message);
+                    SurfaceNative.MSG each = message;
+                    if (each.Hwnd == popup.Hwnd && each.Message == SurfaceNative.WM_TIMER && each.WParam.ToInt64() == PopupWindow.TimerFrame)
+                        HeldFrame(held, () => SurfaceNative.DispatchMessageW(ref each));
+                    else
+                    {
+                        SurfaceNative.TranslateMessage(ref message);
+                        SurfaceNative.DispatchMessageW(ref message);
+                    }
                 }
                 if (SurfaceScreen.Probing && popup.Hwnd != IntPtr.Zero)
                 {
@@ -2212,7 +2270,7 @@ namespace CodexAutoResume
                     {
                         object every = frameField.GetValue(popup);
                         held.NextFrame = now + (every == null ? PopupWindow.FrameMs : Convert.ToDouble(every)) / 1000.0;
-                        popup.Message(SurfaceNative.WM_TIMER, PopupWindow.TimerFrame, 0);
+                        HeldFrame(held, () => popup.Message(SurfaceNative.WM_TIMER, PopupWindow.TimerFrame, 0));
                     }
                     if (popup.Visible && popup.Hwnd != IntPtr.Zero)
                     {
@@ -2226,6 +2284,28 @@ namespace CodexAutoResume
                 }
                 System.Threading.Thread.Sleep(2);
             } while (clock.Elapsed.TotalSeconds < seconds);
+        }
+
+        /// One frame delivered at its own instant, and where the opening was a step of it, that step as motion.opening
+        /// answered it: the elapsed time it was asked at (from the instant its first frame read, as OpeningStep keeps it),
+        /// the alpha and the rise it gave, and whether it said arrived.
+        private static void HeldFrame(HeldPopup held, Action deliver)
+        {
+            PopupWindow popup = held.Popup;
+            double[] before = popup.Opening;
+            double now = TrayPlace.Monotonic() + held.Offset;
+            held.Frozen = now;
+            try
+            {
+                deliver();
+            }
+            finally
+            {
+                held.Frozen = null;
+            }
+            if (before == null || held.Openings == null) return;
+            double started = double.IsNaN(before[0]) ? now * 1000.0 : before[0];
+            held.Openings.Add(new List<object> { now * 1000.0 - started, (double)popup.Alpha, (double)popup.Below, popup.Opening == null });
         }
 
         /// The screen reader's children (SurfaceAccess.AccessibleItems) and the box of child `child` as accLocation answers
@@ -2258,6 +2338,21 @@ namespace CodexAutoResume
             return answer;
         }
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetWindowLongPtrW(IntPtr hwnd, int index);
+
+        private static List<object> TargetsOf<T>(Dictionary<object, T> map, Func<T, object> value)
+        {
+            var pairs = new List<object>();
+            if (map == null) return pairs;
+            foreach (KeyValuePair<object, T> pair in map)
+            {
+                var named = pair.Key as SurfaceTarget;
+                pairs.Add(new List<object> { named != null ? named.ToList() : Plain(pair.Key), value(pair.Value) });
+            }
+            return pairs;
+        }
+
         private static object HeldState(HeldPopup held, long id, List<object> answers)
         {
             PopupWindow popup = held.Popup;
@@ -2273,9 +2368,19 @@ namespace CodexAutoResume
                     var named = pair.Key as SurfaceTarget;
                     targets.Add(new List<object> { named != null ? named.ToList() : Plain(pair.Key), Plain(pair.Value) });
                 }
+                var items = new List<object>();
+                foreach (PlanItem item in plan.Items)
+                {
+                    var named = item.Get("target") as SurfaceTarget;
+                    items.Add(new Dictionary<string, object>
+                    {
+                        { "kind", item.Kind }, { "target", named != null ? named.ToList() : Plain(item.Get("target")) },
+                    });
+                }
                 planJson = new Dictionary<string, object>
                 {
                     { "card", Plain(plan.Card) }, { "size", Plain(plan.Size) }, { "scale", plan.Scale }, { "targets", targets },
+                    { "items", items },
                 };
             }
             var shadows = new List<object>();
@@ -2298,7 +2403,13 @@ namespace CodexAutoResume
                 { "shadows", shadows }, { "plan", planJson },
                 { "halo_rows", renderer == null || renderer.HaloRows == null ? null : Plain(renderer.HaloRows) },
                 { "logs", new List<object>(held.Logs) }, { "records", records }, { "recording", held.Record != null },
-                { "answers", answers },
+                { "answers", answers }, { "still", popup.Still },
+                { "frame_ms", typeof(PopupWindow).GetField("frameMs", Hidden).GetValue(popup) is int
+                              ? (object)(double)(int)typeof(PopupWindow).GetField("frameMs", Hidden).GetValue(popup) : null },
+                { "faces", TargetsOf(popup.Faces, face => (object)new List<object> { face.Started, new List<object> { Plain(face.From[0]), Plain(face.From[1]) }, face.Length }) },
+                { "face_states", TargetsOf((Dictionary<object, string>)typeof(PopupWindow).GetField("faceStates", Hidden).GetValue(popup),
+                                           state => (object)state) },
+                { "openings", held.Openings == null ? null : new List<object>(held.Openings) },
             };
         }
     }

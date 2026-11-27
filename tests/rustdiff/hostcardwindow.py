@@ -55,15 +55,19 @@ def _numbers(text):
     return tuple(_int(float(part)) for part in text.strip("()").split(",") if part.strip())
 
 
-def look():
-    """What the test's patched questions answer now: the host's popup is asked through the same five."""
+def look(held=None):
+    """What the test's patched questions answer now - the host's popup is asked through the same five, and its `held` -
+    and the test's clock (time.monotonic), which the host's popup reads as its own."""
     theme_module = tray_popup.theme
     apps = theme_module.apps_use_light_theme()
-    held = getattr(look, "held", None)
+    try:
+        still = bool(held()) if held is not None else False
+    except Exception:
+        still = "raise"                              # the host's question then fails, as the reference's did
     return {"contrast": bool(theme_module.high_contrast()), "reduced": bool(theme_module.reduced_motion()),
             "text": float(theme_module.text_scale()),
             "theme": tray_popup.window.effective_theme(tray_popup.window.theme_setting(), apps),
-            "design": tray_popup.window.design_setting(), "still": held() if callable(held) else False}
+            "design": tray_popup.window.design_setting(), "still": still, "clock": time.monotonic()}
 
 
 def plain(value):
@@ -81,6 +85,10 @@ class _Renderer:
     @property
     def lone(self):
         return self._owner._state["lone"]
+
+    def draw(self, *unused, **keywords):
+        """What a test wrapping the renderer's draw calls through to: the host drew already."""
+        return None
 
     @property
     def halo_rows(self):
@@ -115,20 +123,42 @@ class _Canvas:
         return self._first
 
 
+def _core(model):
+    vm = model.view(time.time())
+    menus = [[task["interruption_id"], model.menu_for(task["interruption_id"])] for task in vm["tasks"]]
+    return plain({"view": vm, "menus": menus, "read": True, "attention": False})
+
+
+class _Model:
+    """The core's model of the popup (the reference's): an outcome applied to it is sent to the host as the core's next
+    snapshot."""
+
+    def __init__(self, owner, strings):
+        self._owner, self.reference = owner, PopupModel(strings)
+
+    def apply_outcome(self, action, outcome, now):
+        self.reference.apply_outcome(action, outcome, now)
+        if getattr(self._owner, "_id", None) is not None:
+            self._owner._do(("snapshot", _core(self.reference)))
+
+    def __getattr__(self, name):
+        return getattr(self.reference, name)
+
+
 class HostCardPopup:
-    def __init__(self, control=None, strings=None, log=None, calls=None, **unused):
-        model = PopupModel(strings)
+    def __init__(self, control=None, strings=None, log=None, calls=None, held=None, openings=None, **unused):
+        self.control, self.held = control, held
+        self.model = _Model(self, strings)
         if control is not None:
-            model.apply_outcome(("read",), perform(("read",), control), time.time())
-        vm = model.view(time.time())
-        menus = [[task["interruption_id"], model.menu_for(task["interruption_id"])] for task in vm["tasks"]]
+            self.model.reference.apply_outcome(("read",), perform(("read",), control), time.time())
         self._log = log or (lambda *unused: None)
-        self._calls = calls
-        self._seen = {"logs": 0, "records": 0}
+        self._calls, self._openings = calls, openings
+        self._seen = {"logs": 0, "records": 0, "openings": 0}
         self._ended = False
-        self._state = surfacehost.SERVE.ask("popup_live", op="new", strings=dict(strings or {}), look=look(),
-                                            core=plain({"view": vm, "menus": menus, "read": True, "attention": False}),
-                                            record=calls is not None)
+        self._id = None
+        self._state = surfacehost.SERVE.ask("popup_live", op="new", strings=dict(strings or {}), look=look(held),
+                                            core=_core(self.model.reference), record=calls is not None,
+                                            steps=[["openings", True]] if openings is not None else [])
         self._id = self._state["id"]
         self._renderer = _Renderer(self)
         self._layers = _Layers(self)
@@ -138,7 +168,8 @@ class HostCardPopup:
     def _do(self, *steps, op="do"):
         if self._ended:
             return [None] * len(steps)
-        self._state = surfacehost.SERVE.ask("popup_live", op=op, id=self._id, look=look(), steps=[list(step) for step in steps])
+        self._state = surfacehost.SERVE.ask("popup_live", op=op, id=self._id, look=look(self.held),
+                                            steps=[list(step) for step in steps])
         self._settle()
         return self._state["answers"]
 
@@ -147,6 +178,10 @@ class HostCardPopup:
         for line in state["logs"][seen["logs"]:]:
             self._log(line)
         seen["logs"] = len(state["logs"])
+        if state["openings"] is not None and self._openings is not None:
+            for elapsed, alpha, below, arrived in state["openings"][seen["openings"]:]:
+                self._openings.append((elapsed, int(alpha), int(below), bool(arrived)))
+            seen["openings"] = len(state["openings"])
         records = state["records"][seen["records"]:] if state["recording"] else []
         seen["records"] = len(state["records"]) if state["recording"] else 0
         names = {"card": int(state["hwnd"]), "shadow": int(state["shadow"])}
@@ -165,6 +200,16 @@ class HostCardPopup:
         """The test records the layers' uploads from now on, into `calls`."""
         self._calls = calls
         self._do(("record", True))
+
+    def record_openings(self, openings):
+        """Each frame of the opening, from now on, into `openings`."""
+        self._openings = openings
+        self._do(("openings", True))
+
+    def sync(self):
+        """The test's look and clock handed over with no step, and the host's state read again (a message sent to the
+        window from outside reaches it between questions)."""
+        self._do()
 
     def pump(self, seconds=0.05):
         self._do(("pump", float(seconds)))
@@ -208,12 +253,30 @@ class HostCardPopup:
         return self._state["frames"]
 
     @property
+    def _frame_ms(self):
+        frame = self._state["frame_ms"]
+        return None if frame is None else int(frame)
+
+    @property
+    def _still(self):
+        return self._state["still"]
+
+    @property
+    def _faces(self):
+        return {_tuple(target): (started, _tuple(start), length) for target, (started, start, length) in self._state["faces"]}
+
+    @property
+    def _face_states(self):
+        return {_tuple(target): state for target, state in self._state["face_states"]}
+
+    @property
     def _plan(self):
         plan = self._state["plan"]
         if plan is None:
             return None
         return {"card": _tuple(plan["card"]), "size": _tuple(plan["size"]), "scale": plan["scale"],
-                "targets": [(_tuple(target), _tuple(rect)) for target, rect in plan["targets"]]}
+                "targets": [(_tuple(target), _tuple(rect)) for target, rect in plan["targets"]],
+                "items": [{"kind": item["kind"], "target": _tuple(item["target"])} for item in plan["items"]]}
 
     @property
     def _static_dirty(self):
@@ -231,6 +294,15 @@ class HostCardPopup:
     def hover(self, target):
         targets = [entry[0] for entry in self._plan["targets"]]
         self._do(("hover_index", targets.index(_tuple(target))))
+
+    @property
+    def pressed(self):
+        raise AttributeError("the host's pressed button is set, not read, by these tests")
+
+    @pressed.setter
+    def pressed(self, target):
+        targets = [entry[0] for entry in self._plan["targets"]]
+        self._do(("pressed_index", None if target is None else targets.index(_tuple(target))))
 
     def show(self, keyboard=False, activate=True, origin=None):
         steps = []
@@ -270,7 +342,15 @@ class HostCardPopup:
         return _tuple(self._do(("client_offset",))[0])
 
     def render(self):
-        return _Canvas(self._do(("render",))[0])
+        wrapped = "draw" in self._renderer.__dict__
+        drawn = self._do(("render", wrapped))[0]
+        if wrapped and drawn["whole"]:
+            faces = {_tuple(target): ((_tuple(fill), _tuple(edge)), amount) for target, fill, edge, amount in drawn["faces"]}
+            self._renderer.draw(faces=faces)
+        return _Canvas(drawn["first"])
+
+    def _kept(self):
+        return self._do(("kept",))[0]
 
 
 class HostAccessible:
