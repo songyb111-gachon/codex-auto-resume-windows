@@ -3743,3 +3743,97 @@ Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_cla
   forwarders in `advproxy/table.py` (S7.2a3's how-to). `ledger.py --seat <seat>` lists what waits.
 * **S7.3a**: `seam_p7::OpenCodex` is the one edge left; **S7.3d**: the host's `Edges` calls
   `engine::account::forget_real`, `control::hookplugin::follow_real`, and hands the runtime its state.
+
+## Seat S7.3a: control and surfaces - the bridge commands, the MCP tools, status, tray, diagnostics (branch `car-v0627-s73a`, 2026-11-27)
+
+Ported from the v0.6.26 final's own sources (nothing in the scope moved since: `git diff --stat v0.6.26 -- surfaces.py control/`
+is empty). The plug's P10 (`AdvancedPlug::surface`) now answers through `crate::surfaces::answer` under the runtime's GIL;
+what the reference lets out of `surfaces.answer` is a hook that failed (HookFailed), as a Python hook that raised.
+
+### Ported (module -> crate)
+
+| Python (`advanced/src/codex_auto_resume_advanced/`) | car-adv |
+|---|---|
+| `surfaces.py` (999) | `surfaces.rs`: `answer`, `badge`, `status`, `meter_view`, `notice_view`, `update_view`, `account_view`, `autoswitch_view`, `diagnostics`, `feed_view`, `fleet_view`, `headless_stop`, `runs`, `rows` (with `_silent`, `_compacting`, `_listed`, `_kind` and its KIND_SECONDS cache), `bridge` (ARGUMENTS as `arguments(command)`), `report`, `measure`, `measure_verdict`, `tools()` (TOOLS), `mcp` |
+| `control/resets.py` (305) | `control/resets.rs`, with the helpers every card shares (`_refused`, `_stale`, `_on`, `_standing`, `switched_off`, `words_limit`, `occasion_problem`, `count_unproven`) and the state's call surface by Python name (`resets::call`, which checks `runtime.faults` first, so a test's `patch.object(runtime.state, ...)` reaches it through the proxy) |
+| `control/sendnow.py` (111) | `control/sendnow.rs`: `fresh` (replaces `state/seam/hooks.rs::fresh`; the claim ledger calls `sendnow::fresh_columns`), `wake`, `request`, `SendNow` (P7) and `make` |
+| `control/keepgoing.py`, `steer.py`, `prompts.py` (with the pictures), `chat.py`, `conversations.py`, `follow.py`, `earlycheck.py`, `fleet.py` (and `engine/fleet.bounded`, which S7.2e2 left), `account.py`, `opencodex.py` | the same names under `control/` |
+
+`seam_p7::OpenCodex` is gone: `control::opencodex::handler_registered(None)` is what the entry points hand
+`engine::opentarget::OpenWorld.handler_registered`. `Arming::catalogs()` (advanced-words) and `as_any` on `UsageStop` and
+`IdleUpdateCheck` (the tray's meter notices and update offer) were added for the surfaces.
+
+### Not ported, and why (exactly what is left)
+
+* **`control/autoswitch.py` (442), `control/powertasks.py` (162), `control/analytics.py` (302)**: not written - the seat's
+  context went to the hub and the cards above. Their ten bridge commands (`advanced-accounts*`, `advanced-power-tasks*`,
+  `advanced-analytics*`) are passed over (`surfaces::unported`: DEFER, so core says "unknown command"), which is what the
+  tag does for a card it has not built (`UNANSWERED`) - not the tag's answer. What each needs: autoswitch - `profiles`,
+  `codex::authfile::{usable, sweep}`, `codex::swap::{meters, read_profile, add_by_login, save_current}`,
+  `engine::autoswitch::{best, seen}` and the World's hands for the reads (never the real Codex in a test); powertasks -
+  car-control's `Control::{read_power_action, arm_power_action, disarm_power_action}` with an advanced plug,
+  `engine::powertasks::{read, write, remove, make}`, `codex::threads`/`turns`; analytics - `codex::tokens`, core's
+  `LocalSource::{identity, task_facts, project_key}`, `engine::analytics::{pace, route}`, the CSV writer (`csv.writer` with
+  `\r\n`, a BOM, `x`/`w` modes). `Edges::power_tasks_follow` (arming's sweep) waits with powertasks.
+* **`control/codexstart.py` (151)**: `make` still gives no code (the skeleton's), so start_with_codex trips at its first
+  hook; its `start` runs PowerShell's WMI create (`pwsh.run`), which needs car-platform's `pwsh` and a `StartRoute`.
+* **`measure` / `measure-verdict`**: S7.4's (`runtime::measurement`): until then the run is a raise, which the tag answers
+  STATE_UNAVAILABLE (the argument checks before it are the tag's).
+* **`advanced-python*`** (D8, Q1 (a)): python_choice is never offered and no choice is ever recorded, so each answers
+  `not_on`, as the tag does then; `_nothing_stays_chosen` is nothing to do.
+* **The report's commands**: `runtime.action(compat_report)` finds no code while the table's `capabilities::report::make`
+  gives none (the entry points use `make_with`), so they answer STATE_UNAVAILABLE and trip it, as the tag does when the
+  action raises. S7.3d: make the shipped table's `compat_report` with `make_with(paths, Config)`.
+
+### Seams left
+
+* `surfaces::World` (`install_world`, S7.3d): the Credential Manager backend, the pairing code, the courier's `start`/`run`,
+  `running`, `watcher`, the addresses, the token, the account read / switch, the restart and `busy`, the thread `spawn`, and
+  the Windows UI languages. `World::bare()` (no entry point) reaches nothing real: an empty in-memory Credential Manager,
+  no courier, an account read that says Codex could not be asked, a switch and a restart that fail.
+* `engine::usage::World::installed()` is the meter view's world (`of_account`'s switch time), as S7.2d left it.
+
+### The proof (`tests/rustdiff/advsurface.py`, `diffs_advsurface.py`; advserve's `surface` call; `advproxy/s73a.py`)
+
+* **`diffs_advsurface.AdvSurfaceDiff`**: one scenario script over five scratch homes (nothing on; the reset actions; the
+  prompt queue, steer and follow; keep going, chat, send now, headless stop and MCP; fleet, the early check, the feed and
+  Open Codex), run on the tag's trees and the bundled 3.14.10 twice - as the tag ships, and with tests/rustdiff/shim.py
+  under CODEX_AR_CORE=rust so the runtime, its state and arming and every forwarded `surfaces.*` are car-adv's (advserve).
+  184 answers, every one equal byte for byte (26 s on the debug advserve). The first run differed in two lines only:
+  `system`'s language (the tag reads Windows' UI languages, car-adv's World has none - AUDIT; the script now pins
+  CODEX_AUTO_RESUME_LANG on both sides) - and once in a random temporary folder's name (now one fixed name).
+* **The proxy**: `advproxy/table.py`'s `surfaces` row forwards `answer`, `bridge`, `mcp`, `rows` (only without a test's own
+  store or source), `badge`, `status` and the nine views to `s73a.py`, which asks advserve's `surface` call for a runtime of
+  car-adv's and hands any other runtime to the reference's own function.
+* **`advproxy/ledger.py --run`** (debug advserve, bundled 3.14.10) over the ten files that import only `surfaces`:
+  `test_advanced_words_v019` GREEN (into GREEN); `test_advanced_surfaces` 29 of 34 equal, `test_advanced_watch_log` 18 of
+  20 (RUN_WAITS names each held test: the one-shot bridge's core stub, Python patches of `Arming.arm` and
+  `control.sendnow.wake` car-adv cannot see, state methods patched to raise that watchlog's own reads do not consult);
+  the queue's five files and `test_advanced_rows` reach no advserve call - they drive core's engine proxy (car-harness's
+  serve, not built in the seat's tree) or hand `rows` a store and a source of their own.
+* **Mutation checks** (scratchpad `car-v0627-s73a-mutate.py`: each alone, debug advserve rebuilt, the family run,
+  restored): a weekly window offered past its next reset, one picture more than MOST_IMAGES taken, keep going's count of
+  10 refused, an MCP argument the schema does not name taken by the list tool, a Send now request lapsing a second
+  early, the fleet's stand ok and held swapped - **6 of 6 caught**, none survived.
+* Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv73a.py --reference v0.6.26`.
+
+### For later seats
+
+* S7.3d: `surfaces::install_world` with the live hands (Credential Manager, the courier's launcher, account read/switch,
+  restart and busy, Windows UI languages); `opencodex::handler_registered(None)` into `OpenWorld`; the shipped table's
+  `compat_report` through `capabilities::report::make_with`; `Edges::power_tasks_follow` once powertasks is ported.
+* The next S7.3a pass: `control/{autoswitch, powertasks, analytics, codexstart}` (what each needs is above), then take their
+  commands out of `surfaces::unported`, add their scenarios to advsurface.py and their rows to advproxy/table.py; the
+  control modules' own functions (`keepgoing.view`, `earlycheck.view`/`check`, `follow.follow`, `fleet.*`,
+  `opencodex.handler_registered`, ...) have no forwarder yet - the tests that call them directly wait for one.
+
+### Gates (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `. tools/rustflags.sh` first; rustc 1.100.0)
+
+```
+## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after 7e29aa966); test --locked --no-fail-fast rc=0; cargo deny --locked check rc=0
+## rust            fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every standard binary the same with and without advanced/; profile-path scan: none
+diffs_advsurface (debug advserve, after the clippy fixes)   Ran 1, OK (184 answers equal)
+privacy_scan.py on every file added                  clean
+```
