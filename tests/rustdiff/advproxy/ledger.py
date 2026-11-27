@@ -119,14 +119,25 @@ RUN_WAITS = {
     "test_advanced_watch_log.py": ("S7.3a", "18 of 20 equal; the two patch runtime.state.journal/arming to raise on the "
                                    "state proxy, which watchlog's own reads in car-adv do not consult (`faults`)"),
     "test_advanced_keep_on.py": ("S7.3a", "the send-again and reinstall tests drive core's engine and the claim (P11 host)"),
-    "test_advanced_rows.py": ("S4.2 proxy", "no call reached advserve: the tests build core's Store and a LocalSource "
-                              "of their own and hand them to rows(store=, source=) (the reference's, by design) or "
-                              "core's engine proxy, which needs car-harness built"),
-    "test_advanced_prompt_queue.py": ("S4.2 proxy", "drives core's Engine (car-harness's serve, not built in the seat's tree)"),
-    "test_advanced_prompt_edit.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
-    "test_advanced_queue_held.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
-    "test_advanced_go_on_window.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
-    "test_advanced_prompt_clear.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
+    # Integration 12's --run (the integrated tree: car-harness and advserve built, bundled 3.14.10): the queue's files
+    # and rows now reach advserve and core's engine proxy; what differs is named, not traced yet.
+    "test_advanced_rows.py": ("S4.2 proxy", "2 of 19 differ (CompactingTests once compacted and continued; KindTests "
+                              "the status carries them): rows handed a Store and a LocalSource of the test's own stay "
+                              "the reference's, by design; trace the two through core's engine proxy"),
+    "test_advanced_prompt_queue.py": ("S4.2 proxy", "6 of 13 differ: every one sends through core's engine proxy (order, "
+                                      "depends, cancel, pause, go on, a daily series) - trace whether the send's plug "
+                                      "record meets P11 (as proxy2's go_on_series) or the queue's own world"),
+    "test_advanced_prompt_edit.py": ("S4.2 proxy", "1 of 6 differs (the edited words sent): as test_advanced_prompt_queue"),
+    "test_advanced_queue_held.py": ("S4.2 proxy", "its one test differs: as test_advanced_prompt_queue"),
+    "test_advanced_go_on_window.py": ("S4.2 proxy", "4 of 5 differ: as test_advanced_prompt_queue"),
+    "test_advanced_prompt_clear.py": ("S4.2 proxy", "6 of 7 differ: as test_advanced_prompt_queue"),
+    # Integration 12: S7.3a2 made these two codes; advserve makes them with refusing hands (refused.rs), so a test's own
+    # seams for them (a handler read, a PowerShell runner) do not reach car-adv's code - an asked world (worlds.rs) would.
+    "test_advanced_open_codex_button.py": ("S7.3d", "16 of 17 equal; SurfaceTests.test_on_with_a_handler_the_surface_"
+                                           "asks_for_the_button hands a registry read car-adv's refused one never asks"),
+    "test_advanced_start_with_codex.py": ("S7.3d", "29 of 35 equal; the six that carry out the route (journalled as "
+                                          "acted, started, uncertain; a pause; core outside the job) hand a runner "
+                                          "car-adv's refused route never runs (no PowerShell under the proxy)"),
     # S7.3a2's --run (debug advserve, bundled 3.14.10)
     "test_advanced_conversations.py": ("S7.2c", "6 of 12 differ with the card's forwarder off too: they patch "
                                        "codex.inuse.home and read codex.threads, which wait for their rows"),
