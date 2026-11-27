@@ -10,7 +10,7 @@ gui/TrayIcon.cs / gui/TrayMenu.cs. What it decides comes back and is all the tes
 * what the icon posted through IHostActions, in order, handed to the callback the reference would have called - the core's
   half of the boundary (toggle {paused} -> on_toggle(paused), stop -> on_stop, open_dashboard {page None} -> on_open,
   {page "pending"} -> on_pending, failure_seen -> control.acknowledge_failure, disarm_power ->
-  control.disarm_power_action("tray")). A post where the reference had no callback is a failure (the reference took no
+  control.disarm_power_action(actor="tray")). A post where the reference had no callback is a failure (the reference took no
   action there). A callback that raises is the post that raised: the run is made again with that post throwing, and the
   icon's own log lines are what the test's `log` hears;
 * what the port's icon asks the core and the test answers - asked back, as surfaceproxy.py's perform is: the probe reports
@@ -98,6 +98,10 @@ class HostTray:
 
     def _drop_menu(self):
         self._step([["drop_menu"]])
+
+    def _power_armed(self):
+        """The armed power action's word as the host's icon reads it as its menu opens (TrayMenu.Armed)."""
+        return self._step([["power_armed"]])["results"][0]
 
     def _popup_can_open(self):
         return self._step([["popup_can_open"]])["results"][0]
@@ -249,7 +253,8 @@ class HostTray:
         elif action == "failure_seen":
             target, arguments = getattr(self.control, "acknowledge_failure", None), ()
         elif action == "disarm_power":
-            target, arguments = getattr(self.control, "disarm_power_action", None), ("tray",)
+            disarm = getattr(self.control, "disarm_power_action", None)
+            target, arguments = (None if disarm is None else lambda: disarm(actor="tray")), ()
         else:
             raise AssertionError("the host's icon posted an action no test callback stands for: %r" % action)
         if target is None:

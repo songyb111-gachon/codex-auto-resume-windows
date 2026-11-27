@@ -879,6 +879,7 @@ namespace CodexAutoResume
                     else if (what == "native") results.Add((double)(int)Private(icon, "NativeMenu", MenuEntries((List<object>)step[1])));
                     else if (what == "drop_menu") Private(icon, "DropMenu");
                     else if (what == "popup_can_open") results.Add(icon.PopupCanOpen());
+                    else if (what == "power_armed") results.Add(Private(icon, "Armed"));
                     else throw new ArgumentException("no step " + what);
                 }
                 return new Dictionary<string, object>

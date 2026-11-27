@@ -1835,8 +1835,8 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "5 of 10 UI tests run on the host (5 routed); 5 are still on the Python UI (5 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "9 of 10 UI tests run on the host (5 routed, 4 twins); 1 is still on the Python UI: LiveIconTests (the real notification-area icon started, updated and stopped on its thread)",
+   "needs": "LiveIconTests: the host's TrayIcon started for real (its own window and Shell_NotifyIconW NIM_ADD, a scratch icon path), its tooltip read back after an update and its thread ended - the live-window route of test_tray_menu_drawn.LiveWindowTests (a shell icon on the taskbar: it shows something, so it runs under the GUI lock)",
    "host_tests": [
     "SnapshotTests.test_the_snapshot_comes_from_our_own_store_only",
     "WordingTests.test_every_language_fits_the_tooltip_limit",
@@ -1844,10 +1844,17 @@
     "WordingTests.test_the_countdown_is_short_and_never_negative",
     "WordingTests.test_waiting_work_shows_the_next_check"
    ],
-   "twins": {},
+   "twins": {
+    "PowerMenuTests.test_the_item_is_there_only_while_armed": "test_host_tray_power.py::PowerMenuOnHostTests.test_the_item_is_there_only_while_armed",
+    "PowerMenuTests.test_the_item_speaks_the_language_stored": "test_host_tray_power.py::PowerMenuOnHostTests.test_the_item_speaks_the_language_stored",
+    "PowerMenuTests.test_choosing_it_turns_it_off_as_the_icon": "test_host_tray_power.py::PowerMenuOnHostTests.test_choosing_it_turns_it_off_as_the_icon",
+    "PowerMenuTests.test_an_icon_without_a_control_layer_offers_nothing": "test_host_tray_power.py::PowerMenuOnHostTests.test_an_icon_without_a_control_layer_offers_nothing"
+   },
    "no_twin": {},
    "port": [
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_tray_power.py",
+    "tests/rustdiff/hosticon.py"
    ]
   },
   "test_tray_cards.py": {
