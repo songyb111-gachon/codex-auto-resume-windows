@@ -277,54 +277,48 @@ namespace CodexAutoResume
             double[] numbers = (double[])element.Numbers.Clone();
             double[] values = element.Values;
             double opacity = element.Opacity;
-            switch (element.Motion)
+            string motion = element.Motion;
+            if (motion == "fall")
             {
-                case "fall":
-                {
-                    double part = SurfaceMath.Mod((seconds - values[1]) / values[0], 1.0);
-                    double[] centre = Centre(kind, numbers);
-                    double centreX = centre[0], centreY = centre[1];
-                    double dy = -14.0 + 96.0 * part;
-                    double radians = Radians(values[2] * part);
-                    double c = SurfaceMath.Cos(radians), s = SurfaceMath.Sin(radians);
-                    numbers = Placed(kind, numbers, (x, y) => new[] { centreX + (x - centreX) * c - (y - centreY) * s,
-                                                                      centreY + dy + (x - centreX) * s + (y - centreY) * c });
-                    break;
-                }
-                case "twinkle":
-                {
-                    double level = Wave(seconds, values[0], values[1]);
-                    double[] centre = Centre(kind, numbers);
-                    double centreX = centre[0], centreY = centre[1];
-                    double size = 0.7 + 0.4 * level;
-                    numbers = Placed(kind, numbers, (x, y) => new[] { centreX + (x - centreX) * size, centreY + (y - centreY) * size });
-                    opacity = 0.25 + 0.75 * level;
-                    break;
-                }
-                case "breathe":
-                    opacity = values[1] + values[2] * Wave(seconds, values[0]);
-                    break;
-                case "drift":
-                {
-                    double dx = Drift(seconds, values[0]);
-                    numbers = Placed(kind, numbers, (x, y) => new[] { x + dx, y });
-                    break;
-                }
-                case "sway":
-                {
-                    double radians = Radians(-5.0 + 10.0 * Wave(seconds, values[0]));
-                    double c = SurfaceMath.Cos(radians), s = SurfaceMath.Sin(radians);
-                    double px = values[1], py = values[2];
-                    numbers = Placed(kind, numbers, (x, y) => new[] { px + (x - px) * c - (y - py) * s, py + (x - px) * s + (y - py) * c });
-                    break;
-                }
-                case "flame":
-                {
-                    double tall = numbers[3] * (1.0 + 0.35 * Wave(seconds, values[0]));
-                    numbers[1] = values[1] - tall;
-                    numbers[3] = tall;
-                    break;
-                }
+                double part = SurfaceMath.Mod((seconds - values[1]) / values[0], 1.0);
+                double[] centre = Centre(kind, numbers);
+                double centreX = centre[0], centreY = centre[1];
+                double dy = -14.0 + 96.0 * part;
+                double radians = Radians(values[2] * part);
+                double c = SurfaceMath.Cos(radians), s = SurfaceMath.Sin(radians);
+                numbers = Placed(kind, numbers, (x, y) => new[] { centreX + (x - centreX) * c - (y - centreY) * s,
+                                                                  centreY + dy + (x - centreX) * s + (y - centreY) * c });
+            }
+            else if (motion == "twinkle")
+            {
+                double level = Wave(seconds, values[0], values[1]);
+                double[] centre = Centre(kind, numbers);
+                double centreX = centre[0], centreY = centre[1];
+                double size = 0.7 + 0.4 * level;
+                numbers = Placed(kind, numbers, (x, y) => new[] { centreX + (x - centreX) * size, centreY + (y - centreY) * size });
+                opacity = 0.25 + 0.75 * level;
+            }
+            else if (motion == "breathe")
+            {
+                opacity = values[1] + values[2] * Wave(seconds, values[0]);
+            }
+            else if (motion == "drift")
+            {
+                double dx = Drift(seconds, values[0]);
+                numbers = Placed(kind, numbers, (x, y) => new[] { x + dx, y });
+            }
+            else if (motion == "sway")
+            {
+                double radians = Radians(-5.0 + 10.0 * Wave(seconds, values[0]));
+                double c = SurfaceMath.Cos(radians), s = SurfaceMath.Sin(radians);
+                double px = values[1], py = values[2];
+                numbers = Placed(kind, numbers, (x, y) => new[] { px + (x - px) * c - (y - py) * s, py + (x - px) * s + (y - py) * c });
+            }
+            else if (motion == "flame")
+            {
+                double tall = numbers[3] * (1.0 + 0.35 * Wave(seconds, values[0]));
+                numbers[1] = values[1] - tall;
+                numbers[3] = tall;
             }
             return new DayShape { Kind = kind, Numbers = numbers, Colour = element.Colour, Opacity = opacity };
         }

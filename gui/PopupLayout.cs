@@ -227,13 +227,11 @@ namespace CodexAutoResume
         /// The state line's colour by the header's word (STATE_INK); anything else is "ink".
         internal static string StateInk(object state)
         {
-            switch (state as string)
-            {
-                case "monitoring": case "checking": case "recovering": return "accent";
-                case "waiting": return "waiting";
-                case "paused": return "paused";
-                case "attention": return "warning";
-            }
+            string word = state as string;
+            if (word == "monitoring" || word == "checking" || word == "recovering") return "accent";
+            if (word == "waiting") return "waiting";
+            if (word == "paused") return "paused";
+            if (word == "attention") return "warning";
             return "ink";
         }
 

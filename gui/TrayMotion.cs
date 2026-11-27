@@ -45,25 +45,19 @@ namespace CodexAutoResume
         /// The icon's state for a status-light word; anything else is idle (ICON_FOR_LIGHT).
         internal static string ForLight(string word)
         {
-            switch (word)
-            {
-                case "monitoring": case "waiting": case "checking": return "watching";
-                case "recovering": return "recovering";
-                case "attention": return "attention";
-                case "failed": return "failed";
-            }
+            if (word == "monitoring" || word == "waiting" || word == "checking") return "watching";
+            if (word == "recovering") return "recovering";
+            if (word == "attention") return "attention";
+            if (word == "failed") return "failed";
             return "idle";
         }
 
         /// The brand fill token a status-light state is drawn in (brand.status_fill): running states the active fill.
         internal static string StatusFill(string state)
         {
-            switch (state)
-            {
-                case "monitoring": case "waiting": case "checking": case "recovering": return "active";
-                case "attention": return "attention";
-                case "failed": return "danger";
-            }
+            if (state == "monitoring" || state == "waiting" || state == "checking" || state == "recovering") return "active";
+            if (state == "attention") return "attention";
+            if (state == "failed") return "danger";
             return "idle";
         }
 

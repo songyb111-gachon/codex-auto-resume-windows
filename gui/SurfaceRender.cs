@@ -135,45 +135,24 @@ namespace CodexAutoResume
             string surface = (string)task["surface"];
             string locale = Field(task, "locale") as string;
             SurfaceText measure = Measure(task, tables, locale);
-            switch (surface)
-            {
-                case "popup":
-                    return PopupLayout.Plan((Dictionary<string, object>)task["vm"], Number(task, "scale"), locale, measure);
-                case "menu":
-                    return Menu(task, locale, measure);
-                case "tip":
-                    return Tip(task, locale, measure);
-                case "place":
-                    return Place(task);
-                case "popup_motion":
-                    return PopupMotionCase(task);
-                case "card":
-                    return Card(task, measure);
-                case "card_room":
-                    return CardRoom(task);
-                case "card_life":
-                    return CardLife(task);
-                case "icon":
-                    return Icon(task);
-                case "paint":
-                    return Paint(task, tables);
-                case "shape":
-                    return ShapeCase(task);
-                case "gdip":
-                    return GdipCase(task);
-                case "elevation":
-                    return ElevationCase(task);
-                case "days":
-                    return DaysCase(task);
-                case "pixels":
-                    return PixelsCase(task);
-                case "drawn":
-                    return DrawnCase(task);
-                case "cards":
-                    return CardsCase(task);
-                case "bidi":
-                    return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
-            }
+            if (surface == "popup") return PopupLayout.Plan((Dictionary<string, object>)task["vm"], Number(task, "scale"), locale, measure);
+            if (surface == "menu") return Menu(task, locale, measure);
+            if (surface == "tip") return Tip(task, locale, measure);
+            if (surface == "place") return Place(task);
+            if (surface == "popup_motion") return PopupMotionCase(task);
+            if (surface == "card") return Card(task, measure);
+            if (surface == "card_room") return CardRoom(task);
+            if (surface == "card_life") return CardLife(task);
+            if (surface == "icon") return Icon(task);
+            if (surface == "paint") return Paint(task, tables);
+            if (surface == "shape") return ShapeCase(task);
+            if (surface == "gdip") return GdipCase(task);
+            if (surface == "elevation") return ElevationCase(task);
+            if (surface == "days") return DaysCase(task);
+            if (surface == "pixels") return PixelsCase(task);
+            if (surface == "drawn") return DrawnCase(task);
+            if (surface == "cards") return CardsCase(task);
+            if (surface == "bidi") return ((List<object>)task["texts"]).ConvertAll(text => (object)SurfaceBidi.FirstStrong((string)text));
             object more;
             if (WindowCase(surface, task, tables, out more)) return more;
             throw new NotSupportedException("no surface " + surface);
@@ -435,27 +414,29 @@ namespace CodexAutoResume
                 string verb = (string)step[0];
                 double now = step.Count > 1 && step[1] is double ? (double)step[1] : 0.0;
                 object answer = null;
-                switch (verb)
+                if (verb == "new")
                 {
-                    case "new":
-                        motion = new CardMotion(now, step[2] is string && (string)step[2] == "inf" ? double.PositiveInfinity : (double)step[2],
-                                                (bool)step[3], IntsOrNull(step[4]));
-                        break;
-                    case "frame": answer = FrameOf(motion.Frame(now)); break;
-                    case "pause": motion.Pause(now, (bool)step[2]); break;
-                    case "retire": motion.Retire(now, (bool)step[2]); break;
-                    case "move": motion.MoveTo(now, Ints(step[2]), (double)step[3]); break;
-                    case "place": answer = motion.Place(now); break;
-                    case "moving": answer = motion.Moving(now); break;
-                    case "wait":
-                        double? wait = motion.WaitMs(now);
-                        answer = wait.HasValue ? (object)wait.Value : null;
-                        break;
-                    case "restart": motion.Restart(now); break;
-                    case "delay": motion.Delay(now); break;
-                    case "entrance": answer = FrameOf(CardPlan.Entrance(now, (bool)step[2])); break;
-                    case "leaving": answer = CardPlan.Leaving(now, (double)step[2], (bool)step[3], (double)step[4]); break;
-                    default: throw new NotSupportedException(verb);
+                    motion = new CardMotion(now, step[2] is string && (string)step[2] == "inf" ? double.PositiveInfinity : (double)step[2],
+                                            (bool)step[3], IntsOrNull(step[4]));
+                }
+                else if (verb == "frame") answer = FrameOf(motion.Frame(now));
+                else if (verb == "pause") motion.Pause(now, (bool)step[2]);
+                else if (verb == "retire") motion.Retire(now, (bool)step[2]);
+                else if (verb == "move") motion.MoveTo(now, Ints(step[2]), (double)step[3]);
+                else if (verb == "place") answer = motion.Place(now);
+                else if (verb == "moving") answer = motion.Moving(now);
+                else if (verb == "wait")
+                {
+                    double? wait = motion.WaitMs(now);
+                    answer = wait.HasValue ? (object)wait.Value : null;
+                }
+                else if (verb == "restart") motion.Restart(now);
+                else if (verb == "delay") motion.Delay(now);
+                else if (verb == "entrance") answer = FrameOf(CardPlan.Entrance(now, (bool)step[2]));
+                else if (verb == "leaving") answer = CardPlan.Leaving(now, (double)step[2], (bool)step[3], (double)step[4]);
+                else
+                {
+                    throw new NotSupportedException(verb);
                 }
                 answers.Add(new List<object> { answer, motion == null ? null : (object)motion.Phase,
                                                motion == null ? null : (object)motion.Since,
@@ -657,21 +638,22 @@ namespace CodexAutoResume
                         foreach (object entry in (List<object>)task["calls"])
                         {
                             var call = (List<object>)entry;
-                            switch ((string)call[0])
+                            string which = (string)call[0];
+                            if (which == "fill_round") paint.FillRound(Doubles(call[1]), (double)call[2], Colour(call[3]));
+                            else if (which == "stroke_round") paint.StrokeRound(Doubles(call[1]), (double)call[2], Colour(call[3]), (double)call[4]);
+                            else if (which == "fill_circle") paint.FillCircle((double)call[1], (double)call[2], (double)call[3], Colour(call[4]));
+                            else if (which == "fill_polygon") paint.FillPolygon(PointList(call[1]), Colour(call[2]));
+                            else if (which == "fill_ellipse") paint.FillEllipse((double)call[1], (double)call[2], (double)call[3], (double)call[4], Colour(call[5]));
+                            else if (which == "stroke_lines") paint.StrokeLines(PointList(call[1]), Colour(call[2]), (double)call[3]);
+                            else if (which == "clip_round") paint.ClipRound(Doubles(call[1]), (double)call[2]);
+                            else if (which == "clip_rect") paint.ClipRect(Doubles(call[1]));
+                            else if (which == "clip_none") paint.ClipNone();
+                            else if (which == "fade") paint.Fade(Doubles(call[1]), (double)call[2], (double)call[3], Ints(call[4]));
+                            else if (which == "arc") paint.Arc((double)call[1], (double)call[2], (double)call[3], (double)call[4], (double)call[5], Colour(call[6]), (double)call[7]);
+                            else if (which == "glow") paint.Glow((double)call[1], (double)call[2], (double)call[3], PointList(call[4]), Ints(call[5]), (double)call[6]);
+                            else
                             {
-                                case "fill_round": paint.FillRound(Doubles(call[1]), (double)call[2], Colour(call[3])); break;
-                                case "stroke_round": paint.StrokeRound(Doubles(call[1]), (double)call[2], Colour(call[3]), (double)call[4]); break;
-                                case "fill_circle": paint.FillCircle((double)call[1], (double)call[2], (double)call[3], Colour(call[4])); break;
-                                case "fill_polygon": paint.FillPolygon(PointList(call[1]), Colour(call[2])); break;
-                                case "fill_ellipse": paint.FillEllipse((double)call[1], (double)call[2], (double)call[3], (double)call[4], Colour(call[5])); break;
-                                case "stroke_lines": paint.StrokeLines(PointList(call[1]), Colour(call[2]), (double)call[3]); break;
-                                case "clip_round": paint.ClipRound(Doubles(call[1]), (double)call[2]); break;
-                                case "clip_rect": paint.ClipRect(Doubles(call[1])); break;
-                                case "clip_none": paint.ClipNone(); break;
-                                case "fade": paint.Fade(Doubles(call[1]), (double)call[2], (double)call[3], Ints(call[4])); break;
-                                case "arc": paint.Arc((double)call[1], (double)call[2], (double)call[3], (double)call[4], (double)call[5], Colour(call[6]), (double)call[7]); break;
-                                case "glow": paint.Glow((double)call[1], (double)call[2], (double)call[3], PointList(call[4]), Ints(call[5]), (double)call[6]); break;
-                                default: throw new NotSupportedException((string)call[0]);
+                                throw new NotSupportedException((string)call[0]);
                             }
                         }
                     }

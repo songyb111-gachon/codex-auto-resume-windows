@@ -47,25 +47,21 @@ namespace CodexAutoResume
         /// brand.status_fill: the token a state's dot is filled with; anything unknown is idle grey.
         internal static string StatusFill(object state)
         {
-            switch (state as string)
-            {
-                case "monitoring": case "waiting": case "checking": case "recovering": return "active";
-                case "attention": return "attention";
-                case "failed": return "danger";
-                case "paused": return "paused";
-                default: return "idle";
-            }
+            string word = state as string;
+            if (word == "monitoring" || word == "waiting" || word == "checking" || word == "recovering") return "active";
+            if (word == "attention") return "attention";
+            if (word == "failed") return "danger";
+            if (word == "paused") return "paused";
+            return "idle";
         }
 
         /// brand.status_system: the High Contrast system colour a state's dot is filled with.
         internal static string StatusSystem(object state)
         {
-            switch (state as string)
-            {
-                case "monitoring": case "waiting": case "checking": case "recovering": return "Highlight";
-                case "attention": case "failed": return "WindowText";
-                default: return "GrayText";
-            }
+            string word = state as string;
+            if (word == "monitoring" || word == "waiting" || word == "checking" || word == "recovering") return "Highlight";
+            if (word == "attention" || word == "failed") return "WindowText";
+            return "GrayText";
         }
 
         /// A system colour as High Contrast paints with it: the job's table when one is set, else Windows (system_rgb).

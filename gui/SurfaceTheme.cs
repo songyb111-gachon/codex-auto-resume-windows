@@ -26,16 +26,13 @@ namespace CodexAutoResume
         /// The system colour index Windows Forms names each High Contrast colour by (SYSTEM_COLOURS).
         internal static int SystemIndex(string name)
         {
-            switch (name)
-            {
-                case "Window": return 5;
-                case "WindowFrame": return 6;
-                case "WindowText": return 8;
-                case "Highlight": return 13;
-                case "HighlightText": return 14;
-                case "Control": return 15;
-                case "GrayText": return 17;
-            }
+            if (name == "Window") return 5;
+            if (name == "WindowFrame") return 6;
+            if (name == "WindowText") return 8;
+            if (name == "Highlight") return 13;
+            if (name == "HighlightText") return 14;
+            if (name == "Control") return 15;
+            if (name == "GrayText") return 17;
             throw new KeyNotFoundException(name);
         }
 
@@ -43,25 +40,22 @@ namespace CodexAutoResume
         /// any other token.
         internal static string ContrastColour(string token)
         {
-            switch (token)
-            {
-                case "ink": return "WindowText";
-                case "muted": return "GrayText";
-                case "line": return "WindowFrame";
-                case "surface": return "Window";
-                case "canvas": return "Control";
-                case "raised": return "Window";
-                case "inset": return "Window";
-                case "shadow_dark": return "WindowFrame";
-                case "shadow_light": return "Window";
-                case "accent": case "accent_hover": case "accent_pressed": case "accent_soft": return "Highlight";
-                case "on_accent": return "HighlightText";
-                case "focus": return "WindowText";
-                case "active": return "Highlight";
-                case "idle": return "GrayText";
-                case "attention": case "success": case "waiting": case "warning": case "danger": return "WindowText";
-                case "paused": return "GrayText";
-            }
+            if (token == "ink") return "WindowText";
+            if (token == "muted") return "GrayText";
+            if (token == "line") return "WindowFrame";
+            if (token == "surface") return "Window";
+            if (token == "canvas") return "Control";
+            if (token == "raised") return "Window";
+            if (token == "inset") return "Window";
+            if (token == "shadow_dark") return "WindowFrame";
+            if (token == "shadow_light") return "Window";
+            if (token == "accent" || token == "accent_hover" || token == "accent_pressed" || token == "accent_soft") return "Highlight";
+            if (token == "on_accent") return "HighlightText";
+            if (token == "focus") return "WindowText";
+            if (token == "active") return "Highlight";
+            if (token == "idle") return "GrayText";
+            if (token == "attention" || token == "success" || token == "waiting" || token == "warning" || token == "danger") return "WindowText";
+            if (token == "paused") return "GrayText";
             return "WindowText";
         }
 
@@ -216,32 +210,29 @@ namespace CodexAutoResume
         internal static Color Token(string token, string theme, string design)
         {
             Brand.Look look = Brand.LookOf(DesignChoice(design), theme == "dark");
-            switch (token)
-            {
-                case "ink": return look.Ink;
-                case "muted": return look.Muted;
-                case "line": return look.Line;
-                case "surface": return look.Surface;
-                case "canvas": return look.Canvas;
-                case "accent": return look.Accent;
-                case "on_accent": return look.OnAccent;
-                case "active": return look.Active;
-                case "idle": return look.Idle;
-                case "raised": return look.Raised;
-                case "inset": return look.Inset;
-                case "shadow_dark": return look.ShadowDark;
-                case "shadow_light": return look.ShadowLight;
-                case "accent_soft": return look.AccentSoft;
-                case "focus": return look.Focus;
-                case "attention": return look.Attention;
-                case "success": return look.Success;
-                case "waiting": return look.Waiting;
-                case "warning": return look.Warning;
-                case "danger": return look.Danger;
-                case "paused": return look.Paused;
-                case "accent_hover": return look.AccentHover;
-                case "accent_pressed": return look.AccentPressed;
-            }
+            if (token == "ink") return look.Ink;
+            if (token == "muted") return look.Muted;
+            if (token == "line") return look.Line;
+            if (token == "surface") return look.Surface;
+            if (token == "canvas") return look.Canvas;
+            if (token == "accent") return look.Accent;
+            if (token == "on_accent") return look.OnAccent;
+            if (token == "active") return look.Active;
+            if (token == "idle") return look.Idle;
+            if (token == "raised") return look.Raised;
+            if (token == "inset") return look.Inset;
+            if (token == "shadow_dark") return look.ShadowDark;
+            if (token == "shadow_light") return look.ShadowLight;
+            if (token == "accent_soft") return look.AccentSoft;
+            if (token == "focus") return look.Focus;
+            if (token == "attention") return look.Attention;
+            if (token == "success") return look.Success;
+            if (token == "waiting") return look.Waiting;
+            if (token == "warning") return look.Warning;
+            if (token == "danger") return look.Danger;
+            if (token == "paused") return look.Paused;
+            if (token == "accent_hover") return look.AccentHover;
+            if (token == "accent_pressed") return look.AccentPressed;
             throw new KeyNotFoundException("no token " + token);
         }
 

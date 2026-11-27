@@ -44,28 +44,22 @@ namespace CodexAutoResume
 
         internal static int RoleBase(string role)
         {
-            switch (role)
-            {
-                case "title": return 15;
-                case "state": return Brand.TypeBody;
-                case "label": return Brand.TypeSmall;
-                case "value": return Brand.TypeHeading;
-                case "name": return Brand.TypeBody;
-                case "chip": return Brand.TypeSmall;
-                case "body": return Brand.TypeBody;
-                case "small": return Brand.TypeSmall;
-                case "button": return Brand.TypeBody;
-            }
+            if (role == "title") return 15;
+            if (role == "state") return Brand.TypeBody;
+            if (role == "label") return Brand.TypeSmall;
+            if (role == "value") return Brand.TypeHeading;
+            if (role == "name") return Brand.TypeBody;
+            if (role == "chip") return Brand.TypeSmall;
+            if (role == "body") return Brand.TypeBody;
+            if (role == "small") return Brand.TypeSmall;
+            if (role == "button") return Brand.TypeBody;
             throw new KeyNotFoundException(role);
         }
 
         internal static int RoleWeight(string role)
         {
-            switch (role)
-            {
-                case "title": case "value": case "name": case "chip": case "button": return 600;
-                case "state": case "label": case "body": case "small": return 400;
-            }
+            if (role == "title" || role == "value" || role == "name" || role == "chip" || role == "button") return 600;
+            if (role == "state" || role == "label" || role == "body" || role == "small") return 400;
             throw new KeyNotFoundException(role);
         }
 
