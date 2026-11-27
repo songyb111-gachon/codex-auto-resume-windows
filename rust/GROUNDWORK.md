@@ -3798,3 +3798,63 @@ both lanes on the bundled 3.14.10 (`ledger.py --run`). Owner Q3 (c): every advan
 Step 1 beyond the usage family's infrastructure; step 2 for credits, headless, hook_input, credentials, examples,
 word_keys, measure_m4b (and the 7 above); step 5's full run of every ready file with RUN_WAITS reasons. The gates of
 this seat are in its RETURN.
+
+## Seat proxy2, part 2: safety, the forced stop, the continuation worlds (branch `car-v0627-proxy2`, 2026-11-27)
+
+From `73196081d` (part 1: 17 GREEN). `ledger.py --run` (bundled 3.14.10): **30 GREEN of 281, none "ready"**; every
+other file names the seat or the reason it waits for (RUN_WAITS, or its imports).
+
+### Safety first (`d0fe19e38`)
+
+* advserve makes no code that reaches this PC (`examples/advserve/refused.rs`): every shipped id is **asked** (its
+  world is the test's: the usage family, reset_message, reset_credit, and from step 2 empty_response, subagent_parent,
+  goal_continuation, prompt_queue), **refused** (account_switch, account_auto_switch: no session, no Credential
+  Manager, no Codex home, no restart, an empty swap world over a machine with nothing on it), **bare** (car-adv's
+  `make`, each read: `no_session`, the `bare` worlds, retries' refusing opener, pure rules) or **withheld** (no code:
+  crash_restart's named events, usage_analytics' and fleet_view's real homes, wake_for_reset's timer,
+  idle_update_check's registry, power_after_tasks' Codex home, the courier's processes). An id no list names is
+  withheld. Its tests run with `cargo test` (`[[example]] advserve test = true`) and fail on a shipped id not named.
+* car-adv `credits::make` takes its session and keys from `usage::World::installed()` (the product's own where none
+  is installed - unchanged), so advserve's refusing world reaches reset_credit as it reaches reset_message.
+
+### The forced stop on Rust (`0bd2b89df`)
+
+* The bug of part 1's "defers": a world's answer was a `Path` (`code._home = h.home.root`), which never crossed the
+  pipe, so the stop's tick ended at the home's ask. `worlds.answer` now gives `plain(found)`.
+* `RustCode.notices(now)` / `.holding()` (usage_pause) are car-adv's: advserve `runtime` method `code_call`, car-adv
+  `Runtime::code(capability)` (the made code itself), `UsageStop::as_any`.
+* Worlds for the continuation family (worlds.rs `look_world`, `goal_world`, `queue_world`; worlds.py `session`,
+  `look`, `goal_read`, `m2b`, `clock`, `turn_in_progress`): each seam calls the reference's own function or method,
+  the latter on a `_Shadow` of the code (`paths` plus what the test set on the RustCode), so a test's patch of
+  `GoalContinuation._session` or `module.Turns` is what car-adv meets.
+* `CODEX_AR_ADVSERVE_STDERR=<file>` keeps advserve's stderr (pipe.py) - how the stop was traced.
+
+### What waits (exactly)
+
+* **P11 host** (S7.3d): a send of a plug record - core's `reserve_record` asks the plug's ledger (`Runtime.claim`) and
+  holds it: go_on_series, prompt_command_line, self_check_handed, empty_response_own, subagent_told_at_send,
+  usagestop_hold_ends, usagestop_carry_other_window (each one test; every test before the send is green).
+* goal_set_race: car-adv's GoalContinuation is asked its goal (usage_limited) but asks neither M2b nor the session -
+  trace `unloaded`/the route against the reference.
+* examples: a `statement.Catalogs` forwarder (advserve `op` statement.catalog/text/badge/missing/statement exist) was
+  tried and taken back - `badge` takes a count, not a truth, and the catalogs' dump comes back as pairs to decode; it
+  turned hidden and registry red.
+* credits, headless, hook_input, credentials, word_keys, measure_m4b wait for their modules' rows (S7.2a, S7.2c, S7.3c,
+  S7.1, S7.4 by their imports); shots_render is a GUI set (S6.2a's window).
+
+### For later seats
+
+* A new shipped code under the proxy: a row in refused.rs (asked/refused/bare/withheld) and, if asked, a world in
+  worlds.rs + its seams in worlds.py (`MODULES`, `CLASSES`, `SEAMS`). A RustCode method: `RustCode.METHODS` and a
+  branch of advserve's `code_call` (downcast through `as_any`).
+* The withheld codes need refusing worlds before their files can run (the courier's launch, the timers, the homes).
+
+### Mutation checks (scratchpad `car-v0627-proxy2-mutate.py`: each alone, advserve rebuilt, its proxied file run, restored)
+
+* M1 `PauseCore::marking` never holds a window over -> test_advanced_usagestop_carry_held FAILED (errors=2)
+* M2 `PauseCore::holding` always no -> test_advanced_stop_held_windows FAILED (failures=1)
+* M3 `StopInner::notices` says none -> test_advanced_usagestop_archive_grace FAILED (failures=1)
+* M4 `usage::reached` never at the threshold -> test_advanced_usagestop_continue_off FAILED (failures=4)
+* M5 refused.rs: account_auto_switch's restart left as the live one (`None`) -> `cargo test --example advserve`
+  `the_refused_hands_open_nothing` FAILED
+* restored: all four files OK again; `ledger.py --run` 26 of 33 then the seven taken back to their reasons: 30 GREEN.

@@ -530,7 +530,9 @@ fn open(line: &Value) -> Result<Value, Fault> {
                                     worlds::make(definition, paths, id, &folder).flatten()
                                 }
                                 refused::Made::Refused => refused::make(&definition.id, paths),
-                                refused::Made::Bare => car_adv::capabilities::make(definition, paths),
+                                refused::Made::Bare => {
+                                    car_adv::capabilities::make(definition, paths)
+                                }
                                 refused::Made::Withheld => None,
                             };
                         }

@@ -14,14 +14,14 @@ use std::sync::Arc;
 use car_adv::capabilities::{Code, Raised};
 use car_adv::codex::inuse::Looked;
 use car_adv::codex::ipc::{Gate, GateRaised};
-use car_adv::codex::session::{Channel, SessionError};
-use car_adv::engine::usage::{self, CodexReads, MeterBackend, TurnSeen};
 use car_adv::codex::lineage::Child;
+use car_adv::codex::session::{Channel, SessionError};
 use car_adv::codex::turns::Turn;
 use car_adv::engine::emptyreply::{LookWorld, Looks, Unreadable};
 use car_adv::engine::goal::{GoalSeen, GoalWorld};
 use car_adv::engine::markerfree::Open;
 use car_adv::engine::promptqueue::TurnRunning;
+use car_adv::engine::usage::{self, CodexReads, MeterBackend, TurnSeen};
 use car_adv::engine::{credits, resetmessage, usagestop};
 use car_adv::registry::CapabilityDef;
 use car_adv::statement::Catalogs;
@@ -627,9 +627,7 @@ pub fn goal_world(session: i64, capability: &str) -> GoalWorld {
                 goal_id: word(field(&found, "goal_id"))
                     .unwrap_or_default()
                     .to_owned(),
-                status: word(field(&found, "status"))
-                    .unwrap_or_default()
-                    .to_owned(),
+                status: word(field(&found, "status")).unwrap_or_default().to_owned(),
             })
         }),
         m2b: Arc::new(move || {

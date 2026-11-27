@@ -87,16 +87,46 @@ pub const BARE: &[&str] = &[
 /// every id the other lists do not name).
 #[cfg_attr(not(test), allow(dead_code))]
 pub const WITHHELD: &[(&str, &str)] = &[
-    ("crash_restart", "named events (StopFlag over car_platform::wake::SystemEvents)"),
-    ("usage_analytics", "the watched Codex homes of this PC (tokens::watched_homes, LocalSource)"),
-    ("wake_for_reset", "a waitable timer that wakes this PC (system_timer)"),
-    ("idle_update_check", "the managed policy in this user's registry"),
-    ("fleet_view", "the Codex home of this PC's environment (guarded_homes)"),
-    ("power_after_tasks", "the Codex home in use and its turns (supervise::codex_home)"),
-    ("push_notices", "the courier process (courier::launch::start_due)"),
-    ("status_feed", "the courier process (courier::launch::start_due)"),
-    ("local_api", "the courier's server process (courier::launch::start)"),
-    ("telegram_remote", "the courier's server process (courier::launch::start)"),
+    (
+        "crash_restart",
+        "named events (StopFlag over car_platform::wake::SystemEvents)",
+    ),
+    (
+        "usage_analytics",
+        "the watched Codex homes of this PC (tokens::watched_homes, LocalSource)",
+    ),
+    (
+        "wake_for_reset",
+        "a waitable timer that wakes this PC (system_timer)",
+    ),
+    (
+        "idle_update_check",
+        "the managed policy in this user's registry",
+    ),
+    (
+        "fleet_view",
+        "the Codex home of this PC's environment (guarded_homes)",
+    ),
+    (
+        "power_after_tasks",
+        "the Codex home in use and its turns (supervise::codex_home)",
+    ),
+    (
+        "push_notices",
+        "the courier process (courier::launch::start_due)",
+    ),
+    (
+        "status_feed",
+        "the courier process (courier::launch::start_due)",
+    ),
+    (
+        "local_api",
+        "the courier's server process (courier::launch::start)",
+    ),
+    (
+        "telegram_remote",
+        "the courier's server process (courier::launch::start)",
+    ),
 ];
 
 /// How `id`'s code is made here; an id no list names is withheld.
@@ -126,7 +156,10 @@ pub fn make(id: &str, paths: &Paths) -> Option<Box<dyn Code>> {
 const REFUSAL: &str = "AdapterError";
 
 fn refusal() -> Fault {
-    Fault::new(REFUSAL, "advserve reaches nothing outside the test's scratch paths")
+    Fault::new(
+        REFUSAL,
+        "advserve reaches nothing outside the test's scratch paths",
+    )
 }
 
 /// Every session refused at its making: no backend, no app-server, no Codex home of this PC.
@@ -143,13 +176,22 @@ pub struct NoSecrets;
 
 impl watch::SaltStore for NoSecrets {
     fn read(&self, _capability: &str, _name: &str) -> Result<Option<String>, Fault> {
-        Err(Fault::new("SecretError", "advserve reaches no Credential Manager"))
+        Err(Fault::new(
+            "SecretError",
+            "advserve reaches no Credential Manager",
+        ))
     }
     fn write(&self, _capability: &str, _name: &str, _secret: &str) -> Result<(), Fault> {
-        Err(Fault::new("SecretError", "advserve reaches no Credential Manager"))
+        Err(Fault::new(
+            "SecretError",
+            "advserve reaches no Credential Manager",
+        ))
     }
     fn delete(&self, _capability: &str, _name: &str) -> Result<bool, Fault> {
-        Err(Fault::new("SecretError", "advserve reaches no Credential Manager"))
+        Err(Fault::new(
+            "SecretError",
+            "advserve reaches no Credential Manager",
+        ))
     }
 }
 
@@ -286,10 +328,16 @@ mod tests {
         sorted.dedup();
         assert_eq!(sorted.len(), named.len(), "an id is named twice");
         for id in MADE {
-            assert!(named.contains(id), "{id}: car-adv makes it, advserve names no way to make it safely");
+            assert!(
+                named.contains(id),
+                "{id}: car-adv makes it, advserve names no way to make it safely"
+            );
         }
         for id in &named {
-            assert!(MADE.contains(id), "{id}: named here, car-adv does not make it");
+            assert!(
+                MADE.contains(id),
+                "{id}: named here, car-adv does not make it"
+            );
         }
     }
 
@@ -307,7 +355,12 @@ mod tests {
         let account = account_seams(&paths);
         assert!(matches!(present(&(account.read)()), Some(Value::Null)));
         assert!(account.secrets.read("account_switch", "salt").is_err());
-        assert!(account.secrets.write("account_switch", "salt", "x").is_err());
+        assert!(
+            account
+                .secrets
+                .write("account_switch", "salt", "x")
+                .is_err()
+        );
         assert!(account.secrets.delete("account_switch", "salt").is_err());
 
         let mut switch = autoswitch_seams(&paths);
@@ -315,7 +368,11 @@ mod tests {
         assert!(switch.session_for.open(None).is_err());
         assert!(switch.session_for.open(Some(Path::new("x"))).is_err());
         assert!(matches!(present(&(switch.read_real)()), Some(Value::Null)));
-        let restart = switch.hands.restart.as_mut().expect("refused, never the live restart");
+        let restart = switch
+            .hands
+            .restart
+            .as_mut()
+            .expect("refused, never the live restart");
         let mut between_ran = false;
         assert!(
             restart(&mut || {
@@ -324,7 +381,10 @@ mod tests {
             })
             .is_err()
         );
-        assert!(!between_ran, "the refused restart ran what follows the close");
+        assert!(
+            !between_ran,
+            "the refused restart ran what follows the close"
+        );
         assert!((switch.hands.busy)().is_err());
         assert!(matches!((switch.hands.idle)(), Value::Null));
         let world = switch.world.world();
