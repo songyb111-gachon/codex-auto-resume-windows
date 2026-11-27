@@ -74,6 +74,9 @@ GREEN = {
     "test_advanced_schema_v8.py": "proxy2 (state; state::builds: SCHEMA_VERSION, TABLES, UPGRADE_TO_V019, FREE_WORDINGS, "
                                   "MARKED)",
     "test_advanced_state_options.py": "proxy2 (state; state::builds; a get-only registry handed what it answers)",
+    "test_advanced_every_conversation.py": "proxy2 (runtime through core's engine proxy with the test's plug, proxyplug.rs)",
+    "test_advanced_usage_refusal.py": "proxy2 (arming.standing, arming.warnings_for: advserve op)",
+    "test_advanced_hidden.py": "proxy2 (registry.offered: advserve op)",
 }
 
 # What a run found that the imports cannot say (`--run`): the seat or the reason a file still waits for, each with
