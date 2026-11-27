@@ -7,7 +7,11 @@ interval the C# popup's and menu's fade timers are set to. Here the same tests -
 with the Python module's constant replaced, for the length of each test, by the host's own value, asked of the C# through
 the plan probe (tests/rustdiff/PlanProbe.cs `constant`), so the plan is held to what the host does.
 
-Nothing is drawn and no window is made: the probe answers a constant.
+And twin of DrawnTests' hover-card placement (S6.4f3): the card the picture shows is laid out by the host's own renderer
+(planproxy.HostTipRenderer over gui/SurfaceDrawn.cs TipLayout), placed by gui/TipCard.cs TipPlace and held to
+gui/TipPlan.cs TipGap, standing where the Python's TipRenderer, tip_place and TIP_GAP stood for the length of the test.
+
+No window is made: the probe answers constants and lays the card out in memory.
 """
 from __future__ import annotations
 

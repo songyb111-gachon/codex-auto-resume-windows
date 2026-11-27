@@ -12,6 +12,12 @@
 //                                                     draws it (Renderer.draw, draw_halo, draw_scene, layers.card_still);
 //                                                     each picture written as raw BGRA in the probe's own folder and
 //                                                     answered by its path; and notice_card.corner_coverage (CardCorner)
+//   {"op": "renderer_images" | "plan_from_dict" | "layers_*" | "renderer_tip_*" | "tip_place" | ...}
+//                                                     (S6.4f3) what a test reads of a renderer's own state (its kept
+//                                                     shadow images and ground key, the GDI+ count), a plan of the
+//                                                     test's own, a draw without its words or with stood-in specks,
+//                                                     the shadow window's layers (CardLayers, no window), the icon's
+//                                                     card (TipLayout, DrawTip, DrawTipLight) and its place
 //
 // and answers {"ok": value} or {"error": "<class>: <message>"}. It makes no window, draws nothing on a screen and starts
 // nothing; it draws into memory only, with this machine's fonts (GDI and GDI+, as the render mode's pictures are made).
