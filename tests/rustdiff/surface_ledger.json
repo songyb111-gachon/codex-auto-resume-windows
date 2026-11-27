@@ -877,13 +877,19 @@
     }
    },
    "route": "shim",
-   "status": "pending",
-   "why": "0 of 2 UI tests run on the host (none); 2 are still on the Python UI (2 pure)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard) The Dashboard opener these tests drive (ui/tray/dashboard.py: open_dashboard, open_chat, and the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions. Routing them needs a harness case over handover::hand_over and the process start (a Rust change, not tests/), then a proxy for the two functions beside perform's.",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "OpenTests.test_the_window_is_started_at_the_chat_with_no_console"
+   ],
    "twins": {},
-   "no_twin": {},
-   "port": []
+   "no_twin": {
+    "OpenTests.test_a_toast_s_body_reaches_the_chat_through_the_activation_command": "replaces the opener with its own stand-in (tray.open_chat patched) and asks the Python activation command (commands/watcher.py cmd_activate) where a chat link goes: nothing of the UI is called or computed; the port's activation of a chat link is car-surface's notifier.activate, held to the tag by diffs_surface_notifier's ActivateDiff"
+   },
+   "port": [
+    "tests/rustdiff/surfaceproxy.py"
+   ]
   },
   "test_notice_stay.py": {
    "holds": "Notices that stay on screen until clicked, chosen per kind (v0.6.16, notice_kinds.py).",
@@ -1172,19 +1178,32 @@
    },
    "route": "shim",
    "status": "pending",
-   "why": "5 of 16 UI tests run on the host (5 routed); 11 are still on the Python UI (6 pure, 5 window)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON The Dashboard opener these tests drive (ui/tray/dashboard.py: open_dashboard, open_chat, and the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions. Routing them needs a harness case over handover::hand_over and the process start (a Rust change, not tests/), then a proxy for the two functions beside perform's.",
+   "why": "14 of 16 UI tests run on the host or are held by a twin or a no_twin reason; 2 are still on the Python UI (2 window: RemoveTests.test_chosen_in_the_drawn_menu_it_runs_and_the_popup_stays and OpensTheDashboardTests.test_a_writing_item_closes_the_popup_and_asks_for_the_dashboards_dialog drive the Python popup window's drawn row menu, shown_popup)",
+   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (the popup's row menu chosen: PopupWindow's context menu, its choice run and the popup hidden or kept) and the same assertions over its JSON",
    "host_tests": [
     "EnablementTests.test_a_held_row_whose_cancel_is_pending_is_not_let_go",
     "EnablementTests.test_each_item_is_enabled_by_the_dashboards_rules",
     "OfferedTests.test_each_is_bound_to_the_rows_identities",
     "OfferedTests.test_the_dashboards_rules_add_or_change_while_it_waits_remove_only_when_there_are_some",
-    "OfferedTests.test_the_popup_offers_the_dashboards_items_in_its_order"
+    "OfferedTests.test_the_dialogs_are_the_ones_the_opener_and_the_window_take",
+    "OfferedTests.test_the_popup_offers_the_dashboards_items_in_its_order",
+    "OpenerTests.test_a_malformed_row_is_refused_before_anything_is_asked_or_started",
+    "OpenerTests.test_an_open_window_is_handed_the_row_on_a_second_line",
+    "OpenerTests.test_with_no_window_one_is_started_on_pending_with_the_dialog",
+    "OpenerTests.test_without_a_row_the_open_is_what_it_was",
+    "OpensTheDashboardTests.test_the_action_hands_the_row_to_the_opener_and_nothing_to_the_control_layer",
+    "RemoveTests.test_a_row_that_changed_says_so_as_every_row_action_does",
+    "RemoveTests.test_remove_is_the_dashboards_command_with_no_words_bound_to_the_row"
    ],
-   "twins": {},
-   "no_twin": {},
+   "twins": {
+    "OpensTheDashboardTests.test_the_watcher_wires_the_popup_to_the_opener_with_its_row": "test_host_opener.py::RowWiringTwinTests.test_the_watcher_wires_the_popup_to_the_opener_with_its_row"
+   },
+   "no_twin": {
+    "EnablementTests.test_the_rules_compared_are_the_dashboards": "reads the Dashboard window's own C# (SettingsForm CanPostpone, CanRelease, CanUnpostpone, CanAddOnceWords, FillRowMenu), which the port does not replace, against the test's own mirror of those rules: nothing of the Python UI is called or computed"
+   },
    "port": [
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_opener.py"
    ]
   },
   "test_popup_shape.py": {
@@ -1446,15 +1465,19 @@
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "1 of 2 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 pure)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "PageTests.test_the_icon_and_a_notification_know_the_same_pages"
+   ],
    "twins": {},
    "no_twin": {
     "OneImplementationTests.test_each_rule_has_exactly_one_implementation": "walks every Python module for each rule's one implementation site (sites() over the package); the UI's modules are only part of the sample and nothing of the UI is called or computed"
    },
-   "port": []
+   "port": [
+    "tests/rustdiff/surfaceproxy.py"
+   ]
   },
   "test_social_motion.py": {
    "holds": "The social preview's motion: one cycle of the watching icon's motion on the card, as an APNG, under 1 MB.",
@@ -1649,9 +1672,11 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "4 of 13 UI tests run on the host or are held by a twin or a no_twin reason; 9 are still on the Python UI (9 window)",
+   "why": "5 of 13 UI tests run on the host or are held by a twin or a no_twin reason; 8 are still on the Python UI (8 window: TrayMenuTests' menu choices)",
    "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "host_tests": [
+    "TrayMenuTests.test_the_window_is_only_ever_opened_on_a_page_it_has"
+   ],
    "twins": {},
    "no_twin": {
     "JournalIsWriteOnlyTests.test_only_the_timeline_and_the_export_read_it": "reads every shipped Python file for `.events(`: which Python modules read the journal; the UI's modules are only part of the sample and nothing of the UI is called or computed",
@@ -1659,7 +1684,9 @@
     "NoBrowserTests.test_nothing_that_ships_hosts_or_embeds_a_browser": "reads every shipped file under gui/*, src/*, scripts/* and build/install/*: the C# host's sources (gui/host.sources) are already among them as written, and nothing of the Python UI is called or computed",
     "NoGuiAutomationTests.test_nothing_that_ships_drives_a_keyboard_a_mouse_or_a_screen": "reads every shipped file under gui/*, src/*, scripts/*, build/install/* and skills/*: the C# host's sources (gui/host.sources) are already among them as written, and nothing of the Python UI is called or computed"
    },
-   "port": []
+   "port": [
+    "tests/rustdiff/surfaceproxy.py"
+   ]
   },
   "test_surface_render_retarget.py": {
    "holds": "The picture makers retargeted to the host's render mode are wired right (P6-DESIGN 3.3 B and C; seat S6.3f).",
@@ -1960,7 +1987,7 @@
    "route": "probe",
    "status": "pending",
    "why": "2 of 13 UI tests run on the host (2 routed); 11 are still on the Python UI (11 window)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON The Dashboard opener these tests drive (ui/tray/dashboard.py: open_dashboard, open_chat, and the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions. Routing them needs a harness case over handover::hand_over and the process start (a Rust change, not tests/), then a proxy for the two functions beside perform's.",
+   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON (S6.4e: none of its tests reaches the Dashboard opener - ItemTests, OfferedTests and OpensTests drive the icon's menu and its popup - so it waits on the window route, not on the opener)",
    "host_tests": [
     "ItemTests.test_it_is_right_after_open_dashboard",
     "ItemTests.test_without_a_popup_the_menu_is_what_it_was"
@@ -2216,15 +2243,28 @@
     }
    },
    "route": "shim",
-   "status": "pending",
-   "why": "1 of 11 UI tests run on the host or are held by a twin or a no_twin reason; 10 are still on the Python UI (7 pure, 1 scan, 2 window)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON The Dashboard opener these tests drive (ui/tray/dashboard.py: open_dashboard, open_chat, and the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions. Routing them needs a harness case over handover::hand_over and the process start (a Rust change, not tests/), then a proxy for the two functions beside perform's.",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "OpenAsksFirstTests.test_a_page_not_of_the_window_is_refused_before_anything_is_asked",
+    "OpenAsksFirstTests.test_a_window_that_takes_the_request_means_nothing_is_started",
+    "OpenAsksFirstTests.test_nothing_installed_asks_nothing_and_starts_nothing",
+    "OpenAsksFirstTests.test_with_no_window_to_take_it_one_is_started_as_before",
+    "RunningWindowTests.test_a_second_open_while_one_runs_starts_no_process_and_brings_that_page",
+    "RunningWindowTests.test_a_window_from_before_that_does_not_answer_leaves_the_open_as_it_was",
+    "RunningWindowTests.test_every_tray_item_that_shows_something_goes_to_the_open_window",
+    "WindowDecisionTests.test_the_window_takes_its_pages_or_none_and_nothing_else"
+   ],
    "twins": {
-    "WindowSideTests.test_the_mark_and_the_answer_are_the_same_on_both_sides": "test_host_shape.py::HandoverTwinTests.test_the_mark_and_the_answer_are_the_same_on_both_sides"
+    "WindowSideTests.test_the_mark_and_the_answer_are_the_same_on_both_sides": "test_host_shape.py::HandoverTwinTests.test_the_mark_and_the_answer_are_the_same_on_both_sides",
+    "PauseResumeTests.test_pause_and_resume_from_the_menu_act_directly_and_open_no_window": "test_host_opener.py::PauseResumeTwinTests.test_pause_and_resume_from_the_menu_act_directly_and_open_no_window",
+    "PauseResumeTests.test_the_watchers_toggle_changes_the_paused_state_and_starts_nothing": "test_host_opener.py::PauseResumeTwinTests.test_the_watchers_toggle_changes_the_paused_state_and_starts_nothing"
    },
    "no_twin": {},
    "port": [
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_opener.py",
     "tests/test_host_shape.py"
    ]
   },

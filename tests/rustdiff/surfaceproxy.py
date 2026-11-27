@@ -33,7 +33,8 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 ROOT = Path(__file__).resolve().parents[2]
 FLOAT_TAG = "$float"
 MODULES = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model", "codex_auto_resume.ui.words",
-           "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu", "codex_auto_resume.ui.tray.motion")
+           "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu", "codex_auto_resume.ui.tray.motion",
+           "codex_auto_resume.ui.tray.dashboard")
 HOMES = ("USERPROFILE", "HOME", "APPDATA", "LOCALAPPDATA", "CODEX_HOME", "TEMP", "TMP")
 
 BUILTINS = {"ValueError": ValueError, "TypeError": TypeError, "KeyError": KeyError, "AttributeError": AttributeError,
@@ -627,6 +628,71 @@ def _popup_model(module):
     module.PopupModel = PopupModel
 
 
+# ------------------------------------------------------------------------------ the Dashboard opener (S6.4e)
+def _opener(module):
+    """`open_dashboard` and `open_chat` (ui/tray/dashboard.py), `PAGES` and `ROW_DIALOGS`: car-watcher's dashboard.rs, as the
+    harness compiles it again over a scratch world (rust/crates/car-harness/src/opener.rs, held to the tag by
+    diffs_ui_opener.py), decides what is refused (the class and the message), whether there is a window to open, which
+    hand-over it asks for and what it would start. What a test stands in for is asked back, in the reference's shapes:
+
+    * the hand-over to an open window is the test's `win.handover.hand_over` at call time, called as the reference calls
+      it - `hand_over(exe, page)`, or `hand_over(exe, page, row)` with a row - with the exe as a Path; its truthiness is the
+      answer Rust is run again with (an exception it raises is the test's verdict and propagates);
+    * the start Rust records (argv, working folder, creation flags) is handed to `subprocess.Popen` at call time, as the
+      reference calls it (`cwd=`, `close_fds=True`, `creationflags=`). An OSError from it is dropped and the open answers
+      True, because dashboard.rs drops the start's error (`let _ = ...`): a difference from the reference, which raises it,
+      that diffs_ui_opener's expected failure names.
+
+    A home is sent as `str(Path(home))` (the watcher's paths are resolved on both sides); a page that is not text, or a row
+    or thread JSON cannot carry, is not sent (TypeError): car-watcher is never handed one (api.rs reads the host's action)."""
+    from pathlib import Path as _Path
+    originals = {"open_dashboard": module.open_dashboard, "open_chat": module.open_chat}
+    found = PIPE.case("opener.consts")
+    module.ROW_DIALOGS, module.PAGES = tuple(found[4]), tuple(found[5])
+
+    def home_of(home):
+        return str(_Path(home))
+
+    def started(found):
+        result = found["result"]
+        if "error" in result:
+            raise BUILTINS.get(result["error"], RuntimeError)(result.get("message", result["error"]))
+        for start in found["started"]:
+            try:
+                module.subprocess.Popen(list(start["argv"]), cwd=start["cwd"], close_fds=True,
+                                        creationflags=start["flags"])
+            except OSError:
+                pass
+        return result["ok"]
+
+    def open_dashboard(home, page=None, row=None):
+        if page is not None and not isinstance(page, str):
+            raise TypeError("a page that is not text cannot be sent to the port")
+        sent, world = (home_of(home), page, _plain(row)), {}
+        for _ in range(3):
+            found = PIPE.case("opener.dashboard", *sent, world)
+            if not found["handed"] or "hand_over" in world:
+                break
+            from codex_auto_resume.win import handover
+            exe, asked_page, asked_row = found["handed"][0]
+            answer = (handover.hand_over(_Path(exe), asked_page, asked_row) if asked_row is not None
+                      else handover.hand_over(_Path(exe), asked_page))
+            world = {"hand_over": bool(answer)}
+        else:
+            raise RuntimeError("car-watcher asked more than one hand-over of an open")
+        return started(found)
+
+    def open_chat(home, thread_id):
+        return started(PIPE.case("opener.chat", home_of(home), _plain(thread_id), {}))
+
+    for name, function in (("open_dashboard", open_dashboard), ("open_chat", open_chat)):
+        function.rust_core = "surface"
+        function.__wrapped__ = originals[name]
+        function.__doc__ = originals[name].__doc__
+        function.__name__ = name
+        setattr(module, name, function)
+
+
 def install(module) -> None:
     """Replace the module's pure functions as it loads; once."""
     if getattr(module, "_rust_surface", False):
@@ -645,4 +711,6 @@ def install(module) -> None:
         _tray_menu(module)
     elif module.__name__.endswith("tray.motion"):
         _tray_motion(module)
+    elif module.__name__.endswith("tray.dashboard"):
+        _opener(module)
     module._rust_surface = True
