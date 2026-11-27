@@ -67,12 +67,21 @@ def fake_named(names, families):
     return json.loads(json.dumps(rows if isinstance(rows, list) else []))
 
 
+def fake_packages(family):
+    """v0.6.26 final (FINAL-DELTA #6): the case's package folders (`packages`), never this PC's."""
+    found = WORLD.get("packages")
+    if isinstance(found, dict):
+        raise AdapterError("package_roots_unavailable")
+    return [each for each in found if isinstance(each, str)] if isinstance(found, list) else []
+
+
 def no_identity(pid):
     raise AdapterError("process_exited")
 
 
 authenticode.signer = fake_signer
 pairing.processes_named = fake_named
+pairing.package_roots = fake_packages
 pairing.resource_users = lambda *paths: []
 pairing.process_identity = no_identity
 os.getpid = lambda: WORLD.get("pid", 999999) if isinstance(WORLD.get("pid"), int) else 999999

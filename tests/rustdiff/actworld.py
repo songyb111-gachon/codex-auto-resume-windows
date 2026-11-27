@@ -282,6 +282,20 @@ def _judge_for(control, *_args, **_kwargs):
     return judged
 _rescan.judge_for = _judge_for
 
+if world.get("status_plug") is not None:
+    # test_status_newest_usage's MeterPlug: an advanced edition's plug whose STATUS surface adds the world's value.
+    from codex_auto_resume import edition as _edition
+    from codex_auto_resume.domain.plug import Edition as _Edition, Plug as _Plug, Surface as _Surface
+
+    class _StatusPlug(_Plug):
+        __slots__ = ()
+        edition = _Edition.ADVANCED
+        badge = "Advanced"
+
+        def surface(self, name, facts):
+            return world["status_plug"] if name == _Surface.STATUS else {}
+    _edition.plug = lambda paths: _StatusPlug()
+
 if mode == "call":
     from codex_auto_resume import ownreport as _ownreport
     _layer = control.Control(Path(home))
@@ -302,6 +316,8 @@ if mode == "call":
         "cancel_all_pending": lambda c, actor: c.cancel_all_pending(actor=actor),
         "clear_history": lambda c, actor: c.clear_history(actor=actor),
         "own_report": lambda c: _ownreport.write(c.paths),
+        # The final-port seat (FINAL-DELTA #15): the status a plug's meter adds to (STATUS_PLUG below).
+        "get_status": lambda c: c.get_status(),
     }
     try:
         _result = {"value": _methods[spec["method"]](_layer, *spec["args"])}

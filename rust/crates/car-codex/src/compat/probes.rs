@@ -53,7 +53,9 @@ pub fn source_checks(system: &dyn System, home: &str) -> Map {
     if !Path::new(home).is_dir() {
         return checks;
     }
-    let mut threads = false;
+    // Whether the newest state database holds a conversation: None unknown (not read, or the read failed), Some(false)
+    // none, Some(true) some (v0.6.26 final: three-way, as the reference's None / False / True).
+    let mut threads: Option<bool> = None;
     let os = PolicyOs;
     for (kind, check) in [
         ("state", "state_schema"),
@@ -63,6 +65,13 @@ pub fn source_checks(system: &dyn System, home: &str) -> Map {
         let outcome = (|| -> std::result::Result<bool, ()> {
             let Some(path) = crate::paths::newest_generation(&os, home, kind).map_err(|_| ())?
             else {
+                if kind == "history" && threads == Some(false) {
+                    // v0.6.26 final: Codex makes its history with the first conversation it saves, so a home whose
+                    // newest state database was read and holds none has no history yet - "not yet", as a lock folder
+                    // is. With a conversation it stays unavailable: there Codex moved, renamed or dropped it.
+                    put(&mut checks, "history_schema", NOT_APPLICABLE);
+                    put(&mut checks, "projection_table", NOT_APPLICABLE);
+                }
                 return Ok(false);
             };
             let tables = crate::paths::kind(kind).ok_or(())?.tables;
@@ -81,9 +90,10 @@ pub fn source_checks(system: &dyn System, home: &str) -> Map {
             }
             put(&mut checks, check, if missing { FAIL } else { PASS });
             if kind == "state" && !missing {
+                // A read that fails leaves it unknown (None), the check as it always was.
                 threads = sql::query(&connection, "SELECT 1 FROM threads LIMIT 1", &[])
-                    .map(|rows| !rows.is_empty())
-                    .unwrap_or(false);
+                    .ok()
+                    .map(|rows| !rows.is_empty());
             }
             if kind == "history" {
                 let found = sql::query(
@@ -119,7 +129,7 @@ pub fn source_checks(system: &dyn System, home: &str) -> Map {
         let there = Path::new(&winpath::join(home, directory)).is_dir();
         let word = if there {
             PASS
-        } else if name == "lock_directory" && threads {
+        } else if name == "lock_directory" && threads == Some(true) {
             FAIL
         } else {
             NOT_APPLICABLE
@@ -362,6 +372,24 @@ pub fn served_engines(system: &dyn System) -> Vec<String> {
         .into_iter()
         .filter(|path| pairing::official_engine(system, path).0)
         .collect()
+}
+
+/// `_package_engines()` (v0.6.26 final, live acceptance R2b): the engines in the folders of the Codex app's package
+/// installed for this account, whether or not the app runs; nothing where the package manager cannot answer (any
+/// exception of `package_engines`). A generator in the reference, as `_served_engines` is: `official_engine` is asked
+/// of each only as the caller comes to it ([`official`] over this list).
+pub fn package_engines(system: &dyn System) -> Vec<String> {
+    pairing::package_engines(system).unwrap_or_default()
+}
+
+/// The official ones of `found`, each asked only when the caller comes to it (the generators' filter).
+pub fn official<'a>(
+    system: &'a dyn System,
+    found: Vec<String>,
+) -> impl Iterator<Item = String> + 'a {
+    found
+        .into_iter()
+        .filter(move |path| pairing::official_engine(system, path).0)
 }
 
 /// The record of discovery: every candidate's path and its checks, in the order they were made.

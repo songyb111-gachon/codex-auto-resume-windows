@@ -478,6 +478,32 @@ pub fn run(home: &Path, request: &Map) -> Value {
     ])
 }
 
+/// An advanced edition's plug whose STATUS surface adds one value (the world's `status_plug`) and every other surface an
+/// empty object: test_status_newest_usage's `MeterPlug`, for `get_status`'s usage rule (v0.6.26 final).
+struct StatusPlug(Value);
+
+impl car_policy::plug::Plug for StatusPlug {
+    fn edition(&self) -> car_policy::plug::Edition {
+        car_policy::plug::Edition::Advanced
+    }
+    fn badge(&self) -> &'static str {
+        "Advanced"
+    }
+    fn surface(
+        &self,
+        name: car_policy::plug::Surface,
+        _facts: &Value,
+    ) -> car_policy::plug::Hook<Value> {
+        Ok(car_policy::plug::Answer::Is(
+            if name == car_policy::plug::Surface::Status {
+                self.0.clone()
+            } else {
+                Value::Object(Map::new())
+            },
+        ))
+    }
+}
+
 /// What a Control method answered, as `control.call` replies it: `{"value": v}`, `{"refusal": [sentence, code]}`
 /// for a ControlError, or `{"raised": class}` for any other exception.
 fn answered(result: Result<Value, car_control::Failure>) -> Value {
@@ -518,7 +544,11 @@ pub fn call(home: &Path, request: &Map) -> Value {
         Err(class) => return rejected(class, "request_failed"),
     };
     let acts = Arc::clone(&host.acts);
-    let control = car_control::Control::new(paths, host, Arc::new(Guarded::null()));
+    let plug = match world.get("status_plug") {
+        None | Some(Value::Null) => Guarded::null(),
+        Some(added) => Guarded::new(Box::new(StatusPlug(added.clone()))),
+    };
+    let control = car_control::Control::new(paths, host, Arc::new(plug));
     let args: Vec<Value> = match request.get("args") {
         Some(Value::Array(items)) => items.clone(),
         _ => Vec::new(),
@@ -563,6 +593,8 @@ pub fn call(home: &Path, request: &Map) -> Value {
         "cancel_all_pending" => control.cancel_all_pending(&word(0)),
         "clear_history" => control.clear_history(&word(0)),
         "own_report" => control.own_report(),
+        // The final-port seat (FINAL-DELTA #15): the status a plug's meter adds to, as `get_status` answers it.
+        "get_status" => control.get_status(),
         _ => return rejected("no such method", "request_failed"),
     };
     object([("result", answered(result)), ("calls", acts.calls())])

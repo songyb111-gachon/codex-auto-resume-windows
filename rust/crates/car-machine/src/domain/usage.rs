@@ -116,19 +116,27 @@ pub fn decode(stored: &Value) -> Py<Option<Vec<Value>>> {
 /// `newest(reading, added)`: the watcher's own `reading`, or the advanced edition's meter's where it read later and
 /// its shape is one `windows_of` keeps (v0.6.26 final).
 pub fn newest(reading: &Value, added: &Value) -> Py<Value> {
+    Ok(newest_made(reading, added)?.unwrap_or_else(|| reading.clone()))
+}
+
+/// `newest(reading, added)` as its callers that test by identity read it (`control/watcher.py` `get_status`: `if newest
+/// is not watcher.get("usage")`): `Some` with the reading the rule made - a new object - where it made one, `None`
+/// where it answered the very `reading` it was given. Equality would not do: a reading whose `read_at` is `true` equals
+/// a meter's `1` in Python and is still not the object the rule hands back.
+pub fn newest_made(reading: &Value, added: &Value) -> Py<Option<Value>> {
     let meter = match added {
         Value::Object(map) => map.get("meter").cloned().unwrap_or(Value::Null),
         _ => Value::Null,
     };
     let Value::Object(fields) = &meter else {
-        return Ok(reading.clone());
+        return Ok(None);
     };
     let (Some(Value::Array(found)), Some(read_at)) = (fields.get("windows"), fields.get("read_at"))
     else {
-        return Ok(reading.clone());
+        return Ok(None);
     };
     if !pyval::is_number(read_at) {
-        return Ok(reading.clone());
+        return Ok(None);
     }
     if let Value::Object(own) = reading
         && let Some(own_at) = own.get("read_at")
@@ -136,15 +144,16 @@ pub fn newest(reading: &Value, added: &Value) -> Py<Value> {
         && !pyval::less(own_at, read_at)?
         && pyval::order(own_at, read_at)?.is_some()
     {
-        return Ok(reading.clone());
+        return Ok(None);
     }
-    match meter_windows(&Value::Array(found.clone()), reading)? {
-        None => Ok(reading.clone()),
-        Some(windows) => Ok(object_of([
-            ("read_at", read_at.clone()),
-            ("windows", Value::Array(windows)),
-        ])),
-    }
+    Ok(
+        meter_windows(&Value::Array(found.clone()), reading)?.map(|windows| {
+            object_of([
+                ("read_at", read_at.clone()),
+                ("windows", Value::Array(windows)),
+            ])
+        }),
+    )
 }
 
 /// A dict keyed by a pair of values, as Python keys one.
@@ -331,5 +340,15 @@ mod tests {
         assert_eq!(first["window"], Value::from("primary"));
         let later = from_str(r#"{"read_at": 300, "windows": []}"#).unwrap();
         assert_eq!(newest(&later, &added).unwrap(), later);
+    }
+
+    #[test]
+    fn a_meter_of_two_windows_with_a_band_is_kept_in_cores_shape() {
+        let added = from_str(
+            r#"{"meter": {"read_at": 1799655000, "notices": [], "windows": [{"bucket": "codex", "window_minutes": 300, "used_percent": 12, "reset_at": 1800003600, "band": "none"}, {"bucket": "codex", "window_minutes": 10080, "used_percent": 2, "reset_at": 1800086400, "band": "warn"}]}}"#,
+        )
+        .unwrap();
+        let made = newest_made(&Value::Null, &added).unwrap();
+        assert!(made.is_some(), "{made:?}");
     }
 }

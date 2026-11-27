@@ -1,4 +1,5 @@
-//! `codex/errors.py`: the one refusal the reader makes, and the other things that can leave one of its calls.
+//! `codex/errors.py`: the one refusal the reader makes, the one case of it that is no failure yet (`HistoryNotYet`,
+//! v0.6.26 final), and the other things that can leave one of its calls.
 //!
 //! A Python call of the reference either answers, or raises `SourceError` (a safe sentence, never a database's
 //! contents), or lets another exception through - an `OSError` of a file nobody caught, an `OverflowError` of a
@@ -8,12 +9,37 @@
 use std::fmt;
 
 /// Safe diagnostic: never includes database contents or an underlying error.
+///
+/// `.1` is true for its one subclass, `HistoryNotYet` (v0.6.26 final): no history database yet in a home whose newest
+/// state database holds no conversation - Codex makes it with the first conversation it saves, so a fresh home has
+/// nothing to read yet, not a history that cannot be read. It is still a `SourceError`: everything that catches the
+/// refusal (`Error::Source`) catches it too, as `except SourceError` does in the reference; only its class name, and the
+/// callers that ask [`SourceError::is_history_not_yet`], tell it apart.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SourceError(pub String);
+pub struct SourceError(pub String, pub bool);
 
 impl SourceError {
     pub fn new(message: &str) -> SourceError {
-        SourceError(message.to_owned())
+        SourceError(message.to_owned(), false)
+    }
+
+    /// `HistoryNotYet("No Codex history database yet")`, the one place the reference raises it (`schema.py` `resolve`).
+    pub fn history_not_yet() -> SourceError {
+        SourceError("No Codex history database yet".to_owned(), true)
+    }
+
+    /// Whether this is `HistoryNotYet` (`except HistoryNotYet:`).
+    pub fn is_history_not_yet(&self) -> bool {
+        self.1
+    }
+
+    /// The exception's class name: `HistoryNotYet` for the subclass, `SourceError` otherwise.
+    pub fn class(&self) -> &'static str {
+        if self.1 {
+            "HistoryNotYet"
+        } else {
+            "SourceError"
+        }
     }
 
     /// The refusal a failed read of Codex's own files gives.
@@ -55,10 +81,21 @@ impl Error {
         Error::Source(SourceError::unavailable())
     }
 
-    /// The exception's class name, as the reference's `type(error).__name__` (an OSError subclass is `OSError`).
+    /// `HistoryNotYet` (a `SourceError`).
+    pub fn history_not_yet() -> Error {
+        Error::Source(SourceError::history_not_yet())
+    }
+
+    /// Whether this is `HistoryNotYet` (`except HistoryNotYet:`): every other refusal, and every other error, is not.
+    pub fn is_history_not_yet(&self) -> bool {
+        matches!(self, Error::Source(refused) if refused.is_history_not_yet())
+    }
+
+    /// The exception's class name, as the reference's `type(error).__name__` (an OSError subclass is `OSError`;
+    /// `HistoryNotYet` is its own name).
     pub fn class(&self) -> &'static str {
         match self {
-            Error::Source(_) => "SourceError",
+            Error::Source(refused) => refused.class(),
             Error::Os => "OSError",
             Error::Python(class) => class,
             Error::Sqlite => "Error",

@@ -9,7 +9,8 @@ or `{"other": true}`), the four variables the pairing reads (`env`: LOCALAPPDATA
 USERPROFILE; absent means unset), this process's pid (`pid`), the clock the pairing and the transport read
 (`clock`, moved by the `advance` op) and the Restart Manager (`restart_manager`). Nothing of this machine's
 processes, holders or signatures is read by either side: the reference has `processes_named`, `resource_users`,
-`process_identity`, `authenticode.signer`, `os.getpid` and `windows.restart_manager_available` replaced, car-harness
+`process_identity`, `authenticode.signer`, `os.getpid`, `windows.restart_manager_available` and (the v0.6.26 final)
+`package_roots` replaced - the package folders are the world's `packages`, a list or `{"raise": code}` - car-harness
 answers from the same world (`car-harness/src/appserver.rs`, `World`).
 
 Each answer is `{"ok": value}`, `{"error": "AdapterError", "code": code}`, `{"error": "DocumentError", "code": code}`
@@ -149,8 +150,18 @@ def fake_signer(path):
     raise AdapterError("unsigned")
 
 
+def fake_packages(family):
+    """v0.6.26 final (FINAL-DELTA #6): the world's package folders (`packages`), never this PC's (no_real_codex's
+    `_guard_packages`): a list of folders, `{"raise": spec}`, or none."""
+    found = WORLD.get("packages")
+    if isinstance(found, dict):
+        raise raise_of(found.get("raise"))
+    return [each for each in found if isinstance(each, str)] if isinstance(found, list) else []
+
+
 clock = types.SimpleNamespace(monotonic=lambda: CLOCK[0], time=lambda: CLOCK[0], sleep=time.sleep)
 pairing.processes_named = fake_named
+pairing.package_roots = fake_packages
 pairing.resource_users = fake_users
 transport.resource_users = fake_users
 pairing.process_identity = fake_identity
@@ -295,6 +306,7 @@ def run(state, name, args):
         "engines_instead": lambda: pairing.engines_instead(a[0], a[1]),
         "app_running": lambda: pairing.app_running(a[0]), "app_running_now": lambda: pairing.app_running_now(),
         "app_engines": lambda: pairing.app_engines(), "inventory": lambda: pairing.inventory(),
+        "package_engines": lambda: pairing.package_engines(),
         "forget_inventory": lambda: pairing.forget_inventory(),
         "session_kind": lambda: pairing.session_kind(a[0], a[1], a[2]),
         "database_holders": lambda: pairing._database_holders(None if a[0] is None else Path(a[0])),
@@ -492,6 +504,8 @@ def run(state, name, args):
         return probes._candidate_paths(a[0])
     if name == "registry.served_engines":
         return list(probes._served_engines())
+    if name == "registry.package_engines":
+        return list(probes._package_engines())
     if name == "registry.read_report":
         report_value, status = views.read_report(Paths({"report_file": a[0]}), now=a[1])
         return [report_value, status]

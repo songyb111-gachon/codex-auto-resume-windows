@@ -39,6 +39,10 @@ pub trait System: Send + Sync {
     fn resolve(&self, text: &str) -> Option<String>;
     /// `win/inventory.restart_manager_available()`.
     fn restart_manager_available(&self) -> bool;
+    /// `package_roots(family)` (`win/kernel.py`, v0.6.26 final): the folder of every package of the family installed
+    /// for this account; an `AdapterError` or `OSError` where the package manager cannot answer. A stand-in names the
+    /// folders of its own world, never this PC's (`tests/no_real_codex.py` `_guard_packages`).
+    fn package_roots(&self, family: &str) -> Result<Vec<String>>;
 }
 
 /// A dict of the given pairs, in order.
@@ -177,6 +181,10 @@ impl System for Platform {
 
     fn restart_manager_available(&self) -> bool {
         car_platform::inventory::restart_manager_available()
+    }
+
+    fn package_roots(&self, family: &str) -> Result<Vec<String>> {
+        Ok(car_platform::kernel::package_roots(family))
     }
 }
 

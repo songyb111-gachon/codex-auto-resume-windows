@@ -19,6 +19,7 @@ use windows::Win32::Security::{
 };
 use windows::Win32::Storage::Packaging::Appx::{
     GetCurrentPackageFamilyName, GetCurrentPackageFullName, GetPackageFamilyName,
+    GetPackagePathByFullName, GetPackagesByPackageFamily,
 };
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
@@ -219,6 +220,79 @@ pub fn app_name(family: Option<&str>) -> String {
         Some(cut) if cut > 0 => family[..cut].to_string(),
         _ => family.to_string(),
     }
+}
+
+/// `ERROR_INSUFFICIENT_BUFFER`: what the package calls answer when asked for the size first.
+pub const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
+
+/// A wide string up to its first NUL (`ctypes`' `.value` of a buffer or an `LPWSTR`).
+fn wide_value(buffer: &[u16]) -> String {
+    let end = buffer
+        .iter()
+        .position(|unit| *unit == 0)
+        .unwrap_or(buffer.len());
+    String::from_utf16_lossy(&buffer[..end])
+}
+
+/// `package_roots(family)` (v0.6.26 final, live acceptance R2b): the folder of every package of the family `family`
+/// installed for this account, as Windows' package manager names it (GetPackagesByPackageFamily, then
+/// GetPackagePathByFullName for each full name), whether or not any process of the package runs. Nothing is opened,
+/// read or started - the two calls ask the account's package repository - and nothing is answered where the family
+/// has no package, or the list changed between the calls. Never an error on Windows (the reference raises
+/// AdapterError only off Windows; a Windows without the two calls, before 8, is not one this product runs on).
+pub fn package_roots(family: &str) -> Vec<String> {
+    let name: Vec<u16> = family.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut count: u32 = 0;
+    let mut length: u32 = 0;
+    // SAFETY: the size query: no buffers, two counts this frame owns.
+    let first = unsafe {
+        GetPackagesByPackageFamily(pcwstr(&name), &raw mut count, None, &raw mut length, None)
+    };
+    if first.0 != ERROR_INSUFFICIENT_BUFFER || count == 0 || length == 0 {
+        return Vec::new();
+    }
+    let mut names: Vec<PWSTR> = vec![PWSTR::null(); count as usize];
+    let mut buffer: Vec<u16> = vec![0; length as usize];
+    // SAFETY: `names` holds `count` pointers and `buffer` `length` units, the sizes the first call asked for; the
+    // call writes no more than the counts it is given and answers ERROR_INSUFFICIENT_BUFFER where they grew.
+    let second = unsafe {
+        GetPackagesByPackageFamily(
+            pcwstr(&name),
+            &raw mut count,
+            Some(names.as_mut_ptr()),
+            &raw mut length,
+            Some(PWSTR(buffer.as_mut_ptr())),
+        )
+    };
+    if second.0 != 0 {
+        return Vec::new();
+    }
+    let mut found = Vec::new();
+    for each in names.iter().take(count as usize) {
+        if each.is_null() {
+            continue;
+        }
+        let mut size: u32 = 0;
+        // SAFETY: `each` points into `buffer`, a NUL-terminated full name the second call wrote.
+        let asked = unsafe { GetPackagePathByFullName(PCWSTR(each.0), &raw mut size, None) };
+        if asked.0 != ERROR_INSUFFICIENT_BUFFER || size == 0 {
+            continue;
+        }
+        let mut path: Vec<u16> = vec![0; size as usize];
+        // SAFETY: `path` holds the `size` units the size query asked for.
+        let answered = unsafe {
+            GetPackagePathByFullName(
+                PCWSTR(each.0),
+                &raw mut size,
+                Some(PWSTR(path.as_mut_ptr())),
+            )
+        };
+        let value = wide_value(&path);
+        if answered.0 == 0 && !value.is_empty() {
+            found.push(value);
+        }
+    }
+    found
 }
 
 /// `[A-Za-z0-9.\-]{1,64}_[a-z0-9]{13}\Z`.

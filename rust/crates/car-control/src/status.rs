@@ -401,7 +401,22 @@ impl Control {
         }
         let facts = Value::Object(status.clone());
         if let Answer::Is(added) = self.plug().surface(Surface::Status, &facts) {
+            // v0.6.26 final: the last usage reading is the newest of the watcher's and the meter's (domain/usage.newest),
+            // the one every surface says. Only a plug's meter can make it another - a new object, which is what the
+            // reference tests for (`is not`) - so the standard edition's status is exactly what it was.
+            let reading = match status.get("watcher") {
+                Some(Value::Object(fields)) => fields.get("usage").cloned().unwrap_or(Value::Null),
+                _ => Value::Null,
+            };
+            let made =
+                car_machine::domain::usage::newest_made(&reading, &added).map_err(other_class)?;
             status.insert(Str::from(car_policy::plug::EXTRA), added);
+            if let Some(newest) = made
+                && let Some(Value::Object(fields)) = status.get_mut("watcher")
+            {
+                // `dict(watcher, usage=newest)`: the key keeps its place, or comes last where it was not there.
+                fields.insert(Str::from("usage"), newest);
+            }
         }
         Ok(Value::Object(status))
     }

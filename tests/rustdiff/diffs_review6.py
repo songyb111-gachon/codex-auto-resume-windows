@@ -6,7 +6,8 @@ worlds, every step compared - and each is one the corpus and the random walks ne
 * `r6_fresh_home_history_not_yet` (against the v0.6.26 final, D17's tag): a Codex home Codex has not made its history
   in yet - its state holds no conversation, its history database is not there. The final's engine/detect.py catches
   HistoryNotYet and reads it as a detection that read nothing (no `detection_unavailable_no_submission`,
-  `detection_failed` False); car-engine, ported from beta.2, says the detection failed. `rediff_engine.py --reference
+  `detection_failed` False); car-engine, ported from beta.2, said the detection failed until the final-port seat
+  (FINAL-DELTA #11) ported the catch; `r6_fresh_home_then_history` then has Codex make its history. `rediff_engine.py --reference
   v0.6.26` stays equal without this scenario, because no corpus scenario has a home without a conversation.
 * `r6_watch_budget_huge`: a watch budget of 1e300 seconds. The reference adds it to `time.monotonic()`; car-scheduler's
   `Duration::from_secs_f64` panics, and the tick ends in a panic the reference never meets.
@@ -30,9 +31,17 @@ Scenario, ready_after_reset, T1, TURN_A = (diffs_engine.Scenario, diffs_engine.r
 
 
 def fresh_home() -> dict:
+    found = []
     s = Scenario("r6_fresh_home_history_not_yet").enable()
     s.helper("history_aside", True).tick().facts().tick().facts()
-    return dict([s.done()])
+    found.append(s)
+    # test_history_not_yet WatcherTests.test_a_failure_is_detected_once_codex_makes_its_history: the same fresh home,
+    # then Codex makes its history and the first conversation fails - detected as any failure is.
+    s = Scenario("r6_fresh_home_then_history").enable()
+    s.helper("history_aside", True).tick().facts().helper("history_aside", False)
+    s.home("fail_usage", T1, TURN_A).loaded(T1).tick().facts()
+    found.append(s)
+    return dict(each.done() for each in found)
 
 
 def option_edges() -> dict:
@@ -50,7 +59,7 @@ def option_edges() -> dict:
 
 
 class EngineReview6(unittest.TestCase):
-    """Traces of inputs the engine corpus never feeds; each FAILS today (REVIEW-engine.md)."""
+    """Traces of inputs the engine corpus never feeds (REVIEW-engine.md)."""
 
     maxDiff = None
 
@@ -69,9 +78,8 @@ class EngineReview6(unittest.TestCase):
         RECORD.append("review6 against %s: %d scenarios, %d differ" % (tag, len(scenarios), len(problems)))
         self.assertEqual(problems, [], "\n".join(problems))
 
-    # B1 is left to the seat that brings the port to the v0.6.26 final (car-codex's HistoryNotYet and car-engine's catch):
-    # an expected failure until then, which turns into an unexpected success - and fails the run - once it is fixed.
-    @unittest.expectedFailure
+    # B1, brought to the v0.6.26 final by the final-port seat (car-codex's HistoryNotYet and car-engine's catch,
+    # FINAL-DELTA #1-#4 and #11): equal to the reference, no longer an expected failure.
     def test_final_fresh_home_history_not_yet(self):
         self.check(fresh_home(), FINAL)
 
