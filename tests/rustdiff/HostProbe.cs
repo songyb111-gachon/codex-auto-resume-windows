@@ -132,6 +132,7 @@ namespace CodexAutoResume
             if (name == "popup_access") return PopupAccess(call);
             if (name == "card_fitting") return CardFitting(call);
             if (name == "popup_fit") return PopupFit(call);
+            if (name == "tip_icon") return TipIcon(call);
             if (name == "popup_reader") return OnSta(() => PopupReader(call));
             if (name == "menu_numbered")
             {
@@ -172,7 +173,8 @@ namespace CodexAutoResume
         private sealed class RecordingPopup : ITrayPopup
         {
             internal readonly List<object> Calls = new List<object>();
-            public bool Visible { get { return false; } }
+            internal bool Shown;
+            public bool Visible { get { return Shown; } }
             public bool Attention() { Calls.Add("attention"); return false; }
             public void OnSelect(bool keyboard) { Calls.Add(keyboard ? "on_select keyboard" : "on_select"); }
             public void OnDoubleClick() { Calls.Add("on_double_click"); }
@@ -195,7 +197,8 @@ namespace CodexAutoResume
             internal bool Unanswered;
             internal int Destroyed;
             internal Action<object> Chosen;
-            public bool Visible { get { return false; } }
+            internal bool Shown;
+            public bool Visible { get { return Shown; } }
 
             public bool Open(List<object> items, Dictionary<string, object> strings, string locale, string letters, Action<object> chosen)
             {
@@ -1628,6 +1631,158 @@ namespace CodexAutoResume
                 GC.KeepAlive(proc);
                 SurfaceScreen.Probe = saved;
                 SurfaceScreen.Name = savedName;
+            }
+        }
+
+        /// The icon's tooltip card as the icon uses it, standing in for the test's card (tests/test_tray_tip_messages.py's
+        /// Card): every call recorded in order - show with the icon's box its reader gave and the point, hide (at once or
+        /// fading), destroy; a card the test made to fail at showing throws there, as the test's does.
+        private sealed class RecordingTip : ITrayTip
+        {
+            internal readonly List<object> Calls = new List<object>();
+            internal string Fail;
+
+            public void Show(Func<int[]> icon, int[] point)
+            {
+                if (Fail == "show") throw new InvalidOperationException("UpdateLayeredWindow");
+                int[] box = icon();
+                Calls.Add(new List<object> { "show", box == null ? null : Plain(box), Plain(point) });
+            }
+
+            public void Hide(bool atOnce) { Calls.Add(new List<object> { "hide", atOnce }); }
+            public void Destroy() { Calls.Add(new List<object> { "destroy" }); }
+        }
+
+        /// The icon with the shell's words about hovering (tests/rustdiff/hosttipicon.py's HostTipTray, the twin of ui/tray's
+        /// Tray as tests/test_tray_tip_messages.py drives it): a TrayIcon whose window is the test's number, everything it
+        /// would ask of Windows recorded (SurfaceScreen.Probe: the shell's Shell_NotifyIconW with its flags and szTip, the
+        /// timers), its drawn menu always shown, its popup and its icon's box the test's, its clock and the pointer the
+        /// test's at each step. The shell answers NIM_SETVERSION with `versions` in order (true or false), and a card the
+        /// icon makes with `makes` in order ("card": a new RecordingTip, "raise": the making throws); a question past them is
+        /// reported unanswered (refused) so the test's shell or card class can be asked and the run made again. Then each
+        /// step: update, version4, tip (none, broken, or a card the test made: its index and fail mode), popup (shown or
+        /// not, or none), menu_drawn (shown or not, or none), taskbar (TaskbarCreated's number), session (locked, away),
+        /// message (to the icon's Message, with that moment's clock and pointer), notify, set_version, show_tip, open_popup,
+        /// tip_shows, shown. Answered: the record, every card's calls, how many it made, the card it holds (none, broken,
+        /// or its index), Version4, TipShows, the step results and its log.
+        private static object TipIcon(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                var logs = new List<object>();
+                var tips = new List<RecordingTip>();
+                var versions = new Queue<object>((List<object>)call["versions"]);
+                var makes = new Queue<object>((List<object>)call["makes"]);
+                bool unanswered = false;
+                int made = 0;
+                double clock = 0;
+                bool onIcon = false;
+                int[] rect = IntsOf(call["icon_rect"]);
+                var popup = new RecordingPopup();
+                var menu = new RecordingMenu { Answers = new Queue<object>() };
+                var icon = new TrayIcon
+                {
+                    Hwnd = new IntPtr((long)(double)call["hwnd"]), Log = line => logs.Add(line), Worker = work => work(),
+                    Now = () => (double)call["now"], Monotonic = () => clock, Edition = SurfaceRender.Field(call, "edition") as string,
+                    Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]),
+                    Actions = new RecordingActions(), MakePopup = () => popup, IconRectReader = () => (int[])rect.Clone(),
+                };
+                icon.MenuTheming = false;
+                icon.PowerArmed = () => null;
+                icon.Cursor = () => onIcon ? new[] { rect[0], rect[1] } : new[] { rect[2] + 10, rect[3] + 10 };
+                icon.MakeMenu = () =>
+                {
+                    menu.Answers.Enqueue(true);                    // the test's _draw_menu: always shown
+                    return menu;
+                };
+                icon.ShellAnswer = action =>
+                {
+                    if (action != TrayIcon.NIM_SETVERSION) return true;
+                    if (versions.Count == 0)
+                    {
+                        unanswered = true;
+                        return false;
+                    }
+                    return (bool)versions.Dequeue();
+                };
+                icon.MakeTip = () =>
+                {
+                    made++;
+                    if (makes.Count == 0)
+                    {
+                        unanswered = true;
+                        throw new InvalidOperationException("unanswered");
+                    }
+                    if ((string)makes.Dequeue() == "raise") throw new InvalidOperationException("RegisterClassW");
+                    var tip = new RecordingTip();
+                    tips.Add(tip);
+                    return tip;
+                };
+                var given = new Dictionary<int, RecordingTip>();
+                var results = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    if (what == "update") icon.Update((Dictionary<string, object>)step[1]);
+                    else if (what == "version4") icon.Version4 = (bool)step[1];
+                    else if (what == "tip")
+                    {
+                        icon.TipBroken = (string)step[1] == "broken";
+                        icon.Tip = null;
+                        if ((string)step[1] == "card")
+                        {
+                            int index = (int)(double)step[2];
+                            if (!given.ContainsKey(index))
+                            {
+                                given[index] = new RecordingTip { Fail = step[3] as string };
+                                tips.Add(given[index]);
+                            }
+                            icon.Tip = given[index];
+                        }
+                    }
+                    else if (what == "popup") icon.Popup = step[1] == null ? null : new RecordingPopup { Shown = (bool)step[1] };
+                    else if (what == "menu_drawn")
+                        icon.MenuDrawn = step[1] == null ? null : new RecordingMenu { Answers = new Queue<object>(), Shown = (bool)step[1] };
+                    else if (what == "taskbar")
+                        typeof(TrayIcon).GetField("taskbarCreated", Hidden).SetValue(icon, (uint)(double)step[1]);
+                    else if (what == "session")
+                    {
+                        icon.SessionLocked = (bool)step[1];
+                        icon.SessionAway = (bool)step[2];
+                    }
+                    else if (what == "message")
+                    {
+                        clock = (double)step[4];
+                        onIcon = (bool)step[5];
+                        icon.Message(icon.Hwnd, (int)(double)step[1], (long)(double)step[2], (long)(double)step[3]);
+                    }
+                    else if (what == "notify") Private(icon, "Notify", (int)(double)step[1]);
+                    else if (what == "set_version") Private(icon, "SetVersion");
+                    else if (what == "show_tip") Private(icon, "ShowTip", (long)(double)step[1]);
+                    else if (what == "open_popup") Private(icon, "OpenPopup");
+                    else if (what == "tip_shows") results.Add(icon.TipShows());
+                    else if (what == "shown") results.Add(Plain(icon.Shown()));
+                    else throw new ArgumentException("no tip_icon step " + what);
+                }
+                var calls = new List<object>();
+                foreach (RecordingTip tip in tips) calls.Add(tip.Calls);
+                object holds = icon.Tip == null ? (icon.TipBroken ? (object)"broken" : "none") : (double)tips.IndexOf((RecordingTip)icon.Tip);
+                var cards = new List<object>();
+                foreach (KeyValuePair<int, RecordingTip> pair in given)
+                    cards.Add(new List<object> { (double)pair.Key, (double)tips.IndexOf(pair.Value) });
+                return new Dictionary<string, object>
+                {
+                    { "record", new List<object>(SurfaceScreen.Probe) }, { "calls", calls }, { "made", (double)made },
+                    { "given", cards }, { "holds", holds }, { "version4", icon.Version4 }, { "tip_shows", icon.TipShows() },
+                    { "results", results }, { "logs", logs }, { "unanswered", unanswered }, { "popup", popup.Calls },
+                };
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
             }
         }
 
