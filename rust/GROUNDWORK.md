@@ -2442,3 +2442,46 @@ test_surface_parity, test_surface_windows, test_surface_render_retarget (gui_loc
 No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are unchanged from S6.3's; `python -X utf8
 rust/tools/check_groundwork.py`: OK. Every run set `CODEX_AUTO_RESUME_CODEX_EXE` to a path that does not exist (the main session's notice of
 2026-11-27), and the proxy's harness and the host probe set it themselves, so no test of this seat can start this PC's codex.exe.
+
+### S6.4b (continuation, 2026-11-27): the pure group's ask-back, and what is still pending
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` crates changed; no window shown, nothing captured,
+nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path. This worktree had no `rust/target`, so the runs used
+`CODEX_AR_HARNESS_EXE` = a copy of the `car-harness.exe` built in `car-v0627-finalport` (its car-surface crate is byte-identical to this
+tree's; car-words differs only in `bidi_tables.rs`, which no UI test reads).
+
+| What | Where | State |
+|---|---|---|
+| **`perform` asked back**: car-surface's `popup.perform` case answers each control call by name, so the proxy runs it, makes the *first call it has not answered* on the control layer the test handed in (the reference's next call, because everything before it was answered for real), puts that answer (or the exception's class and `code`) into the spec and runs it again, until no call is new. Each control call is made once, in the reference's order and with the reference's shape (`CONTROL_SHAPES`: `postpone(.., preset=)`, `set_thread_tier(.., interruption_id=)`, `set_project_rule(.., source=)`, `list_pending(source=)` only when a source is given); the Codex `source` is an opaque object the test handed in and goes back to the control layer as that object (a token stands for it on the wire). A perform that would ask one call name twice is refused (`TypeError`), never answered by Python | `tests/rustdiff/surfaceproxy.py` `_perform` | routed |
+| **`PopupModel` by replay**: every step the test took is sent again with the question as the `popup.model` script case takes them; attributes are read from the state after the last step (`drawn`/`drawn_tasks` from the last `view`); `rows` and `status` set together become one successful read, anything else assigned is refused (`TypeError`) | `_popup_model` | routed |
+| Held to the reference call for call: every action x five answer sets (values, refusals with a code, other exceptions, a raising `list_pending`) x source/no source x opener (none, true, false), and every step of a model script, the wrapper's result against `__wrapped__`'s on recording objects | `tests/test_surface_askback.py` (5 tests; skipped without `CODEX_AR_CORE=rust`) | OK |
+| Newly routed: `test_dont_postpone.PopupTests` (2), `test_observe_and_admission` (1), `test_postpone_and_tiers.PopupRowMenuTests` (5), `test_tray_popup` ActionTests/ActivityTests/ViewModelTests and others (the probe `car-v0627-s64-probe2.py` ran every pure class of the pending rows alone: 138 of 140 pass, 57 route at least one call) | `host_tests` of their rows | ledger |
+
+Ledger: **host 20** (was 17: `test_dont_postpone`, `test_light_parity`, `test_observe_and_admission`), **pending 63** (ceiling 66 to 63), python-only 1.
+`test_light_parity.TableTests` (4) and `test_dont_postpone.NeverToAModelTests` (1) are `no_twin` with their reasons (the table against
+constants; the MCP package's tool list): they ask the UI for nothing it computes.
+
+**Mutation checks** (proxy broken one rule at a time, `test_surface_askback` run, restored): `postpone`'s `preset` as positional, `set_thread_tier`'s
+`interruption_id` as positional, `list_pending` called with a `None` source, the source token handed on instead of the object, `begin` not remembered by the
+model, `busy` returned as strings, a raised control error answered as a value: **7 of 7 fail**.
+
+### What is still pending, and why (S6.4b did not reach it)
+
+* **Pure, 63 -> the rest**: the Dashboard opener (`ui/tray/dashboard.py`: `open_dashboard`, `open_chat`, the hand-over to an open window) has no case in
+  `car-harness`; its Rust is `car-platform/src/handover.rs`. `test_notice_click_chat`, `test_tray_reuses_window`, `OpenerTests` and `test_tray_open_popup`
+  need a harness case over `handover::hand_over` and the process start (a Rust change, so not this seat's), then a proxy beside `perform`'s. Their rows say so.
+* **Scan**: the ledger's scan counts include tests whose subject is not the UI - found by listing each scan class's tests against the UI names in their
+  bodies: `test_compat_surfaces` (McpTests, PrivacyTests: the MCP status and the registry's imports), `test_control` (the control layer's refusal codes and
+  stop), `test_plug_points.MovedTests` (the store's plug calls), `test_surface_properties.JournalIsWriteOnlyTests`, most of `test_screenshots`
+  (the pictures' manifest and run tool), `test_tray_shape` (the Python tray package's own file order). Those are Python-source scans of the Python product; they
+  stay on it, and the rows need the per-test count re-made (the ledger's `ui_tests` is by class) before they can be `host` with `no_twin` reasons. Those that read
+  `gui/*.cs` (`test_gui_v0623_*`, `test_focus_rings`, `test_tray_reuses_window.WindowSideTests`) need a twin in `tests/test_host_shape.py`'s way.
+* **Window** (271) and **drawn** (447): not started. The route is unchanged from S6.4's notes (a `case` per window class in `HostProbe.cs`; the plan dump rebuilt
+  as the reference's plan objects). `test_card_shadow_under_body`, for one, compares the Python card's GDI+ layers pixel by pixel: its C# twin needs
+  `CardWindow`'s layers dumped by a new probe call.
+* The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` now also runs `test_surface_askback` against the tag's package.
+* The proxy's `PopupModel` is built only for a caller outside the package (a test): Python's own popup window (`codex_auto_resume.ui.popup.window`) keeps
+  the original model, which it sets `strings` and `wants_read` on as it runs; the window is what the C# host replaces (found by the re-diff: `test_surface_windows`
+  drove the Python window with the proxy and failed on `model.strings = ...`).
+* The re-diff also prints a test file the tag has and this tree lacks: `test_status_newest_usage.py` (it imports the UI at v0.6.26 and has no row; it arrives
+  when this branch is rebased onto the final, and needs a row then).

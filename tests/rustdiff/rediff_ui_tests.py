@@ -60,6 +60,7 @@ def main(argv=None) -> int:
         tag, len(at_tag), sorted(at_tag - set(ledger)) or "none"))
     source = released.package(tag)
     ids = sorted("%s.%s" % (name[:-3], test) for name, row in ledger.items() for test in row.get("host_tests", []))
+    ids.append("test_surface_askback")        # perform and PopupModel held to the tag's own, call for call
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]), CODEX_AR_CORE="rust")
     environment.pop("CODEX_AR_EDITION", None)
     shim = subprocess.run([sys.executable, "-X", "utf8", "-m", "unittest", *ids], cwd=ROOT, env=environment,

@@ -523,6 +523,15 @@ def _popup_model(module):
         rust_core = "surface"
         __wrapped__ = original
 
+        def __new__(cls, strings=None):
+            # Python's own window (codex_auto_resume.ui.popup.window) keeps the model it was written with - it sets
+            # `strings` and `wants_read` on it as it runs, and the window itself is what the C# host replaces. A model a
+            # test makes is the proxy.
+            import sys
+            if sys._getframe(1).f_globals.get("__name__", "").startswith("codex_auto_resume."):
+                return original(strings)
+            return object.__new__(cls)
+
         def __init__(self, strings=None):
             object.__setattr__(self, "strings", dict(strings or {}))
             object.__setattr__(self, "_steps", [])
