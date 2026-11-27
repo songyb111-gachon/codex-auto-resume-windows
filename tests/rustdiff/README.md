@@ -82,6 +82,22 @@ reference's choice. What differs between 3.13 and 3.14: `outputs/plans/v0627-rus
 `diffs_nesting_314.py`'s, the drive-like realpath tail `diffs_paths_314.py`'s (both differ BY DESIGN under `system`, and
 `rediff_follow314.py --reference v0.6.26` reruns them with the generators' `--check`).
 
+Integration 10 routed the P7 seats' families the same way (`advaccount`, `advusage`, `advturns`, `advtime`, `advcourier`,
+`advplug`, `advreport`, `advhook`, `advcodex`, all through `advref.run` / `refpython.command`) and the advanced proxy's two
+lanes (`advproxy/ledger.py --run`: scripts/test_parts.py's worker through `refpython.script_command`); `run.py --build` now
+builds `advserve`, `advcourier`, `advaccount`, `advusage`, `advturns` and `advtime` with the other examples.
+
+**No reference run reaches this PC's Codex** (`refguard.py`, Integration 10, after two seats' reference runs started the
+installed codex.exe on 2026-11-27). Every process `refpython.command` / `script_command` starts - on any runtime, so
+`reference.run`, `advref.run` and `popen` too - and tests/released.py's `run` runs refguard's program before the script:
+core's process lookups (`win.kernel.processes_named`, `process_identity`, `win.inventory.resource_users`, and every module's
+own binding of them, pairing's engine lookups among them) and the advanced `codex.inuse.backend` refuse with the tag's
+`AdapterError`, and `CODEX_AUTO_RESUME_CODEX_EXE` points where no codex.exe is (`reference.scratch_environment` sets it over
+whatever the runner inherited, for both sides of a diff; a test hands its own path, or `None` for discovery on its scratch
+homes). A stand-in a script sets still wins. The one file whose subject is this PC's live process table
+(`platform_live_diffs.py`) lifts the lookups by name (`CODEX_AR_REFGUARD=live-processes`); the advanced proxy's lanes are
+test lanes with tests/no_real_codex.py, not references (`guard=False`). `tests/test_rustdiff_refguard.py` holds all of it.
+
 ## The shim's seam
 
 `tests/sitecustomize.py`, the existing seam: Python loads it in every interpreter with `tests/` on its path,
