@@ -3048,3 +3048,25 @@ neither the AUMID key nor a link handler of ours exists.
   `checkup`/`checkup_for_bundle`/`rescan_judge`, used by `Watcher::bridge` and car-bin's bridge; then the two goldens
   (tests/golden/bridge/detection-check.json, rescan.json) compared through the real host.
 * The `demo` event (`App._demo`, `show_demo` over the inbox) is not wired.
+
+**rustflags (`3538dacf2`).** check_rebuild found the scratch checkout's path in the advanced `car_core.dll` once it
+exported the six (car-host and car-policy are path dependencies outside advanced/rust). Both `tools/rustflags.sh`
+(identical) now remap the repository, found by its car-host crate, to `/repo` first; the workspace's own remap still
+wins for its files, so the standard binaries are unchanged.
+
+### Checks of the third part (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check rc=0
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0 (at 3538dacf2), every binary the same; profile-path scan none
+python -X utf8 tests/rustdiff/rediff_host.py --reference v0.6.26     rc=0: diffs_watcher, diffs_bridge_acting (112 golden
+                                                     cases, 270 streams), diffs_engine, diffs_surface_notifier equal
+test_rust_release, standard and advanced lanes (detached)    Ran 25, OK (skipped=1) each
+test_rust_install, standard and advanced lanes (detached)    Ran 11, OK (skipped=7) each
+Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan    Ran 32, OK
+CAR_CORE_DLL=<advanced release car_core.dll> cargo test -p car-host --test abi_exports    3 passed
+Mutation: realengine::switched() answering false -> real_engine_guard FAILS (discovery checked this PC's two builds)
+```
