@@ -2036,8 +2036,8 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "21 of 37 UI tests run on the host or are held by a twin (1 routed, 20 twins); 16 are still on the Python UI: LiveWindowTests 3 (window), PlacementTests 6, RightToLeftTests 1, LookTests 6 (the drawing: seat S6.4f's plan route)",
-   "needs": "LiveWindowTests: the host's MenuWindow made unshown and read through SurfaceAccess's MSAA object (its own window, never shown, as test_surface_windows makes one); PlacementTests, RightToLeftTests, LookTests: the render mode's menu plan and pixels (seat S6.4f)",
+   "why": "24 of 37 UI tests run on the host or are held by a twin (1 routed, 23 twins); 13 are still on the Python UI: PlacementTests 6, RightToLeftTests 1, LookTests 6 (the drawing: seat S6.4f's plan route)",
+   "needs": "PlacementTests, RightToLeftTests, LookTests: the render mode's menu plan and pixels (seat S6.4f)",
    "host_tests": [
     "ParityTests.test_the_items_are_the_menu_windows_has_always_shown"
    ],
@@ -2061,13 +2061,18 @@
     "BehaviourTests.test_leaving_it_puts_nothing_in_hand": "test_host_icon_menu.py::BehaviourOnHostTests.test_leaving_it_puts_nothing_in_hand",
     "BehaviourTests.test_a_click_elsewhere_and_losing_the_focus_close_it": "test_host_icon_menu.py::BehaviourOnHostTests.test_a_click_elsewhere_and_losing_the_focus_close_it",
     "BehaviourTests.test_a_screen_reader_hears_the_item_in_hand_move": "test_host_icon_menu.py::BehaviourOnHostTests.test_a_screen_reader_hears_the_item_in_hand_move",
-    "BehaviourTests.test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state": "test_host_icon_menu.py::BehaviourOnHostTests.test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state"
+    "BehaviourTests.test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state": "test_host_icon_menu.py::BehaviourOnHostTests.test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state",
+    "LiveWindowTests.test_it_is_a_menu_whose_children_are_its_items_by_name_role_and_state": "test_host_menu_live.py::LiveWindowOnHostTests.test_it_is_a_menu_whose_children_are_its_items_by_name_role_and_state",
+    "LiveWindowTests.test_its_default_action_is_the_choice": "test_host_menu_live.py::LiveWindowOnHostTests.test_its_default_action_is_the_choice",
+    "LiveWindowTests.test_the_layered_picture_is_taken_at_every_scale_and_theme": "test_host_menu_live.py::LiveWindowOnHostTests.test_the_layered_picture_is_taken_at_every_scale_and_theme"
    },
    "no_twin": {},
    "port": [
     "tests/test_host_icon_menu.py",
     "tests/rustdiff/hosticon.py",
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_menu_live.py",
+    "tests/rustdiff/hostlive.py"
    ]
   },
   "test_tray_menu_fallbacks.py": {
