@@ -65,10 +65,15 @@ CLI_0167_ALPHA_3_2 = "codex-cli 0.167.0-alpha.3.2"
 # for the old argv (the one sent once more, as before, where Codex refuses the switch: engine/anchor.REFUSALS).
 CLI_0167_ALPHA_4_1 = "codex-cli 0.167.0-alpha.4.1"
 
+# The Codex of 2026-11-28 (the engine the Codex app 26.1120.6357.0 runs from its package), for issue #70: M2b made again by
+# the measurement session on an app-held throwaway whose goal was paused - the goal set active and one turn queued, the
+# turn ran exactly once as its own turn and the same goal carried on counting by itself afterwards (seen in the app).
+CLI_0171_ALPHA_13_2 = "codex-cli 0.171.0-alpha.13.2"
+
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     Measurement.M2: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
-    Measurement.M2B: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.M2B: (Verdict.PASS, CLI_0171_ALPHA_13_2),
     Measurement.M3: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
     Measurement.M4: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
     Measurement.M5: (Verdict.PASS, CLI_0163_ALPHA_10_2),

@@ -199,7 +199,10 @@ class TableTests(unittest.TestCase):
         (a condition that was not there), MQ and MT (the product's own sender), M4B (M4 did not pass).
         2026-11-15, on codex-cli 0.167.0-alpha.4.1, the measurement session made MANCHOR again (v0.6.24's sitting 2) with
         the switch that keeps the person's MCP servers, hooks, plugins, apps and notify program out of the anchor's
-        request: the window started, its reset fixed five hours after the request, and only conhost.exe ran under it."""
+        request: the window started, its reset fixed five hours after the request, and only conhost.exe ran under it.
+        2026-11-28, on codex-cli 0.171.0-alpha.13.2 (the Codex app 26.1120.6357.0's package engine), for issue #70, the
+        measurement session made M2b again: the queued turn ran exactly once as its own turn and the same goal carried
+        on by itself afterwards."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -220,7 +223,7 @@ class TableTests(unittest.TestCase):
         # v0.6.22: the advanced re-measure of 2026-11-08 on the app's own engine - everything it could make again, and
         # MTOK and MWAKE for the first time.
         self.assertEqual(by_engine.pop("codex-cli 0.167.0-alpha.3.2"),
-                         {Measurement.M1, Measurement.M2, Measurement.M2B, Measurement.M3, Measurement.M3B,
+                         {Measurement.M1, Measurement.M2, Measurement.M3, Measurement.M3B,
                           Measurement.M4, Measurement.M6, Measurement.M6B, Measurement.M7, Measurement.MW,
                           Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC, Measurement.MAWS,
                           Measurement.MCLOUD, Measurement.MC1, Measurement.MXA, Measurement.MX, Measurement.MF,
@@ -230,12 +233,13 @@ class TableTests(unittest.TestCase):
                           Measurement.MSWAP, Measurement.MTOK, Measurement.MWAKE})
         # What was not made again stays on the engine it was made on: M5 and MO (their re-runs came back blocked) on 0.163,
         # the five that need a sign-in, a credit or a reset on 0.162, MAL and MALR on 0.166 - and MANCHOR, made again with
-        # v0.6.24's switch, on 0.167.0-alpha.4.1.
+        # v0.6.24's switch, on 0.167.0-alpha.4.1 - and M2b, made again for issue #70, on 0.171.0-alpha.13.2.
         self.assertEqual(by_engine, {
             "codex-cli 0.163.0-alpha.10.2": {Measurement.M5, Measurement.MO},
             "codex-cli 0.162.0-alpha.17.2": {Measurement.MA, Measurement.MH, Measurement.MR, Measurement.MN,
                                              Measurement.MU},
             "codex-cli 0.167.0-alpha.4.1": {Measurement.MANCHOR},
+            "codex-cli 0.171.0-alpha.13.2": {Measurement.M2B},
             "codex-cli 0.166.0-alpha.5.1": {Measurement.MAL, Measurement.MALR}})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
