@@ -35,6 +35,12 @@ def git(*arguments, **more):
 # The tag's tests run on the reference's Python with the guard's boot (refguard: no lookup of this PC's processes, no
 # engine), as unittest's command line would run them.
 UNITTEST = "import sys, unittest; unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])"
+# S6.4e: the bundled embeddable runtime is isolated (its ._pth) and never imports tests/sitecustomize.py, which installs the
+# CODEX_AR_CORE=rust shim, so the shim's run imports it itself and stops where it did not install (until then test_surface_askback
+# was skipped there and the ledger tests ran on the tag's Python).
+SHIM_UNITTEST = ("import sys, sitecustomize, unittest\n"
+                 "assert 'rustdiff_shim' in sys.modules, 'the CODEX_AR_CORE=rust shim is not installed'\n"
+                 "unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])")
 
 
 def main(argv=None) -> int:
@@ -72,7 +78,7 @@ def main(argv=None) -> int:
     ids.append("test_surface_askback")        # perform and PopupModel held to the tag's own, call for call
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]), CODEX_AR_CORE="rust")
     environment.pop("CODEX_AR_EDITION", None)
-    shim = subprocess.run(refpython.command(UNITTEST, *ids, paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
+    shim = subprocess.run(refpython.command(SHIM_UNITTEST, *ids, paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("%d ledger tests on the host through the shim against %s: %s" % (len(ids), tag, "pass" if shim == 0 else "FAIL"))
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
