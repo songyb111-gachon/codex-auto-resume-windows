@@ -118,6 +118,7 @@ namespace CodexAutoResume
             if (name == "card_layers") return CardLayers(call);
             if (name == "icon_tick") return IconTick(call);
             if (name == "icon_overflowed") return IconOverflowed(call);
+            if (name == "icon_demo") return IconDemo(call);
             throw new ArgumentException("no call " + name);
         }
 
@@ -180,6 +181,32 @@ namespace CodexAutoResume
             var icon = new TrayIcon { AskPlacement = () => placed, AskOverflowOpen = () => { asked++; return open; } };
             bool answer = (bool)Private(icon, "Overflowed");
             return new Dictionary<string, object> { { "answer", answer }, { "asked", (double)asked } };
+        }
+
+        /// The demo's event as the icon looks for it (tests/test_diagnostics_tools.py DemoTrayTests): a TrayIcon named for a
+        /// demo with an action, its event a handle the test stands in for, signalled as `signalled` says look by look
+        /// (DemoTaken), LookForDemo once per look; how often the action ran, and whether an icon asked for no demo makes an
+        /// event at all (OpenDemo, under the probe's record, which makes none).
+        private static object IconDemo(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                var signalled = new Queue<object>((List<object>)call["signalled"]);
+                int asked = 0;
+                var icon = new TrayIcon { DemoName = (string)call["event"], OnDemo = () => asked++, DemoTaken = () => (bool)signalled.Dequeue() };
+                typeof(TrayIcon).GetField("demo", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                .SetValue(icon, new IntPtr(0xE7));
+                int looks = (int)(double)call["looks"];
+                for (int look = 0; look < looks; look++) Private(icon, "LookForDemo");
+                bool none = (IntPtr)Private(new TrayIcon(), "OpenDemo") == IntPtr.Zero;
+                return new Dictionary<string, object> { { "asked", (double)asked }, { "no_demo_no_event", none } };
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
+            }
         }
 
         /// A notification card made with no window (NoticeCard's `windows: false`, as the render mode's `cards` case makes

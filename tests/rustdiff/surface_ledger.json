@@ -275,13 +275,17 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 1 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 window)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "DemoTrayTests.test_the_icon_draws_it_only_when_its_event_was_signalled": "test_host_icon_demo.py::DemoTrayOnHostTests.test_the_icon_draws_it_only_when_its_event_was_signalled"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_icon_demo.py"
+   ]
   },
   "test_dont_postpone.py": {
    "holds": "v0.6.11: Don't postpone - a person's own postponement taken away, and nothing else.",
