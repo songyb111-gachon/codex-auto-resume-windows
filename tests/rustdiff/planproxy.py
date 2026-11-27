@@ -82,13 +82,25 @@ def executable() -> Path:
     return exe
 
 
+class HostRefused(RuntimeError):
+    """The C# refused a question: `kind` is its exception's class (ArgumentException, KeyNotFoundException, ...)."""
+
+    def __init__(self, op, error):
+        super().__init__("the host refused %s: %s" % (op, error))
+        self.kind = error.split(":", 1)[0]
+
+
 class Probe:
     """PlanProbe.exe as one process the run shares, with every home pointed into a folder of its own and no Codex."""
 
     def __init__(self):
         self.lock, self.process = threading.Lock(), None
 
-    def ask(self, op: str, **fields):
+    def ask(self, op: str, _callbacks=None, **fields):
+        """The host's answer to one question. `_callbacks` are the test's own callables the C# may ask back while it
+        answers ({"ask": name, "args"} out, the callable's answer or what it raised back); what one of them raised is
+        raised again here once the C# has refused the question."""
+        raised = []
         with self.lock:
             if self.process is None:
                 home = tempfile.mkdtemp(prefix="car-plan-proxy-")
@@ -100,12 +112,26 @@ class Probe:
                 atexit.register(self.stop)
             self.process.stdin.write((json.dumps(dict(fields, op=op), ensure_ascii=True) + "\n").encode("utf-8"))
             self.process.stdin.flush()
-            line = self.process.stdout.readline()
+            while True:
+                line = self.process.stdout.readline()
+                if not line:
+                    break
+                found = json.loads(line.decode("utf-8"))
+                if "ask" not in found:
+                    break
+                try:
+                    reply = {"answer": (_callbacks or {})[found["ask"]](*found["args"])}
+                except Exception as exc:                # handed back to the C#, and raised again below
+                    raised.append(exc)
+                    reply = {"raise": "%s: %s" % (type(exc).__name__, exc)}
+                self.process.stdin.write((json.dumps(reply, ensure_ascii=True) + "\n").encode("utf-8"))
+                self.process.stdin.flush()
         if not line:
             raise RuntimeError("the plan probe ended")
-        found = json.loads(line.decode("utf-8"))
         if "error" in found:
-            raise RuntimeError("the host refused %s: %s" % (op, found["error"]))
+            if raised:
+                raise raised[0]
+            raise HostRefused(op, found["error"])
         return found["ok"]
 
     def stop(self):
@@ -149,6 +175,8 @@ def ask(op: str, **fields):
 
 
 def _plan_of(op, fields, found):
+    if op in ("layout_kept", "renderer_layout"):
+        return found["dump"]
     if op != "render" or fields["case"]["surface"] not in ("popup", "card"):
         return None
     return found["plan"] if fields["case"]["surface"] == "card" else found
@@ -199,7 +227,37 @@ def _mutated(op, fields, found):
         found = found[:-1]
     elif rule == "entrance" and op == "entrance":
         found["alpha"] = found["alpha"] * 0.5
+    elif rule == "face" and op in ("font_faces", "font_candidates") and len(found) > 1:
+        found = found[::-1]
+    elif rule == "face" and op == "message_face":
+        found = (found or "") + " Light"
+    elif rule == "theme" and op in ("theme_choice", "effective_theme", "appearance", "design_choice", "theme_setting",
+                                    "design_setting"):
+        found = {"light": "dark", "dark": "light", "system": "light", "contrast": "light", "soft": "classic"}.get(found, "soft")
+    elif rule == "theme" and op == "reduced_motion":
+        found = not found
+    elif rule == "corner" and op == "corner_coverage" and found:
+        middle = found[len(found) // 2]
+        middle[len(middle) // 2] = 255 - middle[len(middle) // 2]
     return found
+
+
+def _picture(found) -> bytes:
+    """The BGRA picture the probe wrote and answered by path, read and let go; CAR_PLAN_MUTATE=pixels hands it back
+    mirrored left to right and =ink with every colour byte three steps darker, for the mutation checks."""
+    path = Path(found["file"])
+    data = path.read_bytes()
+    path.unlink()
+    if len(data) != found["bytes"]:
+        raise RuntimeError("the plan probe's picture %s is not the one it answered" % path)
+    rule = os.environ.get("CAR_PLAN_MUTATE")
+    if rule == "pixels":
+        width, row = int(found["width"]), int(found["width"]) * 4
+        data = b"".join(b"".join(data[start + 4 * (width - 1 - x):start + 4 * (width - x)] for x in range(width))
+                        for start in range(0, len(data), row))
+    elif rule == "ink":
+        data = bytes(level - 3 if index % 4 != 3 and level >= 3 else level for index, level in enumerate(data))
+    return data
 
 
 # ------------------------------------------------------------------------------------------- JSON in, objects out
@@ -491,9 +549,38 @@ def _recorded(original, case_of, pick=None):
             return found
         reference = original(vm, scale, recorded, *rest)
         rows = [[role, text, at, flags, w, h] for (role, text, at, flags), (w, h) in table.items()]
-        found = ask("render", tables={"t": {"measure": rows, "metrics": {}, "ink": []}}, case=case_of(vm, scale))
-        return shaped(found if pick is None else found[pick], reference)
+        case = case_of(vm, scale)
+        return _kept(ask("layout_kept", surface=case["surface"], vm=case["vm"], scale=case["scale"], locale=case["locale"],
+                         measure=rows), reference)
     return layout
+
+
+class HostPlan(dict):
+    """A plan the C# laid out (its dump in the reference's container kinds) and the handle the plan probe keeps the C#'s
+    own plan by, so a renderer of the host can draw it. A plan the test changed after it was handed out is drawn by no
+    host: `handle_of` refuses it (nothing falls back to Python)."""
+
+    def __init__(self, plan, handle):
+        super().__init__(plan)
+        self.handle = handle
+        self.sealed = _seal(self)
+
+
+def _seal(plan) -> str:
+    return json.dumps(wire(plan), ensure_ascii=True)
+
+
+def _kept(found, reference) -> HostPlan:
+    """layout_kept's or renderer_layout's answer as the reference's plan object, kept by its handle."""
+    return HostPlan(shaped(found["dump"], reference), found["plan"])
+
+
+def handle_of(plan):
+    if not isinstance(plan, HostPlan):
+        raise TypeError("the host draws only a plan it laid out itself (this one is a %s)" % type(plan).__name__)
+    if _seal(plan) != plan.sealed:
+        raise TypeError("the host draws its plan as it laid it out; this one was changed after")
+    return plan.handle
 
 
 def _layout(module):
@@ -658,7 +745,7 @@ def _notice_card(module):
 
     def layout(original):
         return _recorded(original, lambda vm, scale: {"surface": "card", "vm": wire(vm), "scale": float(scale), "locale": "en",
-                                                      "table": "t"}, "plan")
+                                                      "table": "t"})
 
     for name, make in (("entrance", entrance), ("leaving", leaving), ("rise_vector", rise), ("hold_ms", hold),
                        ("stack_direction", direction), ("stack_positions", positions), ("float_shadows", float_shadows),
@@ -739,9 +826,8 @@ def _renderer(module):
         finally:
             module._dll = real
         rows = [[role, text, at, flags, w, h] for (role, text, at, flags), (w, h) in table.items()]
-        found = ask("render", tables={"t": {"measure": rows, "metrics": {}, "ink": []}},
-                    case={"surface": "popup", "vm": wire(vm), "scale": float(scale), "locale": locale, "table": "t"})
-        return shaped(found, reference)
+        return _kept(ask("layout_kept", surface="popup", vm=wire(vm), scale=float(scale), locale=locale, measure=rows),
+                     reference)
 
     layout.rust_core, layout.__wrapped__, layout.__doc__ = "host", original, original.__doc__
     module.Renderer.layout = layout
@@ -782,3 +868,365 @@ _card = MODULES["codex_auto_resume.notice_card"]
 MODULES["codex_auto_resume.notice_card"] = lambda module: (_card(module), _premultiply(module))
 MODULES["codex_auto_resume.ui.popup.fonts"] = _fonts
 MODULES["codex_auto_resume.ui.popup.theme"] = _theme
+
+
+# ------------------------------------------------------------------------------------------- a renderer of the host's
+def _frame_wire(frame):
+    if frame is None:
+        return None
+    return wire(frame._asdict()) if hasattr(frame, "_asdict") else wire(dict(frame))
+
+
+class _HostCanvas:
+    """The host renderer's canvas: its pixels, as the C#'s SurfaceCanvas holds them (premultiplied BGRA, top row first)."""
+
+    def __init__(self, owner):
+        self._owner = owner
+
+    def pixels(self) -> bytes:
+        return _picture(ask("renderer_pixels", renderer=self._owner.handle))
+
+    @property
+    def width(self):
+        return int(ask("renderer_canvas", renderer=self._owner.handle)[0])
+
+    @property
+    def height(self):
+        return int(ask("renderer_canvas", renderer=self._owner.handle)[1])
+
+
+class _HostFonts:
+    """What a test reads of a renderer's fonts: the faces by role and the key (locale, scale) they were made for."""
+
+    def __init__(self, found):
+        self.key = (found["locale"], _number(found["scale"]))
+        self.faces = dict(found["faces"])
+
+
+class HostRenderer:
+    """popup.Renderer as the C#'s SurfaceRenderer (gui/SurfaceRenderer.cs), kept in the plan probe: a test's
+    `popup.Renderer()` is one of these under CODEX_AR_CORE=rust. Its look (theme, design, contrast, lone, sweep_ms) is
+    the attributes the test sets, sent with every call; use, measure and lines are the C#'s fonts' (SurfaceText over
+    GDI); layout is the C#'s own (Renderer.Layout) in the reference's container kinds; draw, draw_halo, draw_scene and
+    canvas.pixels() are the C#'s drawing, read back as the C#'s bytes. Anything else a test reads of the Python
+    renderer (its fonts' handles, its shadow images, its kept ground) is not here and raises: never answered by Python."""
+
+    module = None
+    LOOK = ("theme", "design", "contrast", "lone", "sweep_ms")
+
+    def __init__(self):
+        self.theme, self.design, self.contrast, self.lone, self.sweep_ms = "light", "soft", False, False, None
+        self.handle = ask("renderer_open")
+        self.canvas = _HostCanvas(self)
+        self._items = {}
+
+    def _look(self) -> dict:
+        return {"theme": self.theme, "design": self.design, "contrast": bool(self.contrast), "lone": bool(self.lone),
+                "sweep_ms": None if self.sweep_ms is None else float(self.sweep_ms)}
+
+    def _letters(self, locale):
+        from codex_auto_resume.ui.popup import fonts
+        return fonts._letters(locale)
+
+    @staticmethod
+    def _stand_in():
+        """The face the test stands in for Windows' UI font, which the C# takes as SurfaceFonts.Pinned: a picture's
+        (fonts.windows_ui_face), or the answer of a message_face the test patched; None to let the C# ask Windows."""
+        from codex_auto_resume.ui.popup import fonts
+        if fonts._PINNED:
+            return fonts._PINNED[-1]
+        current = fonts.message_face
+        return None if getattr(current, "rust_core", None) == "host" else current()
+
+    def close(self):
+        if self.handle is not None:
+            ask("renderer_close", renderer=self.handle)
+            self.handle, self.canvas = None, None
+
+    def use(self, locale, scale):
+        ask("renderer_use", renderer=self.handle, locale=locale, scale=float(scale), letters=self._letters(locale),
+            pinned=self._stand_in(), look=self._look())
+
+    def measure(self, role, text, width, wrap):
+        return tuple(ask("renderer_measure", renderer=self.handle, role=role, text=text, width=int(width), wrap=bool(wrap)))
+
+    def lines(self, role, text, width):
+        return ask("renderer_lines", renderer=self.handle, role=role, text=text, width=int(width))
+
+    @property
+    def fonts(self):
+        found = ask("renderer_fonts", renderer=self.handle)
+        return None if found is None else _HostFonts(found)
+
+    def layout(self, vm, scale, locale):
+        found = ask("renderer_layout", renderer=self.handle, vm=wire(vm), scale=float(scale), locale=locale,
+                    letters=self._letters(locale), pinned=self._stand_in(), look=self._look())
+        module = self.module
+        reference = module.plan(vm, scale, self.measure)       # the reference's container kinds, at the host's measures
+        if module.l10n.right_to_left(locale):
+            reference = module.mirror(reference)
+        plan = _kept(found, reference)
+        for index, item in enumerate(plan.get("items", ())):
+            self._items[id(item)] = (plan, index)
+        return plan
+
+    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None, scene_ms=0.0, faces=None):
+        ask("renderer_draw", renderer=self.handle, plan=handle_of(plan), frame=_frame_wire(frame), hover=wire(hover),
+            pressed=wire(pressed), focus=wire(focus),
+            glides=[[wire(target), float(amount)] for target, amount in (glides or {}).items()], scene_ms=float(scene_ms),
+            faces=[[wire(target), wire(fill), wire(edge), float(amount)]
+                   for target, ((fill, edge), amount) in (faces or {}).items()], look=self._look())
+        return self.canvas
+
+    def draw_halo(self, plan, frame, *, restore=True):
+        ask("renderer_draw_halo", renderer=self.handle, plan=handle_of(plan), frame=_frame_wire(frame), restore=bool(restore),
+            look=self._look())
+        return self.canvas
+
+    def draw_scene(self, plan, milliseconds):
+        ask("renderer_draw_scene", renderer=self.handle, plan=handle_of(plan), ms=float(milliseconds), look=self._look())
+        return self.canvas
+
+    @property
+    def halo_rows(self):
+        found = ask("renderer_halo_rows", renderer=self.handle)
+        return None if found is None else tuple(found)
+
+    def face_colours(self, item, state) -> tuple:
+        plan, index = self._items.get(id(item), (None, None))
+        if plan is None or plan["items"][index] is not item:
+            raise TypeError("the host tells the faces only of an item of a plan this renderer laid out")
+        fill, edge = ask("renderer_face_colours", renderer=self.handle, plan=handle_of(plan), index=index, state=state,
+                         look=self._look())
+        return tuple(fill), tuple(edge)
+
+    def card_still(self, plan, pad=None) -> tuple:
+        found = ask("renderer_card_still", renderer=self.handle, plan=handle_of(plan), pad=None if pad is None else int(pad),
+                    look=self._look())
+        return int(found["width"]), int(found["height"]), _picture(found)
+
+
+def _host_renderer(module):
+    """A test's `popup.Renderer()` (the class itself, not a subclass such as the icon's TipRenderer) is a HostRenderer;
+    the product's own callers, and every subclass, keep Python's."""
+    renderer = module.Renderer
+    host = type("Renderer", (HostRenderer,), {"module": module, "__doc__": renderer.__doc__})
+
+    def __new__(cls, *args, **kwargs):
+        if cls is renderer and _test_frame(2) is not None:
+            return host()
+        return object.__new__(cls)
+
+    renderer.__new__ = staticmethod(__new__)
+    renderer.rust_core = "host"
+
+
+def _layers(module):
+    """layers.card_still(renderer, plan, pad) of a host renderer: the C#'s SurfaceLayers.CardStill on its kept plan. A
+    Python renderer the product made keeps Python's."""
+    original = module.card_still
+
+    def card_still(renderer, plan, pad=None):
+        if isinstance(renderer, HostRenderer):
+            return renderer.card_still(plan, pad)
+        return original(renderer, plan, pad)
+
+    card_still.rust_core, card_still.__wrapped__, card_still.__doc__ = "host", original, original.__doc__
+    module.card_still = card_still
+
+
+def _corners(module):
+    """notice_card.corner_coverage(radius, smoothing): the C#'s CardCorner.Coverage, rows of bytes; each (radius,
+    smoothing)'s rows one Python object kept in the module's own _CORNERS under ("host", ...), so `is` holds where the
+    C# keeps one answer."""
+    def corner_coverage(original):
+        def corner_coverage(radius, smoothing=None):
+            key = ("host", radius, smoothing)
+            kept = module._CORNERS.get(key)
+            if kept is None:
+                kept = tuple(bytes(row) for row in ask("corner_coverage", radius=float(radius),
+                                                       smoothing=None if smoothing is None else float(smoothing)))
+                module._CORNERS[key] = kept
+            return kept
+        return corner_coverage
+    _replace(module, "corner_coverage", corner_coverage)
+
+
+_popup_renderer = MODULES["codex_auto_resume.ui.popup.renderer"]
+MODULES["codex_auto_resume.ui.popup.renderer"] = lambda module: (_popup_renderer(module), _host_renderer(module))
+MODULES["codex_auto_resume.ui.popup.layers"] = _layers
+_card_and_corners = MODULES["codex_auto_resume.notice_card"]
+MODULES["codex_auto_resume.notice_card"] = lambda module: (_card_and_corners(module), _corners(module))
+
+
+# ------------------------------------------------------------------------------------------- the icon's raster frames
+class _HostIconFrames:
+    """tray.IconFrames as the C#'s IconFrames (gui/TrayMotion.cs), kept in the plan probe: `ground`, the head positions'
+    `heads` (the C#'s own table) and `compose`, every frame the C#'s bytes. A frame the C# answers from its store is the
+    same Python object as the last time (`is` holds where the C# kept one array); `_cache` is those frames by key, as many
+    as the C# keeps. A size of nothing or a fine of less than one is the C#'s ArgumentException, raised as Python's
+    ValueError; a look it does not know its KeyNotFoundException, as KeyError."""
+
+    def __init__(self, size, fine=1, look=None):
+        self.size, self.fine, self.look = int(size), int(fine), look
+        try:
+            found = ask("icon_frames_new", size=self.size, fine=self.fine, look=look)
+        except HostRefused as refused:
+            kind = {"ArgumentException": ValueError, "KeyNotFoundException": KeyError}.get(refused.kind, RuntimeError)
+            raise kind(str(refused)) from None
+        self.handle, self.ground, self.budget = found["frames"], bytes(found["ground"]), found["budget"]
+        self._count, self._heads, self._cache = int(found["count"]), None, {}
+
+    @property
+    def heads(self):
+        if self._heads is None:
+            self._heads = [(tuple(box), [[tuple(sample) for sample in row] for row in rows])
+                           for box, rows in ask("icon_frames_heads", frames=self.handle)]
+        return self._heads
+
+    @property
+    def _mark(self):
+        """The pixels a day's mark covers, {(x, y): (hits, red, green, blue)}: the C#'s own table."""
+        return {(x, y): (hits, red, green, blue)
+                for x, y, hits, red, green, blue in ask("icon_frames_mark", frames=self.handle)}
+
+    def compose(self, position, head) -> bytes:
+        key = (int(position) % self._count, tuple(head))
+        found = ask("icon_frames_compose", frames=self.handle, position=int(position), head=[int(part) for part in head])
+        if found["kept"] and key in self._cache:
+            return self._cache[key]
+        frame = bytes(found["pixels"])
+        if os.environ.get("CAR_PLAN_MUTATE") == "raster" and frame:
+            frame = frame[:-4] + bytes((255 - frame[-4],)) + frame[-3:]
+        self._cache.pop(key, None)
+        if len(self._cache) >= 256:                     # TrayMotion.Cache: the C# store's own bound
+            self._cache.pop(next(iter(self._cache)))
+        self._cache[key] = frame
+        return frame
+
+
+def _raster(module):
+    """IconFrames and build_icon_frames of a test's own call: the C#'s frames; the budget check is the host's
+    (TrayIcon's: the clock read round the build, over TrayMotion.BuildBudgetMs, then no frames)."""
+    original = module.IconFrames
+
+    class IconFrames:
+        """A test's IconFrames is the host's; the product's own callers keep Python's."""
+
+        def __new__(cls, *args, **kwargs):
+            if _test_frame(2) is None:
+                return original(*args, **kwargs)
+            return _HostIconFrames(*args, **kwargs)
+
+    IconFrames.__wrapped__, IconFrames.rust_core = original, "host"
+    module.IconFrames = IconFrames
+
+    def build(original_build):
+        def build_icon_frames(size, clock=module.time.perf_counter, fine=1, look=None):
+            started = clock()
+            frames = _HostIconFrames(size, fine, look)
+            if (clock() - started) * 1000.0 > frames.budget:
+                return None
+            return frames
+        return build_icon_frames
+    _replace(module, "build_icon_frames", build)
+
+
+# ------------------------------------------------------------------------------------------- the type
+def _fonts_faces(module):
+    """font_faces, font_candidates and message_face (gui/SurfaceFonts.cs FontFaces, FontCandidates, UiFace): Windows'
+    UI font is asked of the C# unless the test stands in its answer (`system`, or a message_face it patched), and a
+    `lacks` the test hands in is asked back."""
+    def windows_face():
+        current = module.message_face
+        return ask("message_face") if getattr(current, "rust_core", None) == "host" else current()
+
+    def common(locale, system, lacks):
+        fields = {"locale": locale, "system": windows_face() if system is module._ASK_WINDOWS else _scalar(system),
+                  "letters": module._letters(locale) if isinstance(locale, str) else None, "lacks": lacks is not None}
+        if lacks is not None:
+            def answer(face, text):
+                found = lacks(face, text)
+                return found if isinstance(found, str) else ("\u0001" if found else "")
+            fields["_callbacks"] = {"lacks": answer}
+        return fields
+
+    def faces(original):
+        def font_faces(locale, system=module._ASK_WINDOWS, lacks=None):
+            return tuple(ask("font_faces", **common(locale, system, lacks)))
+        return font_faces
+
+    def candidates(original):
+        def font_candidates(locale, weight, system=module._ASK_WINDOWS, lacks=None):
+            return tuple((face, int(weight_of)) for face, weight_of in
+                         ask("font_candidates", weight=int(weight), **common(locale, system, lacks)))
+        return font_candidates
+
+    def message(original):
+        def message_face():
+            return ask("message_face")
+        return message_face
+
+    for name, make in (("font_faces", faces), ("font_candidates", candidates), ("message_face", message)):
+        _replace(module, name, make)
+
+
+def _theme_readers(module):
+    """The theme's choices (gui/SurfaceTheme.cs): theme_choice, effective_theme, appearance, design_choice."""
+    def light(value):
+        return value if isinstance(value, bool) else None
+
+    def one(op):
+        def make(original):
+            def proxy(value):
+                return ask(op, value=_scalar(value))
+            return proxy
+        return make
+
+    def effective(original):
+        def effective_theme(choice, apps_use_light=None):
+            return ask("effective_theme", choice=_scalar(choice), light=light(apps_use_light))
+        return effective_theme
+
+    def appearance(original):
+        def appearance(choice, apps_use_light=None, contrast=False):
+            return ask("appearance", choice=_scalar(choice), light=light(apps_use_light), contrast=bool(contrast))
+        return appearance
+
+    def setter(op):
+        def make(original):
+            def proxy(value):
+                ask(op, value=_scalar(value))
+            return proxy
+        return make
+
+    def getter(op):
+        def make(original):
+            def proxy():
+                return ask(op)
+            return proxy
+        return make
+
+    def adopt(original):
+        def adopt_settings(values):
+            ask("adopt_settings", values={str(key): _scalar(value) for key, value in values.items()}
+                if isinstance(values, dict) else None)
+        return adopt_settings
+
+    for name, make in (("theme_choice", one("theme_choice")), ("design_choice", one("design_choice")),
+                       ("effective_theme", effective), ("appearance", appearance)):
+        _replace(module, name, make)
+    # Not routed: set_reduce_motion, set_theme, set_design, theme_setting, design_setting, adopt_settings, reduced_motion.
+    # They are one state the product's own callers set (the watcher adopting its settings) and a test then reads: the
+    # C#'s copy in the probe would be a second state the product never sets (the shim's sweep showed it: test_tray_cards
+    # and test_tray_icon_motion read 'system' where the watcher had adopted 'dark'). Their ops stay in PlanProbe.cs for a
+    # twin that sets and reads the C#'s state alone.
+    del setter, getter, adopt
+
+
+_tray_motion_first = MODULES["codex_auto_resume.ui.tray.motion"]
+MODULES["codex_auto_resume.ui.tray.motion"] = lambda module: (_tray_motion_first(module), _raster(module))
+_role_sizes = MODULES["codex_auto_resume.ui.popup.fonts"]
+MODULES["codex_auto_resume.ui.popup.fonts"] = lambda module: (_role_sizes(module), _fonts_faces(module))
+_contrast_colours = MODULES["codex_auto_resume.ui.popup.theme"]
+MODULES["codex_auto_resume.ui.popup.theme"] = lambda module: (_contrast_colours(module), _theme_readers(module))

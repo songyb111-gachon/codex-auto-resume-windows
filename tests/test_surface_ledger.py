@@ -49,7 +49,7 @@ def imports_the_ui(path: Path) -> bool:
 
 # The files that are the host's side of the ledger and read the Python UI only to hold the host to it (they name a Python
 # module to compare a constant or a rule with it): they are the twins the rows name, not rows.
-HOST_SIDE = ("test_host_shape.py", "test_host_tray_place.py", "test_surface_askback.py")
+HOST_SIDE = ("test_host_shape.py", "test_host_tray_place.py", "test_surface_askback.py", "test_host_tray_story.py")
 
 
 def test_files() -> set[str]:
