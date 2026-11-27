@@ -548,8 +548,8 @@ impl Runtime {
         let Some(tripped) = self.refused_tripped.get() else {
             return;
         };
-        let since = self.since_of(crate::seam_p7::SILENT).flatten();
-        if self.standing(crate::seam_p7::SILENT) == ArmingState::Armed
+        let since = self.since_of(crate::engine::silent::CAPABILITY).flatten();
+        if self.standing(crate::engine::silent::CAPABILITY) == ArmingState::Armed
             && since.is_some_and(|since| since >= tripped)
         {
             crate::codex::headless::EMPTY_REFUSED.store(false, std::sync::atomic::Ordering::SeqCst);

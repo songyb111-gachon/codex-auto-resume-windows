@@ -236,7 +236,9 @@ pub trait Edges {
     fn hook_follow(&self, armed: bool);
     /// Core's power action armed for tasks follows `power_after_tasks`' state (`powertasks.follow`).
     fn power_tasks_follow(&self, armed: bool);
-    /// `account.forget`: the salt out of Credential Manager and the account seen out of the state.
+    /// `account.forget`: the salt out of Credential Manager and the account seen out of the state - an implementation
+    /// calls `engine::account::forget_real` on its state (Integration 10); a fault that returns is one the reference
+    /// lets out of the sweep, a caught one is false.
     fn account_forget(&self);
     /// `usage.touched(key)`: the windows whose order an option bears on.
     fn usage_touched(&self, key: OptionKey) -> Vec<i64>;

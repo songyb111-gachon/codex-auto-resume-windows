@@ -4,7 +4,7 @@
 //! P8's errand, at most once a minute: the conversations with a turn completed in the last hour, each one's latest turn
 //! looked at twice, SECOND_LOOK apart, at least SETTLE_AFTER after it completed and the same both times; a goal Codex
 //! keeps going (active) or that its loop guard stopped (blocked) is noted `goal_left`; a chain's third is noted
-//! `chain_spent`. P2 hands core every continuation waiting, with its words (`seam_p7::continued_handed`).
+//! `chain_spent`. P2 hands core every continuation waiting, with its words (`continued::handed`).
 //!
 //! The seams the continuation family shares (here, as the first of them; keepgoing and subagent use them):
 //! * [`Looks`]: what the reference reads of the Codex home - `Turns(home)` (`recent`, `latest`, `between`,
@@ -27,7 +27,10 @@ use car_policy::plug::{Errand, Guards, HookFailed, View};
 use crate::capabilities::{Binding, Code, Raised, Said, Spoke};
 use crate::codex::lineage::Child;
 use crate::codex::turns::Turn;
-use crate::seam_p7::{EVERY_CONVERSATION, answer_key, continued_handed, words_pass};
+use crate::engine::continued::{
+    answer_key_text as answer_key, handed as continued_handed, words_pass,
+};
+use crate::engine::usage::EVERY_CONVERSATION;
 use crate::state::errors::Result as StateResult;
 use crate::state::scoped::Scoped;
 use crate::state::sql::{self, Row};

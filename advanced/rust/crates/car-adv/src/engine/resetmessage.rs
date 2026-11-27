@@ -71,9 +71,33 @@ pub fn carried_by_stop(rule: &Row, stops: &[Row]) -> Result<bool, Raised> {
     Ok(false)
 }
 
-/// `handed(rule)`: what core is handed of one message, or None.
+/// `handed(rule)`: what core is handed of one message, or None (the body S7.2a's skeleton held in `seam_p7` until
+/// Integration 10; the keys are engine/continued's).
 pub fn handed(rule: &Row) -> Option<Value> {
-    crate::seam_p7::reset_message_handed(&Value::Object(rule.clone()))
+    use super::continued::{in_flight, is, marker, or_null, truthy, waiting, word};
+    let field = |name: &str| rule.get(name);
+    let key = or_null(field("record_id"));
+    let own = [
+        ("record_id", key.clone()),
+        ("thread_id", or_null(field("thread_id"))),
+        ("marker", marker(&key)),
+        ("purpose", word("message")),
+        ("ordinal", Value::Null),
+    ];
+    if is(field("record_state"), "in_flight") {
+        let sent_at = or_null(field("sent_at"));
+        return Some(in_flight(
+            &own,
+            sent_at,
+            or_null(field("queue_id")),
+            truthy(field("withdraw")),
+        ));
+    }
+    if is(field("state"), "ready") && is(field("record_state"), "waiting") && truthy(field("words"))
+    {
+        return Some(waiting(&own, or_null(field("words"))));
+    }
+    None
 }
 
 /// `ResetMessage._same_reset(rule, row, record, now)`: whether a counting message falls due at the reset a usage-limit

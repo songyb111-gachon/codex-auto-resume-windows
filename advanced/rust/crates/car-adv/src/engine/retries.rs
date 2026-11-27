@@ -79,24 +79,14 @@ fn config_of(read: &Value) -> Option<&Map> {
 }
 
 /// `codex/account.parse(reply)["kind"]`: the account's kind in lower case where it is one Codex names ("chatgpt",
-/// "apikey"), else None. (S7.2b's `codex::account` holds the whole of `parse`; this is the one field read here.)
+/// "apikey"), else None - S7.2b's `codex::account::parse` itself, as the tag imports it (`parse as parse_account`;
+/// Integration 10 pointed this here from the one field S7.2e1 read on its own).
 pub fn account_kind(reply: &Value) -> Option<String> {
-    let Value::Object(map) = reply else {
-        return None;
-    };
-    let Some(Value::Object(account)) = map.get("account") else {
-        return None;
-    };
-    match account.get("type") {
-        Some(Value::Str(kind)) => {
-            let lower: String = car_policy::classify::text::lower(kind)
-                .into_iter()
-                .map(|point| char::from_u32(point).unwrap_or('\u{fffd}'))
-                .collect();
-            ["chatgpt", "apikey"]
-                .contains(&lower.as_str())
-                .then_some(lower)
-        }
+    match crate::codex::account::parse(reply) {
+        Value::Object(found) => match found.get("kind") {
+            Some(Value::Str(kind)) => kind.as_str().map(str::to_owned),
+            _ => None,
+        },
         _ => None,
     }
 }

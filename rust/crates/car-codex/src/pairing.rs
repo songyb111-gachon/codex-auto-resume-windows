@@ -652,6 +652,19 @@ pub fn own_server_gone(mark: &(Value, Value)) {
     forget_inventory();
 }
 
+/// `{mark[0] for mark in pairing._OWN}` read under `_OWN_LOCK`: the pids of the app servers this process holds, each
+/// once, in the order they were counted - what a caller that counts the engines running leaves out as its own.
+pub fn own_pids() -> Vec<Value> {
+    let held = state();
+    let mut pids: Vec<Value> = Vec::new();
+    for (pid, _) in &held.own {
+        if !pids.iter().any(|each| pyval::eq(each, pid)) {
+            pids.push(pid.clone());
+        }
+    }
+    pids
+}
+
 /// `own_holder(user)`: the same pid AND creation time as at our spawn.
 pub fn own_holder(user: &Value) -> Result<bool> {
     if !is_dict(user) {
@@ -815,4 +828,25 @@ pub fn row(pid: i64, parent: i64, path: &str, created: Option<i64>, family: Opti
         ("created", created.map_or(Value::Null, Value::from)),
         ("family", family.map_or(Value::Null, Value::from)),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn own_pids_are_the_marks_pids_each_once_and_none_when_none_is_held() {
+        // The marks are set and taken back directly: own_server and own_server_gone also forget the inventory, which
+        // another test of this crate may be reading at the same time.
+        let before = std::mem::take(&mut state().own);
+        assert!(own_pids().is_empty());
+        state().own = vec![
+            (Value::from(41), Value::from(1.5)),
+            (Value::from(7), Value::from(2.5)),
+            (Value::from(41), Value::from(3.5)),
+        ];
+        let pids = own_pids();
+        state().own = before;
+        assert_eq!(pids, vec![Value::from(41), Value::from(7)]);
+    }
 }

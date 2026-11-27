@@ -27,7 +27,6 @@ use car_policy::plug::{Errand, Guards, HookFailed, View};
 use crate::capabilities::{Binding, Code, Raised, Said, Spoke};
 use crate::codex::account;
 use crate::codex::authfile::Fault;
-use crate::seam_p7::ResetWatch;
 use crate::state::scoped::Scoped;
 use crate::state::seam::Tokens;
 use crate::vocabulary::{OptionKey, RuleReason, RuleState};
@@ -68,25 +67,6 @@ impl SaltStore for crate::credentials::Secrets<'_> {
     }
 }
 
-/// `engine/resetwatch.count(rule, row)` (S7.2d's module; the seam `seam_p7::ResetWatch`), as the tag has it: fills for a
-/// credit, resets for a message. The integration points `TagCount` at S7.2d's own.
-pub struct TagCount;
-
-impl ResetWatch for TagCount {
-    fn count(&self, rule: &Value, row: &Value) -> i64 {
-        let field = if rule_get(rule, "capability")
-            .is_some_and(|capability| pyval::is(capability, crate::state::resets::CREDIT))
-        {
-            "hits"
-        } else {
-            "resets"
-        };
-        rule_get(row, field)
-            .and_then(crate::state::py::small)
-            .unwrap_or(0)
-    }
-}
-
 fn rule_get<'a>(row: &'a Value, key: &str) -> Option<&'a Value> {
     match row {
         Value::Object(map) => map.get(key),
@@ -114,6 +94,13 @@ pub fn forget(
     }
 }
 
+/// `forget(state)` with Windows' own Credential Manager under the shipped registry (`secrets=None`, arming's
+/// `_end_account`): what `seam::Edges::account_forget` calls, as `control::hookplugin::follow_real` is for `hook_follow`
+/// (Integration 10). Credential Manager is asked only where the account seen is still kept.
+pub fn forget_real(state: &crate::state::session::AdvancedState) -> Result<bool, Fault> {
+    forget(state, &LiveSecrets)
+}
+
 /// `hold(paths, keys, now)`: core's records held for the person; how many.
 pub type Hold = Box<dyn Fn(&[String], f64) -> Result<i64, Fault> + Send + Sync>;
 /// `ours(paths, text, after)`: whether account_auto_switch put that account in at or after `after`.
@@ -131,8 +118,6 @@ pub struct Seams {
     pub ours: Ours,
     /// `account.new_salt()`'s random source.
     pub tokens: Arc<dyn Tokens>,
-    /// `engine/resetwatch.count`.
-    pub count: Box<dyn ResetWatch + Send + Sync>,
 }
 
 struct Inner {
@@ -226,7 +211,7 @@ fn look(inner: &mut Inner, scoped: &Scoped<'_>, view: &dyn View, now: f64) -> Re
     } else {
         hold_waiting(inner, view, now)?
     };
-    let held = waiting + hold_rules(inner, scoped)?;
+    let held = waiting + hold_rules(scoped)?;
     save(&seen)?;
     // v0.6.20 (the pair audit, V20-2): when, for window_anchor - whose window stamps are the other account's.
     scoped
@@ -300,7 +285,7 @@ fn at_least(low: i64, value: &Value) -> Value {
 }
 
 /// `_hold_rules()`: every reset rule still counting, held as over a gap in its count, for what it had left to count.
-fn hold_rules(inner: &Inner, scoped: &Scoped<'_>) -> Result<i64, Fault> {
+fn hold_rules(scoped: &Scoped<'_>) -> Result<i64, Fault> {
     let windows = scoped.state.windows().map_err(state_fault)?;
     let rules = scoped
         .state
@@ -323,9 +308,10 @@ fn hold_rules(inner: &Inner, scoped: &Scoped<'_>) -> Result<i64, Fault> {
             .find(|((bucket, minutes), _)| pyval::eq(bucket, &key.0) && pyval::eq(minutes, &key.1))
             .map(|(_, row)| Value::Object(row.clone()));
         let base = rule_get(&rule, "base").cloned().unwrap_or(Value::Null);
-        let counted = match &row {
-            Some(row) if !matches!(base, Value::Null) => {
-                minus(&Value::from(inner.seams.count.count(&rule, row)), &base)
+        // `count(rule, row) - rule["base"]`: engine/resetwatch's own count (S7.2d), as the tag imports it
+        let counted = match (&row, &rule) {
+            (Some(Value::Object(row)), Value::Object(counting)) if !matches!(base, Value::Null) => {
+                minus(&crate::engine::resetwatch::count(counting, row), &base)
             }
             _ => Value::from(0),
         };
@@ -436,7 +422,6 @@ pub fn live_seams(paths: &Paths) -> Seams {
                 .unwrap_or(false)
         }),
         tokens: Arc::new(crate::credentials::SystemTokens),
-        count: Box::new(TagCount),
     }
 }
 

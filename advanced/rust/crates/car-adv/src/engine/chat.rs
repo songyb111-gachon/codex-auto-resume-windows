@@ -4,7 +4,7 @@
 //! P2: each conversation's oldest waiting message, and those in flight (core watches them); one waiting in a conversation
 //! switched off is cancelled. P5: the channel (`thread/queue/add` under the client id core derives) for a record of the
 //! edition's own alone; P15: CLIENT_ID for it. [`handed`], [`watched`] and [`paused_by_stop`] are the runtime's too
-//! (moved here from `seam_p7`, whose names stay).
+//! (moved here from `seam_p7` by S7.2e1b; the runtime calls them here since Integration 10).
 
 use car_config::Paths;
 use car_machine::json::{Map, Str, Value};
@@ -109,7 +109,7 @@ pub fn paused_by_stop(row: &Value, stops: &[Value]) -> bool {
             (Some(end), Some(sent)) => end >= sent,
             _ => false,
         };
-        is(get(stop, "capability"), crate::seam_p7::USAGE_PAUSE)
+        is(get(stop, "capability"), crate::engine::usage::PAUSE)
             && is(get(stop, "kind"), ContinuationKind::AfterReset.as_str())
             && get(stop, "thread_id") == get(row, "thread_id")
             && (matches!(get(stop, "finished_at"), None | Some(Value::Null)) || ended)

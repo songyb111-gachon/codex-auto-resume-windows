@@ -19,7 +19,7 @@ use super::emptyreply::{
     waiting_records, word,
 };
 use crate::capabilities::{Binding, Code, Raised, Said, Spoke};
-use crate::seam_p7::words_pass;
+use crate::engine::continued::words_pass;
 use crate::state::scoped::Scoped;
 use crate::state::sql::{self, Row};
 use crate::vocabulary::{ContinuationKind, GoalStatus, KeepReason, KeepState, Measurement};

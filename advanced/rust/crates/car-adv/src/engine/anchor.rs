@@ -40,8 +40,8 @@ pub const TIME_OPTIONS: [OptionKey; 3] = [
     OptionKey::AnchorAt2,
     OptionKey::AnchorAt3,
 ];
-/// wrapwords' ON: Start right after a reset, on.
-pub const ON: i64 = 1;
+/// wrapwords' ON: Start right after a reset, on (`engine/wrapwords.ON`, as the tag imports it).
+pub const ON: i64 = super::wrapwords::ON;
 pub const PROMPT: &str = "Reply with OK";
 pub const EXEC_ARGUMENTS: [&str; 9] = [
     "exec",

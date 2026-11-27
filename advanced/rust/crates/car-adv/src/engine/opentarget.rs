@@ -151,12 +151,6 @@ impl OpenWorld {
     }
 }
 
-impl crate::seam_p7::OpenTarget for OpenWorld {
-    fn idle_seconds(&self) -> Option<f64> {
-        (self.idle_seconds)()
-    }
-}
-
 /// An open not settled yet: its kind, its identity, the looks since.
 type Pending = BTreeMap<i64, (String, Value, i64)>;
 

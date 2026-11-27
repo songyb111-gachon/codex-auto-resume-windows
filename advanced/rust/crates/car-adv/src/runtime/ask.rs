@@ -172,8 +172,7 @@ impl Runtime {
             None
         };
         let key = record.map_or_else(|| "None".to_owned(), key_of);
-        let kept =
-            point == Point::Unloaded && record.is_some_and(crate::seam_p7::for_open_watching);
+        let kept = point == Point::Unloaded && record.is_some_and(crate::engine::foropen::watching);
         let earlier = self.earlier(&key, point);
         let mut chosen: Option<(Said, &CapabilityDef)> = None;
         for definition in definitions.iter().copied() {

@@ -1266,8 +1266,8 @@ pub fn unwind(world: &World, store: &Profiles, codex_home: Option<&Path>) -> Res
 
 // ------------------------------------------------------------------------------------------------ the product's world
 /// The product's own world for the switch: random names from the system, the private access list, real pauses, core's
-/// process list read afresh, Windows through car-codex's Platform, the monotonic clock. `pairing._OWN` is not readable
-/// from car-codex (no getter; seam left in rust/GROUNDWORK.md), so no app server is taken as this process's own.
+/// process list read afresh, Windows through car-codex's Platform, the monotonic clock, and `pairing._OWN`'s pids
+/// (car-codex `pairing::own_pids`, Integration 10): an app server this process holds is not another engine.
 pub struct Live {
     pub system: std::sync::Arc<car_codex::system::Platform>,
     inventory: Box<dyn Fn() -> Option<Vec<Value>> + Send + Sync>,
@@ -1287,10 +1287,6 @@ fn pause(seconds: f64) {
 
 fn private(directory: &Path) -> bool {
     authfile::private_dacl(directory)
-}
-
-fn nobody() -> Vec<Value> {
-    Vec::new()
 }
 
 impl Live {
@@ -1319,7 +1315,7 @@ impl Live {
             private: &private,
             pause: &pause,
             inventory: self.inventory.as_ref(),
-            own: &nobody,
+            own: &car_codex::pairing::own_pids,
             system: self.system.as_ref(),
             app_running: self.app_running.as_ref(),
             clock: self.clock.as_ref(),

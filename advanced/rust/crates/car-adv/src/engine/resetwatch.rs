@@ -844,18 +844,3 @@ impl Watch<'_> {
         self.resets.save_windows(rows).map_err(Failed::raised)
     }
 }
-
-/// `ResetWatch` for `engine/account` (S7.2b): `count(rule, row)`.
-pub struct Counter;
-
-impl crate::seam_p7::ResetWatch for Counter {
-    fn count(&self, rule: &Value, row: &Value) -> i64 {
-        let (Value::Object(rule), Value::Object(row)) = (rule, row) else {
-            return 0;
-        };
-        match count(rule, row) {
-            Value::Int(int) => int.as_i64().unwrap_or(0),
-            other => number(&other).map_or(0, |found| found as i64),
-        }
-    }
-}

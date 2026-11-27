@@ -9,7 +9,9 @@ use super::{
     KEEP_GOING, NOT_DELIVERED_ON_OPEN, Py, Runtime, SUBMITTING, WITHDRAWN_UNCONFIRMED, caught,
     field, key_of, object,
 };
-use crate::seam_p7::{OTHER_SESSIONS, QUEUE_FOR_OPEN, SILENT};
+use crate::engine::foropen::CAPABILITY as QUEUE_FOR_OPEN;
+use crate::engine::sessions::CAPABILITY as OTHER_SESSIONS;
+use crate::engine::silent::CAPABILITY as SILENT;
 use crate::vocabulary::{JournalCode, OffReason, OverrideKind};
 
 /// `RECORD_MOVES`.

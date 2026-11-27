@@ -224,7 +224,6 @@ fn ea_look(args: &[Value]) -> Out {
             )
         }),
         tokens: Arc::new(Counter),
-        count: Box::new(watch::TagCount),
     };
     let code = watch::AccountWatch::new(seams);
     let view = ProbeView(RefCell::new(Script::new(arg(args, 3))));

@@ -9,7 +9,8 @@ use car_policy::plug::{Point, View};
 use super::ask::{hook, null_answer};
 use super::{Py, Runtime, caught, field, key_value, number};
 use crate::capabilities::Said;
-use crate::seam_p7::{CHAT, PROMPT_QUEUE};
+use crate::engine::chat::CAPABILITY as CHAT;
+use crate::engine::promptqueue::CAPABILITY as PROMPT_QUEUE;
 use crate::state::resets::UNLAUNCHED_AFTER;
 use crate::vocabulary::{ArmingState, ContinuationReason, JournalCode, KeepReason, PromptReason};
 
@@ -33,13 +34,13 @@ impl Runtime {
         let flying = (|| -> Result<Vec<Option<Value>>, crate::state::Error> {
             let mut flying: Vec<Option<Value>> = Vec::new();
             for rule in self.state.messages_in_flight()? {
-                flying.push(crate::seam_p7::reset_message_handed(&Value::Object(rule)));
+                flying.push(crate::engine::resetmessage::handed(&rule));
             }
             for row in self.state.continuations_in_flight()? {
-                flying.push(crate::seam_p7::continued_handed(&Value::Object(row)));
+                flying.push(crate::engine::continued::handed(&Value::Object(row)));
             }
             for row in self.state.prompts_in_flight()? {
-                flying.push(crate::seam_p7::prompt_handed(&Value::Object(row)));
+                flying.push(crate::engine::promptqueue::handed(&Value::Object(row)));
             }
             // v0.6.19: the chat's messages in flight - none taken back in a queue the forced stop paused (v0.6.26, M1).
             for row in self.state.chats_in_flight()? {
@@ -50,7 +51,7 @@ impl Runtime {
                     .into_iter()
                     .map(Value::Object)
                     .collect();
-                flying.push(crate::seam_p7::chat_watched(
+                flying.push(crate::engine::chat::watched(
                     &Value::Object(row),
                     self.now(),
                     &stops,
