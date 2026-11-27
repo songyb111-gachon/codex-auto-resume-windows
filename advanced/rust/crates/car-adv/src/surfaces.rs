@@ -179,6 +179,9 @@ pub struct World {
     pub restart_run: Arc<dyn Fn(&car_config::Paths) -> (&'static str, Option<&'static str>) + Send + Sync>,
     /// `threading.Thread(target=job, daemon=True).start()`; false where it could not start.
     pub spawn: Arc<dyn Fn(Box<dyn FnOnce() + Send>) -> bool + Send + Sync>,
+    /// The Windows user's preferred UI languages (`GetUserPreferredUILanguages`, which `l10n` reads for `system`):
+    /// none in the bare world, as car-control's system host (car-platform has no reader yet).
+    pub windows_languages: Arc<dyn Fn() -> Vec<String> + Send + Sync>,
 }
 
 impl World {
@@ -199,6 +202,7 @@ impl World {
             restart_busy: Arc::new(|_| vec![crate::codex::restart::UNKNOWN]),
             restart_run: Arc::new(|_| (crate::codex::restart::FAILED, None)),
             spawn: Arc::new(|job| std::thread::Builder::new().name("account-switch".into()).spawn(job).is_ok()),
+            windows_languages: Arc::new(Vec::new),
         }
     }
 }
@@ -820,10 +824,11 @@ fn kind_of(source: &car_codex::source::LocalSource, thread: &Value) -> Option<Op
 
 // ------------------------------------------------------------------ the Dashboard
 
-fn locale(runtime: &Runtime, asked: &Value) -> &'static str {
-    let _ = runtime;
+/// `_locale(asked)`: the Interface language the window names, else the one this process resolves to.
+fn locale(asked: &Value) -> &'static str {
     let environ = |name: &str| std::env::var(name).ok();
-    let windows = Vec::new;
+    let languages = world().windows_languages;
+    let windows = || languages();
     match asked {
         Value::Str(text) if !text.is_empty() => {
             car_words::l10n::resolve(text.as_str(), &environ, &windows)
@@ -903,7 +908,7 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         }
         B::AdvancedList => with(arming.listing(), vec![("done", Value::Bool(true))]),
         B::AdvancedWords => {
-            let locale = locale(runtime, &a("locale"));
+            let locale = locale(&a("locale"));
             let words = runtime
                 .arming()
                 .catalogs()
@@ -921,7 +926,7 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
             let Some(definition) = definition else {
                 return Ok(refusal(Refusal::UnknownCapability));
             };
-            let locale = locale(runtime, &a("locale"));
+            let locale = locale(&a("locale"));
             let statement = arming
                 .statement(definition, Some(locale))
                 .map_err(|_| Error::python("UnicodeDecodeError", "a catalog could not be read"))?;
