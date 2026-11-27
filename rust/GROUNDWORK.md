@@ -2480,7 +2480,7 @@ model, `busy` returned as strings, a raised control error answered as a value: *
   as the reference's plan objects). `test_card_shadow_under_body`, for one, compares the Python card's GDI+ layers pixel by pixel: its C# twin needs
   `CardWindow`'s layers dumped by a new probe call.
 * The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` now also runs `test_surface_askback` against the tag's package.
-* The proxy's `PopupModel` is built only for a caller outside the package (a test): Python's own popup window (`codex_auto_resume.ui.popup.window`) keeps
+* The proxy's `PopupModel` is built only for the test modules in `surfaceproxy.PROXIED_FOR`: Python's own popup window (`codex_auto_resume.ui.popup.window`) and the tests that hand a model to it (`test_surface_windows`, `test_tray_popup`, ...) keep
   the original model, which it sets `strings` and `wants_read` on as it runs; the window is what the C# host replaces (found by the re-diff: `test_surface_windows`
   drove the Python window with the proxy and failed on `model.strings = ...`).
 * The re-diff also prints a test file the tag has and this tree lacks: `test_status_newest_usage.py` (it imports the UI at v0.6.26 and has no row; it arrives

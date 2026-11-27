@@ -431,6 +431,7 @@ def _model(module):
 
 
 # ------------------------------------------------------------------------------ perform and PopupModel: the objects asked back
+PROXIED_FOR = ("test_dont_postpone", "test_postpone_and_tiers", "test_popup_row_menu_parity", "test_surface_askback")
 CONTROL_SHAPES = {
     # Rust's recorded call name -> how the reference writes the call: (method, positional indexes, keyword name -> index)
     "list_pending": ("list_pending", (), {"source": 0}),
@@ -524,11 +525,11 @@ def _popup_model(module):
         __wrapped__ = original
 
         def __new__(cls, strings=None):
-            # Python's own window (codex_auto_resume.ui.popup.window) keeps the model it was written with - it sets
-            # `strings` and `wants_read` on it as it runs, and the window itself is what the C# host replaces. A model a
-            # test makes is the proxy.
+            # Only the tests that hold the model itself get the proxy (PROXIED_FOR): Python's own popup window and the tests that
+            # hand a model to it (it sets `strings` and `wants_read` on it as it runs, and every paint asks it again) keep the
+            # original - that window is what the C# host replaces, and a replay per paint would be quadratic.
             import sys
-            if sys._getframe(1).f_globals.get("__name__", "").startswith("codex_auto_resume."):
+            if sys._getframe(1).f_globals.get("__name__", "") not in PROXIED_FOR:
                 return original(strings)
             return object.__new__(cls)
 
