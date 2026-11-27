@@ -116,7 +116,70 @@ namespace CodexAutoResume
                     Windows = (List<object>)call["windows"], Fail = call["fail"] is bool && (bool)call["fail"],
                 });
             if (name == "card_layers") return CardLayers(call);
+            if (name == "icon_tick") return IconTick(call);
+            if (name == "icon_overflowed") return IconOverflowed(call);
             throw new ArgumentException("no call " + name);
+        }
+
+        private static bool Flag(Dictionary<string, object> call, string name)
+        {
+            object value = SurfaceRender.Field(call, name);
+            return value is bool && (bool)value;
+        }
+
+        private static object Private(TrayIcon icon, string method, params object[] arguments)
+        {
+            return typeof(TrayIcon).GetMethod(method, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                   .Invoke(icon, arguments);
+        }
+
+        /// The icon's one-second tick for an icon Windows keeps in the overflow flyout (tests/test_tray_overflow_open.py
+        /// OpenFlyoutTickTests.tick): a TrayIcon with no window, its frames an IconFrames never built (the test's
+        /// object.__new__), placed in the flyout, the flyout open or not, Reduce motion on or not, High Contrast and battery
+        /// saver off, its rect (0, 0, 16, 16); Observe(snapshot) then SyncMotion, every SetTimer/KillTimer recorded by the
+        /// probe's SurfaceScreen and replayed into the timers a FakeUser32 would hold.
+        private static object IconTick(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                bool flyout = Flag(call, "flyout_open"), reduced = Flag(call, "reduced");
+                var rect = new int[4];
+                rect[2] = 16;
+                rect[3] = 16;
+                var icon = new TrayIcon
+                {
+                    Hwnd = new IntPtr(12345),
+                    Frames = (IconFrames)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(IconFrames)),
+                    AskPlacement = () => true, AskOverflowOpen = () => flyout, AskReduced = () => reduced,
+                    AskContrast = () => false, AskBatterySaver = () => false, IconRectReader = () => rect,
+                };
+                Private(icon, "Observe", (Dictionary<string, object>)call["snapshot"]);
+                Private(icon, "SyncMotion");
+                var timers = new Dictionary<string, object>();
+                foreach (string line in SurfaceScreen.Probe)
+                {
+                    string[] parts = line.Split(' ');
+                    if (parts[0] == "SetTimer") timers[parts[2]] = double.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
+                    else if (parts[0] == "KillTimer") timers.Remove(parts[2]);
+                }
+                return new Dictionary<string, object> { { "state", icon.IconState }, { "allowed", icon.MotionAllowed }, { "timers", timers } };
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        /// The icon's own question (Overflowed): placed in the flyout or not, and how often it asked whether the flyout is open.
+        private static object IconOverflowed(Dictionary<string, object> call)
+        {
+            bool placed = Flag(call, "placed"), open = Flag(call, "open");
+            int asked = 0;
+            var icon = new TrayIcon { AskPlacement = () => placed, AskOverflowOpen = () => { asked++; return open; } };
+            bool answer = (bool)Private(icon, "Overflowed");
+            return new Dictionary<string, object> { { "answer", answer }, { "asked", (double)asked } };
         }
 
         /// A notification card made with no window (NoticeCard's `windows: false`, as the render mode's `cards` case makes

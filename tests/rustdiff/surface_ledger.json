@@ -1983,11 +1983,16 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "5 of 10 UI tests run on the host (5 twinned); 5 are still on the Python UI (5 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
    "twins": {
+    "OpenFlyoutTickTests.test_an_icon_in_the_open_flyout_moves_and_its_frame_timer_runs": "test_host_icon_tick.py::OpenFlyoutTickOnHostTests.test_an_icon_in_the_open_flyout_moves_and_its_frame_timer_runs",
+    "OpenFlyoutTickTests.test_every_moving_state_moves_in_the_open_flyout": "test_host_icon_tick.py::OpenFlyoutTickOnHostTests.test_every_moving_state_moves_in_the_open_flyout",
+    "OpenFlyoutTickTests.test_reduce_motion_or_windows_animations_off_hold_it_still_in_the_open_flyout": "test_host_icon_tick.py::OpenFlyoutTickOnHostTests.test_reduce_motion_or_windows_animations_off_hold_it_still_in_the_open_flyout",
+    "OpenFlyoutTickTests.test_the_closed_flyout_still_holds_it_still": "test_host_icon_tick.py::OpenFlyoutTickOnHostTests.test_the_closed_flyout_still_holds_it_still",
+    "OpenFlyoutTickTests.test_the_icon_asks_whether_the_flyout_is_open": "test_host_icon_tick.py::OpenFlyoutTickOnHostTests.test_the_icon_asks_whether_the_flyout_is_open",
     "OverflowOpenTests.test_a_hidden_or_cloaked_flyout_is_closed": "test_host_tray_place.py::OverflowOpenTests.test_a_hidden_or_cloaked_flyout_is_closed",
     "OverflowOpenTests.test_any_taskbar_s_open_flyout_counts": "test_host_tray_place.py::OverflowOpenTests.test_any_taskbar_s_open_flyout_counts",
     "OverflowOpenTests.test_no_flyout_or_no_answer_is_closed": "test_host_tray_place.py::OverflowOpenTests.test_no_flyout_or_no_answer_is_closed",
@@ -1996,6 +2001,7 @@
    },
    "no_twin": {},
    "port": [
+    "tests/test_host_icon_tick.py",
     "tests/test_host_tray_place.py"
    ]
   },

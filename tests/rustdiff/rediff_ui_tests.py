@@ -8,7 +8,7 @@ files import the UI at the tag and have no row in the ledger (a test file the ta
 tag's own package first on the path and this checkout's tests, (1) every ledger test that runs on the host through the shim
 (`CODEX_AR_CORE=rust`: car-surface, car-words and the host's render and probe modes behind the popup's, the shared and the icon's
 words and its menu) - the same tests the Python product runs - and (2) the host twins (tests/test_host_shape.py,
-tests/test_host_tray_place.py, which read this checkout's C#). Exit 0 only when all pass; a file that changed is printed, not
+tests/test_host_tray_place.py and every file a row names as a twin's home, which read or run this checkout's C#). Exit 0 only when all pass; a file that changed is printed, not
 failed on - the tests decide. It shows no window and captures nothing.
 """
 from __future__ import annotations
@@ -77,9 +77,11 @@ def main(argv=None) -> int:
     print("%d ledger tests on the host through the shim against %s: %s" % (len(ids), tag, "pass" if shim == 0 else "FAIL"))
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)
-    twins = subprocess.run(refpython.command(UNITTEST, "test_surface_ledger", "test_host_shape", "test_host_tray_place",
-                                             paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
-                           creationflags=NO_WINDOW).returncode
+    # Every file a row names as a twin's home (test_host_card_layers.py since S6.4c, ...), beside the ledger's own rule.
+    homes = {twin.split("::")[0][:-3] for row in ledger.values() for twin in row.get("twins", {}).values()}
+    homes |= {"test_surface_ledger", "test_host_shape", "test_host_tray_place"}
+    twins = subprocess.run(refpython.command(UNITTEST, *sorted(homes), paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
+                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("the ledger and the host twins against %s: %s" % (tag, "pass" if twins == 0 else "FAIL"))
     return 0 if shim == 0 and twins == 0 else 1
 
