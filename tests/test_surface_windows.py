@@ -517,51 +517,51 @@ class WindowJob:
             def destroy(self):
                 state["menus"].append("destroy")
 
-        def core(popup):
+        def core(shown_popup):
             """What the core hands the host as the snapshot's popup, from the reference's model now."""
-            vm = popup.model.view(state["wall"])
-            return plain({"view": vm, "menus": [[task["interruption_id"], popup.model.menu_for(task["interruption_id"])]
+            vm = shown_popup.model.view(state["wall"])
+            return plain({"view": vm, "menus": [[task["interruption_id"], shown_popup.model.menu_for(task["interruption_id"])]
                                                 for task in vm["tasks"]],
-                          "read": not (popup.model.rows is None and popup.model.status is None),
-                          "attention": popup.model.attention()})
+                          "read": not (shown_popup.model.rows is None and shown_popup.model.status is None),
+                          "attention": shown_popup.model.attention()})
 
         def lparam(x, y):
             return (y & 0xFFFF) << 16 | (x & 0xFFFF)
 
-        def centre(popup, name, key=None):
-            plan = popup._painted_plan or popup._plan
-            dx, dy = popup._client_offset()
+        def centre(shown_popup, name, key=None):
+            plan = shown_popup._painted_plan or shown_popup._plan
+            dx, dy = shown_popup._client_offset()
             for target, rect in plan["targets"]:
                 if target[0] == name and (key is None or (len(target) > 1 and target[1] == key)):
                     return lparam((rect[0] + rect[2]) // 2 - dx, (rect[1] + rect[3]) // 2 - dy)
             return 0
 
-        def task_id(popup, index=0):
-            tasks = (popup._vm or {}).get("tasks") or []
+        def task_id(shown_popup, index=0):
+            tasks = (shown_popup._vm or {}).get("tasks") or []
             return tasks[index]["interruption_id"] if len(tasks) > index else None
 
-        def row_point(popup, index=0):
-            rows = list((popup._painted_plan or {}).get("rows") or ())
+        def row_point(shown_popup, index=0):
+            rows = list((shown_popup._painted_plan or {}).get("rows") or ())
             if len(rows) <= index:
                 return 0
-            dx, dy = popup._client_offset()
+            dx, dy = shown_popup._client_offset()
             left, top, right, bottom = rows[index][1]
             return lparam((left + right) // 2 - dx, (top + bottom) // 2 - dy)
 
-        def title_point(popup):
-            dx, dy = popup._client_offset()
-            for item in (popup._painted_plan or {}).get("items", ()):
+        def title_point(shown_popup):
+            dx, dy = shown_popup._client_offset()
+            for item in (shown_popup._painted_plan or {}).get("items", ()):
                 if item["kind"] == "title_press":
                     left, top, right, bottom = item["rect"]
                     return lparam(int(left + right) // 2 - dx, int(top + bottom) // 2 - dy)
             return 0
 
-        def pump(popup):
+        def pump(shown_popup):
             for _ in range(100):
                 if not state["queue"]:
                     break
                 hwnd, message, wparam, lparam_ = state["queue"].pop(0)
-                popup._wndproc(hwnd, message, wparam, lparam_)
+                shown_popup._wndproc(hwnd, message, wparam, lparam_)
 
         # What is aimed at the reference's plan at the time ("move", "click", "title", "menu row") becomes the message
         # numbers both are sent.
@@ -600,25 +600,25 @@ class WindowJob:
         layers.update = recorded_update
         window.time = messages.time = hidden_module.time = motion_module.time = Clock
         messages.threading = Threading
-        def a11y(popup):
+        def a11y(shown_popup):
             """What a screen reader is told of the popup now (access.py): its children, the child each one's centre
             picks, the events since the last step, and PopupAccessible's answers child by child through its methods."""
             import ctypes as C
-            if state.get("a11y_popup") is not popup:
-                state["a11y_popup"], state["a11y"] = popup, []
+            if state.get("a11y_popup") is not shown_popup:
+                state["a11y_popup"], state["a11y"] = shown_popup, []
             # The words the window drew with: here the core's model takes a new catalog at once (the strings step), where
             # the reference's own model took it at the window's next rebuild (_rebuild), as the C#'s window does.
             from codex_auto_resume import interface as catalogs
-            drawn = popup.model.strings
-            if popup_words.locale_of(drawn) != popup.locale:
-                drawn = catalogs.STRINGS[popup.locale]
-            items = access.accessible_items(popup._vm, popup._plan, popup.focus if popup.keyboard else None, popup.hover,
+            drawn = shown_popup.model.strings
+            if popup_words.locale_of(drawn) != shown_popup.locale:
+                drawn = catalogs.STRINGS[shown_popup.locale]
+            items = access.accessible_items(shown_popup._vm, shown_popup._plan, shown_popup.focus if shown_popup.keyboard else None, shown_popup.hover,
                                             drawn)
             before, state["a11y"] = state["a11y"], items
             picks = [access.pick(items, (item["rect"][0] + item["rect"][2]) // 2, (item["rect"][1] + item["rect"][3]) // 2)
                      if item["rect"] else None for item in items]
-            target = access.PopupAccessible(popup)
-            answers, kept, popup.model.strings = [], popup.model.strings, drawn
+            target = access.PopupAccessible(shown_popup)
+            answers, kept, shown_popup.model.strings = [], shown_popup.model.strings, drawn
             for child in range(len(items) + 2):
                 variant = access.VARIANT()
                 variant.vt, variant.value.lVal = access.VT_I4, child
@@ -639,7 +639,7 @@ class WindowJob:
                 answers.append(row)
             count = C.pointer(C.c_long())
             target._child_count(None, count)
-            popup.model.strings = kept
+            shown_popup.model.strings = kept
             return {"items": plain(items), "picks": picks, "changes": plain(access.changes(before, items)),
                     "count": count[0], "answers": answers}
 
@@ -662,24 +662,24 @@ class WindowJob:
                     before = gdiplus.gdiplus_objects()
                     logged = []
                     control = Control()
-                    popup = window.Popup(control=control, source="names", strings=strings, log=logged.append,
+                    shown_popup = window.Popup(control=control, source="names", strings=strings, log=logged.append,
                                          on_dashboard=lambda row=None: True, anchor=None, make_menu=Menu, days=days,
                                          held=lambda: state["held"])
-                    popup.model.apply_outcome(("read",), messages.perform(("read",), control, source="names"), state["wall"])
+                    shown_popup.model.apply_outcome(("read",), messages.perform(("read",), control, source="names"), state["wall"])
                     shown_screen = dict(screen, dpi=int(round(96 * scale)))
-                    popup._screen_now = lambda: {key: tuple(value) if isinstance(value, list) else value
+                    shown_popup._screen_now = lambda: {key: tuple(value) if isinstance(value, list) else value
                                                  for key, value in shown_screen.items()}
-                    finished, events = popup._finished, []
+                    finished, events = shown_popup._finished, []
 
-                    def handled(number, popup=popup, finished=finished, events=events):
-                        action = popup._results.get(number, (None, None))[0]
+                    def handled(number, shown_popup=shown_popup, finished=finished, events=events):
+                        action = shown_popup._results.get(number, (None, None))[0]
                         finished(number)
                         if action is not None:
                             if action[0] != "read":
                                 events.append({"answer": True})
-                            events.append({"view": core(popup)})
-                    popup._finished = handled
-                    run_ = popup._run
+                            events.append({"view": core(shown_popup)})
+                    shown_popup._finished = handled
+                    run_ = shown_popup._run
 
                     def running(action, run_=run_):
                         wired = wire(action)
@@ -691,8 +691,8 @@ class WindowJob:
                                 state["posts"].append(wired)
                             work()
                         state["works"][-1] = posting
-                    popup._run = running
-                    sharp = [{"op": "core", "do": ["core", core(popup)]}]
+                    shown_popup._run = running
+                    sharp = [{"op": "core", "do": ["core", core(shown_popup)]}]
                     steps, proofs = [], []
                     try:
                         for step in script:
@@ -700,11 +700,11 @@ class WindowJob:
                             state["calls"], state["menus"], state["posts"] = [], [], []
                             del events[:]
                             if op == "show":
-                                popup.show(keyboard=step[1], activate=step[2])
+                                shown_popup.show(keyboard=step[1], activate=step[2])
                             elif op == "select":
-                                popup.on_select(keyboard=step[1])
+                                shown_popup.on_select(keyboard=step[1])
                             elif op == "double":
-                                popup.on_double_click()
+                                shown_popup.on_double_click()
                             elif op == "clock":
                                 state["clock"] += step[1]
                             elif op == "held":
@@ -719,58 +719,58 @@ class WindowJob:
                                 elif op == "key":
                                     sent = [(WM_KEYDOWN, step[1], step[2] if len(step) > 2 else 0)]
                                 elif op == "move":
-                                    sent = [(WM_MOUSEMOVE, 0, centre(popup, step[1]))]
+                                    sent = [(WM_MOUSEMOVE, 0, centre(shown_popup, step[1]))]
                                 elif op == "leave":
                                     sent = [(WM_MOUSELEAVE, 0, 0)]
                                 elif op == "click":
-                                    point = centre(popup, step[1], task_id(popup, step[2]) if len(step) > 2 else None)
+                                    point = centre(shown_popup, step[1], task_id(shown_popup, step[2]) if len(step) > 2 else None)
                                     sent = [(WM_LBUTTONDOWN, 0, point), (WM_LBUTTONUP, 0, point)]
                                 elif op == "title":
-                                    point = title_point(popup)
+                                    point = title_point(shown_popup)
                                     sent = [(WM_LBUTTONDOWN, 0, point), (WM_LBUTTONUP, 0, point)]
                                 else:
-                                    sent = [(WM_CONTEXTMENU, 0, row_point(popup) if step[1] == "row" else step[1])]
-                                returned = [int(popup._wndproc(popup.hwnd, message, wparam, lparam_) or 0)
+                                    sent = [(WM_CONTEXTMENU, 0, row_point(shown_popup) if step[1] == "row" else step[1])]
+                                returned = [int(shown_popup._wndproc(shown_popup.hwnd, message, wparam, lparam_) or 0)
                                             for message, wparam, lparam_ in sent]
                                 mapped = ["messages", [list(one) for one in sent]]
                             elif op == "pump":
-                                pump(popup)
+                                pump(shown_popup)
                             elif op == "result":
                                 works, state["works"] = state["works"], []
                                 for work in works:
                                     work()
-                                pump(popup)
+                                pump(shown_popup)
                                 mapped = ["result", [dict(event) for event in events]]
                             elif op == "choose":
                                 if state["run"] is not None:
                                     state["run"](step[1])
                             elif op == "strings":
-                                popup.set_strings(other)
+                                shown_popup.set_strings(other)
                                 shown = popup_words.locale_of(other)
                                 # the core makes the view in the new words (its model's strings) for the next snapshot
-                                popup.model.strings = dict(other)
-                                mapped = ["strings", plain(other), shown, fonts._letters(shown), core(popup)]
+                                shown_popup.model.strings = dict(other)
+                                mapped = ["strings", plain(other), shown, fonts._letters(shown), core(shown_popup)]
                             elif op == "proof":
-                                popup._static_dirty = True
-                                proofs.append(hashlib.sha256(popup.render().pixels()).hexdigest())
+                                shown_popup._static_dirty = True
+                                proofs.append(hashlib.sha256(shown_popup.render().pixels()).hexdigest())
                                 sharp.append({"op": op, "do": ["proof"]})
                                 continue
                             sharp.append({"op": op, "do": mapped})
-                            canvas = popup._renderer.canvas if popup._renderer is not None and popup._plan is not None else None
+                            canvas = shown_popup._renderer.canvas if shown_popup._renderer is not None and shown_popup._plan is not None else None
                             steps.append({
-                                "op": op, "visible": popup.visible, "alpha": popup._alpha, "below": popup._below,
-                                "home": as_list(popup._home), "card": popup._card, "frames": popup._frame_running,
-                                "pending": popup._pending_show is not None, "hover": as_list(popup.hover),
-                                "pressed": as_list(popup.pressed), "focus": as_list(popup.focus), "keyboard": popup.keyboard,
-                                "size": as_list(popup._plan["size"]) if popup._plan is not None else None,
-                                "painted": popup._painted_plan is not None and popup._painted_plan is popup._plan,
+                                "op": op, "visible": shown_popup.visible, "alpha": shown_popup._alpha, "below": shown_popup._below,
+                                "home": as_list(shown_popup._home), "card": shown_popup._card, "frames": shown_popup._frame_running,
+                                "pending": shown_popup._pending_show is not None, "hover": as_list(shown_popup.hover),
+                                "pressed": as_list(shown_popup.pressed), "focus": as_list(shown_popup.focus), "keyboard": shown_popup.keyboard,
+                                "size": as_list(shown_popup._plan["size"]) if shown_popup._plan is not None else None,
+                                "painted": shown_popup._painted_plan is not None and shown_popup._painted_plan is shown_popup._plan,
                                 "pixels": hashlib.sha256(canvas.pixels()).hexdigest() if canvas else None,
                                 "calls": [call for call in state["calls"] if not call.startswith("PostMessageW card %d " % RESULT)],
                                 "menus": list(state["menus"]), "posts": list(state["posts"]), "returned": returned,
-                                "sweeping": popup.sweeping(), "dpi": popup.dpi, "a11y": a11y(popup),
+                                "sweeping": shown_popup.sweeping(), "dpi": shown_popup.dpi, "a11y": a11y(shown_popup),
                             })
                     finally:
-                        popup.destroy()
+                        shown_popup.destroy()
                     self.add("popupwindow/%s/%s-%s-%s/%s-%s-%r-%r" % (locale, look[0], look[1], look[2], reduced, days, text,
                                                                      scale),
                              {"surface": "popup_window", "strings": strings, "locale": popup_words.locale_of(strings),
