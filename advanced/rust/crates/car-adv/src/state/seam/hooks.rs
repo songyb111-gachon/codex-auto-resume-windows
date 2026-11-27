@@ -1,7 +1,7 @@
-//! SEAM (seat S7.1a): the three functions the claim ledger reads from modules other seats port - the Stop hook's
-//! claims (`engine/hookclaims.py`'s `held` and `spent_on`, seat S7.2) and a Send now's freshness
-//! (`control/sendnow.py`'s `fresh`, seat S7.3) - written here as the tag has them, so the ledger can be held to the
-//! reference now. The seats that port those modules replace these with theirs; nothing else of either module is here.
+//! SEAM (seat S7.1a): the two functions the claim ledger reads from a module another seat ports - the Stop hook's
+//! claims (`engine/hookclaims.py`'s `held` and `spent_on`, seat S7.3c) - written here as the tag has them, so the
+//! ledger can be held to the reference now. Send now's freshness (`control/sendnow.py`'s `fresh`) is S7.3a's
+//! `control::sendnow::fresh` (the third function this file held until then).
 
 use car_machine::json::Value;
 use rusqlite::Connection;
@@ -9,14 +9,12 @@ use rusqlite::Connection;
 use crate::state::errors::Result;
 use crate::state::py;
 use crate::state::sql;
-use crate::vocabulary::{HookOutcome, OverrideKind};
+use crate::vocabulary::HookOutcome;
 
 /// `hookclaims.CAPABILITY`.
 pub const HOOK_CAPABILITY: &str = "stop_hook_continuation";
 /// `hookclaims.HOLD_SECONDS`.
 pub const HOLD_SECONDS: f64 = 900.0;
-/// `sendnow.LIFETIME`.
-pub const LIFETIME: f64 = 900.0;
 const DAY: f64 = 86400.0;
 
 /// `hookclaims.held(connection, schema, interruption_id, now)`: whether the hook blocked the turn of
@@ -69,22 +67,4 @@ pub fn spent_on(
     .unwrap_or_default();
     let count = row.first().and_then(py::small).unwrap_or(0);
     Ok((count, row.get(1).cloned().unwrap_or(Value::Null)))
-}
-
-/// `sendnow.fresh(override, since, now)`: whether a FORCE_ONCE override is one a send may still use at `now` -
-/// unused, younger than LIFETIME and made at or after `since`.
-pub fn fresh(kind: &Value, created_at: &Value, used_at: &Value, since: &Value, now: f64) -> bool {
-    if !matches!(used_at, Value::Null) {
-        return false;
-    }
-    if !py::is_word(kind, &[OverrideKind::ForceOnce.as_str()]) {
-        return false;
-    }
-    if !(py::is_number(created_at) && py::is_number(since)) {
-        return false;
-    }
-    let (Some(made), Some(since)) = (py::as_f64(created_at), py::as_f64(since)) else {
-        return false;
-    };
-    made >= since && (0.0..LIFETIME).contains(&(now - made))
 }
