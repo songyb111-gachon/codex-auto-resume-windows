@@ -154,6 +154,7 @@ namespace CodexAutoResume
                     { "MENU_POPUP", (double)TrayIcon.MenuPopup },
                 };
             if (name == "popup_live") return PopupLive(call);
+            if (name == "card_focus") return CardFocus(call);
             if (name == "menu_fade") return MenuFade(call);
             if (name == "popup_gate") return PopupGate(call);
             if (name == "icon_held") return IconHeld(call);
@@ -2642,6 +2643,90 @@ namespace CodexAutoResume
                 SurfaceScreen.Styles.Remove(900);
                 SurfaceScreen.Posted.Clear();
                 SurfaceScreen.Name = savedName;
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        // ------------------------------------------------------------------ who has the keyboard around a card (S6.4d5)
+        /// The card host's keyboard look (tests/test_card_focus.py): `line` (CardStack.FocusLine), `plain` (the private
+        /// Plain), `snapshot` (FocusSnapshot, this machine's front window read as the reference reads it), and `steps` - a
+        /// history run again from the start on a CardStack whose Focus answers the test's answers in order ("raise" throws;
+        /// a question past them is reported unanswered and the run stops there): after (the private FocusAfterNow with a
+        /// `before`), and with `create` the stack made by its own Create (its window a message-only one) in SurfaceScreen's
+        /// probe mode - every card window made and never shown - its clock, place and look the test's: show (a notice),
+        /// message (its window procedure). After each step: what it returned, the log, how many answers it took.
+        private static object CardFocus(Dictionary<string, object> call)
+        {
+            string op = (string)call["op"];
+            if (op == "line")
+                return CardStack.FocusLine(SurfaceRender.Field(call, "before") as Dictionary<string, object>,
+                                           SurfaceRender.Field(call, "after") as Dictionary<string, object>);
+            if (op == "plain")
+                return typeof(CardStack).GetMethod("Plain", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+                                        .Invoke(null, new object[] { call["text"] as string });
+            if (op == "snapshot") return CardStack.FocusSnapshot();
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            var logs = new List<object>();
+            var answers = new Queue<object>((List<object>)call["answers"]);
+            int taken = 0;
+            bool unanswered = false;
+            var host = new CardStack { Log = line => logs.Add(line) };
+            host.Focus = () =>
+            {
+                if (answers.Count == 0)
+                {
+                    unanswered = true;
+                    throw new InvalidOperationException("unanswered");
+                }
+                taken++;
+                object answer = answers.Dequeue();
+                if (answer as string == "raise") throw new InvalidOperationException("raise");
+                return (Dictionary<string, object>)answer;
+            };
+            double clock = 0;
+            host.Clock = () => clock;
+            try
+            {
+                if (Flag(call, "create"))
+                {
+                    var where = (Dictionary<string, object>)call["where"];
+                    host.Locate = () => new CardStack.CardScreen
+                    {
+                        Anchor = where["anchor"] == null ? null : IntsOf(where["anchor"]), Work = IntsOf(where["work"]),
+                        Monitor = IntsOf(where["monitor"]), Dpi = (double)where["dpi"],
+                    };
+                    var look = (Dictionary<string, object>)call["appearance"];
+                    host.Appearance = () => new Dictionary<string, object>(look);
+                    host.Create();
+                }
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    object returned = null;
+                    if (what == "after")
+                        typeof(CardStack).GetMethod("FocusAfterNow", Hidden).Invoke(host, new object[] { step[1] as Dictionary<string, object> });
+                    else if (what == "show")
+                    {
+                        clock = (double)step[2];
+                        returned = host.Show((Dictionary<string, object>)step[1]) != null;
+                    }
+                    else if (what == "message")
+                        returned = (double)host.Message(host.Hwnd, (int)(double)step[1], (long)(double)step[2], (long)(double)step[3]).ToInt64();
+                    else throw new ArgumentException("no card_focus step " + what);
+                    after.Add(new Dictionary<string, object> { { "returned", returned }, { "logs", new List<object>(logs) },
+                                                               { "taken", (double)taken }, { "unanswered", unanswered } });
+                    if (unanswered) break;
+                }
+                return new Dictionary<string, object> { { "steps", after }, { "hwnd", (double)host.Hwnd.ToInt64() },
+                                                        { "timer_focus", (double)CardStack.TimerFocus } };
+            }
+            finally
+            {
+                host.Dispose();
+                SurfaceScreen.Posted.Clear();
                 SurfaceScreen.Probe = saved;
             }
         }
