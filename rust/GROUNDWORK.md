@@ -4996,6 +4996,32 @@ the shim installed: 130 ledger tests + test_surface_askback (Ran 134, OK, no ski
 no row: test_status_newest_usage.py (not this seat's: it imports the UI from v0.6.26 on and has no ledger row yet); exit 0.
 No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's.
 
+### S6.4d3 (continuation, 2026-11-28): the popup for a screen reader and at Windows' text size
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown (every probe window
+here is message-only), nothing captured, nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and
+`CAR_NO_REAL_ENGINE=1`.
+
+| What | Where | State |
+|---|---|---|
+| **`popup_access`**: SurfaceAccess's pure half over JSON - `items` (AccessibleItems of a vm, a plan rebuilt from the reference's plan dict: items, targets as SurfaceTarget, rows; focus, hover, strings), `pick`, `changes`, `switch_name`, PopupPlace's `focus_order`, the event numbers | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`card_fitting`**: CardPlan.Fitting as CardWindow asks it (dpi, work or none, the snapshot's `text` of any JSON type) and CardPlan.Room | `HostProbe.cs` | - |
+| **`popup_fit`**: a PopupWindow on a message-only window with the host's own renderer (SurfaceRenderer.Open), the core's popup, a text size and a screen; steps usual / rebuild / hide / read_look / asks; after each Fit, the text size held, and whether the renderer made its fonts again (the reference counts its renderer's layouts; the host's makes its fonts again for every layout at another scale than the last, which is where a usual size measured again shows) | `HostProbe.cs` | - |
+| **`popup_reader`**: on a thread of its own in a single-threaded apartment (the probe's main thread is the runtime's multithreaded one, where SurfaceAccess.Answer leaves WM_GETOBJECT to Windows), a PopupWindow whose window is a message-only window of the probe's own class, made Per-Monitor-v2 aware as PopupWindow.Create makes its window (without it ClientToScreen scales and a box is a pixel off), every message the popup's Message; SurfaceAccess attached as the host attaches it, its Speaking wrapped to record the events it tells; shown for the keyboard, unactivated, every other Windows call recorded. The client object is fetched by the real AccessibleObjectFromWindow and asked through its table (count, name, role, state, default action, box, a hit two pixels inside, focus, one past the last), OBJID_WINDOW's object is Windows' own; steps tab, press (accDoDefaultAction) and reader (the original's PowerShell reader, no window, run while the thread pumps its questions) | `HostProbe.cs` | - |
+| Twins: AccessibleItemsOnHostTests 8 (+1: the event numbers), TextSizeOnHostTests 2, ScreenReaderOnHostTests 6, PopupTextSizeOnHostTests 3 | `tests/test_host_popup_access.py` (in test_surface_ledger's HOST_SIDE: it reads the reference's view model and patches its functions with the host's) | Ran 20, OK through `gui_lock.sh` |
+
+Ledger: `test_popup_access` 19 of 21 twinned; still pending for the two layouts (`test_everything_sits_inside_the_card_at_every_text_size_in_every_language`,
+`test_the_notification_card_is_whole_at_every_text_size`: popup.layout and notice_card.layout, the drawing - S6.4f's plan proxy routes both; on
+the integration they join `host_tests`). Host 30, pending 53, ceiling left at 54.
+
+**Mutation checks** (22, each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut7.json`, `-mut8.json`): items
+focused where the pointer is, a busy task's switch available, switch_name joined by a dash, pick taking the row before its switch, changes counting
+the pointer's hot state, changes not telling a focus move; the card's room 0.6 across, its text size not fitted, no work area not 1; Fit worked
+out at every rebuild, Fit kept across a hide, one gap instead of two, ReadLook not taking the text size, the screen not asked; the object's own
+name the state text, a switch's role 0x2D, pressing a text done, a box a pixel right, the focused child one early, the window object answered
+too, the announcement made without the keyboard's place: 21 fail their test. Invalid: `if (false)` for the focused state does not compile
+(`-warnaserror`), replaced by the pointer's version.
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
