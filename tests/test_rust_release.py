@@ -292,7 +292,10 @@ class EntryRunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         release = ROOT / "rust" / "target" / "release"
-        cls.legacy, cls.core = release / "python.exe", release / "codex-auto-resume.exe"
+        # The stub core (car-core-proof.exe), as the release proof's own entry run takes it (entry_from_archive): since
+        # codex-auto-resume.exe is the real core, its setup and the rest would write this PC's HKCU (the Run value, the
+        # AUMID, the link handler), which no scratch profile redirects - and it answers them, so no line reads REACHED.
+        cls.legacy, cls.core = release / "python.exe", release / rust_legacy_bootstraps.PROOF_CORE
         if not (cls.legacy.is_file() and cls.core.is_file()):
             raise unittest.SkipTest("not built: cargo build --release --manifest-path rust/Cargo.toml")
         if not tags_present():
