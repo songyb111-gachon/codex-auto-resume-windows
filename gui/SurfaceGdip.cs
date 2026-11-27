@@ -220,8 +220,14 @@ namespace CodexAutoResume
         private void DeleteBrush(IntPtr brush) { SurfaceGdip.GdipDeleteBrush(brush); SurfaceGdip.Made(-1); }
         private void DeletePen(IntPtr pen) { SurfaceGdip.GdipDeletePen(pen); SurfaceGdip.Made(-1); }
 
+        /// The colours of the solid brushes made outside a rounded fill, while someone counts them (null: nobody):
+        /// SurfaceRenderer.SceneBrushes (S6.3e).
+        internal List<uint> Brushes;
+        private int rounding;
+
         private IntPtr Brush(uint colour)
         {
+            if (Brushes != null && rounding == 0) Brushes.Add(colour);
             IntPtr brush;
             Check(SurfaceGdip.GdipCreateSolidFill(colour, out brush), "GdipCreateSolidFill");
             return brush;
@@ -300,14 +306,19 @@ namespace CodexAutoResume
 
         internal void FillRound(double[] rect, double radius, uint colour)
         {
-            IntPtr path = Path(rect, radius);
+            rounding++;
             try
             {
-                IntPtr brush = Brush(colour);
-                try { SurfaceGdip.GdipFillPath(Graphics, brush, path); }
-                finally { DeleteBrush(brush); }
+                IntPtr path = Path(rect, radius);
+                try
+                {
+                    IntPtr brush = Brush(colour);
+                    try { SurfaceGdip.GdipFillPath(Graphics, brush, path); }
+                    finally { DeleteBrush(brush); }
+                }
+                finally { DeletePath(path); }
             }
-            finally { DeletePath(path); }
+            finally { rounding--; }
         }
 
         internal void StrokeRound(double[] rect, double radius, uint colour, double width)

@@ -19,6 +19,11 @@ seam that is handed what the card is made with.
 * The icon's card (TrayIcon.MakeTipCard): made once on the first rest with the icon's TipContent, PopupHeld, Log and
   Days, as icon.py makes TipCard(content=, held=, log=, days=); the live maker's TipCard is given exactly those and is
   attached to SurfaceAccess.
+* The renderer (the coordinator's go-on): SurfaceRenderer.TextFlags answers the DrawTextW flags of a text item, compared
+  item by item with the flags the reference's renderer hands DrawTextW (test_right_to_left's views, right to left and
+  left to right), and TextDrawn tells who listens each line drawn with them; ScenePieces and SceneBrushes keep what a
+  frame of the day's scene filled and the brushes it made outside a rounded fill, compared with what test_day_frame_cost
+  counts on the reference for every look.
 
 The C# is compiled with the in-box csc into a temporary folder with a driver of its own and run as a console program
 with CREATE_NO_WINDOW. No window is shown, nothing is captured, no real menu is tracked.
@@ -99,6 +104,9 @@ namespace CodexAutoResume
                     else if (kind == "tip_state") found = TipState(task);
                     else if (kind == "make_tip") found = MakeTip(task);
                     else if (kind == "make_tip_live") found = MakeTipLive(task);
+                    else if (kind == "text_flags") found = TextFlagsCase(task);
+                    else if (kind == "text_drawn") found = TextDrawnCase(task);
+                    else if (kind == "scene") found = SceneCase(task);
                     else throw new ArgumentException("no case " + kind);
                 }
                 catch (Exception exc)
@@ -332,6 +340,49 @@ namespace CodexAutoResume
             show.Invoke(icon, new object[] { (long)0 });
             show.Invoke(icon, new object[] { (long)0 });
             return new Dictionary<string, object> { { "makes", makes }, { "shown", (double)made.Shown } };
+        }
+
+        // ------------------------------------------------------------------ the renderer's text flags and scene counts
+        private static object TextFlagsCase(Dictionary<string, object> task)
+        {
+            var found = new List<object>();
+            foreach (object one in (List<object>)task["items"])
+                found.Add((double)SurfaceRenderer.TextFlags(new PlanItem((Dictionary<string, object>)one), task["rtl"] as bool?));
+            return found;
+        }
+
+        private static object TextDrawnCase(Dictionary<string, object> task)
+        {
+            var drawn = new List<object>();
+            var texts = new List<object>();
+            int before = SurfaceGdip.GdipObjects;
+            using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+            {
+                renderer.Letters = task["letters"] as string;
+                SurfacePlan plan = renderer.Layout((Dictionary<string, object>)task["vm"], (double)task["scale"], (string)task["locale"]);
+                renderer.TextDrawn = (value, flags) => drawn.Add(new List<object> { value, (double)flags });
+                renderer.Draw(plan);
+                foreach (PlanItem item in plan.Items)
+                    if (item.Kind == "text") texts.Add(new List<object> { item["text"], (double)SurfaceRenderer.TextFlags(item, plan.Rtl) });
+            }
+            return new Dictionary<string, object> { { "drawn", drawn }, { "texts", texts }, { "left", (double)(SurfaceGdip.GdipObjects - before) } };
+        }
+
+        private static object SceneCase(Dictionary<string, object> task)
+        {
+            var frames = new List<object>();
+            using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+            {
+                SurfacePlan plan = renderer.Layout((Dictionary<string, object>)task["vm"], (double)task["scale"], "en");
+                renderer.Draw(plan, PopupMotion.Halo("monitoring", 0.0, false, renderer.Design));
+                foreach (object moment in (List<object>)task["ms"])
+                {
+                    renderer.DrawScene(plan, (double)moment);
+                    frames.Add(new List<object> { (double)renderer.ScenePieces,
+                                                  renderer.SceneBrushes.ConvertAll(colour => (object)(double)colour) });
+                }
+            }
+            return frames;
         }
 
         private static object MakeTipLive(Dictionary<string, object> task)
@@ -669,6 +720,110 @@ class SeamTests(unittest.TestCase):
             with self.subTest(days=days):
                 self.assertEqual(answer, {"surface": "TipSurface", "card": "TipCard", "content": True, "held": True,
                                           "log": True, "days": days, "accessible": True, "window": False})
+
+    # ------------------------------------------------------------------ the renderer's text flags and scene counts
+    def test_each_text_item_s_drawtextw_flags_are_the_ones_the_reference_draws_it_with(self):
+        """SurfaceRenderer.TextFlags against the flags the reference's renderer hands DrawTextW, item by item, right to left
+        (a name in its own direction among them) and left to right - test_right_to_left's views."""
+        from codex_auto_resume import l10n
+        from codex_auto_resume.ui import popup
+        from codex_auto_resume.ui.popup import win32 as popup_win32
+        from test_words_fit import popup_views
+        user32 = popup_win32._dll("user32")
+        original = user32.DrawTextW
+        seen = []
+
+        def record(dc, text, count, rect, flags):
+            seen.append(flags)
+            return original(dc, text, count, rect, flags)
+        renderer = popup.Renderer()
+        cases, expected = [], []
+        try:
+            for locale in ("ar", "en", "he"):
+                for index, vm in enumerate(popup_views(l10n.catalog(locale))[:2]):
+                    if index == 0 and locale == "ar":
+                        vm["tasks"][1]["name"] = "Example task"         # a name read left to right in a right-to-left popup
+                    plan = renderer.layout(vm, 1.0, locale)
+                    del seen[:]
+                    with mock.patch.object(user32, "DrawTextW", record):
+                        renderer.draw(vm, plan, frame=None)
+                    items = [{key: item[key] for key in ("role", "text", "wrap", "align")}
+                             for item in plan["items"] if item["kind"] == "text"]
+                    self.assertEqual(len(seen), len(items))
+                    cases.append({"kind": "text_flags", "items": plain(items), "rtl": plan.get("rtl")})
+                    expected.append(list(seen))
+        finally:
+            renderer.close()
+        answers = self.run_cases(cases)
+        self.assertEqual(answers, expected)
+        rtl = popup_win32.DT_RTLREADING
+        self.assertTrue(any(flags & rtl for flags in expected[0]) and not all(flags & rtl for flags in expected[0]),
+                        "right to left, with a line in its own direction")
+
+    def test_every_text_item_is_drawn_once_with_its_flags_and_the_host_tells_who_listens(self):
+        from codex_auto_resume import l10n
+        from codex_auto_resume.ui.popup import fonts
+        from test_words_fit import popup_views
+        cases = []
+        for locale in ("ar", "en"):
+            vm = popup_views(l10n.catalog(locale))[0]
+            cases.append({"kind": "text_drawn", "vm": plain(vm), "scale": 1.25, "locale": locale, "letters": fonts._letters(locale)})
+        for answer in self.run_cases(cases):
+            self.assertTrue(answer["texts"])
+            self.assertEqual(len(answer["drawn"]), len(answer["texts"]), "each text item drawn once")
+            self.assertEqual([flags for _value, flags in answer["drawn"]], [flags for _text, flags in answer["texts"]])
+            self.assertEqual(answer["left"], 0)
+
+    def test_a_scene_frame_fills_and_brushes_what_the_reference_s_frame_does(self):
+        """The pieces a frame of the day's scene fills and the brushes it makes outside a rounded fill, as
+        test_day_frame_cost counts them on the reference (standing in for _scene_shape and _Painter._brush), against the
+        host's SurfaceRenderer.ScenePieces and SceneBrushes, for every look at 100 % and 150 %."""
+        from codex_auto_resume import brand
+        from codex_auto_resume.ui import popup as tray_popup
+        from codex_auto_resume.ui.popup import gdiplus, renderer as renderer_module
+        moments = [0.0, 1300.0, 4700.0]
+        cases, expected = [], []
+        for scale in (1.0, 1.5):
+            for look in tuple(brand.DAY_LOOKS):
+                vm = tray_popup.view_model([], {"enabled": True}, {}, 1800000000.0)
+                vm["scene"] = look
+                drawing = tray_popup.Renderer()
+                try:
+                    plan = drawing.layout(vm, scale, "en")
+                    drawing.draw(vm, plan, frame=tray_popup.halo("monitoring", 0.0), scene_ms=0.0)
+                    frames = []
+                    for milliseconds in moments:
+                        pieces, brushes, rounding = [0], [], []
+                        shape, made, fill_round = (renderer_module.Renderer._scene_shape, gdiplus._Painter._brush,
+                                                   gdiplus._Painter.fill_round)
+
+                        def counted(paint, piece, at, unit, shape=shape, pieces=pieces):
+                            pieces[0] += 1
+                            return shape(paint, piece, at, unit)
+
+                        def making(painter, colour, made=made, brushes=brushes, rounding=rounding):
+                            if not rounding:
+                                brushes.append(colour)
+                            return made(painter, colour)
+
+                        def rounded(painter, *args, fill_round=fill_round, rounding=rounding):
+                            rounding.append(1)
+                            try:
+                                return fill_round(painter, *args)
+                            finally:
+                                rounding.pop()
+                        with mock.patch.object(renderer_module.Renderer, "_scene_shape", staticmethod(counted)), \
+                                mock.patch.object(gdiplus._Painter, "_brush", making), \
+                                mock.patch.object(gdiplus._Painter, "fill_round", rounded):
+                            drawing.draw_scene(plan, milliseconds)
+                        frames.append([pieces[0], brushes])
+                finally:
+                    drawing.close()
+                cases.append({"kind": "scene", "vm": plain(vm), "scale": scale, "ms": moments})
+                expected.append(frames)
+        answers = self.run_cases(cases)
+        self.assertEqual(answers, expected)
+        self.assertTrue(all(pieces > 0 and brushes for frames in expected for pieces, brushes in frames))
 
 
 if __name__ == "__main__":
