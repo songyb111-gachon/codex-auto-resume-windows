@@ -346,6 +346,8 @@ good = {"threads": [THREAD], "action": "sleep", "grace_minutes": 5, "failed": Fa
 for label, change in (("threads-empty", {"threads": []}), ("threads-str", {"threads": THREAD}),
                       ("threads-int", {"threads": [5]}), ("threads-uuid", {"threads": ["x"]}),
                       ("threads-dup", {"threads": [THREAD, THREAD]}), ("threads-many", {"threads": [THREAD] * 17}),
+                      ("threads-17", {"threads": ["0a1b2c3d-0001-7000-8000-%012d" % n for n in range(17)]}),
+                      ("threads-16", {"threads": ["0a1b2c3d-0001-7000-8000-%012d" % n for n in range(16)]}),
                       ("action", {"action": "restart"}), ("action-int", {"action": 1}), ("grace", {"grace_minutes": 7}),
                       ("grace-bool", {"grace_minutes": True}), ("grace-float", {"grace_minutes": 5.0}),
                       ("failed", {"failed": 1}), ("interrupted", {"interrupted": None}), ("stale", {"generation": -1}),
