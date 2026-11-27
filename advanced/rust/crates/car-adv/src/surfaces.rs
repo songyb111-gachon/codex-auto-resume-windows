@@ -1018,8 +1018,6 @@ pub fn unported(command: BridgeCommand) -> bool {
             | B::AdvancedAccountsRead
             | B::AdvancedAccountsSwitch
             | B::AdvancedAccountsDelete
-            | B::AdvancedPowerTasks
-            | B::AdvancedPowerTasksArm
             | B::AdvancedAnalytics
             | B::AdvancedAnalyticsCsv
     )
@@ -1205,6 +1203,19 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
             &card_seams,
         ),
         B::AdvancedApiTokenNew => card::remote::api_token_new(runtime, &secrets, &card_seams),
+        B::AdvancedPowerTasks => card::powertasks::view(runtime, None)?,
+        B::AdvancedPowerTasksArm => card::powertasks::arm(
+            runtime,
+            &card::powertasks::ArmRequest {
+                threads: &a("threads"),
+                action: &a("action"),
+                grace_minutes: &a("grace_minutes"),
+                failed: &a("failed"),
+                interrupted: &a("interrupted"),
+                generation: &a("generation"),
+            },
+            None,
+        )?,
         B::AdvancedKeepOn => arming.set_keep_on(&KeepRequest {
             capability: a("capability"),
             keep_on: a("keep_on"),
@@ -1225,8 +1236,6 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         | B::AdvancedAccountsRead
         | B::AdvancedAccountsSwitch
         | B::AdvancedAccountsDelete
-        | B::AdvancedPowerTasks
-        | B::AdvancedPowerTasksArm
         | B::AdvancedAnalytics
         | B::AdvancedAnalyticsCsv => unreachable!("passed over before"),
     })

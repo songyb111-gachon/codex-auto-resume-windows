@@ -11,8 +11,8 @@ a non-dict argument, an argument a command does not take, every wrong type a car
 marker, unicode, the MCP tools' every refusal. Every home is the scratch profile; CODEX_HOME is that profile too, so
 no Codex of this PC is read; no watcher holds the wake event, so a wake answers "no watcher".
 
-The commands whose cards are not ported (the saved accounts, power tasks, analytics: surfaces::unported) are left out:
-car-adv passes them over (DEFER) where the tag answers them.
+Scenario 6 and on (seat S7.3a2) add the cards ported last - power after tasks, the saved accounts, analytics - over a
+Codex home of the script's own written into the scratch profile (CODEX_HOME, which advserve was started with).
 """
 from __future__ import annotations
 
@@ -320,6 +320,85 @@ bridge("5.early", runtime, "advanced-early-check", {})
 for name in (Surface.STATUS, Surface.TRAY):
     ask("5.%s" % name, runtime, name, {})
 shutil.rmtree(shared, ignore_errors=True)
+
+# ---------------------------------------------------------------- 6. power after tasks (S7.3a2)
+import sqlite3
+EXTRA = tuple(SHIPPED[name] for name in ("power_after_tasks",) if name in SHIPPED)
+
+
+def make_more(home):
+    paths = config.Paths(home)
+    paths.ensure()
+    definitions = DEFINITIONS + EXTRA
+    compat = lambda: {"status": "ok", "engine": {"found": True, "version": ENGINE},
+                      "capabilities": {each.compat: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                       for each in definitions if each.compat}}
+    runtime = Runtime(paths, registry=Registry(definitions), clock=lambda: NOW, policy=lambda: policy.NONE,
+                      view=compat, measured=lambda: {}, catalogs=statement.CATALOGS)
+    return paths, runtime
+
+
+paths, runtime = make_more(profile / "six")
+TURN = "0a1b2c3d-0001-7000-8000-0000000000a1"
+DONE_TURN = "0a1b2c3d-0001-7000-8000-0000000000a2"
+bridge("6.view before", runtime, "advanced-power-tasks", {})
+good = {"threads": [THREAD], "action": "sleep", "grace_minutes": 5, "failed": False, "interrupted": False}
+for label, change in (("threads-empty", {"threads": []}), ("threads-str", {"threads": THREAD}),
+                      ("threads-int", {"threads": [5]}), ("threads-uuid", {"threads": ["x"]}),
+                      ("threads-dup", {"threads": [THREAD, THREAD]}), ("threads-many", {"threads": [THREAD] * 17}),
+                      ("action", {"action": "restart"}), ("action-int", {"action": 1}), ("grace", {"grace_minutes": 7}),
+                      ("grace-bool", {"grace_minutes": True}), ("grace-float", {"grace_minutes": 5.0}),
+                      ("failed", {"failed": 1}), ("interrupted", {"interrupted": None}), ("stale", {"generation": -1}),
+                      ("off", {})):
+    argument = dict(good, generation=generation(runtime))
+    argument.update(change)
+    bridge("6.arm " + label, runtime, "advanced-power-tasks-arm", argument)
+bridge("6.arm extra", runtime, "advanced-power-tasks-arm", dict(good, generation=generation(runtime), extra=1))
+arm("6.arm capability", runtime, "power_after_tasks")
+bridge("6.arm no codex", runtime, "advanced-power-tasks-arm", dict(good, generation=generation(runtime)))
+codex = profile       # CODEX_HOME, which advserve was started with too
+(codex / "sessions").mkdir(parents=True, exist_ok=True)
+with sqlite3.connect(codex / "state_5.sqlite") as db:
+    db.execute("CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT, source TEXT, thread_source TEXT, "
+               "archived INTEGER, history_mode TEXT, name TEXT, cwd TEXT, project_id TEXT, title TEXT, "
+               "first_user_message TEXT, preview TEXT)")
+    for number, (thread, name) in enumerate(((THREAD, "example-project é"), (OTHER, "example-service"),
+                                             ("0a1b2c3d-0001-7000-8000-000000000003", None))):
+        rollout = codex / "sessions" / ("rollout-%d.jsonl" % number)
+        rollout.write_text(json.dumps({"type": "session_meta", "payload": {"id": thread, "originator": "Codex Desktop",
+                                                                         "source": "vscode", "thread_source": "user"}})
+                           + "\n", encoding="utf-8")
+        db.execute("INSERT INTO threads (id, rollout_path, source, thread_source, archived, history_mode, name) "
+                   "VALUES (?,?,?,?,?,?,?)", (thread, str(rollout), "vscode", "user", 0, "paginated", name))
+with sqlite3.connect(codex / "thread_history_1.sqlite") as db:
+    db.execute("CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, rollout_ordinal INTEGER, status TEXT, "
+               "error_json TEXT, started_at INTEGER, completed_at INTEGER, duration_ms INTEGER, first_user_item_id TEXT, "
+               "final_agent_item_id TEXT, rollout_byte_offset INTEGER, rollout_end_ordinal INTEGER, "
+               "rollout_end_byte_offset INTEGER, PRIMARY KEY (thread_id, turn_id))")
+    db.execute("CREATE TABLE thread_items (thread_id TEXT, turn_id TEXT, item_id TEXT, rollout_ordinal INTEGER, "
+               "created_at_ms INTEGER, item_json TEXT, item_type TEXT, updated_at_ordinal INTEGER, "
+               "PRIMARY KEY (thread_id, item_id))")
+    db.execute("CREATE TABLE thread_history_projection_state (thread_id TEXT PRIMARY KEY, "
+               "next_rollout_byte_offset INTEGER, next_rollout_ordinal INTEGER)")
+    db.execute("INSERT INTO thread_turns (thread_id, turn_id, rollout_ordinal, status, started_at) VALUES (?,?,?,?,?)",
+               (THREAD, TURN, 3, "inProgress", int(NOW) - 60))
+    db.execute("INSERT INTO thread_turns (thread_id, turn_id, rollout_ordinal, status, started_at, completed_at) "
+               "VALUES (?,?,?,?,?,?)", (OTHER, DONE_TURN, 2, "completed", int(NOW) - 600, int(NOW) - 500))
+bridge("6.view codex", runtime, "advanced-power-tasks", {})
+for label, threads in (("done", [OTHER]), ("unlisted", ["0a1b2c3d-0001-7000-8000-000000000009"]),
+                       ("both", [THREAD, OTHER])):
+    bridge("6.arm " + label, runtime, "advanced-power-tasks-arm",
+           dict(good, threads=threads, generation=generation(runtime)))
+for action, grace in (("sleep", 5), ("hibernate", 30)):
+    bridge("6.arm %s" % action, runtime, "advanced-power-tasks-arm",
+           dict(good, action=action, grace_minutes=grace, failed=True, generation=generation(runtime)))
+    bridge("6.view %s" % action, runtime, "advanced-power-tasks", {})
+say("6.list", json.loads((Path(paths.advanced_dir) / "power-tasks.json").read_text(encoding="utf-8"))["tasks"])
+say("6.armed", {key: (json.loads(paths.power_action_file.read_text(encoding="utf-8"))["armed"] or {}).get(key)
+                for key in ("action", "after", "repeat", "grace_seconds", "carried", "tasks")})
+runtime.arming.disarm("power_after_tasks", actor="dashboard")
+say("6.armed after off", json.loads(paths.power_action_file.read_text(encoding="utf-8"))["armed"])
+bridge("6.view off", runtime, "advanced-power-tasks", {})
 '''
 
 
