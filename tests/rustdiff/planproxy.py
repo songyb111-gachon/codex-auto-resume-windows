@@ -229,6 +229,22 @@ def _mutated(op, fields, found):
         found["alpha"] = found["alpha"] * 0.5
     elif rule == "face" and op in ("font_faces", "font_candidates") and len(found) > 1:
         found = found[::-1]
+    elif rule == "facefirst" and op in ("font_faces", "font_candidates") and found:
+        found = [["Arial", each[1]] if isinstance(each, list) else "Arial" for each in found[:1]] + found[1:]
+    elif rule == "facefirst" and op == "renderer_fonts" and found:
+        found["faces"] = {role: face + " Light" for role, face in found["faces"].items()}
+    elif rule == "open" and op in ("opening", "closing"):
+        found = [found[0] + 1] + found[1:]
+    elif rule == "open" and op == "face_amount":
+        found = [found[0] + 0.01, found[1]]
+    elif rule == "size" and op == "role_size":
+        found = found + 1
+    elif rule == "contrast" and op == "contrast_colour":
+        found = "GrayText" if found != "GrayText" else "WindowText"
+    elif rule == "widen" and op in ("layout_kept", "renderer_layout"):
+        for item in found["dump"]["items"]:
+            if item.get("kind") in ("scene", "band") and item.get("rect"):
+                item["rect"][0] -= 1
     elif rule == "face" and op == "message_face":
         found = (found or "") + " Light"
     elif rule == "theme" and op in ("theme_choice", "effective_theme", "appearance", "design_choice", "theme_setting",
@@ -239,6 +255,10 @@ def _mutated(op, fields, found):
     elif rule == "corner" and op == "corner_coverage" and found:
         middle = found[len(found) // 2]
         middle[len(middle) // 2] = 255 - middle[len(middle) // 2]
+    elif rule == "cornerall" and op == "corner_coverage":
+        found = [[255 - level if 0 < level < 255 else level for level in row] for row in found]
+    elif rule == "premultiply" and op == "premultiply":
+        found = [min(255, level + 1) if index % 4 != 3 else level for index, level in enumerate(found)]
     return found
 
 
@@ -255,6 +275,15 @@ def _picture(found) -> bytes:
         width, row = int(found["width"]), int(found["width"]) * 4
         data = b"".join(b"".join(data[start + 4 * (width - 1 - x):start + 4 * (width - x)] for x in range(width))
                         for start in range(0, len(data), row))
+    elif rule == "alpha":
+        # a clear pixel made faintly opaque, and a part-clear one's blue above its alpha (no longer premultiplied)
+        changed = bytearray(data)
+        for index in range(3, len(changed), 4):
+            if changed[index] == 0:
+                changed[index] = 1
+            elif changed[index] < 255:
+                changed[index - 3] = min(255, changed[index] + 1)
+        data = bytes(changed)
     elif rule == "ink":
         data = bytes(level - 3 if index % 4 != 3 and level >= 3 else level for index, level in enumerate(data))
     return data
@@ -984,6 +1013,8 @@ class HostRenderer:
         return self.canvas
 
     def draw_scene(self, plan, milliseconds):
+        if os.environ.get("CAR_PLAN_MUTATE") == "scene_ms":
+            milliseconds = float(milliseconds) + 40.0
         ask("renderer_draw_scene", renderer=self.handle, plan=handle_of(plan), ms=float(milliseconds), look=self._look())
         return self.canvas
 
@@ -1072,9 +1103,16 @@ class _HostIconFrames:
         try:
             found = ask("icon_frames_new", size=self.size, fine=self.fine, look=look)
         except HostRefused as refused:
+            if os.environ.get("CAR_PLAN_MUTATE") == "refuse":
+                raise RuntimeError(str(refused)) from None
             kind = {"ArgumentException": ValueError, "KeyNotFoundException": KeyError}.get(refused.kind, RuntimeError)
             raise kind(str(refused)) from None
         self.handle, self.ground, self.budget = found["frames"], bytes(found["ground"]), found["budget"]
+        rule = os.environ.get("CAR_PLAN_MUTATE")
+        if rule == "budget":
+            self.budget = 1e12
+        elif rule == "raster":
+            self.ground = bytes(level - 3 if index % 4 != 3 and level >= 3 else level for index, level in enumerate(self.ground))
         self._count, self._heads, self._cache = int(found["count"]), None, {}
 
     @property
@@ -1092,12 +1130,16 @@ class _HostIconFrames:
 
     def compose(self, position, head) -> bytes:
         key = (int(position) % self._count, tuple(head))
-        found = ask("icon_frames_compose", frames=self.handle, position=int(position), head=[int(part) for part in head])
+        rule = os.environ.get("CAR_PLAN_MUTATE")
+        found = ask("icon_frames_compose", frames=self.handle, position=int(position) + (1 if rule == "turnpos" else 0),
+                    head=[int(part) for part in head])
+        if rule == "kept":
+            found["kept"] = False
         if found["kept"] and key in self._cache:
             return self._cache[key]
         frame = bytes(found["pixels"])
-        if os.environ.get("CAR_PLAN_MUTATE") == "raster" and frame:
-            frame = frame[:-4] + bytes((255 - frame[-4],)) + frame[-3:]
+        if rule == "raster":
+            frame = bytes(level - 3 if index % 4 != 3 and level >= 3 else level for index, level in enumerate(frame))
         self._cache.pop(key, None)
         if len(self._cache) >= 256:                     # TrayMotion.Cache: the C# store's own bound
             self._cache.pop(next(iter(self._cache)))
