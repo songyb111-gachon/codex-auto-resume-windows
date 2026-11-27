@@ -59,7 +59,10 @@ def main(argv=None) -> int:
     print("test files that import the UI at %s: %d; with no row in the ledger: %s" % (
         tag, len(at_tag), sorted(at_tag - set(ledger)) or "none"))
     source = released.package(tag)
-    ids = sorted("%s.%s" % (name[:-3], test) for name, row in ledger.items() for test in row.get("host_tests", []))
+    # S6.3's own comparisons (test_surface_*) are not run here: they compare the C# host with the Python window, whose reference side must
+    # stay Python's (under the shim its words would be Rust's too); rediff_host_surface.py re-runs them against the tag.
+    ids = sorted("%s.%s" % (name[:-3], test) for name, row in ledger.items() if not name.startswith("test_surface_")
+                 for test in row.get("host_tests", []))
     ids.append("test_surface_askback")        # perform and PopupModel held to the tag's own, call for call
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]), CODEX_AR_CORE="rust")
     environment.pop("CODEX_AR_EDITION", None)

@@ -2485,3 +2485,7 @@ model, `busy` returned as strings, a raised control error answered as a value: *
   drove the Python window with the proxy and failed on `model.strings = ...`).
 * The re-diff also prints a test file the tag has and this tree lacks: `test_status_newest_usage.py` (it imports the UI at v0.6.26 and has no row; it arrives
   when this branch is rebased onto the final, and needs a row then).
+* `rediff_ui_tests.py --reference v0.6.26` no longer runs `test_surface_*` under the shim: those are S6.3's comparisons of the C# host with the Python window,
+  whose reference side must stay Python's (under `CODEX_AR_CORE=rust` its words are Rust's, and the run did not end in 25 minutes); `rediff_host_surface.py`
+  re-runs them against the tag. Result at the end of S6.4b (through `gui_lock.sh`): 129 ledger tests + `test_surface_askback` on the shim against the tag
+  pass, the ledger and the host twins pass (`test_status_newest_usage.py` listed as above).
