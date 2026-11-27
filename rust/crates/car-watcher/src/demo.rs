@@ -112,12 +112,12 @@ fn look(
     let mut event = match car_platform::sync::DemoEvent::new(name) {
         Ok(event) => event,
         Err(error) => {
-            log(&format!("demo unavailable ({})", class_of(&error.0)));
+            log(&format!("demo unavailable ({})", class_of(error.0)));
             return;
         }
     };
     if let Err(error) = event.enter() {
-        log(&format!("demo unavailable ({})", class_of(&error.0)));
+        log(&format!("demo unavailable ({})", class_of(error.0)));
         return;
     }
     let mut waited = Duration::ZERO;

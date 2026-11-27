@@ -3070,3 +3070,61 @@ Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan    Ran 3
 CAR_CORE_DLL=<advanced release car_core.dll> cargo test -p car-host --test abi_exports    3 passed
 Mutation: realengine::switched() answering false -> real_engine_guard FAILS (discovery checked this PC's two builds)
 ```
+
+### The fourth part (seat S6.2b4, same branch, 2026-11-27)
+
+**1. Diagnostics' check and Rescan's judge through the real host (`8d222a52f`, `767502254`).** car-watcher
+`checkup::run` (with `_conversations`, `_presence`, `_skip_lines`, `sources_for`, `for_bundle`: the settings loaded and
+read with the unread reason said second, `managed()`, every home's `written`/`cloud_tasks`/`passed_over(since,
+now-72h, every_status, newest 200, deadline 10 s)`, an engine per home with `apply_policy(values, held)` for
+`detection_since`, `managed.disable_auto_resume` and `not_taken_up`, the records by thread and turn, `get_status`, the
+registry's view through car-control's now-public `bundle_compatibility`) and `rescan::judge_for` (`sources_for` by
+`homes::key`, one engine per home key with no store and no backend, HOME_UNKNOWN, one deadline). car-watcher `reading`:
+`NoStore`/`NoBackend` are the reference's `None` (every call `AttributeError`), `reading::engine` is `Engine(store,
+source, None, clock=lambda: now, home_key=key)` with the reference's defaults, `Reading` the `RescanEngine` over
+car-engine's `Engine` (its reader for `rescan_evidence` a second reader of the same home). car-watcher `checkhost::
+WatcherHost` wraps any `Host` and answers `checkup`, `checkup_for_bundle` and `rescan_judge`, everything else the
+wrapped host's: car-bin's `system_machine` and `Watcher::bridge` (the host's `car_bridge`) use it over `SystemHost`,
+car-harness `bridge.run` over its world's host when the world says `real_checks`. car-control: a `ControlError` leaving
+the host whole (`Raised::control` / `as_control`, so `checkup`'s `control._open()` refusal answers as `except
+ControlError` does) and `Redactor::with_key`.
+* **HistoryNotYet** (the main session's input): `checkup::history_not_yet(&Error)` reads the class `"HistoryNotYet"`;
+  car-v0627-finalport's car-codex raises it, Integration 11 joins the two (or replaces the body with
+  `error.is_history_not_yet()`). Until then a fresh home is `"readable": false` here and true in the tag (AUDIT line).
+* **Diffs** `tests/rustdiff/diffs_host_checks.py`: GoldenChecksDiff runs car-watcher over tests/wiregolden.py's own
+  installation (made in place: a copied template keeps the template's rollout paths, which is why the copy's Rescan
+  answers `unreadable` on both sides) and equals tests/golden/bridge/detection-check.json and rescan.json; CheckupDiff
+  (23 worlds, the bundle, an empty and a fresh home) and RescanDiff (10 worlds) equal the tag's `checkup.run` and
+  `rescan.judge_for` - replies, files, state and every Host call. Only `checkup._presence` (and, for the golden, the
+  aliases' key) are stood in for.
+
+**2. The demo event (`6e105dbc2`).** car-watcher `demo`: the core makes and looks at the demo event
+(`DemoEvent(str(paths.state_dir))`, once a second) while the surfaces are up, as the icon did (`ui/tray/icon.py:270-286`),
+and each signal runs `App._demo` on a worker: `notifier.build_demo(time.time())`, then `show_demo`'s gates (card setting
+exactly True, the host's stack attached, this PC's presence answers) and `Events::post_demo` - `demo {notice}`, the
+card's view under an id `notice_complete` ends once. Never a toast. Tests: `demo` 2 (every gate; the look stops).
+
+**3. Checks of the fourth part** (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `CAR_NO_REAL_ENGINE=1` in every run;
+reference v0.6.26 on the bundled 3.14.10):
+
+```
+run.py --build --reference v0.6.26 --reference-python bundled -k diffs_host_checks   Ran 6, OK: both goldens'
+                         cases through car-watcher; detection-check over 24 worlds, rescan over 10, equal to the tag
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after the demo log's needless
+                   borrow); test --locked --no-fail-fast rc=0; cargo deny --locked check rc=0
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0 (at 53879617f), every binary the same; profile-path scan none
+Mutations, each alone, each failed its test: `brought` with `||` for `&&` (CheckupDiff: the golden home, paused, ...);
+  an unknown home key judged by the default home's engine (RescanDiff: a record of a home Settings do not know);
+  `history_not_yet` true for a SourceError (CheckupDiff: the history gone, damaged); every home `current`
+  (CheckupDiff: a second home - it passed until the case named a list Settings accept, `be06...` below);
+  the demo's card-setting gate dropped (car-watcher demo test).
+```
+
+### Still left after the fourth part
+
+* Integration 11: `checkup::history_not_yet` against finalport's car-codex HistoryNotYet, and a diff world of a fresh
+  home (a state database with no conversation, no history database).
+* rediff: `python -X utf8 tests/rustdiff/rediff_host.py --reference v0.6.26` now includes `diffs_host_checks` and the
+  check's and judge's followed files; not rerun whole here (its other four diffs were last run by the third part).
