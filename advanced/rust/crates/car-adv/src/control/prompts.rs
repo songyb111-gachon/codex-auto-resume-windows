@@ -9,8 +9,8 @@ use car_machine::json::{Map, Str, Value};
 use car_machine::pyval;
 
 use super::resets::{
-    Result, among, arg, call, field, generation, get, int, is, is_int, length, list, object, on, refusal, refused,
-    refused_here, shown, stale, standing, switched_off, text, verdict, with,
+    Result, among, arg, call, field, generation, get, int, is, is_int, length, list, object, on,
+    refusal, refused, refused_here, shown, stale, standing, switched_off, text, verdict, with,
 };
 use crate::engine::promptqueue::{CAPABILITY, LONG, SHORT_LIMIT};
 use crate::images::{self, ImageError, MOST_BYTES, MOST_IMAGES};
@@ -112,9 +112,16 @@ pub fn view(runtime: &Runtime) -> Value {
         let state = get(row, "state");
         let pending = among(
             &state,
-            &[PromptState::Waiting.as_str(), PromptState::Ready.as_str(), PromptState::Held.as_str()],
+            &[
+                PromptState::Waiting.as_str(),
+                PromptState::Ready.as_str(),
+                PromptState::Held.as_str(),
+            ],
         );
-        if !pending && super::resets::or_zero(&get(row, "finished_at")).is_some_and(|at| at < now - 30.0 * 86400.0) {
+        if !pending
+            && super::resets::or_zero(&get(row, "finished_at"))
+                .is_some_and(|at| at < now - 30.0 * 86400.0)
+        {
             continue;
         }
         let mut item = shown(row, SHOWN);
@@ -125,10 +132,15 @@ pub fn view(runtime: &Runtime) -> Value {
         item.insert(Str::new("being_sent"), Value::Bool(in_flight && !sent));
         item.insert(
             Str::new("completed"),
-            Value::Bool(is(&state, PromptState::Done.as_str()) && among(&get(row, "reason"), COMPLETED)),
+            Value::Bool(
+                is(&state, PromptState::Done.as_str()) && among(&get(row, "reason"), COMPLETED),
+            ),
         );
         if among(&state, PENDING) {
-            item.insert(Str::new("images"), copies_of(runtime, &get(row, "prompt_id")));
+            item.insert(
+                Str::new("images"),
+                copies_of(runtime, &get(row, "prompt_id")),
+            );
         }
         shown_rows.push(Value::Object(item));
     }
@@ -166,7 +178,10 @@ pub fn view(runtime: &Runtime) -> Value {
             ]),
         ),
         ("images_unavailable", Value::Bool(unavailable)),
-        ("images_kept", object(vec![("count", int(count)), ("bytes", int(size as i64))])),
+        (
+            "images_kept",
+            object(vec![("count", int(count)), ("bytes", int(size as i64))]),
+        ),
     ])
 }
 
@@ -180,7 +195,10 @@ pub fn sweep(runtime: &Runtime) {
     let Ok(rows) = call(runtime, "prompts", &[], &[("pending", Value::Bool(true))]) else {
         return;
     };
-    let pending: Vec<String> = list(&rows).iter().map(|row| key(&get(row, "prompt_id"))).collect();
+    let pending: Vec<String> = list(&rows)
+        .iter()
+        .map(|row| key(&get(row, "prompt_id")))
+        .collect();
     images::sweep(folder(runtime), &pending);
 }
 
@@ -237,8 +255,9 @@ fn staged(runtime: &Runtime, asked: &Value, prompt: Option<&Value>) -> Result<St
             },
             _ => Err(ImageError::Refused("image_refused")),
         };
-        let copied =
-            read.and_then(|(data, ext)| images::stage(folder(runtime), runtime.state.tokens.as_ref(), &data, ext));
+        let copied = read.and_then(|(data, ext)| {
+            images::stage(folder(runtime), runtime.state.tokens.as_ref(), &data, ext)
+        });
         match copied {
             Ok(copy) => {
                 made.push(copy.clone());
@@ -263,8 +282,14 @@ fn schedule(argument: &Map) -> Vec<(&'static str, Value)> {
     vec![
         ("at", arg(argument, "at")),
         ("every", arg(argument, "every")),
-        ("occurrences", argument.get("occurrences").cloned().unwrap_or(int(1))),
-        ("depends", Value::Bool(matches!(arg(argument, "depends"), Value::Bool(true)))),
+        (
+            "occurrences",
+            argument.get("occurrences").cloned().unwrap_or(int(1)),
+        ),
+        (
+            "depends",
+            Value::Bool(matches!(arg(argument, "depends"), Value::Bool(true))),
+        ),
         (
             "while_running",
             if pyval::truthy(&while_running) {
@@ -300,17 +325,27 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if switched_off(runtime, &thread) {
         return Ok(refused_here(Refusal::ConversationOff, runtime));
     }
-    if car_policy::classify::continuation::validate_prompt(&words).is_err() || length(&words) > words_limit(runtime) {
+    if car_policy::classify::continuation::validate_prompt(&words).is_err()
+        || length(&words) > words_limit(runtime)
+    {
         return Ok(refused_here(Refusal::PromptRefused, runtime));
     }
-    let asked = argument.get("images").cloned().unwrap_or(Value::Array(Vec::new()));
+    let asked = argument
+        .get("images")
+        .cloned()
+        .unwrap_or(Value::Array(Vec::new()));
     let (chosen, made) = match staged(runtime, &asked, None)? {
         Ok(found) => found,
         Err(word) => return Ok(refused(&word, Some(runtime))),
     };
     let mut keywords = schedule(argument);
     keywords.push(("held", Value::Bool(!chosen.is_empty())));
-    let prompt = match call(runtime, "add_prompt", &[thread, words, arg(argument, "trigger")], &keywords) {
+    let prompt = match call(
+        runtime,
+        "add_prompt",
+        &[thread, words, arg(argument, "trigger")],
+        &keywords,
+    ) {
         Ok(prompt) => prompt,
         Err(error) => {
             images::drop_staged(folder(runtime), &made);
@@ -330,7 +365,10 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
         }
     }
     sweep(runtime);
-    Ok(with(view(runtime), vec![("done", Value::Bool(true)), ("prompt", prompt)]))
+    Ok(with(
+        view(runtime),
+        vec![("done", Value::Bool(true)), ("prompt", prompt)],
+    ))
 }
 
 /// `cancel(runtime, prompt, generation)`: advanced-prompt-cancel.
@@ -347,7 +385,10 @@ pub fn cancel(runtime: &Runtime, prompt: &Value, asked: &Value) -> Result<Value>
         Err(error) => return Ok(write_refusal(runtime, error)),
     };
     sweep(runtime);
-    Ok(with(view(runtime), vec![("done", Value::Bool(true)), ("cancelled", how)]))
+    Ok(with(
+        view(runtime),
+        vec![("done", Value::Bool(true)), ("cancelled", how)],
+    ))
 }
 
 /// `go_on(runtime, prompt, generation)`: advanced-prompt-go-on.
@@ -390,7 +431,9 @@ pub fn edit(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if switched_off(runtime, &get(&row, "thread_id")) {
         return Ok(refused_here(Refusal::ConversationOff, runtime));
     }
-    if car_policy::classify::continuation::validate_prompt(&words).is_err() || length(&words) > words_limit(runtime) {
+    if car_policy::classify::continuation::validate_prompt(&words).is_err()
+        || length(&words) > words_limit(runtime)
+    {
         return Ok(refused_here(Refusal::PromptRefused, runtime));
     }
     let (mut chosen, mut made) = (None, Vec::new());
@@ -409,7 +452,12 @@ pub fn edit(runtime: &Runtime, argument: &Map) -> Result<Value> {
     let edited = call(
         runtime,
         "edit_prompt",
-        &[prompt.clone(), asked_generation, words, arg(argument, "trigger")],
+        &[
+            prompt.clone(),
+            asked_generation,
+            words,
+            arg(argument, "trigger"),
+        ],
         &keywords,
     );
     if let Err(error) = edited {
@@ -426,7 +474,10 @@ pub fn edit(runtime: &Runtime, argument: &Map) -> Result<Value> {
             return Ok(refused_here(Refusal::StateUnavailable, runtime));
         }
     }
-    Ok(with(view(runtime), vec![("done", Value::Bool(true)), ("prompt", prompt)]))
+    Ok(with(
+        view(runtime),
+        vec![("done", Value::Bool(true)), ("prompt", prompt)],
+    ))
 }
 
 /// `clear_done(runtime, argument)`: advanced-prompts-clear-done.
@@ -435,7 +486,12 @@ pub fn clear_done(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if stale(runtime, &asked_generation) {
         return Ok(refused_here(Refusal::StaleGeneration, runtime));
     }
-    let cleared = match call(runtime, "clear_done", &[arg(argument, "prompts"), asked_generation], &[]) {
+    let cleared = match call(
+        runtime,
+        "clear_done",
+        &[arg(argument, "prompts"), asked_generation],
+        &[],
+    ) {
         Ok(cleared) => cleared,
         Err(error) => return Ok(write_refusal(runtime, error)),
     };

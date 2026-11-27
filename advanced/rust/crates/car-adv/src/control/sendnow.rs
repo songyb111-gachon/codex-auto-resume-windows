@@ -38,14 +38,23 @@ pub fn fresh(found: &Value, since: &Value, now: f64) -> bool {
     if !numbers {
         return false;
     }
-    let (Some(made), Some(since)) = (super::resets::number_of(&made), super::resets::number_of(since)) else {
+    let (Some(made), Some(since)) = (
+        super::resets::number_of(&made),
+        super::resets::number_of(since),
+    ) else {
         return false;
     };
     made >= since && (0.0..LIFETIME as f64).contains(&(now - made))
 }
 
 /// `fresh` over the three columns the claim ledger reads (`kind, created_at, used_at`).
-pub fn fresh_columns(kind: &Value, created_at: &Value, used_at: &Value, since: &Value, now: f64) -> bool {
+pub fn fresh_columns(
+    kind: &Value,
+    created_at: &Value,
+    used_at: &Value,
+    since: &Value,
+    now: f64,
+) -> bool {
     let found = object(vec![
         ("kind", kind.clone()),
         ("created_at", created_at.clone()),

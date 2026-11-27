@@ -52,7 +52,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// `runtime.state.<method>(*args, **kwargs)`, as the reference binds them (car-adv `state::calls`), raising where a
 /// test made the method raise.
-pub fn call(runtime: &Runtime, method: &str, args: &[Value], kwargs: &[(&str, Value)]) -> Result<Value> {
+pub fn call(
+    runtime: &Runtime,
+    method: &str,
+    args: &[Value],
+    kwargs: &[(&str, Value)],
+) -> Result<Value> {
     runtime.faulted(method)?;
     let mut map = Map::new();
     for (name, value) in kwargs {
@@ -172,7 +177,9 @@ pub fn or_zero(value: &Value) -> Option<f64> {
 pub fn plus(a: &Value, b: &Value) -> Value {
     match (a, b) {
         (Value::Int(x), Value::Int(y)) => match (x.as_i64(), y.as_i64()) {
-            (Some(x), Some(y)) => x.checked_add(y).map_or(Value::Float(x as f64 + y as f64), int),
+            (Some(x), Some(y)) => x
+                .checked_add(y)
+                .map_or(Value::Float(x as f64 + y as f64), int),
             _ => Value::Null,
         },
         _ => match (number_of(a), number_of(b)) {
@@ -186,7 +193,9 @@ pub fn plus(a: &Value, b: &Value) -> Value {
 pub fn minus(a: &Value, b: &Value) -> Result<Value> {
     match (a, b) {
         (Value::Int(x), Value::Int(y)) => match (x.as_i64(), y.as_i64()) {
-            (Some(x), Some(y)) => Ok(x.checked_sub(y).map_or(Value::Float(x as f64 - y as f64), int)),
+            (Some(x), Some(y)) => Ok(x
+                .checked_sub(y)
+                .map_or(Value::Float(x as f64 - y as f64), int)),
             _ => Err(Error::python("OverflowError", "int too large")),
         },
         _ => match (number_of(a), number_of(b)) {
@@ -272,8 +281,11 @@ pub fn standing(runtime: &Runtime, capability: &str) -> bool {
 
 /// Core's state, opened for one read (`Store(runtime.paths.state_dir)`).
 pub fn core(runtime: &Runtime) -> Result<car_store::Store> {
-    car_store::Store::open(std::path::Path::new(&runtime.paths.state_dir), Arc::new(car_control::host::Probe))
-        .map_err(|_| Error::python("StoreError", "cannot open core's state"))
+    car_store::Store::open(
+        std::path::Path::new(&runtime.paths.state_dir),
+        Arc::new(car_control::host::Probe),
+    )
+    .map_err(|_| Error::python("StoreError", "cannot open core's state"))
 }
 
 /// `switched_off(runtime, thread)`: whether core holds conversation `thread` switched off now; unreadable is not.
@@ -297,7 +309,11 @@ pub fn wake(runtime: &Runtime) -> bool {
 
 /// `arming.verdict(measurement)`, None where it cannot be read.
 pub fn verdict(runtime: &Runtime, measurement: Measurement) -> Option<&'static str> {
-    runtime.arming().verdict(measurement.as_str()).ok().flatten()
+    runtime
+        .arming()
+        .verdict(measurement.as_str())
+        .ok()
+        .flatten()
 }
 
 /// `_failed(runtime, measurement)`: the verdict is a fail; False where it cannot be read.
@@ -367,7 +383,11 @@ pub fn count_unproven(runtime: &Runtime) -> bool {
 }
 
 /// `windows.get((bucket, minutes))`.
-fn window<'a>(windows: &'a [((Value, Value), Row)], bucket: &Value, minutes: &Value) -> Option<&'a Row> {
+fn window<'a>(
+    windows: &'a [((Value, Value), Row)],
+    bucket: &Value,
+    minutes: &Value,
+) -> Option<&'a Row> {
     windows
         .iter()
         .find(|((b, m), _)| pyval::eq(b, bucket) && pyval::eq(m, minutes))
@@ -377,7 +397,12 @@ fn window<'a>(windows: &'a [((Value, Value), Row)], bucket: &Value, minutes: &Va
 /// `view(runtime)`: advanced-resets.
 pub fn view(runtime: &Runtime) -> Value {
     let read = || -> Result<_> {
-        let rules = list(&call(runtime, "reset_rules", &[], &[("pending", Value::Null)])?);
+        let rules = list(&call(
+            runtime,
+            "reset_rules",
+            &[],
+            &[("pending", Value::Null)],
+        )?);
         let windows = state(runtime, "windows")?.windows()?;
         let reading = state(runtime, "reading")?.reading()?;
         let spends = list(&call(runtime, "credit_spends", &[], &[])?);
@@ -392,9 +417,15 @@ pub fn view(runtime: &Runtime) -> Value {
     for rule in &rules {
         let pending = among(
             &get(rule, "state"),
-            &[RuleState::Counting.as_str(), RuleState::Ready.as_str(), RuleState::Held.as_str()],
+            &[
+                RuleState::Counting.as_str(),
+                RuleState::Ready.as_str(),
+                RuleState::Held.as_str(),
+            ],
         );
-        if !pending && or_zero(&get(rule, "finished_at")).is_some_and(|at| at < now - 30.0 * 86400.0) {
+        if !pending
+            && or_zero(&get(rule, "finished_at")).is_some_and(|at| at < now - 30.0 * 86400.0)
+        {
             continue;
         }
         let mut item = shown(rule, SHOWN);
@@ -443,7 +474,12 @@ pub fn view(runtime: &Runtime) -> Value {
             .ok()
             .flatten()
             .unwrap_or(Ordering::Equal)
-            .then_with(|| pyval::order(b1, b2).ok().flatten().unwrap_or(Ordering::Equal))
+            .then_with(|| {
+                pyval::order(b1, b2)
+                    .ok()
+                    .flatten()
+                    .unwrap_or(Ordering::Equal)
+            })
     });
     let families = families
         .iter()
@@ -452,7 +488,10 @@ pub fn view(runtime: &Runtime) -> Value {
             object(vec![
                 ("bucket", bucket.clone()),
                 ("minutes", minutes.clone()),
-                ("open_reset_at", row.map_or(Value::Null, |row| get(row, "open_reset_at"))),
+                (
+                    "open_reset_at",
+                    row.map_or(Value::Null, |row| get(row, "open_reset_at")),
+                ),
                 (
                     "open_full",
                     Value::Bool(row.is_some_and(|row| pyval::truthy(&get(row, "open_full")))),
@@ -464,7 +503,13 @@ pub fn view(runtime: &Runtime) -> Value {
     let last = spends
         .iter()
         .find(|spend| !matches!(get(spend, "outcome"), Value::Null));
-    let when_on = |name: &str| if credit_on { get(&reading, name) } else { Value::Null };
+    let when_on = |name: &str| {
+        if credit_on {
+            get(&reading, name)
+        } else {
+            Value::Null
+        }
+    };
     object(vec![
         ("done", Value::Bool(true)),
         ("refusal", Value::Null),
@@ -490,12 +535,21 @@ pub fn view(runtime: &Runtime) -> Value {
         (
             "last_spend",
             last.map_or(Value::Null, |last| {
-                object(vec![("outcome", get(last, "outcome")), ("at", get(last, "finished_at"))])
+                object(vec![
+                    ("outcome", get(last, "outcome")),
+                    ("at", get(last, "finished_at")),
+                ])
             }),
         ),
         ("count_unproven", Value::Bool(count_unproven(runtime))),
-        ("count_failed", Value::Bool(failed(runtime, Measurement::Mu))),
-        ("credit_failed", Value::Bool(failed(runtime, Measurement::Mr))),
+        (
+            "count_failed",
+            Value::Bool(failed(runtime, Measurement::Mu)),
+        ),
+        (
+            "credit_failed",
+            Value::Bool(failed(runtime, Measurement::Mr)),
+        ),
         (
             "limits",
             object(vec![
@@ -523,13 +577,23 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if !standing(runtime, capability) {
         return Ok(refused_here(Refusal::NotOn, runtime));
     }
-    let (bucket, minutes, ordinal) = (arg(argument, "bucket"), arg(argument, "minutes"), arg(argument, "ordinal"));
+    let (bucket, minutes, ordinal) = (
+        arg(argument, "bucket"),
+        arg(argument, "minutes"),
+        arg(argument, "ordinal"),
+    );
     if occasion_problem(&bucket, &minutes, &ordinal) {
         return Ok(refused_here(Refusal::OccasionInvalid, runtime));
     }
     let made = if capability == CREDIT {
-        let repeat = argument.get("repeat").cloned().unwrap_or(Value::Bool(false));
-        let ask_first = argument.get("ask_first").cloned().unwrap_or(Value::Bool(false));
+        let repeat = argument
+            .get("repeat")
+            .cloned()
+            .unwrap_or(Value::Bool(false));
+        let ask_first = argument
+            .get("ask_first")
+            .cloned()
+            .unwrap_or(Value::Bool(false));
         if !is_bool(&repeat)
             || !is_bool(&ask_first)
             || argument.contains_key("words")
@@ -564,7 +628,11 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
             runtime,
             "add_reset_rule",
             &[text(MESSAGE), bucket, minutes, ordinal],
-            &[("thread_id", thread), ("words", words), ("record_id", record)],
+            &[
+                ("thread_id", thread),
+                ("words", words),
+                ("record_id", record),
+            ],
         )
     };
     let rule = match made {
@@ -640,7 +708,9 @@ pub fn go_on(runtime: &Runtime, rule: &Value, asked: &Value) -> Result<Value> {
     );
     let moved = match moved {
         Ok(moved) => moved,
-        Err(error) if error.is_state() => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
+        Err(error) if error.is_state() => {
+            return Ok(refused_here(Refusal::StateUnavailable, runtime));
+        }
         Err(error) => return Err(error),
     };
     if !pyval::truthy(&moved) {
@@ -672,7 +742,8 @@ pub fn credit_now(runtime: &Runtime, argument: &Map) -> Result<Value> {
         };
         let ready = match &found {
             Value::Object(found) => {
-                is(&get(found, "capability"), CREDIT) && is(&get(found, "state"), RuleState::Ready.as_str())
+                is(&get(found, "capability"), CREDIT)
+                    && is(&get(found, "state"), RuleState::Ready.as_str())
             }
             _ => false,
         };
@@ -689,7 +760,9 @@ pub fn credit_now(runtime: &Runtime, argument: &Map) -> Result<Value> {
         let windows = state(runtime, "windows")?.windows()?;
         let full: Vec<&(Value, Value)> = windows
             .iter()
-            .filter(|(_, row)| pyval::truthy(&get(row, "open_reset_at")) && pyval::truthy(&get(row, "open_full")))
+            .filter(|(_, row)| {
+                pyval::truthy(&get(row, "open_reset_at")) && pyval::truthy(&get(row, "open_full"))
+            })
             .map(|(key, _)| key)
             .collect();
         if full.len() != 1 {
@@ -698,7 +771,13 @@ pub fn credit_now(runtime: &Runtime, argument: &Map) -> Result<Value> {
         family = full[0].clone();
     }
     let mut now = 0.0;
-    let made = call(runtime, "add_reset_rule", &[text(CREDIT), family.0, family.1, int(0)], &[]).and_then(|rule| {
+    let made = call(
+        runtime,
+        "add_reset_rule",
+        &[text(CREDIT), family.0, family.1, int(0)],
+        &[],
+    )
+    .and_then(|rule| {
         now = runtime.now();
         call(
             runtime,
@@ -734,10 +813,17 @@ pub fn counts(runtime: &Runtime) -> Map {
     if rules.is_empty() {
         return Map::new();
     }
-    let count = |test: &dyn Fn(&Row) -> bool| int(rules.iter().filter(|rule| test(rule)).count() as i64);
+    let count =
+        |test: &dyn Fn(&Row) -> bool| int(rules.iter().filter(|rule| test(rule)).count() as i64);
     let mut map = Map::new();
-    map.insert(Str::new("messages"), count(&|rule| is(&get(rule, "capability"), MESSAGE)));
-    map.insert(Str::new("credit_rules"), count(&|rule| is(&get(rule, "capability"), CREDIT)));
+    map.insert(
+        Str::new("messages"),
+        count(&|rule| is(&get(rule, "capability"), MESSAGE)),
+    );
+    map.insert(
+        Str::new("credit_rules"),
+        count(&|rule| is(&get(rule, "capability"), CREDIT)),
+    );
     map.insert(
         Str::new("ready"),
         count(&|rule| is(&get(rule, "state"), RuleState::Ready.as_str())),

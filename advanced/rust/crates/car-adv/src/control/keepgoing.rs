@@ -6,8 +6,8 @@ use car_machine::domain::ids;
 use car_machine::json::{Map, Str, Value};
 
 use super::resets::{
-    Result, arg, call, failed, generation, get, int, is, list, object, refused_here, refusal, shown, small, stale,
-    standing, switched_off, text, verdict, with,
+    Result, arg, call, failed, generation, get, int, is, list, object, refusal, refused_here,
+    shown, small, stale, standing, switched_off, text, verdict, with,
 };
 use crate::engine::keepgoing::{CAPABILITY, UNMEASURED_COUNT, allowed};
 use crate::runtime::Runtime;
@@ -15,7 +15,15 @@ use crate::vocabulary::{KeepReason, KeepState, Measurement, Refusal};
 
 /// `state.continuations.KEEP_COUNTS`: 1 to 10.
 pub const KEEP_COUNTS: std::ops::RangeInclusive<i64> = 1..=10;
-pub const SHOWN: &[&str] = &["thread_id", "count", "used", "armed_at", "state", "reason", "finished_at"];
+pub const SHOWN: &[&str] = &[
+    "thread_id",
+    "count",
+    "used",
+    "armed_at",
+    "state",
+    "reason",
+    "finished_at",
+];
 
 fn measured(runtime: &Runtime) -> bool {
     verdict(runtime, Measurement::Mk) == Some("pass")
@@ -36,7 +44,9 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
         let mut item: Map = shown(&row, SHOWN);
         let count = get(&row, "count");
         let Some(count) = small(&count) else {
-            return Err(crate::state::Error::type_error("unsupported operand type(s) for min"));
+            return Err(crate::state::Error::type_error(
+                "unsupported operand type(s) for min",
+            ));
         };
         item.insert(Str::new("allowed"), int(allowed(count, measured)));
         shown_rows.push(Value::Object(item));
@@ -47,10 +57,16 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
         ("generation", generation),
         ("rows", Value::Array(shown_rows)),
         ("count_capped", Value::Bool(!measured)),
-        ("count_failed", Value::Bool(failed(runtime, Measurement::Mk))),
+        (
+            "count_failed",
+            Value::Bool(failed(runtime, Measurement::Mk)),
+        ),
         (
             "limits",
-            object(vec![("count", int(*KEEP_COUNTS.end())), ("unmeasured", int(UNMEASURED_COUNT))]),
+            object(vec![
+                ("count", int(*KEEP_COUNTS.end())),
+                ("unmeasured", int(UNMEASURED_COUNT)),
+            ]),
         ),
     ]))
 }

@@ -10,7 +10,9 @@ use std::time::{Duration, Instant};
 
 use car_machine::json::{Str, Value};
 
-use super::resets::{Result, call, field, generation, int, object, refused_here, stale, standing, text};
+use super::resets::{
+    Result, call, field, generation, int, object, refused_here, stale, standing, text,
+};
 use crate::engine::fleet::{self, CAPABILITY, HELD, LATE, OK, UNSET};
 use crate::runtime::Runtime;
 use crate::vocabulary::{ArmingState, OptionKey, Refusal, WordingKey};
@@ -27,7 +29,10 @@ fn access() -> &'static Mutex<Option<JoinHandle<()>>> {
 /// `bounded(call, bound=None)`: call()'s answer from a thread of its own waited on `bound` seconds at most; Err (the
 /// reference's TimeoutError) where it did not answer in time, or where the access before it is still held past the same
 /// bound - at most one is in flight.
-pub fn bounded<T: Send + 'static>(call: impl FnOnce() -> T + Send + 'static, bound: Option<f64>) -> std::result::Result<T, ()> {
+pub fn bounded<T: Send + 'static>(
+    call: impl FnOnce() -> T + Send + 'static,
+    bound: Option<f64>,
+) -> std::result::Result<T, ()> {
     let deadline = Instant::now() + Duration::from_secs_f64(bound.unwrap_or(BOUND).max(0.0));
     let (send, receive) = mpsc::channel();
     let mut call = Some(call);
@@ -70,7 +75,10 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
     let Ok((state, words, generation)) = read() else {
         return Ok(refused_here(Refusal::StateUnavailable, runtime));
     };
-    let (alias, folder) = (wording(&words, WordingKey::FleetAlias), wording(&words, WordingKey::FleetFolder));
+    let (alias, folder) = (
+        wording(&words, WordingKey::FleetAlias),
+        wording(&words, WordingKey::FleetFolder),
+    );
     let mut found = match object(vec![
         ("done", Value::Bool(true)),
         ("refusal", Value::Null),
@@ -85,20 +93,39 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
         Value::Object(map) => map,
         _ => unreachable!("an object"),
     };
-    if state != ArmingState::Armed || !fleet::alias_valid(&alias) || !car_machine::pyval::truthy(&folder) {
+    if state != ArmingState::Armed
+        || !fleet::alias_valid(&alias)
+        || !car_machine::pyval::truthy(&folder)
+    {
         return Ok(Value::Object(found));
     }
     let now = runtime.now();
-    let stamp = call(runtime, "stamped", &[text(CAPABILITY), text(OptionKey::FleetWaiting.as_str())], &[])?;
+    let stamp = call(
+        runtime,
+        "stamped",
+        &[text(CAPABILITY), text(OptionKey::FleetWaiting.as_str())],
+        &[],
+    )?;
     let waiting = fleet::waiting_word(&stamp);
-    let seen = fleet::read_seen(&runtime.paths)
-        .unwrap_or_else(|| object(vec![("ignored", int(0)), ("held", int(0)), ("peers", Value::Array(Vec::new()))]));
-    let stand = waiting.unwrap_or(if car_machine::pyval::truthy(&field(&seen, "held")) { HELD } else { OK });
+    let seen = fleet::read_seen(&runtime.paths).unwrap_or_else(|| {
+        object(vec![
+            ("ignored", int(0)),
+            ("held", int(0)),
+            ("peers", Value::Array(Vec::new())),
+        ])
+    });
+    let stand = waiting.unwrap_or(if car_machine::pyval::truthy(&field(&seen, "held")) {
+        HELD
+    } else {
+        OK
+    });
     let mine = fleet::casefold(&crate::state::py::py_str(&alias));
     let peers: Vec<Value> = match field(&seen, "peers") {
         Value::Array(items) => items
             .iter()
-            .filter(|each| fleet::casefold(&crate::state::py::py_str(&field(each, "alias"))) != mine)
+            .filter(|each| {
+                fleet::casefold(&crate::state::py::py_str(&field(each, "alias"))) != mine
+            })
             .map(|each| fleet::shown(each, now))
             .collect(),
         _ => Vec::new(),
@@ -134,22 +161,42 @@ pub fn save(runtime: &Runtime, alias: &Value, folder: &Value, asked: &Value) -> 
     }
     let wrote = (|| -> Result<(Value, Value)> {
         let words = call(runtime, "wordings", &[text(CAPABILITY)], &[])?;
-        let (was_alias, was_folder) = (wording(&words, WordingKey::FleetAlias), wording(&words, WordingKey::FleetFolder));
+        let (was_alias, was_folder) = (
+            wording(&words, WordingKey::FleetAlias),
+            wording(&words, WordingKey::FleetFolder),
+        );
         let dashboard = text("dashboard");
         let generation = call(
             runtime,
             "set_wording",
-            &[text(CAPABILITY), text(WordingKey::FleetAlias.as_str()), alias.clone()],
+            &[
+                text(CAPABILITY),
+                text(WordingKey::FleetAlias.as_str()),
+                alias.clone(),
+            ],
             &[("generation", asked.clone()), ("actor", dashboard.clone())],
         )?;
         call(
             runtime,
             "set_wording",
-            &[text(CAPABILITY), text(WordingKey::FleetFolder.as_str()), folder.clone()],
+            &[
+                text(CAPABILITY),
+                text(WordingKey::FleetFolder.as_str()),
+                folder.clone(),
+            ],
             &[("generation", generation), ("actor", dashboard)],
         )?;
-        for key in [OptionKey::LastFleetWrite, OptionKey::FleetWaiting, OptionKey::FleetWroteAt] {
-            call(runtime, "unstamp", &[text(CAPABILITY), text(key.as_str())], &[])?;
+        for key in [
+            OptionKey::LastFleetWrite,
+            OptionKey::FleetWaiting,
+            OptionKey::FleetWroteAt,
+        ] {
+            call(
+                runtime,
+                "unstamp",
+                &[text(CAPABILITY), text(key.as_str())],
+                &[],
+            )?;
         }
         if !car_machine::pyval::eq(&was_folder, folder) {
             fleet::forget_seen(&runtime.paths);
@@ -158,7 +205,9 @@ pub fn save(runtime: &Runtime, alias: &Value, folder: &Value, asked: &Value) -> 
     })();
     let (was_alias, was_folder) = match wrote {
         Ok(found) => found,
-        Err(error) if error.is_state() => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
+        Err(error) if error.is_state() => {
+            return Ok(refused_here(Refusal::StateUnavailable, runtime));
+        }
         Err(error) => return Err(error),
     };
     if car_machine::pyval::truthy(&was_alias)
@@ -166,7 +215,10 @@ pub fn save(runtime: &Runtime, alias: &Value, folder: &Value, asked: &Value) -> 
         && car_machine::pyval::eq(&was_folder, folder)
         && fleet::alias_valid(&was_alias)
     {
-        let (folder, old) = (crate::state::py::py_str(folder), crate::state::py::py_str(&was_alias));
+        let (folder, old) = (
+            crate::state::py::py_str(folder),
+            crate::state::py::py_str(&was_alias),
+        );
         let _ = bounded(move || fleet::remove_old_name(&folder, &old), None);
     }
     view(runtime)

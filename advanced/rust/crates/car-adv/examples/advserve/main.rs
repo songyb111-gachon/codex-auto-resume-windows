@@ -695,12 +695,13 @@ fn runtime_call(
         "surface" => {
             use car_adv::surfaces;
             let part = c.need(Some(0), "part")?;
-            let answer = |found: Result<Option<Value>, car_adv::state::Error>| -> Result<Value, Fault> {
-                Ok(match found? {
-                    Some(found) => object([("value", found)]),
-                    None => object([("defer", Value::Bool(true))]),
-                })
-            };
+            let answer =
+                |found: Result<Option<Value>, car_adv::state::Error>| -> Result<Value, Fault> {
+                    Ok(match found? {
+                        Some(found) => object([("value", found)]),
+                        None => object([("defer", Value::Bool(true))]),
+                    })
+                };
             let map = |found: Map| Ok(object([("value", Value::Object(found))]));
             shared.enter(|runtime| match word(&part).unwrap_or_default() {
                 "answer" => {
@@ -710,7 +711,11 @@ fn runtime_call(
                     };
                     answer(surfaces::answer(runtime, name, &c.opt(Some(2), "facts")))
                 }
-                "bridge" => answer(surfaces::bridge(runtime, &c.opt(Some(1), "command"), &c.opt(Some(2), "argument"))),
+                "bridge" => answer(surfaces::bridge(
+                    runtime,
+                    &c.opt(Some(1), "command"),
+                    &c.opt(Some(2), "argument"),
+                )),
                 "mcp" => answer(surfaces::mcp(runtime, &c.opt(Some(1), "facts"))),
                 "badge" => map(surfaces::badge(runtime)),
                 "status" => map(surfaces::status(runtime)?),
@@ -724,7 +729,10 @@ fn runtime_call(
                 "fleet_view" => map(surfaces::fleet_view(runtime)),
                 "rows" => map(surfaces::rows(runtime)),
                 "runs" => Ok(object([("value", Value::Array(surfaces::runs(runtime)))])),
-                other => Err(Fault::new("AttributeError", &format!("surfaces has no {other}"))),
+                other => Err(Fault::new(
+                    "AttributeError",
+                    &format!("surfaces has no {other}"),
+                )),
             })
         }
         "fault" => {

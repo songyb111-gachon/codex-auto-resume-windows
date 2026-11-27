@@ -7,8 +7,8 @@ use car_machine::json::{Map, Str, Value};
 use car_machine::pyval;
 
 use super::resets::{
-    Result, among, arg, call, codex_home, codex_os, field, generation, get, int, length, list, object, on,
-    refused_here, shown, stale, switched_off, text, wake, with,
+    Result, among, arg, call, codex_home, codex_os, field, generation, get, int, length, list,
+    object, on, refused_here, shown, stale, switched_off, text, wake, with,
 };
 use crate::codex::conversation::Conversation;
 use crate::codex::turns::Failure;
@@ -17,7 +17,14 @@ use crate::runtime::Runtime;
 use crate::state::Error;
 use crate::vocabulary::{ChatReason, ChatState, Refusal};
 
-pub const SHOWN: &[&str] = &["chat_id", "state", "reason", "created_at", "sent_at", "finished_at"];
+pub const SHOWN: &[&str] = &[
+    "chat_id",
+    "state",
+    "reason",
+    "created_at",
+    "sent_at",
+    "finished_at",
+];
 pub const RECENT: f64 = 3600.0;
 
 /// `view(runtime, thread)`: advanced-chat-read.
@@ -29,14 +36,24 @@ pub fn view(runtime: &Runtime, thread: &Value) -> Result<Value> {
         return Ok(refused_here(Refusal::NotOn, runtime));
     }
     let home = codex_home(runtime)?;
-    let reader = Conversation { home, os: codex_os() };
+    let reader = Conversation {
+        home,
+        os: codex_os(),
+    };
     let turns = match reader.view(thread) {
         Ok(turns) => turns,
-        Err(Failure::Unavailable(_)) => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
+        Err(Failure::Unavailable(_)) => {
+            return Ok(refused_here(Refusal::StateUnavailable, runtime));
+        }
         Err(Failure::Raised(class)) => return Err(Error::python(class, "")),
     };
     let read = || -> Result<(Vec<Map>, Value)> {
-        let rows = list(&call(runtime, "chats", &[], &[("thread_id", thread.clone())])?);
+        let rows = list(&call(
+            runtime,
+            "chats",
+            &[],
+            &[("thread_id", thread.clone())],
+        )?);
         Ok((rows, generation(runtime)?))
     };
     let Ok((rows, generation)) = read() else {
@@ -46,8 +63,10 @@ pub fn view(runtime: &Runtime, thread: &Value) -> Result<Value> {
     let mut messages = Vec::new();
     for row in &rows {
         let state = get(row, "state");
-        if among(&state, &[ChatState::Done.as_str(), ChatState::Cancelled.as_str()])
-            && super::resets::or_zero(&get(row, "finished_at")).is_some_and(|at| at < now - RECENT)
+        if among(
+            &state,
+            &[ChatState::Done.as_str(), ChatState::Cancelled.as_str()],
+        ) && super::resets::or_zero(&get(row, "finished_at")).is_some_and(|at| at < now - RECENT)
         {
             continue;
         }
@@ -67,7 +86,10 @@ pub fn view(runtime: &Runtime, thread: &Value) -> Result<Value> {
         ("turns", Value::Array(turns)),
         ("messages", Value::Array(messages)),
         ("words_limit", int(WORDS as i64)),
-        ("limit", object(vec![("full", Value::Bool(limit_full(runtime, now)))])),
+        (
+            "limit",
+            object(vec![("full", Value::Bool(limit_full(runtime, now)))]),
+        ),
     ]))
 }
 
@@ -75,9 +97,17 @@ pub fn view(runtime: &Runtime, thread: &Value) -> Result<Value> {
 pub fn limit_full(runtime: &Runtime, now: f64) -> bool {
     let read = || -> Option<bool> {
         let store = super::resets::core(runtime).ok()?;
-        let status = store.watcher_status().ok()?.map(Value::Object).unwrap_or(Value::Object(Map::new()));
+        let status = store
+            .watcher_status()
+            .ok()?
+            .map(Value::Object)
+            .unwrap_or(Value::Object(Map::new()));
         let usage = field(&status, "usage");
-        let usage = if pyval::truthy(&usage) { usage } else { Value::Object(Map::new()) };
+        let usage = if pyval::truthy(&usage) {
+            usage
+        } else {
+            Value::Object(Map::new())
+        };
         let windows = field(&usage, "windows");
         let windows = match &windows {
             Value::Array(items) => items.clone(),
@@ -119,7 +149,9 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if switched_off(runtime, &thread) {
         return Ok(refused_here(Refusal::ConversationOff, runtime));
     }
-    if car_policy::classify::continuation::validate_prompt(&words).is_err() || length(&words) > WORDS {
+    if car_policy::classify::continuation::validate_prompt(&words).is_err()
+        || length(&words) > WORDS
+    {
         return Ok(refused_here(Refusal::PromptRefused, runtime));
     }
     let wrote = (|| -> Result<bool> {
@@ -127,14 +159,22 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
             runtime,
             "chats",
             &[],
-            &[("thread_id", thread.clone()), ("pending", Value::Bool(true))],
+            &[
+                ("thread_id", thread.clone()),
+                ("pending", Value::Bool(true)),
+            ],
         )?;
         if pyval::truthy(&pending) {
             return Ok(false);
         }
         let record = text(&runtime.state.tokens.hex(32));
         let at = Value::Float(runtime.now());
-        call(runtime, "add_chat", &[thread.clone(), words.clone(), record], &[("at", at)])?;
+        call(
+            runtime,
+            "add_chat",
+            &[thread.clone(), words.clone(), record],
+            &[("at", at)],
+        )?;
         Ok(true)
     })();
     match wrote {
@@ -143,7 +183,10 @@ pub fn add(runtime: &Runtime, argument: &Map) -> Result<Value> {
         Err(_) => return Ok(refused_here(Refusal::StateUnavailable, runtime)),
     }
     wake(runtime);
-    Ok(with(view(runtime, &thread)?, vec![("done", Value::Bool(true))]))
+    Ok(with(
+        view(runtime, &thread)?,
+        vec![("done", Value::Bool(true))],
+    ))
 }
 
 /// `cancel(runtime, argument)`: advanced-chat-cancel.
@@ -168,5 +211,8 @@ pub fn cancel(runtime: &Runtime, argument: &Map) -> Result<Value> {
     if !pyval::truthy(&cancelled) {
         return Ok(refused_here(Refusal::BeingSent, runtime));
     }
-    Ok(with(view(runtime, &thread)?, vec![("done", Value::Bool(true))]))
+    Ok(with(
+        view(runtime, &thread)?,
+        vec![("done", Value::Bool(true))],
+    ))
 }

@@ -37,7 +37,12 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
         Err(_) => return Ok(refusal(Refusal::StateUnavailable)),
     };
     let home = codex_home(runtime)?;
-    let found = match (Threads { home, os: codex_os() }).own(LIMIT, &off) {
+    let found = match (Threads {
+        home,
+        os: codex_os(),
+    })
+    .own(LIMIT, &off)
+    {
         Ok(found) => found,
         Err(Failure::Unavailable(_)) => return Ok(refusal(Refusal::StateUnavailable)),
         Err(Failure::Raised(class)) => return Err(Error::python(class, "")),
@@ -51,7 +56,9 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
             Value::Array(
                 found
                     .iter()
-                    .map(|(thread, name)| object(vec![("thread_id", text(thread)), ("name", text(name))]))
+                    .map(|(thread, name)| {
+                        object(vec![("thread_id", text(thread)), ("name", text(name))])
+                    })
                     .collect(),
             ),
         ),

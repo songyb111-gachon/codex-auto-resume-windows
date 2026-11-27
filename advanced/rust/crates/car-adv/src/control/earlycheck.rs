@@ -80,7 +80,12 @@ fn read(rows: &[Map], checked_at: f64) -> &'static str {
 }
 
 fn stamped(runtime: &Runtime, key: OptionKey) -> super::resets::Result<Value> {
-    call(runtime, "stamped", &[text(CAPABILITY), text(key.as_str())], &[])
+    call(
+        runtime,
+        "stamped",
+        &[text(CAPABILITY), text(key.as_str())],
+        &[],
+    )
 }
 
 /// `view(runtime, store=None)`: {"early_check": {...}} while early_reset stands on, else {}.
@@ -104,7 +109,10 @@ pub fn view(runtime: &Runtime) -> Map {
             Err(_) => return answer,
         }
     }
-    let rows = core(runtime).ok().and_then(|store| waiting(&store).ok()).unwrap_or_default();
+    let rows = core(runtime)
+        .ok()
+        .and_then(|store| waiting(&store).ok())
+        .unwrap_or_default();
     let (checked, available, lifted, asked, found) =
         (&times[0], &times[1], &times[2], &times[3], &times[4]);
     let read_word = if !pyval::truthy(checked) {
@@ -146,7 +154,11 @@ pub fn view(runtime: &Runtime) -> Map {
 }
 
 fn answered(word: &str) -> Value {
-    object(vec![("done", Value::Bool(true)), ("refusal", Value::Null), ("check", text(word))])
+    object(vec![
+        ("done", Value::Bool(true)),
+        ("refusal", Value::Null),
+        ("check", text(word)),
+    ])
 }
 
 /// `check(runtime, store=None)`: advanced-early-check.
@@ -168,7 +180,10 @@ pub fn check(runtime: &Runtime) -> Value {
     if rows.is_empty() {
         return answered(NOTHING_WAITS);
     }
-    let (Ok(checked), Ok(asked)) = (stamped(runtime, OptionKey::CheckedAt), stamped(runtime, OptionKey::CheckAsked)) else {
+    let (Ok(checked), Ok(asked)) = (
+        stamped(runtime, OptionKey::CheckedAt),
+        stamped(runtime, OptionKey::CheckAsked),
+    ) else {
         return unavailable();
     };
     let recent = time(&checked).is_some_and(|at| 0.0 <= now - at && now - at < WINDOW);
@@ -186,7 +201,11 @@ pub fn check(runtime: &Runtime) -> Value {
     let stamped_now = match call(
         runtime,
         "stamp",
-        &[text(CAPABILITY), text(OptionKey::CheckAsked.as_str()), stamp],
+        &[
+            text(CAPABILITY),
+            text(OptionKey::CheckAsked.as_str()),
+            stamp,
+        ],
         &[],
     ) {
         Ok(done) => pyval::truthy(&done),
@@ -198,14 +217,28 @@ pub fn check(runtime: &Runtime) -> Value {
             Err(_) => return unavailable(),
         };
     if !asked_core {
-        if call(runtime, "unstamp", &[text(CAPABILITY), text(OptionKey::CheckAsked.as_str())], &[]).is_err() {
+        if call(
+            runtime,
+            "unstamp",
+            &[text(CAPABILITY), text(OptionKey::CheckAsked.as_str())],
+            &[],
+        )
+        .is_err()
+        {
             return unavailable();
         }
         return unavailable();
     }
     if !wake(runtime) {
         store.early_check_taken();
-        if call(runtime, "unstamp", &[text(CAPABILITY), text(OptionKey::CheckAsked.as_str())], &[]).is_err() {
+        if call(
+            runtime,
+            "unstamp",
+            &[text(CAPABILITY), text(OptionKey::CheckAsked.as_str())],
+            &[],
+        )
+        .is_err()
+        {
             return unavailable();
         }
         return answered(NOT_RUNNING);

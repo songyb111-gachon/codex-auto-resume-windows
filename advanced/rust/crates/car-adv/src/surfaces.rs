@@ -29,7 +29,9 @@ use crate::control::resets::{
 use crate::engine;
 use crate::runtime::Runtime;
 use crate::state::Error;
-use crate::vocabulary::{Actor, ArmingState, BridgeCommand, McpTool, Measurement, NoteCode, OffReason, Refusal, Verdict};
+use crate::vocabulary::{
+    Actor, ArmingState, BridgeCommand, McpTool, Measurement, NoteCode, OffReason, Refusal, Verdict,
+};
 
 /// `BADGE_SURFACES`.
 pub const BADGE_SURFACES: &[Surface] = &[Surface::Status, Surface::Tray, Surface::Diagnostics];
@@ -43,7 +45,11 @@ pub const KIND_SECONDS: f64 = 600.0;
 pub fn arguments(command: BridgeCommand) -> &'static [&'static str] {
     use BridgeCommand as B;
     match command {
-        B::AdvancedList | B::AdvancedDisarmAll | B::AdvancedRules | B::AdvancedSamples | B::AdvancedResets => &[],
+        B::AdvancedList
+        | B::AdvancedDisarmAll
+        | B::AdvancedRules
+        | B::AdvancedSamples
+        | B::AdvancedResets => &[],
         B::AdvancedWords => &["locale"],
         B::AdvancedStatement => &["capability", "locale"],
         B::AdvancedArm => &[
@@ -63,8 +69,16 @@ pub fn arguments(command: BridgeCommand) -> &'static [&'static str] {
         B::MeasureVerdict => &["measurement", "verdict", "note"],
         B::AdvancedOption => &["capability", "key", "value", "generation"],
         B::AdvancedRuleAdd => &["tag", "status_from", "status_to", "category", "generation"],
-        B::AdvancedRuleRemove | B::AdvancedResetCancel | B::AdvancedResetGoOn => &["rule", "generation"],
-        B::AdvancedKeepOn => &["capability", "keep_on", "send_again", "generation", "confirmed"],
+        B::AdvancedRuleRemove | B::AdvancedResetCancel | B::AdvancedResetGoOn => {
+            &["rule", "generation"]
+        }
+        B::AdvancedKeepOn => &[
+            "capability",
+            "keep_on",
+            "send_again",
+            "generation",
+            "confirmed",
+        ],
         B::AdvancedSendNow | B::AdvancedHeadlessStop => &["interruption_id"],
         B::AdvancedResetAdd => &[
             "kind",
@@ -126,7 +140,14 @@ pub fn arguments(command: BridgeCommand) -> &'static [&'static str] {
         B::AdvancedAccountsDelete => &["id", "all"],
         B::AdvancedAccountsSwitch => &["id"],
         B::AdvancedPythonUse => &["version"],
-        B::AdvancedPowerTasksArm => &["threads", "action", "grace_minutes", "failed", "interrupted", "generation"],
+        B::AdvancedPowerTasksArm => &[
+            "threads",
+            "action",
+            "grace_minutes",
+            "failed",
+            "interrupted",
+            "generation",
+        ],
         B::AdvancedFleetSave => &["alias", "folder", "generation"],
         B::AdvancedAnalytics => &["days"],
         B::AdvancedAnalyticsCsv => &["days", "path", "replace"],
@@ -143,7 +164,9 @@ pub fn arguments(command: BridgeCommand) -> &'static [&'static str] {
             "generation",
             "images",
         ],
-        B::AdvancedCourierSave => &["channel", "url", "token", "host", "port", "user", "password", "from", "to", "pair"],
+        B::AdvancedCourierSave => &[
+            "channel", "url", "token", "host", "port", "user", "password", "from", "to", "pair",
+        ],
         B::AdvancedCourierForget | B::AdvancedCourierTest => &["channel"],
     }
 }
@@ -176,7 +199,8 @@ pub struct World {
     /// `codex/restart.busy(paths)`: why Codex may not be restarted now.
     pub restart_busy: Arc<dyn Fn(&car_config::Paths) -> Vec<&'static str> + Send + Sync>,
     /// `codex/restart.restart(paths)`: (what the restart came to, how the app ended).
-    pub restart_run: Arc<dyn Fn(&car_config::Paths) -> (&'static str, Option<&'static str>) + Send + Sync>,
+    pub restart_run:
+        Arc<dyn Fn(&car_config::Paths) -> (&'static str, Option<&'static str>) + Send + Sync>,
     /// `threading.Thread(target=job, daemon=True).start()`; false where it could not start.
     pub spawn: Arc<dyn Fn(Box<dyn FnOnce() + Send>) -> bool + Send + Sync>,
     /// The Windows user's preferred UI languages (`GetUserPreferredUILanguages`, which `l10n` reads for `system`):
@@ -201,7 +225,12 @@ impl World {
             account_switch: Arc::new(|_| crate::codex::account::FAILED),
             restart_busy: Arc::new(|_| vec![crate::codex::restart::UNKNOWN]),
             restart_run: Arc::new(|_| (crate::codex::restart::FAILED, None)),
-            spawn: Arc::new(|job| std::thread::Builder::new().name("account-switch".into()).spawn(job).is_ok()),
+            spawn: Arc::new(|job| {
+                std::thread::Builder::new()
+                    .name("account-switch".into())
+                    .spawn(job)
+                    .is_ok()
+            }),
             windows_languages: Arc::new(Vec::new),
         }
     }
@@ -299,17 +328,25 @@ pub fn status(runtime: &Runtime) -> Result<Map> {
         shown.extend(found);
     }
     let supervised = armed(runtime, engine::supervise::CAPABILITY);
-    let there = |pid: i64| u32::try_from(pid).is_ok_and(|pid| car_platform::kernel::process_identity(pid).is_ok());
-    if let Value::Object(found) =
-        engine::supervise::view(supervised, std::path::Path::new(&runtime.paths.logs_dir), &there)
-    {
+    let there = |pid: i64| {
+        u32::try_from(pid).is_ok_and(|pid| car_platform::kernel::process_identity(pid).is_ok())
+    };
+    if let Value::Object(found) = engine::supervise::view(
+        supervised,
+        std::path::Path::new(&runtime.paths.logs_dir),
+        &there,
+    ) {
         shown.extend(found);
     }
     Ok(shown)
 }
 
 /// A capability's code, downcast to its own type, and `act` on it; None where it cannot be made or is not that type.
-fn code_of<T: 'static, R>(runtime: &Runtime, capability: &str, act: impl FnOnce(&mut T) -> R) -> Option<R> {
+fn code_of<T: 'static, R>(
+    runtime: &Runtime,
+    capability: &str,
+    act: impl FnOnce(&mut T) -> R,
+) -> Option<R> {
     let definition = runtime.registry.get(capability)?;
     runtime
         .call(definition, |code| {
@@ -335,7 +372,10 @@ pub fn meter_view(runtime: &Runtime) -> Result<Map> {
         let now = runtime.now();
         let mut options = Vec::new();
         for capability in [METER, WRAP_UP, PAUSE] {
-            options.push((capability, kit::state(runtime, "options")?.options(&text(capability))?));
+            options.push((
+                capability,
+                kit::state(runtime, "options")?.options(&text(capability))?,
+            ));
         }
         Ok((rows, now, options))
     };
@@ -346,13 +386,22 @@ pub fn meter_view(runtime: &Runtime) -> Result<Map> {
         return Ok(answer);
     }
     let option_of = |capability: &str| -> &Map {
-        &options.iter().find(|(id, _)| *id == capability).expect("the three stages").1
+        &options
+            .iter()
+            .find(|(id, _)| *id == capability)
+            .expect("the three stages")
+            .1
     };
     let on: Vec<(&str, Vec<i64>)> = [METER, WRAP_UP, PAUSE]
         .into_iter()
         .map(|capability| (capability, engine::usage::acting(option_of(capability))))
         .collect();
-    let acting_of = |capability: &str| -> &Vec<i64> { &on.iter().find(|(id, _)| *id == capability).expect("stage").1 };
+    let acting_of = |capability: &str| -> &Vec<i64> {
+        &on.iter()
+            .find(|(id, _)| *id == capability)
+            .expect("stage")
+            .1
+    };
     let current: Vec<(Value, Value)> = match current_windows(runtime, &rows) {
         Some(found) => found,
         None => rows.iter().map(|(key, _)| key.clone()).collect(),
@@ -362,14 +411,22 @@ pub fn meter_view(runtime: &Runtime) -> Result<Map> {
             .ok()
             .flatten()
             .unwrap_or(Ordering::Equal)
-            .then_with(|| pyval::order(&a.1, &b.1).ok().flatten().unwrap_or(Ordering::Equal))
+            .then_with(|| {
+                pyval::order(&a.1, &b.1)
+                    .ok()
+                    .flatten()
+                    .unwrap_or(Ordering::Equal)
+            })
     });
     let (mut shown, mut notices) = (Vec::new(), Vec::new());
     for ((bucket, minutes), row) in &rows {
-        let acts = current.iter().any(|(b, m)| pyval::eq(b, bucket) && pyval::eq(m, minutes));
+        let acts = current
+            .iter()
+            .any(|(b, m)| pyval::eq(b, bucket) && pyval::eq(m, minutes));
         let mut band = "none";
         for (capability, word) in [(PAUSE, "pause"), (WRAP_UP, "wrap_up"), (METER, "warn")] {
-            let in_on = kit::small(minutes).is_some_and(|minutes| acting_of(capability).contains(&minutes));
+            let in_on =
+                kit::small(minutes).is_some_and(|minutes| acting_of(capability).contains(&minutes));
             if acts && in_on && states.get(capability) == Some(ArmingState::Armed) {
                 let threshold = engine::usage::percent(option_of(capability), capability, minutes);
                 let reached = engine::usage::reached(row, threshold.as_ref(), now)
@@ -389,7 +446,8 @@ pub fn meter_view(runtime: &Runtime) -> Result<Map> {
         ]));
         let warned = get(row, "warned_at");
         let reset = get(row, "reset_at");
-        let recent = kit::number_of(&warned).is_some_and(|at| 0.0 <= now - at && now - at < NOTICE_FOR);
+        let recent =
+            kit::number_of(&warned).is_some_and(|at| 0.0 <= now - at && now - at < NOTICE_FOR);
         if acts
             && !matches!(warned, Value::Null)
             && recent
@@ -412,14 +470,19 @@ pub fn meter_view(runtime: &Runtime) -> Result<Map> {
         }
     }
     if states.get(PAUSE) == Some(ArmingState::Armed) {
-        let said = code_of(runtime, PAUSE, |stop: &mut engine::usagestop::UsageStop| stop.with(|inner| inner.notices(now))).unwrap_or_default();
+        let said = code_of(runtime, PAUSE, |stop: &mut engine::usagestop::UsageStop| {
+            stop.with(|inner| inner.notices(now))
+        })
+        .unwrap_or_default();
         for notice in said {
             notices.push(with(notice, vec![("used_percent", Value::Null)]));
         }
     }
     let read_at: Vec<Value> = rows.iter().map(|(_, row)| get(row, "read_at")).collect();
     let refs: Vec<&Value> = read_at.iter().collect();
-    let newest = pyval::max(&refs).cloned().map_err(|class| Error::python(class, ""))?;
+    let newest = pyval::max(&refs)
+        .cloned()
+        .map_err(|class| Error::python(class, ""))?;
     answer.insert(
         Str::new("meter"),
         object(vec![
@@ -432,16 +495,26 @@ pub fn meter_view(runtime: &Runtime) -> Result<Map> {
 }
 
 /// `{(row["bucket"], row["minutes"]) for row in usage.of_account(rows, paths, state.stamped)}`; None where it raised.
-fn current_windows(runtime: &Runtime, rows: &[((Value, Value), crate::state::sql::Row)]) -> Option<Vec<(Value, Value)>> {
+fn current_windows(
+    runtime: &Runtime,
+    rows: &[((Value, Value), crate::state::sql::Row)],
+) -> Option<Vec<(Value, Value)>> {
     let binding = crate::capabilities::Binding {
         runtime: runtime.me.borrow().clone(),
         capability: engine::usage::METER.to_owned(),
     };
     let bound = engine::usage::Bound::of(binding);
     let world = engine::usage::World::installed();
-    let keyed: Vec<_> = rows.iter().map(|(key, row)| (key.clone(), row.clone())).collect();
+    let keyed: Vec<_> = rows
+        .iter()
+        .map(|(key, row)| (key.clone(), row.clone()))
+        .collect();
     let kept = engine::usage::of_account(&world, &keyed, &runtime.paths, Some(&bound)).ok()?;
-    Some(kept.iter().map(|row| (get(row, "bucket"), get(row, "minutes"))).collect())
+    Some(
+        kept.iter()
+            .map(|row| (get(row, "bucket"), get(row, "minutes")))
+            .collect(),
+    )
 }
 
 /// `notice_view(runtime)`: {"notice": {"open_codex": true, "chat": true}}, each only while it holds; {} otherwise.
@@ -451,7 +524,9 @@ pub fn notice_view(runtime: &Runtime) -> Map {
     if runtime.registry.get(open).is_some() && armed(runtime, open) {
         let available = runtime.action(open).ok().and_then(|cell| {
             let mut code = cell.try_borrow_mut().ok()?;
-            let button = code.as_any()?.downcast_mut::<crate::control::opencodex::OpenCodexButton>()?;
+            let button = code
+                .as_any()?
+                .downcast_mut::<crate::control::opencodex::OpenCodexButton>()?;
             Some(button.available())
         });
         if available == Some(true) {
@@ -476,9 +551,11 @@ pub fn update_view(runtime: &Runtime) -> Map {
     if runtime.registry.get(capability).is_none() || !armed(runtime, capability) {
         return answer;
     }
-    let Some(Some((version, prerelease))) =
-        code_of(runtime, capability, |code: &mut engine::updatecheck::IdleUpdateCheck| code.offered())
-    else {
+    let Some(Some((version, prerelease))) = code_of(
+        runtime,
+        capability,
+        |code: &mut engine::updatecheck::IdleUpdateCheck| code.offered(),
+    ) else {
         return answer;
     };
     let notice = object(vec![
@@ -486,7 +563,10 @@ pub fn update_view(runtime: &Runtime) -> Map {
         ("version", text(&version)),
         ("prerelease", Value::Bool(prerelease)),
     ]);
-    answer.insert(Str::new("update"), object(vec![("notices", Value::Array(vec![notice]))]));
+    answer.insert(
+        Str::new("update"),
+        object(vec![("notices", Value::Array(vec![notice]))]),
+    );
     answer
 }
 
@@ -498,7 +578,10 @@ fn notices_of(runtime: &Runtime, capability: &str, name: &str, found: Option<Val
     }
     if let Some(found @ Value::Object(_)) = found {
         if pyval::truthy(&found) {
-            answer.insert(Str::new(name), object(vec![("notices", Value::Array(vec![found]))]));
+            answer.insert(
+                Str::new(name),
+                object(vec![("notices", Value::Array(vec![found]))]),
+            );
         }
     }
     answer
@@ -510,7 +593,11 @@ pub fn autoswitch_view(runtime: &Runtime) -> Map {
     if runtime.registry.get(capability).is_none() || !armed(runtime, capability) {
         return Map::new();
     }
-    let found = code_of(runtime, capability, |code: &mut engine::autoswitch::AutoSwitch| code.notice_view());
+    let found = code_of(
+        runtime,
+        capability,
+        |code: &mut engine::autoswitch::AutoSwitch| code.notice_view(),
+    );
     notices_of(runtime, capability, "autoswitch", found)
 }
 
@@ -520,7 +607,11 @@ pub fn account_view(runtime: &Runtime) -> Map {
     if runtime.registry.get(capability).is_none() || !armed(runtime, capability) {
         return Map::new();
     }
-    let found = code_of(runtime, capability, |code: &mut engine::account::AccountWatch| code.notice_view());
+    let found = code_of(
+        runtime,
+        capability,
+        |code: &mut engine::account::AccountWatch| code.notice_view(),
+    );
     notices_of(runtime, capability, "account", found)
 }
 
@@ -534,9 +625,14 @@ pub fn diagnostics(runtime: &Runtime) -> Map {
     }
     let watch = crate::watchlog::exported(&runtime.state, runtime.now()).unwrap_or_default();
     if !watch.is_empty() {
-        shown.insert(Str::new("watch"), Value::Array(watch.into_iter().map(Value::Object).collect()));
+        shown.insert(
+            Str::new("watch"),
+            Value::Array(watch.into_iter().map(Value::Object).collect()),
+        );
     }
-    if let Ok(Some(check)) = crate::autocheck::diagnostics(std::path::Path::new(&runtime.paths.advanced_dir)) {
+    if let Ok(Some(check)) =
+        crate::autocheck::diagnostics(std::path::Path::new(&runtime.paths.advanced_dir))
+    {
         if pyval::truthy(&check) {
             shown.insert(Str::new("auto_check"), check);
         }
@@ -601,7 +697,12 @@ pub fn headless_stop(runtime: &Runtime, interruption_id: &Value) -> Result<Value
         return Ok(refusal(Refusal::InvalidRequest));
     }
     let at = Value::Float(runtime.now());
-    let stopped = match call(runtime, "run_stop", &[interruption_id.clone()], &[("at", at)]) {
+    let stopped = match call(
+        runtime,
+        "run_stop",
+        &[interruption_id.clone()],
+        &[("at", at)],
+    ) {
         Ok(stopped) => stopped,
         Err(error) if error.is_state() => return Ok(refusal(Refusal::StateUnavailable)),
         Err(error) => return Err(error),
@@ -610,7 +711,10 @@ pub fn headless_stop(runtime: &Runtime, interruption_id: &Value) -> Result<Value
         return Ok(refusal(Refusal::NotOn));
     }
     kit::wake(runtime);
-    Ok(object(vec![("done", Value::Bool(true)), ("refusal", Value::Null)]))
+    Ok(object(vec![
+        ("done", Value::Bool(true)),
+        ("refusal", Value::Null),
+    ]))
 }
 
 /// `runs(runtime)`: the turns run here now, as Pending shows them.
@@ -626,7 +730,10 @@ pub fn runs(runtime: &Runtime) -> Vec<Value> {
                 ("capability", get(row, "capability")),
                 ("started_at", get(row, "started_at")),
                 ("ends_by", get(row, "ends_by")),
-                ("stopping", Value::Bool(!matches!(get(row, "stop_requested_at"), Value::Null))),
+                (
+                    "stopping",
+                    Value::Bool(!matches!(get(row, "stop_requested_at"), Value::Null)),
+                ),
             ])
         })
         .collect()
@@ -657,15 +764,20 @@ pub fn rows(runtime: &Runtime) -> Map {
     }
     let mut shown = Map::new();
     let states = runtime.states(false, &[]);
-    let owed: Vec<Value> = call(runtime, "runs_owed", &[text(capability::MODEL_FALLBACK)], &[])
-        .map(|found| {
-            list(&found)
-                .iter()
-                .filter(|row| !matches!(get(row, "ended_at"), Value::Null))
-                .map(|row| get(row, "interruption_id"))
-                .collect()
-        })
-        .unwrap_or_default();
+    let owed: Vec<Value> = call(
+        runtime,
+        "runs_owed",
+        &[text(capability::MODEL_FALLBACK)],
+        &[],
+    )
+    .map(|found| {
+        list(&found)
+            .iter()
+            .filter(|row| !matches!(get(row, "ended_at"), Value::Null))
+            .map(|row| get(row, "interruption_id"))
+            .collect()
+    })
+    .unwrap_or_default();
     if !owed.is_empty() {
         shown.insert(Str::new("model_not_restored"), Value::Array(owed));
     }
@@ -729,8 +841,10 @@ fn silent(runtime: &Runtime) -> Vec<Value> {
     let keys: Vec<Value> = list(&found)
         .iter()
         .filter(|row| {
-            kit::among(&get(row, "capability"), &["headless_run", "compact_continue"])
-                && !matches!(get(row, "ended_at"), Value::Null)
+            kit::among(
+                &get(row, "capability"),
+                &["headless_run", "compact_continue"],
+            ) && !matches!(get(row, "ended_at"), Value::Null)
         })
         .map(|row| get(row, "interruption_id"))
         .collect();
@@ -750,7 +864,10 @@ fn silent(runtime: &Runtime) -> Vec<Value> {
         };
         match store.get(&text_key) {
             Ok(Some(row)) => {
-                if is(&get(&row, "recovery_client_id"), &ids::continuation_client_id(&text_key)) {
+                if is(
+                    &get(&row, "recovery_client_id"),
+                    &ids::continuation_client_id(&text_key),
+                ) {
                     proved.push(key);
                 }
             }
@@ -764,12 +881,17 @@ fn silent(runtime: &Runtime) -> Vec<Value> {
 /// `_compacting(row)`: a full conversation compact_continue holds for the person's /compact.
 fn compacting(row: &Map) -> bool {
     if !is(&get(row, "category"), engine::compact::KIND)
-        || !kit::among(&get(row, "state"), car_machine::vocab_gen::domain_states::WAITING)
+        || !kit::among(
+            &get(row, "state"),
+            car_machine::vocab_gen::domain_states::WAITING,
+        )
         || !pyval::truthy(&get(row, "gate_eval"))
     {
         return false;
     }
-    decode_gates(&get(row, "gate_eval")).get("thread_available").cloned()
+    decode_gates(&get(row, "gate_eval"))
+        .get("thread_available")
+        .cloned()
         == Some((WAIT.to_owned(), HELD.to_owned()))
 }
 
@@ -793,14 +915,21 @@ fn listed(runtime: &Runtime) -> Result<Vec<Map>> {
 
 /// `_kind(source, thread_id)`: "cli" or "ide" for a conversation of a terminal's Codex TUI or of VS Code, kept
 /// KIND_SECONDS; Err (None) where it cannot be read.
-fn kind_of(source: &car_codex::source::LocalSource, thread: &Value) -> Option<Option<&'static str>> {
+fn kind_of(
+    source: &car_codex::source::LocalSource,
+    thread: &Value,
+) -> Option<Option<&'static str>> {
     let thread = match thread {
         Value::Str(text) => text.as_str()?.to_owned(),
         _ => return None,
     };
     let key = (source.home.clone(), thread.clone());
     let now = monotonic();
-    if let Some((kind, at)) = kinds().lock().unwrap_or_else(PoisonError::into_inner).get(&key) {
+    if let Some((kind, at)) = kinds()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&key)
+    {
         if 0.0 <= now - at && now - at < KIND_SECONDS {
             return Some(*kind);
         }
@@ -808,7 +937,10 @@ fn kind_of(source: &car_codex::source::LocalSource, thread: &Value) -> Option<Op
     let mut found = None;
     if !source.taken(&thread, &BTreeSet::new(), None).ok()? {
         for kind in ["cli", "ide"] {
-            if source.taken(&thread, &BTreeSet::from([kind.to_owned()]), None).ok()? {
+            if source
+                .taken(&thread, &BTreeSet::from([kind.to_owned()]), None)
+                .ok()?
+            {
                 found = Some(kind);
                 break;
             }
@@ -899,13 +1031,18 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
     let card_seams = card::remote::CardSeams {
         running: world.running.as_ref(),
         watcher: world.watcher.as_ref(),
-        addresses: world.addresses.as_deref().map(|found| found as &dyn Fn() -> Vec<String>),
+        addresses: world
+            .addresses
+            .as_deref()
+            .map(|found| found as &dyn Fn() -> Vec<String>),
         token: world.token.as_ref(),
     };
     Ok(match command {
-        B::AdvancedReportBuild | B::AdvancedReportSave | B::AdvancedReportCheck | B::AdvancedReportSend | B::AdvancedReportJob => {
-            report(runtime, command, &Value::Object(argument.clone()))
-        }
+        B::AdvancedReportBuild
+        | B::AdvancedReportSave
+        | B::AdvancedReportCheck
+        | B::AdvancedReportSend
+        | B::AdvancedReportJob => report(runtime, command, &Value::Object(argument.clone())),
         B::AdvancedList => with(arming.listing(), vec![("done", Value::Bool(true))]),
         B::AdvancedWords => {
             let locale = locale(&a("locale"));
@@ -914,8 +1051,17 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
                 .catalogs()
                 .words(Some(locale))
                 .map_err(|_| Error::python("UnicodeDecodeError", "a catalog could not be read"))?;
-            let words = Value::Object(words.into_iter().map(|(key, value)| (Str::new(&key), text(&value))).collect());
-            object(vec![("done", Value::Bool(true)), ("locale", text(locale)), ("words", words)])
+            let words = Value::Object(
+                words
+                    .into_iter()
+                    .map(|(key, value)| (Str::new(&key), text(&value)))
+                    .collect(),
+            );
+            object(vec![
+                ("done", Value::Bool(true)),
+                ("locale", text(locale)),
+                ("words", words),
+            ])
         }
         B::AdvancedStatement => {
             let capability = a("capability");
@@ -941,17 +1087,40 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
                 acknowledged_version: a("engine_version"),
                 warnings: a("warnings"),
                 also: a("also"),
-                keep_on: argument.get("keep_on").cloned().unwrap_or(Value::Bool(false)),
+                keep_on: argument
+                    .get("keep_on")
+                    .cloned()
+                    .unwrap_or(Value::Bool(false)),
                 actor: dashboard(),
             })
             .map_err(|_| Error::python("UnicodeDecodeError", "a catalog could not be read"))?,
         B::AdvancedDisarm => arming.disarm(&a("capability"), &dashboard()),
         B::AdvancedWordings => arming.wordings_view(&a("capability")),
-        B::AdvancedWording => arming.set_wording(&a("capability"), &a("key"), &a("words"), &a("generation"), &dashboard()),
+        B::AdvancedWording => arming.set_wording(
+            &a("capability"),
+            &a("key"),
+            &a("words"),
+            &a("generation"),
+            &dashboard(),
+        ),
         B::AdvancedDisarmAll => arming.all_off(&dashboard()),
-        B::Measure => measure(runtime, &a("measurement"), &a("thread"), argument.get("may_spend").cloned().unwrap_or(Value::Bool(false))),
+        B::Measure => measure(
+            runtime,
+            &a("measurement"),
+            &a("thread"),
+            argument
+                .get("may_spend")
+                .cloned()
+                .unwrap_or(Value::Bool(false)),
+        ),
         B::MeasureVerdict => measure_verdict(runtime, &a("measurement"), &a("verdict"), &a("note")),
-        B::AdvancedOption => arming.set_option(&a("capability"), &a("key"), &a("value"), &a("generation"), &dashboard()),
+        B::AdvancedOption => arming.set_option(
+            &a("capability"),
+            &a("key"),
+            &a("value"),
+            &a("generation"),
+            &dashboard(),
+        ),
         B::AdvancedRules => arming.rules_view(),
         B::AdvancedRuleAdd => arming.add_rule(
             &a("tag"),
@@ -970,7 +1139,11 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         B::AdvancedChatSend => card::chat::add(runtime, argument)?,
         B::AdvancedChatCancel => card::chat::cancel(runtime, argument)?,
         B::AdvancedConversations => card::conversations::view(runtime)?,
-        B::AdvancedWatchLog => Value::Object(crate::watchlog::view(&runtime.state, &a("capability"), runtime.now())?),
+        B::AdvancedWatchLog => Value::Object(crate::watchlog::view(
+            &runtime.state,
+            &a("capability"),
+            runtime.now(),
+        )?),
         B::AdvancedResets => card::resets::view(runtime),
         B::AdvancedResetAdd => card::resets::add(runtime, argument)?,
         B::AdvancedResetCancel => card::resets::cancel(runtime, &a("rule"), &a("generation"))?,
@@ -985,7 +1158,9 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         B::AdvancedPromptFollow => card::follow::view(runtime, &a("prompt"), None)?,
         B::AdvancedPromptGoOn => card::prompts::go_on(runtime, &a("prompt"), &a("generation"))?,
         B::AdvancedCourier => card::courier::view(runtime, &secrets),
-        B::AdvancedCourierSave => card::courier::save(runtime, &Value::Object(argument.clone()), &secrets, &seams),
+        B::AdvancedCourierSave => {
+            card::courier::save(runtime, &Value::Object(argument.clone()), &secrets, &seams)
+        }
         B::AdvancedCourierForget => card::courier::forget(runtime, &a("channel"), &secrets),
         B::AdvancedCourierTest => card::courier::test(runtime, &a("channel"), &secrets, &seams),
         B::AdvancedFeedRefresh => card::courier::feed_refresh(runtime, &seams),
@@ -997,11 +1172,14 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         B::AdvancedAccountRestart => card::account::restart(runtime, argument)?,
         // python_choice (D8, Q1 (a)): never offered and no choice ever recorded, so each answers as the tag's does
         // for a capability that does not stand: not_on.
-        B::AdvancedPython | B::AdvancedPythonCheck | B::AdvancedPythonUse | B::AdvancedPythonBack => {
-            refusal(Refusal::NotOn)
-        }
+        B::AdvancedPython
+        | B::AdvancedPythonCheck
+        | B::AdvancedPythonUse
+        | B::AdvancedPythonBack => refusal(Refusal::NotOn),
         B::AdvancedFleet => card::fleet::view(runtime)?,
-        B::AdvancedFleetSave => card::fleet::save(runtime, &a("alias"), &a("folder"), &a("generation"))?,
+        B::AdvancedFleetSave => {
+            card::fleet::save(runtime, &a("alias"), &a("folder"), &a("generation"))?
+        }
         B::AdvancedRemotePairStart => {
             card::remote::pair_start(runtime, &secrets, world.code.as_ref(), world.start.as_ref())
         }
@@ -1010,7 +1188,10 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
             runtime,
             &argument.get("copy").cloned().unwrap_or(Value::Bool(false)),
             &a("host"),
-            &argument.get("copy_token").cloned().unwrap_or(Value::Bool(false)),
+            &argument
+                .get("copy_token")
+                .cloned()
+                .unwrap_or(Value::Bool(false)),
             &secrets,
             &card_seams,
         ),
@@ -1018,12 +1199,17 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         B::AdvancedKeepOn => arming.set_keep_on(&KeepRequest {
             capability: a("capability"),
             keep_on: a("keep_on"),
-            send_again: argument.get("send_again").cloned().unwrap_or(Value::Bool(false)),
+            send_again: argument
+                .get("send_again")
+                .cloned()
+                .unwrap_or(Value::Bool(false)),
             generation: a("generation"),
             confirmed: a("confirmed"),
             actor: dashboard(),
         }),
-        B::AdvancedCeiling => arming.set_global_hourly(&a("global_hourly"), &a("generation"), &dashboard()),
+        B::AdvancedCeiling => {
+            arming.set_global_hourly(&a("global_hourly"), &a("generation"), &dashboard())
+        }
         B::AdvancedAccounts
         | B::AdvancedAccountsAdd
         | B::AdvancedAccountsSave
@@ -1047,12 +1233,16 @@ fn report(runtime: &Runtime, command: BridgeCommand, argument: &Value) -> Value 
         let flow = {
             let mut code = cell.try_borrow_mut().map_err(|_| ())?;
             let any = code.as_any().ok_or(())?;
-            any.downcast_mut::<crate::capabilities::report::ReportCode>().ok_or(())?.flow().clone()
+            any.downcast_mut::<crate::capabilities::report::ReportCode>()
+                .ok_or(())?
+                .flow()
+                .clone()
         };
         let shared = runtime.me.borrow().upgrade().ok_or(())?;
         let shared: Arc<dyn crate::report::seam::Runtime> = shared;
         let definition = Arc::new(definition.clone());
-        flow.answer(&shared, &definition, command.as_str(), argument).map_err(|_| ())
+        flow.answer(&shared, &definition, command.as_str(), argument)
+            .map_err(|_| ())
     })();
     match answered {
         Ok(found) => found,
@@ -1153,7 +1343,10 @@ reduces automation, so it needs no confirmation. {OFF_ONLY}"
                         "properties",
                         object(vec![(
                             "capability",
-                            object(vec![("type", text("string")), ("description", text("The capability's exact id."))]),
+                            object(vec![
+                                ("type", text("string")),
+                                ("description", text("The capability's exact id.")),
+                            ]),
                         )]),
                     ),
                 ]),
@@ -1199,8 +1392,14 @@ pub fn mcp(runtime: &Runtime, facts: &Value) -> Result<Option<Value>> {
         McpTool::DisarmAdvancedCapability => &["capability"],
         _ => &[],
     };
-    if arguments.keys().any(|key| !key.as_str().is_some_and(|key| declared.contains(&key))) {
-        return Ok(Some(object(vec![("refused", text("unrecognized tool arguments"))])));
+    if arguments
+        .keys()
+        .any(|key| !key.as_str().is_some_and(|key| declared.contains(&key)))
+    {
+        return Ok(Some(object(vec![(
+            "refused",
+            text("unrecognized tool arguments"),
+        )])));
     }
     let arming = runtime.arming();
     let actor = text(Actor::Mcp.as_str());
@@ -1213,10 +1412,22 @@ pub fn mcp(runtime: &Runtime, facts: &Value) -> Result<Option<Value>> {
                 _ => Vec::new(),
             } {
                 let Value::Object(item) = item else {
-                    return Err(Error::type_error("list indices must be integers or slices, not str"));
+                    return Err(Error::type_error(
+                        "list indices must be integers or slices, not str",
+                    ));
                 };
                 let mut entry = Map::new();
-                for key in ["id", "state", "since", "by", "reason", "departs_from", "keep_on", "send_again", "notice"] {
+                for key in [
+                    "id",
+                    "state",
+                    "since",
+                    "by",
+                    "reason",
+                    "departs_from",
+                    "keep_on",
+                    "send_again",
+                    "notice",
+                ] {
                     let Some(value) = item.get(key) else {
                         return Err(Error::python("KeyError", key));
                     };
@@ -1241,14 +1452,20 @@ pub fn mcp(runtime: &Runtime, facts: &Value) -> Result<Option<Value>> {
             );
             object(vec![
                 ("summary", text(&summary)),
-                ("data", object(vec![("capabilities", Value::Array(shown)), ("on", on)])),
+                (
+                    "data",
+                    object(vec![("capabilities", Value::Array(shown)), ("on", on)]),
+                ),
             ])
         }
         McpTool::DisarmAdvancedCapability => {
             let capability = arg(&arguments, "capability");
             let result = arming.disarm(&capability, &actor);
             if !pyval::truthy(&field(&result, "done")) {
-                let refused = if is(&field(&result, "refusal"), Refusal::UnknownCapability.as_str()) {
+                let refused = if is(
+                    &field(&result, "refusal"),
+                    Refusal::UnknownCapability.as_str(),
+                ) {
                     "no advanced capability has that id"
                 } else {
                     "the advanced state could not be changed"
@@ -1259,7 +1476,11 @@ pub fn mcp(runtime: &Runtime, facts: &Value) -> Result<Option<Value>> {
             let summary = format!(
                 "{} is {}.",
                 crate::state::py::py_str(&capability),
-                if pyval::truthy(&changed) { "now off" } else { "off" }
+                if pyval::truthy(&changed) {
+                    "now off"
+                } else {
+                    "off"
+                }
             );
             object(vec![
                 ("summary", text(&summary)),
@@ -1276,7 +1497,10 @@ pub fn mcp(runtime: &Runtime, facts: &Value) -> Result<Option<Value>> {
         McpTool::DisarmAllAdvanced => {
             let result = arming.all_off(&actor);
             if !pyval::truthy(&field(&result, "done")) {
-                return Ok(Some(object(vec![("refused", text("the advanced state could not be changed"))])));
+                return Ok(Some(object(vec![(
+                    "refused",
+                    text("the advanced state could not be changed"),
+                )])));
             }
             let count = field(&result, "count");
             object(vec![

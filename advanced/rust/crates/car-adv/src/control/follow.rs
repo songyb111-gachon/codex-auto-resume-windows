@@ -11,7 +11,9 @@ use car_machine::json::{Map, Str, Value};
 use car_machine::pyval;
 use car_machine::vocab_gen::domain_states::{TERMINAL, WAITING as WAITING_STATES};
 
-use super::resets::{Result, among, codex_home, codex_os, get, is, is_int, refused_here, shown, standing, text, with};
+use super::resets::{
+    Result, among, codex_home, codex_os, get, is, is_int, refused_here, shown, standing, text, with,
+};
 use crate::engine::promptqueue::CAPABILITY;
 use crate::runtime::Runtime;
 use crate::vocabulary::{PromptReason, PromptState, Refusal};
@@ -49,7 +51,10 @@ pub type Reader<'a> = &'a dyn Fn(&Value, &Value) -> Option<Vec<Value>>;
 
 /// `proofs(record_id)`: its marker, then the client id it went under with none.
 pub fn proofs(record_id: &str) -> [String; 2] {
-    [ids::short_marker(record_id), ids::continuation_client_id(record_id)]
+    [
+        ids::short_marker(record_id),
+        ids::continuation_client_id(record_id),
+    ]
 }
 
 /// `read_turns(home)`'s reader: the marker rows of the occurrence's turn, for each proof until one is found.
@@ -114,7 +119,11 @@ fn number(value: &Value) -> Option<f64> {
 /// `_by_time(prompt, records)`: (link, turn id, why) by time.
 fn by_time(prompt: &Map, records: &[Map]) -> (&'static str, Value, Value) {
     let sent = get(prompt, "sent_at");
-    let low = if pyval::truthy(&sent) { sent } else { get(prompt, "due_at") };
+    let low = if pyval::truthy(&sent) {
+        sent
+    } else {
+        get(prompt, "due_at")
+    };
     let high = get(prompt, "finished_at");
     let (Some(low), Some(high)) = (number(&low), number(&high)) else {
         return (NONE, Value::Null, text(NOT_FOUND));
@@ -129,7 +138,9 @@ fn by_time(prompt: &Map, records: &[Map]) -> (&'static str, Value, Value) {
         .iter()
         .filter(|record| {
             matches!(get(record, "parent_interruption_id"), Value::Null)
-                && !recovery_turns.iter().any(|turn| pyval::eq(turn, &get(record, "turn_id")))
+                && !recovery_turns
+                    .iter()
+                    .any(|turn| pyval::eq(turn, &get(record, "turn_id")))
                 && number(&get(record, "started_at")).is_some_and(|at| low <= at && at <= high)
         })
         .collect();
@@ -142,7 +153,10 @@ fn by_time(prompt: &Map, records: &[Map]) -> (&'static str, Value, Value) {
 
 /// `_cut_off(records, turn_id, parent)`: the earliest detected interruption of `turn_id`, or of `parent`'s.
 fn cut_off<'a>(records: &'a [Map], turn_id: &Value, parent: &Value) -> Option<&'a Map> {
-    let mut found: Vec<&Map> = records.iter().filter(|record| pyval::eq(&get(record, "turn_id"), turn_id)).collect();
+    let mut found: Vec<&Map> = records
+        .iter()
+        .filter(|record| pyval::eq(&get(record, "turn_id"), turn_id))
+        .collect();
     if found.is_empty() && !matches!(parent, Value::Null) {
         found = records
             .iter()
@@ -154,7 +168,11 @@ fn cut_off<'a>(records: &'a [Map], turn_id: &Value, parent: &Value) -> Option<&'
             let at = get(record, "detected_at");
             let id = get(record, "interruption_id");
             (
-                if pyval::truthy(&at) { at } else { super::resets::int(0) },
+                if pyval::truthy(&at) {
+                    at
+                } else {
+                    super::resets::int(0)
+                },
                 if pyval::truthy(&id) { id } else { text("") },
             )
         };
@@ -163,7 +181,12 @@ fn cut_off<'a>(records: &'a [Map], turn_id: &Value, parent: &Value) -> Option<&'
             .ok()
             .flatten()
             .unwrap_or(Ordering::Equal)
-            .then_with(|| pyval::order(&a.1, &b.1).ok().flatten().unwrap_or(Ordering::Equal))
+            .then_with(|| {
+                pyval::order(&a.1, &b.1)
+                    .ok()
+                    .flatten()
+                    .unwrap_or(Ordering::Equal)
+            })
     });
     found.first().copied()
 }
@@ -197,7 +220,11 @@ pub fn follow(prompt: &Map, found: Option<&[Value]>, records: &[Map]) -> Map {
         (link, turn, why) = (by_link, by_turn, by_why);
         status = Value::Null;
     }
-    let shown_status = if among(&status, TURN_STATUSES) { status } else { Value::Null };
+    let shown_status = if among(&status, TURN_STATUSES) {
+        status
+    } else {
+        Value::Null
+    };
     answer.insert(Str::new("link"), text(link));
     answer.insert(Str::new("why"), why);
     answer.insert(Str::new("turn_id"), turn.clone());
@@ -230,7 +257,9 @@ pub fn follow(prompt: &Map, found: Option<&[Value]>, records: &[Map]) -> Map {
     let end = match steps.last() {
         Some(Value::Object(last)) => get(last, "stage"),
         _ if link == EXACT && is(&shown_status, "inProgress") => text(STILL_RUNNING),
-        _ if link == EXACT && among(&shown_status, &["completed", "failed", "interrupted"]) => text(FINISHED),
+        _ if link == EXACT && among(&shown_status, &["completed", "failed", "interrupted"]) => {
+            text(FINISHED)
+        }
         _ => text(UNKNOWN),
     };
     answer.insert(Str::new("steps"), Value::Array(steps));
@@ -240,15 +269,24 @@ pub fn follow(prompt: &Map, found: Option<&[Value]>, records: &[Map]) -> Map {
 
 /// `_records(runtime, thread_id)`: core's interruptions of `thread_id`, every one; none where core's state is not there.
 fn records_of(runtime: &Runtime, thread: &Value) -> Result<Vec<Map>> {
-    if !Path::new(&runtime.paths.state_dir).join("state.sqlite").is_file() {
+    if !Path::new(&runtime.paths.state_dir)
+        .join("state.sqlite")
+        .is_file()
+    {
         return Ok(Vec::new());
     }
-    let store = car_store::Store::open(Path::new(&runtime.paths.state_dir), Arc::new(car_control::host::Probe))
-        .map_err(|_| crate::state::Error::state("cannot open core's state"))?;
+    let store = car_store::Store::open(
+        Path::new(&runtime.paths.state_dir),
+        Arc::new(car_control::host::Probe),
+    )
+    .map_err(|_| crate::state::Error::state("cannot open core's state"))?;
     let all = store
         .all_records()
         .map_err(|_| crate::state::Error::state("cannot read core's state"))?;
-    Ok(all.into_iter().filter(|record| pyval::eq(&get(record, "thread_id"), thread)).collect())
+    Ok(all
+        .into_iter()
+        .filter(|record| pyval::eq(&get(record, "thread_id"), thread))
+        .collect())
 }
 
 /// `view(runtime, prompt, reader=None)`: advanced-prompt-follow.
@@ -266,7 +304,8 @@ pub fn view(runtime: &Runtime, prompt: &Value, reader: Option<Reader<'_>>) -> Re
     let Value::Object(row) = row else {
         return Ok(refused_here(Refusal::InvalidRequest, runtime));
     };
-    if !is(&get(&row, "state"), PromptState::Done.as_str()) || !is(&get(&row, "reason"), PromptReason::Delivered.as_str())
+    if !is(&get(&row, "state"), PromptState::Done.as_str())
+        || !is(&get(&row, "reason"), PromptReason::Delivered.as_str())
     {
         return Ok(refused_here(Refusal::InvalidRequest, runtime));
     }

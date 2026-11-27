@@ -9,7 +9,9 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use car_machine::json::{Map, Str, Value};
 
 use super::resets::{Result, field, object, refusal, standing, text, verdict};
-use crate::codex::account::{self as codex_account, CANCELLED, FAILED, OUTCOMES, SIGNED_IN, TIMED_OUT};
+use crate::codex::account::{
+    self as codex_account, CANCELLED, FAILED, OUTCOMES, SIGNED_IN, TIMED_OUT,
+};
 use crate::codex::restart as restarts;
 use crate::runtime::Runtime;
 use crate::vocabulary::{ArmingState, Measurement, Refusal};
@@ -20,7 +22,13 @@ pub const ASK: &str = "ask";
 pub const NOT_NOW: &str = "not_now";
 pub const RESTARTING: &str = "restarting";
 /// The states Restart may be pressed in.
-pub const RESTARTABLE: [&str; 5] = [ASK, NOT_NOW, restarts::NOT_ENDED, restarts::NOT_STARTED, restarts::FAILED];
+pub const RESTARTABLE: [&str; 5] = [
+    ASK,
+    NOT_NOW,
+    restarts::NOT_ENDED,
+    restarts::NOT_STARTED,
+    restarts::FAILED,
+];
 
 /// `COUNTED[outcome]`.
 fn counted(outcome: &str) -> &'static str {
@@ -101,9 +109,30 @@ pub fn shown_of(found: &Value) -> Value {
     let on = car_machine::pyval::truthy(&present);
     object(vec![
         ("present", present),
-        ("plan", if on { field(found, "plan_word") } else { Value::Null }),
-        ("kind", if on { field(found, "kind") } else { Value::Null }),
-        ("mask", if on { codex_account::mask(&field(found, "email")) } else { Value::Null }),
+        (
+            "plan",
+            if on {
+                field(found, "plan_word")
+            } else {
+                Value::Null
+            },
+        ),
+        (
+            "kind",
+            if on {
+                field(found, "kind")
+            } else {
+                Value::Null
+            },
+        ),
+        (
+            "mask",
+            if on {
+                codex_account::mask(&field(found, "email"))
+            } else {
+                Value::Null
+            },
+        ),
     ])
 }
 
@@ -119,7 +148,9 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
     let state = switching(runtime);
     let asked = restarting(runtime);
     let world = crate::surfaces::world();
-    let restartable = asked.as_deref().is_some_and(|asked| RESTARTABLE.contains(&asked));
+    let restartable = asked
+        .as_deref()
+        .is_some_and(|asked| RESTARTABLE.contains(&asked));
     let shown = if state.as_deref() == Some(WAITING) {
         shown_of(&codex_account::parse(&Value::Null))
     } else if restartable || asked.as_deref() == Some(RESTARTING) {
@@ -141,12 +172,19 @@ pub fn view(runtime: &Runtime) -> Result<Value> {
     found.insert(Str::new("switch"), word(state.as_deref()));
     found.insert(
         Str::new("restart"),
-        if button { word(asked.as_deref()) } else { Value::Null },
+        if button {
+            word(asked.as_deref())
+        } else {
+            Value::Null
+        },
     );
     found.insert(Str::new("busy"), Value::Array(Vec::new()));
     if button && restartable {
         let busy = (world.restart_busy)(&runtime.paths);
-        found.insert(Str::new("busy"), Value::Array(busy.into_iter().map(text).collect()));
+        found.insert(
+            Str::new("busy"),
+            Value::Array(busy.into_iter().map(text).collect()),
+        );
     }
     Ok(Value::Object(found))
 }
@@ -191,7 +229,11 @@ pub fn switch(runtime: &Runtime) -> Result<Value> {
     let job_world = world.clone();
     let job = Box::new(move || {
         let outcome = (job_world.account_switch)(&paths);
-        let outcome = if OUTCOMES.contains(&outcome) { outcome } else { FAILED };
+        let outcome = if OUTCOMES.contains(&outcome) {
+            outcome
+        } else {
+            FAILED
+        };
         let shown = (outcome == SIGNED_IN).then(|| shown_of(&(job_world.account_read)(&paths)));
         {
             let mut held = held();
@@ -229,7 +271,10 @@ pub fn restart(runtime: &Runtime, argument: &Map) -> Result<Value> {
         if asked.as_deref() == Some(RESTARTING) {
             return Ok(refusal(Refusal::RestartRunning));
         }
-        if !asked.as_deref().is_some_and(|asked| RESTARTABLE.contains(&asked)) {
+        if !asked
+            .as_deref()
+            .is_some_and(|asked| RESTARTABLE.contains(&asked))
+        {
             return Ok(refusal(Refusal::NothingToRestart));
         }
         if !now {
@@ -263,7 +308,11 @@ pub fn restart(runtime: &Runtime, argument: &Map) -> Result<Value> {
     let job_world = world.clone();
     let job = Box::new(move || {
         let (outcome, how) = (job_world.restart_run)(&paths);
-        let outcome = if restarts::OUTCOMES.contains(&outcome) { outcome } else { restarts::FAILED };
+        let outcome = if restarts::OUTCOMES.contains(&outcome) {
+            outcome
+        } else {
+            restarts::FAILED
+        };
         held().restarts.insert(job_home, outcome.into());
         if let Some(code) = ended_counted(how) {
             count(&me, code);

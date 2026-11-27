@@ -9,14 +9,22 @@ use car_machine::json::{Map, Value};
 use car_machine::pyval;
 
 use super::resets::{
-    Result, among, arg, call, codex_home, get, int, length, list, on, refused_here, shown, stale, switched_off, text,
-    wake, with,
+    Result, among, arg, call, codex_home, get, int, length, list, on, refused_here, shown, stale,
+    switched_off, text, wake, with,
 };
 use crate::engine::steer::{CAPABILITY, DAY, PER_CONVERSATION, PER_DAY, RUNNING};
 use crate::runtime::Runtime;
 use crate::vocabulary::{Refusal, SteerState};
 
-pub const SHOWN: &[&str] = &["steer_id", "thread_id", "words", "state", "reason", "created_at", "finished_at"];
+pub const SHOWN: &[&str] = &[
+    "steer_id",
+    "thread_id",
+    "words",
+    "state",
+    "reason",
+    "created_at",
+    "finished_at",
+];
 /// How long History shows a steer.
 pub const KEPT: f64 = 30.0 * DAY;
 /// `state.steers.WAITING`.
@@ -32,8 +40,16 @@ pub fn rows(runtime: &Runtime) -> Vec<Value> {
     shown_rows.sort_by(|a, b| {
         let key = |row: &Map| (get(row, "created_at"), get(row, "steer_id"));
         let (a, b) = (key(a), key(b));
-        let first = pyval::order(&b.0, &a.0).ok().flatten().unwrap_or(Ordering::Equal);
-        first.then_with(|| pyval::order(&b.1, &a.1).ok().flatten().unwrap_or(Ordering::Equal))
+        let first = pyval::order(&b.0, &a.0)
+            .ok()
+            .flatten()
+            .unwrap_or(Ordering::Equal);
+        first.then_with(|| {
+            pyval::order(&b.1, &a.1)
+                .ok()
+                .flatten()
+                .unwrap_or(Ordering::Equal)
+        })
     });
     shown_rows.into_iter().map(Value::Object).collect()
 }
@@ -41,7 +57,10 @@ pub fn rows(runtime: &Runtime) -> Vec<Value> {
 /// `waiting(runtime)`: how many steers wait for the watcher.
 pub fn waiting(runtime: &Runtime) -> i64 {
     match call(runtime, "waiting_steers", &[], &[]) {
-        Ok(found) => list(&found).iter().filter(|row| among(&get(row, "state"), WAITING)).count() as i64,
+        Ok(found) => list(&found)
+            .iter()
+            .filter(|row| among(&get(row, "state"), WAITING))
+            .count() as i64,
         Err(_) => 0,
     }
 }
@@ -76,15 +95,26 @@ pub fn request(runtime: &Runtime, argument: &Map) -> Result<Value> {
         return Ok(refused_here(Refusal::PromptRefused, runtime));
     }
     let now = runtime.now();
-    let Ok(recent) = call(runtime, "steers", &[Value::Float((now - DAY).max(0.0))], &[]) else {
+    let Ok(recent) = call(
+        runtime,
+        "steers",
+        &[Value::Float((now - DAY).max(0.0))],
+        &[],
+    ) else {
         return Ok(refused_here(Refusal::StateUnavailable, runtime));
     };
     let recent = list(&recent);
     let mine = |row: &&Map| pyval::eq(&get(row, "thread_id"), &thread);
-    if recent.iter().filter(mine).any(|row| among(&get(row, "state"), WAITING)) {
+    if recent
+        .iter()
+        .filter(mine)
+        .any(|row| among(&get(row, "state"), WAITING))
+    {
         return Ok(refused_here(Refusal::BeingSent, runtime));
     }
-    if recent.len() as i64 >= PER_DAY || recent.iter().filter(mine).count() as i64 >= PER_CONVERSATION {
+    if recent.len() as i64 >= PER_DAY
+        || recent.iter().filter(mine).count() as i64 >= PER_CONVERSATION
+    {
         return Ok(refused_here(Refusal::QueueFull, runtime));
     }
     let home = codex_home(runtime)?;
