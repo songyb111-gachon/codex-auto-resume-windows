@@ -46,6 +46,17 @@ from codex_auto_resume.domain.plug import DEFER, Surface
 from codex_auto_resume_advanced import policy, registry, statement, surfaces
 from codex_auto_resume_advanced.registry import Registry
 from codex_auto_resume_advanced.runtime import Runtime
+from codex_auto_resume_advanced.control import opencodex as _opencodex
+
+
+# Neither side reads this PC's registry for the `codex:` handler (Integration 12): advserve makes open_codex_button with
+# a read that refuses (refused.rs), and the reference's read is replaced by the same refusal - a key that cannot be
+# opened, so the tray offers no Open Codex on either side.
+def _no_registry(root, path, value):
+    raise OSError("the surface diff reads no registry")
+
+
+_opencodex._read_registry = _no_registry
 
 NOW = 1_800_000_000.0
 ENGINE = "0.155.0"
