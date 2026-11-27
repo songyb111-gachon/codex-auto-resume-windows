@@ -290,10 +290,15 @@ class WindowBuildScriptTests(unittest.TestCase):
 
     def test_the_overlay_is_read_only_for_the_advanced_window(self):
         self.assertEqual(self.script.count(r"Read-SourceList 'advanced\gui\window.sources'"), 1)
-        self.assertEqual(self.script.count("Read-SourceList '"), 2, "the window's list and the overlay")
+        # v0.6.27 (S6.2b): and the watcher host's list, read in the standard run alone - never the overlay.
+        self.assertEqual(self.script.count("Read-SourceList '"), 3, "the window's list, the overlay and the host's")
         branch = self.script[self.script.index("if ($Edition -eq 'advanced') {\n    $WindowSources"):]
         branch = branch[:branch.index("}")]
         self.assertIn(r"Read-SourceList 'advanced\gui\window.sources'", branch)
+        host = self.script[self.script.index("if ($Edition -eq 'standard') {"):]
+        host = host[:host.index("\n}")]
+        self.assertIn(r"Read-SourceList 'gui\host.sources'", host)
+        self.assertNotIn(r"advanced\gui", host, "the host is one file for both editions")
 
     def test_the_advanced_window_goes_where_the_release_build_takes_it_from(self):
         builder = load_builder("make_release_window")
