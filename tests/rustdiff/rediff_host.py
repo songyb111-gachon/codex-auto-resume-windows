@@ -27,7 +27,8 @@ ROOT = HERE.parents[1]
 FOLLOWED = tuple("src/codex_auto_resume/" + each for each in (
     "runtime/app.py", "runtime/loop.py", "runtime/homes.py", "runtime/toasts.py", "engine/__init__.py",
     "engine/options.py", "config.py", "codex/pairing.py", "codex/transport.py", "codex/layout.py", "compat",
-    "compatio.py", "oncewords.py", "logbook.py", "notifier.py", "notify.py", "notice_kinds.py", "ui/tray/dashboard.py",
+    "compatio.py", "oncewords.py", "logbook.py", "notifier.py", "notify.py", "notice_kinds.py", "notice_presence.py",
+    "notice_inbox.py", "ui/card/stack.py", "ui/tray/dashboard.py",
     "win/handover.py", "win/network.py")) + ("scripts/watcher_launcher.py",)
 DIFFS = ("diffs_watcher", "diffs_bridge_acting", "diffs_engine", "diffs_surface_notifier")
 BASE = "v0.6.26"

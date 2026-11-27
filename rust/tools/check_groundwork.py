@@ -80,7 +80,8 @@ LIBS = {name for name, deps in STANDARD.items()} - {"car-bin", "car-host", "car-
 ADVANCED = {
     "car-adv": set(LIBS),
     "car-adv-bin": {"car-adv", "car-bin"},
-    "car-adv-host": {"car-adv", "car-host"},
+    # S6.2b: the advanced factory's plug is a `car_policy::plug::Plug` (plug.py's AdvancedPlug), handed car-host as a Guarded
+    "car-adv-host": {"car-adv", "car-host", "car-policy"},
 }
 
 SHARED_FILES = ["rust-toolchain.toml", ".cargo/config.toml", "deny.toml", "tools/rustflags.sh"]

@@ -42,6 +42,7 @@ version = "0.0.0"
 dependencies = [
  "car-adv",
  "car-host",
+ "car-policy",
 ]
 
 [[package]]

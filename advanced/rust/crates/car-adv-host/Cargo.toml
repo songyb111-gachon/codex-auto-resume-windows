@@ -10,10 +10,12 @@ workspace = true
 
 [lib]
 name = "car_core"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 car-adv = { path = "../car-adv" }
+# The advanced plug's type (`car_policy::plug::Plug`) and the `Guarded` its factory hands car-host's exports.
+car-policy = { path = "../../../../rust/crates/car-policy" }
 # P6 step 0: without car-host's own (standard) exports; this crate makes the six over the advanced plug
 # (`car_host_lib::export_core!(...)`, S6.2b/S7.3d).
 car_host_lib = { package = "car-host", path = "../../../../rust/crates/car-host", default-features = false }
