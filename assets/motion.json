@@ -110,7 +110,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "6ebd85ae794cd7df29b929be2499e61905e7ee97e1bc01f51db45f4149cc80ec"
+    "window": "dc0145705dc7d5286782e8f87d564b8298974805c80b89fd36fe13509323b38f"
   },
   "images": {
     "assets/logo-motion-dark.png": {
@@ -164,61 +164,61 @@
       "size": "776x578"
     },
     "docs/images/readme-motion-ko.png": {
-      "bytes": 9532805,
+      "bytes": 9511105,
       "frames": 1908,
       "ms": 47597,
       "scenes": {
-        "S0": 257871,
-        "S1": 268695,
+        "S0": 257567,
+        "S1": 268387,
         "S10": 142687,
         "S11": 622614,
-        "S12": 444538,
-        "S12b": 1043055,
-        "S13": 68386,
+        "S12": 443877,
+        "S12b": 1033654,
+        "S13": 68144,
         "S14": 31299,
-        "S15": 307515,
+        "S15": 307285,
         "S15b": 537754,
         "S16": 61661,
         "S1m": 672991,
-        "S2a": 397241,
-        "S2b": 882577,
-        "S2c": 1630613,
-        "S5": 218166,
-        "S6": 214716,
-        "S7": 248195,
-        "S8": 205972,
-        "S9": 1276156
+        "S2a": 396908,
+        "S2b": 879864,
+        "S2c": 1627641,
+        "S5": 217862,
+        "S6": 214388,
+        "S7": 247549,
+        "S8": 205637,
+        "S9": 1273233
       },
-      "sha256": "2166181f70e7c6a61f1acda2df168cf3bedf82f0530cd386ee25a4273f97be5c",
+      "sha256": "026372b57ea462a2408bd52efc551a30817eda0282778949b1b255de6ae08655",
       "size": "1500x927"
     },
     "docs/images/readme-motion.png": {
-      "bytes": 9703610,
+      "bytes": 9684105,
       "frames": 1913,
       "ms": 47817,
       "scenes": {
-        "S0": 272944,
-        "S1": 291714,
+        "S0": 272712,
+        "S1": 291473,
         "S10": 155383,
         "S11": 629266,
-        "S12": 483003,
-        "S12b": 1002490,
-        "S13": 67710,
+        "S12": 482264,
+        "S12b": 993826,
+        "S13": 67390,
         "S14": 32796,
-        "S15": 310335,
+        "S15": 309325,
         "S15b": 512519,
         "S16": 58688,
         "S1m": 713570,
-        "S2a": 393975,
-        "S2b": 904067,
-        "S2c": 1663147,
-        "S5": 237288,
-        "S6": 238489,
-        "S7": 285257,
-        "S8": 227441,
-        "S9": 1223425
+        "S2a": 393743,
+        "S2b": 901940,
+        "S2c": 1660646,
+        "S5": 237054,
+        "S6": 238243,
+        "S7": 284739,
+        "S8": 227198,
+        "S9": 1221227
       },
-      "sha256": "01c98982b043d4c9bfcfafb513bd4e6b6f9cec472a605f41f1eef91f87964bd8",
+      "sha256": "29cf9bf4c616372ba89d60b009b5bd1db19dc1eab3df73f43e2b56403d482ce0",
       "size": "1500x927"
     },
     "docs/images/tray-popup-motion-ko.png": {
@@ -259,13 +259,13 @@
     }
   },
   "inputs": {
-    "<motion:card-en>": "d57fe7e36a4525ad685f1dcd76e0989c5a4e7f172b3bc2d6b17094af66bebedb",
-    "<motion:card-ko>": "641dc921a3ca0a3a6a5d370d6a525cce5ec5b20e3db596a7d8a82560e10123b0",
+    "<motion:card-en>": "e4f1433b30ccfa641adb9299721e22d65f09d29c788abacb812bcfb861b0b608",
+    "<motion:card-ko>": "72a9f78a850eb4601facd126e6e23306d2c4fda14b125b780726a03fc39953ad",
     "<motion:logo-dark>": "5aeb49f26d268159d57646004912d7c23bb07f35262d41592979663117cb7b47",
     "<motion:logo-light>": "415252d0f16fb2bbb73d57919364cc76ba3a112be9454d7d64dac19781314a9e",
-    "<motion:popup-en>": "b281016cecff303bc5a3bc7bb4c6574bf3e13428989d295b28a13dc18e9c33c1",
-    "<motion:popup-ko>": "29a1c2f1bc9eca20bc299f24f6a92a44e03dd4f40b42c16faa8aa493ce52dc82",
-    "<motion:readme-en>": "1dccce27b0bfc73c7c14fd20fb6aeea456a46c68400d2d79f633e4c98ae0de4b",
-    "<motion:readme-ko>": "3aa816d5ff810e71865b368c85ba0fbfbaaa4ab59b9058788a4a5b8f3b3456b0"
+    "<motion:popup-en>": "9e9ede521935d1f6de50973b31f8de7b33d69d3c810d97bc62e2ced69c6bc96a",
+    "<motion:popup-ko>": "7145f3cc2c4646db28d1ca6dc54d823b1c657501cd7abd02da0746a36fecd1eb",
+    "<motion:readme-en>": "153562899541c2b03ad59f5b9106e1d2794c3b5d9abfaa920a7e200836d1e629",
+    "<motion:readme-ko>": "ef9f94d64755cb0fca4a2087dfbf4b75a4ab6696abfa9a34cb4ae2f81bb1f4b4"
   }
 }

@@ -299,7 +299,9 @@ class EditionChangeTextTests(unittest.TestCase):
         bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
         self.assertIn("if ($plan.Verdict -eq 'change') { $arguments['AllowEditionChange'] = $true }",
                       bootstrap)
-        self.assertEqual(bootstrap.count("AllowEditionChange"), 1)
+        # v0.6.26: and the same verdict, the only other place, to a release's own setup program (the setup handover).
+        self.assertIn("if ($plan.Verdict -eq 'change') { $handed += '-AllowEditionChange' }", bootstrap)
+        self.assertEqual(bootstrap.count("AllowEditionChange"), 2)
         launcher = LAUNCHER.read_text(encoding="utf-8")
         self.assertEqual(launcher.count("-AllowEditionChange"), 1)
         self.assertLess(launcher.index(":change"), launcher.index("-AllowEditionChange"))

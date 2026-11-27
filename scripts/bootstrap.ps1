@@ -370,6 +370,10 @@ $ExitPickRefused = 15
 # -AskFirst, answered with anything but `install`: the download was verified and nothing was installed, said on an
 # `update: later <installed> <version>` line. Its own code, apart from every answer of the update check.
 $ExitLater = 16
+# The archive was installed by its own setup program (Read-SetupHandover): handed over, neither failed nor installed by
+# this script, said on an `update: handover <from> <version> <code>` or `pick: handover <version> <edition> <code>` line
+# with that program's exit code.
+$ExitHandedOver = 17
 
 function Step { param([string]$Text) Write-Host ('  ' + $Text) }
 function Ok   { param([string]$Text) Write-Host ('  [ok] ' + $Text) }
@@ -2147,6 +2151,91 @@ function Get-EditionStatement {
     return $line + 'the advanced features go, and their code with them'
 }
 
+function Read-SetupHandover {
+    <#
+        The setup handover (v0.6.26): from v0.6.27 the product is not Python, and its archive need not be the shape
+        Test-Archive requires. An archive that carries setup-handover.json at its root - beside Install.cmd, never in the
+        payload root, which every Test-Archive keeps to two files - says it is installed by the setup program it names,
+        which this run then starts in place of install\install.ps1. An explicit word, never a way round a failed check:
+        an archive without it is held to Test-Archive exactly as before, and so is one with it that carries either file
+        today's install runs (install/install.ps1, payload/runtime/python.exe). Trust is the archive's own, the digest
+        checked before this: the program run is inside it, and nothing more is fetched.
+        Returns $null where there is no handover, the setup program's path in the archive and whether the archive is
+        that shape otherwise, and throws - refusing the archive - for anything else: another casing, a second copy, an
+        unsafe entry, another format, version or edition than this run's, or a program path that could leave the folder.
+    #>
+    param([string]$Zip, [string]$Version, [string]$Edition)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $Zip))
+    try {
+        $names = @($archive.Entries.FullName)
+        $marker = 'setup-handover.json'
+        $entry = $archive.GetEntry($marker)
+        if ($null -eq $entry) {
+            if ($names -contains $marker) { throw 'The archive names its setup handover with unexpected casing.' }
+            return $null
+        }
+        if (@($names -ceq $marker).Count -ne 1 -or $entry.Length -gt 65536) { throw 'The archive''s setup handover is not one small file.' }
+        foreach ($name in $names) {
+            # A ':' anywhere names a stream of another file (setup.exe:hidden), never a file of its own.
+            if ($name -match '(^|[\\/])\.\.([\\/]|$)' -or $name -match '^([\\/]|[A-Za-z]:)' -or $name.Contains(':')) { throw ('The archive contains an unsafe path: ' + $name) }
+        }
+        # Each name once, in any casing: a second entry by a name would be what the extraction writes in the first's place.
+        if (@($names | Sort-Object -Unique).Count -ne $names.Count) { throw 'The archive names an entry more than once.' }
+        $reader = New-Object IO.StreamReader($entry.Open())
+        try {
+            $said = $reader.ReadToEnd() | ConvertFrom-Json
+            if ($null -eq $said) { throw 'empty' }
+        } catch { throw 'The archive''s setup handover is not JSON.' } finally { $reader.Dispose() }
+        $field = @{}
+        # The marker's four keys, in double quotes: the word setup in single ones is the installed setup's command alone.
+        foreach ($key in "format", "version", "edition", "setup") {
+            # Match, as the release readers above ask a property: the plain index after .Properties reads to the bare-host
+            # scan as a host name ending in the .properties domain (test_privacy_bare_hosts). The keys hold no wildcard.
+            $property = @($said.PSObject.Properties.Match($key))[0]
+            if ($null -eq $property -or $property.Value -isnot [string]) { throw ('The archive''s setup handover has no ' + $key + '.') }
+            $field[$key] = $property.Value
+        }
+        if ($field.format -cne 'codex-auto-resume/setup-handover/1') { throw ('The archive asks for a setup handover this copy does not know: ' + $field.format) }
+        if ($field.version -cne $Version) { throw ('The archive''s setup handover is for v' + $field.version + ', not v' + $Version + '.') }
+        if ($field.edition -cne $Edition) { throw ('The archive''s setup handover is for the ' + $field.edition + ' edition, not the ' + $Edition + ' one.') }
+        # Relative, '/'-separated segments of plain characters that neither begin nor end with a dot: no '..', no drive,
+        # no name Windows would shorten - and an entry of the archive by exactly that name.
+        $segment = '[A-Za-z0-9_-]([A-Za-z0-9._-]*[A-Za-z0-9_-])?'
+        if ($field.setup -cnotmatch ('^(' + $segment + '/)*' + $segment + '\.exe\z') -or $names -cnotcontains $field.setup) {
+            throw ('The archive''s setup handover names no program of its own: ' + $field.setup)
+        }
+        $python = ($names -ccontains 'install/install.ps1') -or ($names -ccontains 'payload/runtime/python.exe')
+        return [pscustomobject]@{ Setup = $field.setup; Python = $python }
+    } finally { $archive.Dispose() }
+}
+
+function Resolve-SetupProgram {
+    # The handover's setup program, unpacked: its full path, inside $Unpacked with no link on the way to it, and a Windows
+    # program - a PE image, executable, not a DLL, of the Windows GUI subsystem, so starting it opens no console. Throws otherwise.
+    param([string]$Unpacked, [string]$Setup)
+    $root = [IO.Path]::GetFullPath($Unpacked).TrimEnd('\')
+    $path = [IO.Path]::GetFullPath((Join-Path $root $Setup.Replace('/', '\')))
+    if (-not $path.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) { throw ('The setup program is outside the archive''s folder: ' + $Setup) }
+    $at = $root
+    foreach ($part in $Setup.Split('/')) {
+        $at = Join-Path $at $part
+        $item = New-Object IO.FileInfo $at
+        if (-not $item.Exists -and -not (New-Object IO.DirectoryInfo $at).Exists) { throw ('The archive did not unpack ' + $Setup + '.') }
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw ('The way to the setup program is a link: ' + $Setup) }
+    }
+    $head = New-Object byte[] 4096
+    $stream = [IO.File]::OpenRead($path)
+    try { $read = $stream.Read($head, 0, $head.Length) } finally { $stream.Dispose() }
+    $pe = -1
+    if ($read -ge 64 -and $head[0] -eq 0x4D -and $head[1] -eq 0x5A) { $pe = [BitConverter]::ToInt32($head, 60) }
+    if ($pe -lt 64 -or $pe + 94 -gt $read -or [BitConverter]::ToUInt32($head, $pe) -ne 0x4550 -or
+        ([BitConverter]::ToUInt16($head, $pe + 22) -band 0x2002) -ne 2 -or [BitConverter]::ToUInt16($head, $pe + 92) -ne 2) {
+        throw ('The setup program is not a Windows program: ' + $Setup)
+    }
+    return $path
+}
+
 function Invoke-InstalledSetup {
     <#
         The installation's own plugin_setup.py with $Arguments, run by its own runtime\python.exe:
@@ -2909,8 +2998,14 @@ try {
         Ok 'SHA-256 matches the checksum published beside it (no pinned digest for this version)'
     }
 
-    Test-Archive -Zip $zip -Version $target -Edition $targetEdition
-    Ok ('Archive contents verified as Codex Auto Resume v' + $target)
+    # An archive that names its own setup program (Read-SetupHandover) is held to Test-Archive as well where it carries
+    # today's installer; one with no such word is held to it as it always was.
+    $handover = Read-SetupHandover -Zip $zip -Version $target -Edition $targetEdition
+    if ($null -eq $handover -or $handover.Python) {
+        Test-Archive -Zip $zip -Version $target -Edition $targetEdition
+        Ok ('Archive contents verified as Codex Auto Resume v' + $target)
+    }
+    if ($handover) { Ok ('The archive asks to be installed by its own setup program, ' + $handover.Setup) }
 
     $unpacked = Join-Path $work 'unpacked'
     [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path -LiteralPath $zip), $unpacked)
@@ -2926,6 +3021,44 @@ try {
             Step 'Nothing was installed.'
             exit $ExitLater
         }
+    }
+
+    # The handover: the setup program in the archive just verified, started in this run's place with install.ps1's own
+    # switches, as a setup program passes them on - and waited for, since it runs from this run's folder, removed at the
+    # end. It is a Windows program, started through the shell, so it opens no console and holds none of this run's
+    # handles. A pick needs no lock or state conversion here: a release that hands over is on this version's schema.
+    if ($handover) {
+        $setupProgram = Resolve-SetupProgram -Unpacked $unpacked -Setup $handover.Setup
+        $mode = 'install'
+        if ($Pick) { $mode = 'another' } elseif ($Update -or $Version) { $mode = 'update' }
+        $handed = @('-Handover', $mode, '-Edition', $targetEdition)
+        if ($NoStartup) { $handed += '-SkipStartup' }
+        if ($plan.Verdict -eq 'change') { $handed += '-AllowEditionChange' }
+        if ($DeleteSavedAccounts -and (Test-DeleteSavedAccounts -Pick ([bool]$Pick) -Verdict $plan.Verdict -Edition $targetEdition -Target $target)) {
+            $handed += '-DeleteSavedAccounts'
+        } elseif ($DeleteSavedAccounts) {
+            Warn '-DeleteSavedAccounts only goes with a pick that changes to the standard edition in a version that has it, so the saved Codex accounts were kept.'
+        }
+        Step ('Handing over to the setup program of v' + $target + '. Its own window installs it.')
+        $env:CODEX_AUTO_RESUME_PLUGIN_HOME = $installHome
+        # Never elevated: RunAsInvoker, for this start alone, is the shell's word for "the caller's own rights" - no UAC
+        # prompt for a manifest that asks for an administrator or for a name that looks like an installer, which would
+        # otherwise run elevated from this user's TEMP folder. A program that does need more fails by itself.
+        $compatLayer = $env:__COMPAT_LAYER
+        $env:__COMPAT_LAYER = 'RunAsInvoker'
+        try { $setupRun = Start-Process -FilePath $setupProgram -ArgumentList $handed -WorkingDirectory (Split-Path -Parent $setupProgram) -PassThru }
+        finally { $env:__COMPAT_LAYER = $compatLayer }
+        $started = $true
+        $null = $setupRun.Handle
+        $setupRun.WaitForExit()
+        $ended = $setupRun.ExitCode
+        if ($ended -eq 0) { Ok ('Handed over to the setup program of v' + $target + ', which ended with code 0.') }
+        else { Step ('Handed over to the setup program of v' + $target + ', which did not finish: it ended with code ' + $ended + '.') }
+        $from = $pluginVersion
+        if ($installed) { $from = $installed }
+        if ($Pick) { Write-Host ('pick: handover ' + $target + ' ' + $targetEdition + ' ' + $ended) }
+        elseif ($Update -or $Version) { Write-Host ('update: handover ' + $from + ' ' + $target + ' ' + $ended) }
+        exit $ExitHandedOver
     }
 
     if ($Pick) {

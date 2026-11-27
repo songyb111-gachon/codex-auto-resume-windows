@@ -52,7 +52,8 @@ Everyone below is a person outside the project who helped it, in the order they 
   same once tasks they picked have finished, which v0.6.20 brought to the advanced edition
   ([discussion #57](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/57)). They then found their
   antivirus blocking PowerShell when the app raised notifications, which led to the app no longer handing PowerShell encoded
-  command lines ([#65](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/65)).
+  command lines ([#65](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/65)), and came back to confirm the
+  fix on v0.6.25, with the power action tried end to end.
 - [@barkshah2002-pixel](https://github.com/barkshah2002-pixel) reported a usage-limit interruption that was not
   detected ([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27)) and suggested logging every failed turn the watcher does not take up, with why.
 - [@ZionZhang42](https://github.com/ZionZhang42) proved the cause of that missed detection ([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27)).
@@ -74,7 +75,9 @@ Everyone below is a person outside the project who helped it, in the order they 
   pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
   usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation, and
   the follow-up that became pictures beside the words of a queued message, the steer send mode and the follow-through view in History
-  ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+  ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)), and confirmed the app-server pairing fix end to end on a later Codex
+  app, with the note that led the guide to send people on older versions to an update first
+  ([#67](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/67)).
 - [@kano0222](https://github.com/kano0222) reported that a conversation an agent made was never recovered, even when the
   person went on using it from the input box, and traced it to the exact rule in the code ([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 - [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo) reported that opening the Dashboard from the notification area opened another
@@ -87,6 +90,8 @@ Everyone below is a person outside the project who helped it, in the order they 
   with the shape of its records and a fix they had checked themselves ([#66](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/66)).
 - [@a115599663322](https://github.com/a115599663322) reported that every recovery waited when the Codex app started its server under one of its
   own helper processes, with the cause read out of the code and a patch ([#67](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/67)).
+- [@harshespop](https://github.com/harshespop) reported the same wait at a usage-limit reset on a version before that fix, with the process tree, the watcher's
+  timeline and the rule read out of the code ([#68](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/68)).
 
 ## A note on the AI contributors
 

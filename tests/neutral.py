@@ -87,6 +87,8 @@ NOT_SCENARIOS = {
                                  "Codex paused (v0.6.26, review K3): a hold v0.6.10 never had",
     "test_locks_unread": "drives the engine only to leave a record waiting with no lock folder, for the self-check "
                          "(v0.6.26, review K1): a word v0.6.10 never said",
+    "test_history_not_yet": "drives the engine only over a home with no history database yet (v0.6.26 final), which "
+                            "detects nothing until Codex makes it: a home v0.6.10 never read",
     "test_self_check_handed": "drives the engine only to hand the self-check a plug's waiting records (v0.6.26, "
                               "review V6): a seam v0.6.10 never had",
     "test_usage_probe_broken": "drives the engine only to break a usage read three ways (v0.6.26, update resilience 7): "

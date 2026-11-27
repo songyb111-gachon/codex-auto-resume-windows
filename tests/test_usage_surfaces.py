@@ -52,7 +52,10 @@ class PopupTests(unittest.TestCase):
 
     def test_the_meters_reading_is_shown_where_it_is_newer(self):
         status = {"watcher": {"usage": self.WATCHER}, EXTRA: {"meter": METER}}
-        self.assertEqual(model.newest_reading(status), {"read_at": METER["read_at"], "windows": METER["windows"]})
+        # v0.6.26 final: in core's own window shape (domain/usage.meter_windows): the slot core names, no band.
+        self.assertEqual(model.newest_reading(status), {"read_at": METER["read_at"], "windows": [
+            {"bucket": "codex", "window": "primary", "used_percent": 87.6, "window_minutes": 300, "reset_at": NOW + 3600},
+            {"bucket": "codex", "window": "secondary", "used_percent": 40, "window_minutes": 10080, "reset_at": None}]})
 
     def test_the_watchers_own_reading_stays_where_it_is_newer_or_there_is_no_meter(self):
         newer = dict(self.WATCHER, read_at=NOW)

@@ -79,16 +79,77 @@ namespace CodexAutoResume
 
         private static SettingsForm DayHeaderOpen(RenderWriter writer)
         {
+            SettingsForm form = DayHeaderOpenUnsettled(writer);
+            DayHeaderSettle(form);
+            return form;
+        }
+
+        private static SettingsForm DayHeaderOpenUnsettled(RenderWriter writer)
+        {
             var current = (Dictionary<string, object>)DayHeaderSettings["settings"];
             current["theme"] = Palette.Dark ? "dark" : "light";
             current["design"] = Palette.Design;
             current["interface_language"] = "en";
+            // Made as a process's first window is: the controls the window makes as its fields, before it reads its date
+            // (DayGround.Adopt in its constructor), take the palette's own canvas - not the tint the probe's last window, on
+            // another date, left in it. A window opened on an ordinary day after a special day's kept that day's tint on its
+            // header, tabs and page host (#D9DEE8 for #E9EEF4): the window repaints its fields from the untinted canvas to the
+            // day's, never from another day's to none. In the product the date does not jump between two windows of one
+            // process - the open window follows midnight each second (FollowDayScene) - so this is the probe's own state.
+            DayGround.Adopt(null, null);
             SettingsForm form = OpenForRender(writer);
             DayHeaderOpened++;
             var notes = (List<string>)typeof(RenderWriter).GetField("notes", System.Reflection.BindingFlags.Instance |
                                                                     System.Reflection.BindingFlags.NonPublic).GetValue(writer);
             foreach (string note in notes) DayHeaderUnsettled.Add(note);
             return form;
+        }
+
+        // Every read the window has on its way back, answered and applied (at most 20 s; one still out is noted).
+        private static void DayHeaderDrain(SettingsForm form, string after)
+        {
+            var draining = System.Diagnostics.Stopwatch.StartNew();
+            while ((form.refreshing || form.bridge.InFlight > 0) && draining.ElapsedMilliseconds < 20000)
+            {
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(10);
+            }
+            Application.DoEvents();
+            if (form.refreshing || form.bridge.InFlight > 0) DayHeaderUnsettled.Add("a read still out after " + after);
+        }
+
+        // Found 2026-11-27 (three of this module's tests red alone on dev on US Thanksgiving, green the run after on the same
+        // date: not the date, whose every read here is the probe's own, DayArt.Clock): the header's words and light are those
+        // of whichever read the window applied last - the status, which nothing answers here ("Status unavailable"), or the
+        // Dashboard's, which is answered ("Watching for interruptions") - and the window's clock reads the Dashboard every
+        // five seconds. Whether a window had lived past one of those reads when it was drawn was the wall clock's doing: one
+        // window crossed one and the window it is compared with did not, and the two pictures differed in the words and the
+        // light, and a window past midnight in its count of grounds (3 of 5 runs of one build, 2026-11-27). Every window now
+        // stops its clock and takes the Dashboard's read last, so the header is the same in every window however long each
+        // took. The product is not at fault: a person's window follows its reads as they come (ApplyStatus, StatusUnavailable).
+        private static void DayHeaderSettle(SettingsForm form)
+        {
+            form.clock.Stop();
+            DayHeaderDrain(form, "the window opened");
+            form.RefreshNow();
+            DayHeaderDrain(form, "the last Dashboard read");
+            // And drawn from it, nothing moving, as OpenForRender's HoldStill waits - less the clock's tick, now stopped - and
+            // every page made ready ahead (PreparePagesLater): how far the idle turns had got was the wall clock's as well, and
+            // so was how many of the window's controls stood on its ground (DayHeaderTinted).
+            var waited = System.Diagnostics.Stopwatch.StartNew();
+            var still = new System.Diagnostics.Stopwatch();
+            while (waited.ElapsedMilliseconds < RenderSettleLimit)
+            {
+                Application.DoEvents();
+                Application.RaiseIdle(EventArgs.Empty);
+                Materialise(form);
+                if (!form.Settled() || form.prepareQueued || form.urgentPage != null) still.Reset();
+                else if (!still.IsRunning) still.Start();
+                else if (still.ElapsedMilliseconds >= 250) return;
+                System.Threading.Thread.Sleep(10);
+            }
+            DayHeaderUnsettled.Add("the window did not hold still after its last Dashboard read: " + form.Unsettled() +
+                                   (form.prepareQueued ? ", pages still made ready (" + form.preparing + ")" : ""));
         }
 
         private static List<object> DayHeaderBox(Rectangle r)
@@ -132,15 +193,7 @@ namespace CodexAutoResume
                     // nothing answers that read here, so its failure (MarkUnavailable) wrote "Status unavailable" over the
                     // words whenever a read came back after they were set - on two slower runners of dev run 44273621705,
                     // once before the words were read and once between the two pictures. The clock stopped, and every read
-                    // already on its way back, before the words are set.
-                    form.clock.Stop();
-                    var draining = System.Diagnostics.Stopwatch.StartNew();
-                    while ((form.refreshing || form.bridge.InFlight > 0) && draining.ElapsedMilliseconds < 20000)
-                    {
-                        Application.DoEvents();
-                        System.Threading.Thread.Sleep(10);
-                    }
-                    Application.DoEvents();
+                    // already on its way back, before the words are set - since 2026-11-27 in every window (DayHeaderSettle).
                     form.headline.Text = headlineText;
                     form.detail.Text = headlineText;
                     Application.DoEvents();
@@ -148,6 +201,7 @@ namespace CodexAutoResume
                 }
                 said["look"] = form.dayLook;
                 said["headline"] = form.headline.Text;
+                said["light"] = form.stateDot.State;
                 said["sceneShown"] = Soft.OwnVisible(form.dayScene) && form.dayScene.Look != null;
                 Rectangle hero = DayHeaderIn(form.hero, form);
                 said["hero"] = DayHeaderBox(hero);
@@ -341,6 +395,48 @@ namespace CodexAutoResume
             return said;
         }
 
+        // A window whose reads came back in one order or the other - the status (unanswered here) last, or the Dashboard's
+        // last, as a window that lived past its clock's five-second read has it - and was then settled (DayHeaderSettle):
+        // what its header says.
+        private static Dictionary<string, object> DayHeaderRace(DateTime day, bool statusLast, string work)
+        {
+            var said = new Dictionary<string, object>();
+            DayArt.On = true;
+            DayArt.Clock = delegate { return day; };
+            SettingsForm form = DayHeaderOpenUnsettled(new RenderWriter(Path.Combine(work, "frames-race-" + (statusLast ? "status" : "dashboard"))));
+            try
+            {
+                form.clock.Stop();
+                DayHeaderDrain(form, "the race's window opened");
+                if (statusLast)
+                {
+                    form.RefreshNow();
+                    DayHeaderDrain(form, "the race's Dashboard read");
+                    form.RefreshStatusAsync(null);
+                    DayHeaderDrain(form, "the race's status read");
+                }
+                else
+                {
+                    form.RefreshStatusAsync(null);
+                    DayHeaderDrain(form, "the race's status read");
+                    form.RefreshNow();
+                    DayHeaderDrain(form, "the race's Dashboard read");
+                }
+                said["before"] = form.headline.Text;
+                DayHeaderSettle(form);
+                said["headline"] = form.headline.Text;
+                said["detail"] = form.detail.Text;
+                said["light"] = form.stateDot.State;
+                said["tinted"] = (double)DayHeaderTinted(form, Palette.Canvas);
+            }
+            finally
+            {
+                form.Dispose();
+                DayArt.On = false;
+            }
+            return said;
+        }
+
         private static Dictionary<string, object> DayHeaderCompare(DateTime special, DateTime plain, string headlineText, string work)
         {
             var said = new Dictionary<string, object>();
@@ -436,6 +532,8 @@ namespace CodexAutoResume
             // Past midnight, both ways (the window's clock): into an ordinary day and into a special one.
             said["intoPlain"] = DayHeaderFollow(special, plain, work);
             said["intoSpecial"] = DayHeaderFollow(plain, special, work);
+            // The two orders the window's reads can come back in, each forced, then settled as every window is (DayHeaderSettle).
+            said["settled"] = new List<object> { DayHeaderRace(plain, false, work), DayHeaderRace(plain, true, work) };
             // The words on the window's ground on each day's look, in both themes of each design that shows a day.
             var words2 = new Dictionary<string, object>();
             foreach (string design in new[] { "soft", "plain" })
@@ -554,7 +652,9 @@ class DayHeaderTests(unittest.TestCase):
         """Each window is drawn from every answer it asked for before it is looked at (OpenForRender's HoldStill): one that
         gave up waiting said so only in its writer's notes, never read, and cost the render's whole 20 s settle limit -
         26 windows, 520 of the module's 526 s in every lane (v0.6.26 audit Z1)."""
-        self.assertEqual(self.answer["opened"], 6 + 2 * 2 * len(brand.DAY_LOOKS))
+        # Two pictures each with room and without, two windows past midnight, two of the reads' race, and one for each look's
+        # words in both themes of both designs.
+        self.assertEqual(self.answer["opened"], 8 + 2 * 2 * len(brand.DAY_LOOKS))
         self.assertEqual(self.answer["unsettled"], [])
 
     def test_the_probe_s_date_gives_the_window_a_look_and_an_ordinary_day_none(self):
@@ -648,6 +748,21 @@ class DayHeaderTests(unittest.TestCase):
         milliseconds, which a loaded runner breaks without the frame doing any more."""
         special = self.answer["room"]["special"]
         self.assertLess(special["frameMs"], FRAME_OVER_SCENE * special["sceneMs"], special)
+
+    def test_every_window_s_header_is_the_dashboard_s_whichever_read_came_back_last(self):
+        """Fails without DayHeaderSettle on any date and any machine: the header was the last read's, the status (unanswered
+        here, "Status unavailable") or the Dashboard's, and which came last was the wall clock's - a window that lived past
+        its clock's five-second read took the Dashboard's (2026-11-27: three tests red alone, green the run after)."""
+        dashboard_last, status_last = self.answer["settled"]
+        unavailable = l10n.catalog("en")["status.unavailable"]
+        self.assertEqual(status_last["before"], unavailable, "the status read forced last")
+        self.assertNotEqual(dashboard_last["before"], unavailable, "the Dashboard's read forced last")
+        for key in ("headline", "detail", "light", "tinted"):
+            self.assertEqual(status_last[key], dashboard_last[key], key)
+        self.assertEqual(status_last["headline"], dashboard_last["before"], "the Dashboard's words, as its read left them")
+        room = self.answer["room"]
+        self.assertEqual(room["special"]["headline"], room["plain"]["headline"])
+        self.assertEqual(room["special"]["light"], room["plain"]["light"])
 
     def test_with_no_room_there_is_no_scene_and_no_slice_of_it(self):
         no_room = self.answer["noRoom"]

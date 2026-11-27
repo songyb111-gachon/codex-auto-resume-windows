@@ -15,7 +15,7 @@ Nothing here writes to Codex. Every connection is opened read-only.
 """
 from __future__ import annotations
 
-from .errors import SourceError  # noqa: F401
+from .errors import HistoryNotYet, SourceError  # noqa: F401
 from .history import HistoryMixin
 from .labels import MAX_LABEL_CHARS, _label  # noqa: F401
 from .values import (AGENT_CREATED_THREAD, COMPOSER, KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,  # noqa: F401

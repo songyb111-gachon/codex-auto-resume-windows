@@ -102,9 +102,10 @@
     "0.6.22": "8fe886a753f841aa40e4717be007aa27207459d05a7b40ed1c4367a72fe71ed0",
     "0.6.23": "a2979afeaaf5bbe23693996f1018c22909d63372d64ddedcd7460fbc9e98ebf3",
     "0.6.24": "0c97d9b11f14c67af0e52c84673c0ed3904ef8c89c6fb27b49d8906b68dff5d8",
-    "0.6.25": "83fd72da9e0b4e804e979268dfa424101022ea671baf660b80b216b2cffc98ff"
+    "0.6.25": "83fd72da9e0b4e804e979268dfa424101022ea671baf660b80b216b2cffc98ff",
+    "0.6.26": "7f19f99687abb2721efbb594f578bfaf9fa7c355cc250e9eea631f2240ed9d90"
   },
-  "prerelease": ["0.6.26-beta.2"],
+  "prerelease": [],
   "advanced": {
     "archive": "CodexAutoResume-Advanced-v{version}-win-x64.zip",
     "sha256": {
@@ -122,7 +123,8 @@
       "0.6.22": "2cffbc025a08c784c87beb390c58dcab82949c33d0c242335c63067884d299ac",
       "0.6.23": "cc374e421e17c91d3e9f671a6d18a17fc570d1532fa62a83b9b148e338743143",
       "0.6.24": "700dcd00fa9a6c2ff7f6acba51e98db9a5db5e651bceec77b0292809ad9a9096",
-      "0.6.25": "344b1c4cde0ddbc18310e5356e351c70dd363b0d4bbae8158b0220855bd8e35e"
+      "0.6.25": "344b1c4cde0ddbc18310e5356e351c70dd363b0d4bbae8158b0220855bd8e35e",
+      "0.6.26": "c7c5f89659546c4c9f7832f5e8c40b8ac39f1f057fc69852d65b729d49955303"
     },
     "since": "0.6.11"
   }

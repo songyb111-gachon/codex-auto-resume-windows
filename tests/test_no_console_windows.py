@@ -472,6 +472,11 @@ class PowerShellTests(unittest.TestCase):
         ("build/install/install.ps1", "$dashboard"):
             ("the Dashboard an update closed, opened again: CodexAutoResumeSettings.exe, built /target:winexe",
              "$dashboard = Join-Path $InstallHome 'CodexAutoResumeSettings.exe'"),
+        # v0.6.26: the setup program a verified archive hands over to, which Resolve-SetupProgram holds to the Windows
+        # GUI subsystem before it may be started (tests/test_setup_handover.py).
+        ("scripts/bootstrap.ps1", "$setupProgram"):
+            ("the setup program of a release that hands over: a PE image of the Windows GUI subsystem",
+             "$setupProgram = Resolve-SetupProgram -Unpacked $unpacked -Setup $handover.Setup"),
     }
 
     def test_every_start_process_shares_the_console_or_hides_its_own(self):

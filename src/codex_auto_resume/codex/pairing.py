@@ -12,7 +12,7 @@ from ..domain.errors import AdapterError
 from ..domain.ids import CODEX_APP_FAMILY, CODEX_APP_PUBLISHER
 from ..win import authenticode
 from ..win.inventory import resource_users
-from ..win.kernel import process_identity, processes_named
+from ..win.kernel import package_roots, process_identity, processes_named
 from .paths import newest_generation
 
 
@@ -374,6 +374,55 @@ def app_engines() -> frozenset:
     official build passes the engine checks, where none in the official folder does, or after the app was
     seen serving from another engine (config.discover_codex_exe), and only then."""
     return server_engines(inventory())
+
+
+# How deep below a package's folder a codex.exe is looked for: `app\resources\codex.exe` is three names down (#58).
+PACKAGE_ENGINE_DEPTH = 4
+
+
+def package_engines() -> list:
+    """Every file called codex.exe in the folders of the Codex app's package installed for this account
+    (win/kernel.py package_roots), up to `PACKAGE_ENGINE_DEPTH` names below a folder, that may be an engine
+    (`engine_row`, `_main_place`: not where the app's main can be, beside which its update trampoline sits) and is a
+    file of the package's own folder in WindowsApps, as written and as resolved (`_package_file`): whether or not the
+    app runs. Only folder names are read; nothing is opened, hashed or started, and whoever reads these asks
+    `official_engine` of each, as it asks of `server_engines`. Nothing where the package manager cannot answer.
+
+    v0.6.26 final (live acceptance R2b): the watcher takes up the engine the app runs from its package (#58) and keeps
+    driving it after the app closes, for the file is still there. A compatibility reader bound the watcher's report
+    only to an engine in bin or one the app runs now (compat/views.py `_binding_holds`), so with the app closed every
+    reader - and the advanced edition's arming read the watcher makes itself - read every capability UNKNOWN, and held
+    off every capability kept on that stands on Codex until the app opened again."""
+    try:
+        roots = package_roots(CODEX_APP_FAMILY)
+    except (AdapterError, OSError):
+        return []
+    found = []
+    for root in roots:
+        level = [str(root)]
+        for _depth in range(PACKAGE_ENGINE_DEPTH):
+            below = []
+            for folder in level:
+                try:
+                    with os.scandir(folder) as entries:
+                        for entry in entries:
+                            if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
+                                below.append(entry.path)
+                            elif entry.name.lower() == "codex.exe" and entry.is_file(follow_symlinks=False):
+                                found.append(entry.path)
+                except OSError:
+                    continue
+            level = below
+    engines = []
+    for path in found:
+        try:
+            resolved = str(Path(path).resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if all(_package_file(each) and engine_row({"path": each}) and not _main_place(each)
+               for each in (path, resolved)):
+            engines.append(Path(resolved))
+    return engines
 
 
 def engines_instead(rows, codex_exe) -> frozenset:

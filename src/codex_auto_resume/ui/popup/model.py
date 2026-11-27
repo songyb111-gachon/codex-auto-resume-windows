@@ -345,19 +345,11 @@ EXTRA = "advanced"
 
 
 def newest_reading(status):
-    """The usage reading the popup shows: the watcher's last (v0.6.11) - or, where the advanced edition's usage meter
-    read later (v0.6.16-beta.3, issue #29), the meter's, which its plug adds to the status under its one key. The
-    standard edition adds nothing there, so this is the watcher's reading, as it always was."""
+    """The usage reading the popup shows: the newest of the watcher's and the advanced edition's usage meter's, by the
+    one rule every surface says it by (domain/usage.newest) - the watcher's own where the standard edition adds
+    nothing."""
     status = status or {}
-    reading = (status.get("watcher") or {}).get("usage")
-    added = status.get(EXTRA)
-    meter = added.get("meter") if isinstance(added, dict) else None
-    if not (isinstance(meter, dict) and isinstance(meter.get("windows"), list)
-            and type(meter.get("read_at")) in (int, float)):
-        return reading
-    if isinstance(reading, dict) and type(reading.get("read_at")) in (int, float) and reading["read_at"] >= meter["read_at"]:
-        return reading
-    return {"read_at": meter["read_at"], "windows": meter["windows"]}
+    return machine.newest_usage((status.get("watcher") or {}).get("usage"), status.get(EXTRA))
 
 
 def busy_key(action):

@@ -50,7 +50,8 @@
   요청했고([토론 #22](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/22)), 뒤에는 직접 고른 작업이 끝나면 같은 동작을 하는
   기능을 요청해 고급판에 들어갔습니다([토론 #57](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/57)). 이어서
   앱이 알림을 띄울 때 백신이 PowerShell을 막는 것을 찾아 주어, 앱이 PowerShell에 인코딩된 명령줄을 더는 넘기지 않게
-  되었습니다([#65](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/65)).
+  되었습니다([#65](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/65)). 뒤에 v0.6.25에서 고친 것을
+  전원 동작까지 처음부터 끝까지 써 보며 다시 확인해 주셨습니다.
 - [@barkshah2002-pixel](https://github.com/barkshah2002-pixel) 님은 감지되지 않은 사용량 한도 중단을
   알렸고([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27)), 워처가 이어 가지 않은 실패한 턴을 이유와 함께 기록하자고 제안했습니다.
 - [@ZionZhang42](https://github.com/ZionZhang42) 님은 그 감지 누락의 원인을 증명했습니다([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27)).
@@ -69,7 +70,9 @@
 - [@weng-wen-jun](https://github.com/weng-wen-jun) 님은 오래된 대기 중 복구를 정리하는 수동 '다시 살펴보고 정리'를
   요청했고([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), 이어서 대기열 메시지를 위한 대기 중과 편집 창, 그리고 지금 다시 확인과 다시 살펴보기의
   사용량 확인, 그리고 대화 찾기가 된 검색할 수 있는 대화 선택을 제안했고, 이어서 대기열 메시지의 말 옆에 그림, 직접 조종(steer) 보내기 방식,
-  기록의 끝까지 따라가기 보기가 된 후속 제안을 했습니다([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
+  기록의 끝까지 따라가기 보기가 된 후속 제안을 했습니다([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)). 또 앱 서버
+  짝짓기 수정이 더 새 Codex 앱에서도 처음부터 끝까지 듣는 것을 확인해 주셨고, 옛 판 사용자를 먼저 업데이트로 안내하도록 사용 안내서를
+  고치게 한 의견을 주셨습니다([#67](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/67)).
 - [@kano0222](https://github.com/kano0222) 님은 에이전트가 만든 대화를 사람이 입력창에서 이어 써도 복구하지 않는 문제를 알리고,
   그 원인을 코드의 정확한 규칙까지 짚어 주셨습니다([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 - [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo) 님은 알림 영역에서 대시보드를 열 때마다 창이 하나 더 열리는 문제를
@@ -82,6 +85,8 @@
   수정과 함께 알려 주셨습니다([#66](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/66)).
 - [@a115599663322](https://github.com/a115599663322) 님은 Codex 앱이 서버를 앱 자신의 도우미 프로세스 아래에서 시작하면 모든 복구가 기다리기만 한다는 것을,
   원인을 코드에서 읽어 내고 패치와 함께 알려 주셨습니다([#67](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/67)).
+- [@harshespop](https://github.com/harshespop) 님은 그 수정 전 버전에서 사용량 한도 재설정 때 같은 기다림이 생긴다는 것을, 프로세스 트리와 워처의 시간순 기록, 코드에서 읽어 낸 규칙과
+  함께 알려 주셨습니다([#68](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/68)).
 
 ## AI 기여자에 대한 참고
 

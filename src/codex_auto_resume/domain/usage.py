@@ -77,3 +77,47 @@ def decode(text) -> list | None:
     except ValueError:
         return None
     return windows_of({"windows": value})
+
+
+def newest(reading, added):
+    """The last reading every surface says (v0.6.26 final, from the popup's newest_reading of v0.6.16-beta.3, issue
+    #29): the watcher's own `reading` - or, where the advanced edition's usage meter read later, the meter's, which its
+    plug adds to the status under its one key (`added`, the status's domain/plug.EXTRA), in core's own shape
+    (meter_windows) and only where that shape is what windows_of keeps. The standard edition adds nothing there, so this
+    is the watcher's reading, the very object, as it always was."""
+    meter = added.get("meter") if isinstance(added, dict) else None
+    if not (isinstance(meter, dict) and isinstance(meter.get("windows"), list)
+            and type(meter.get("read_at")) in (int, float)):
+        return reading
+    if isinstance(reading, dict) and type(reading.get("read_at")) in (int, float) and reading["read_at"] >= meter["read_at"]:
+        return reading
+    windows = meter_windows(meter["windows"], reading)
+    return reading if windows is None else {"read_at": meter["read_at"], "windows": windows}
+
+
+def meter_windows(found, reading) -> list | None:
+    """The meter's windows as core keeps a window (KEYS), or None where they are not a reading windows_of keeps. The
+    meter keeps a window by its bucket and length and no slot, and adds its own band: the band is left out, and the slot
+    is the one the watcher's `reading` gave the window of that bucket and length - or, where it has none, the shorter
+    window of a bucket its primary and the longer its secondary, as Codex reports them."""
+    if not isinstance(found, list):
+        return None
+    known = {}
+    for window in (reading.get("windows") if isinstance(reading, dict) else None) or ():
+        if isinstance(window, dict):
+            known[(window.get("bucket"), window.get("window_minutes"))] = window.get("window")
+    lengths = {}
+    for window in found:
+        if not isinstance(window, dict):
+            return None
+        lengths.setdefault(window.get("bucket"), []).append(window.get("window_minutes"))
+    shaped = []
+    for window in found:
+        bucket, minutes = window.get("bucket"), window.get("window_minutes")
+        slot = known.get((bucket, minutes))
+        if slot not in SLOTS:
+            ordered = sorted(lengths[bucket], key=lambda each: (each is None, each if type(each) is int else 0))
+            slot = SLOTS[0] if ordered.index(minutes) == 0 else SLOTS[1]
+        shaped.append({"bucket": bucket, "window": slot, "used_percent": window.get("used_percent"),
+                       "window_minutes": minutes, "reset_at": window.get("reset_at")})
+    return windows_of({"windows": shaped})

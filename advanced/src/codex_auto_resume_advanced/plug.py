@@ -136,6 +136,17 @@ class AdvancedPlug(Plug):
         inuse.tell(self.paths, codex_exe, codex_home)
         return None
 
+    @property
+    def served_elsewhere(self) -> frozenset:
+        """v0.6.26 final (S5): the codex.exe paths a capability's own look last found the app main running instead of
+        the engine the watcher told (codex/inuse.py saw), which core's runtime/app.py `_served_elsewhere` reads where its
+        own backend found none. Core alone decides whether one is taken up; nothing is opened or read here."""
+        try:
+            from .codex import inuse
+            return inuse.elsewhere(self.paths)
+        except Exception:
+            return frozenset()
+
     def conversation_off(self, thread_id):
         """A person switched a conversation off (core's Plug.conversation_off): every message of a person's
         own still waiting there ends, its words with it (runtime.py)."""

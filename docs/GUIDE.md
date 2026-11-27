@@ -632,7 +632,9 @@ A conversation that is open in another Codex session - a terminal's Codex TUI or
 a different case. The Codex app does not hold it, but it is not unloaded either: another session has it
 open. It waits with a reason of its own, "Open in another Codex session (a terminal or VS Code); it
 continues once the Codex app holds it.", and nothing is sent to it. It continues once the Codex app holds
-the conversation.
+the conversation. If you see this reason while only the Codex app is open, check for updates first: versions
+before v0.6.25 did not recognise the server Codex 26.1117 and later start under the app's own helper, and
+read the app's own server as another session ([#67](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/67)).
 
 While a recovery waits for the app, it says which of two things it found. With no Codex app running it says
 "The Codex app is not running." With the app running and none of its servers matched to the engine, it says
