@@ -505,6 +505,62 @@ impl car_policy::plug::Plug for StatusPlug {
     }
 }
 
+/// Integration 12: a plug that names a start route at P9 - the world's `start_plug`: `route` (what its start answers;
+/// none, DEFER), `held` (why it held one), `told` (false: a route with no `told`), `told_raises` - each word it is told
+/// a line of told.log in the home, as actworld.py's `_StartPlug`.
+struct StartPlug {
+    spec: Map,
+    home: std::path::PathBuf,
+}
+
+struct ToldRoute {
+    answer: Value,
+    log: Option<std::path::PathBuf>,
+    raises: bool,
+}
+
+impl car_policy::plug::StartRoute for ToldRoute {
+    fn start(&self, _command: &[String]) -> Value {
+        self.answer.clone()
+    }
+    fn told(&self, word: &str) {
+        let Some(log) = &self.log else {
+            return;
+        };
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log)
+        {
+            use std::io::Write;
+            let _ = file.write_all(format!("{word}\n").as_bytes());
+        }
+        if self.raises {
+            panic!("told");
+        }
+    }
+}
+
+impl car_policy::plug::Plug for StartPlug {
+    fn start_route(
+        &self,
+        _request: &Value,
+    ) -> car_policy::plug::Hook<Box<dyn car_policy::plug::StartRoute>> {
+        let Some(answer) = self.spec.get("route") else {
+            return Ok(car_policy::plug::Answer::Defer);
+        };
+        let told = !matches!(self.spec.get("told"), Some(Value::Bool(false)));
+        Ok(car_policy::plug::Answer::Is(Box::new(ToldRoute {
+            answer: answer.clone(),
+            log: told.then(|| self.home.join("told.log")),
+            raises: matches!(self.spec.get("told_raises"), Some(Value::Bool(true))),
+        })))
+    }
+    fn start_held(&self) -> Result<Value, car_policy::plug::HookFailed> {
+        Ok(self.spec.get("held").cloned().unwrap_or(Value::Null))
+    }
+}
+
 /// S6.2b4: with `"real_checks": true` the world's host is wrapped as the product wraps its own
 /// (car-watcher `checkhost::WatcherHost`): Diagnostics' check and Rescan's judge run by the watcher's own rules over the
 /// world's answers, and `presence` is what Windows says of a notice's route (`{"raise": class}` raises).
@@ -589,9 +645,15 @@ pub fn call(home: &Path, request: &Map) -> Value {
         Err(class) => return rejected(class, "request_failed"),
     };
     let acts = Arc::clone(&host.acts);
-    let plug = match world.get("status_plug") {
-        None | Some(Value::Null) => Guarded::null(),
-        Some(added) => Guarded::new(Box::new(StatusPlug(added.clone()))),
+    let plug = match (world.get("status_plug"), world.get("start_plug")) {
+        (Some(added), _) if !matches!(added, Value::Null) => {
+            Guarded::new(Box::new(StatusPlug(added.clone())))
+        }
+        (_, Some(Value::Object(spec))) => Guarded::new(Box::new(StartPlug {
+            spec: spec.clone(),
+            home: home.to_path_buf(),
+        })),
+        _ => Guarded::null(),
     };
     let control = car_control::Control::new(paths, host, Arc::new(plug));
     let args: Vec<Value> = match request.get("args") {

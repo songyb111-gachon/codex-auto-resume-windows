@@ -21,7 +21,7 @@ from .pipe import PIPE, plain
 OPTIONAL = ("bind", "rule_for", "taken", "carries", "not_taken", "holds", "watched_due", "words_sent",
             "acted_when_told", "tend", "images_of")
 # What an object a hook answered with can be asked (ProxyThing in advserve).
-OBJECT_METHODS = ("send", "resume", "run", "start", "pools", "words")
+OBJECT_METHODS = ("send", "resume", "run", "start", "pools", "words", "told")
 _DEFAULT = object()
 
 
@@ -469,6 +469,10 @@ class _RustThing:
     def start(self, command):
         return self._ask("start", list(command))
 
+    def told(self, word):
+        # Core's `_tell` (getattr(route, "told", None)): car-adv's start route is told what core made of it.
+        return self._ask("told", word)
+
 
 class Runtime(_Session):
     """car-adv's `Runtime`, with the reference's constructor and names."""
@@ -736,6 +740,8 @@ class Runtime(_Session):
             return self._encode(found.resume(thread_id, **keywords))
         if method == "start":
             return self._encode(found.start(*arguments))
+        if method == "told":
+            return self._encode(found.told(*arguments))
         raise AttributeError(method)
 
     def _view(self, number, method, arguments):

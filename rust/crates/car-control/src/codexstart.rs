@@ -102,6 +102,12 @@ pub fn outcome_word(decision: &str) -> &'static str {
         .map_or("other", |(_, word)| word)
 }
 
+/// `_tell(route, word)`: a plug's start route told what core made of it. Never raises: the route is the plug's code, and
+/// what it does with the word changes nothing of core's (a panic in it is caught here, D15).
+fn tell(route: &dyn StartRoute, word: &str) {
+    let _ = car_machine::caught::catch(|| route.told(word));
+}
+
 /// `_word(held)`: a plug's reason as core writes one, `[a-z_]` 1 to 32 letters, or None.
 pub fn held_word(held: &Value) -> Option<String> {
     let text = pyval::text(held)?;
@@ -230,17 +236,20 @@ impl Control {
             decision
         );
         self.note_line(&PathBuf::from(&self.paths.codex_start_log), &line);
-        // A route the plug named is told what core made of it in the reference (`route.told`, optional); the Rust
-        // plug's StartRoute has no `told` yet (GROUNDWORK, S5.1b), so nothing is told.
+        // v0.6.16-beta.3 (issue #31): a route the plug named is told what core made of it.
+        let route = named.first().map(|route| &**route);
+        if let Some(route) = route {
+            tell(route, outcome_word(&decision));
+        }
         if confirm_seconds > 0.0 {
-            self.confirm_codex_start(&decision, confirm_seconds);
+            self.confirm_codex_start(&decision, route, confirm_seconds);
         }
         line
     }
 
     /// `_confirm_codex_start(decision, route, seconds)`: whether the watcher a start for Codex just made is still
     /// there `seconds` later, said in a second line only where it is not. Never raises.
-    fn confirm_codex_start(&self, decision: &str, seconds: f64) {
+    fn confirm_codex_start(&self, decision: &str, route: Option<&dyn StartRoute>, seconds: f64) {
         let Some(pid) = started_pid(decision) else {
             return;
         };
@@ -270,6 +279,9 @@ impl Control {
                 seconds.trunc() as i64
             ),
         );
+        if let Some(route) = route {
+            tell(route, "ended");
+        }
     }
 
     /// `_start_for_codex(context, named)`: the decision itself. The error is the class of what was raised.
@@ -289,10 +301,11 @@ impl Control {
             && pyval::truthy(&flag(context, "breakaway_ok"))
             && !pyval::truthy(&flag(context, "silent_breakaway_ok"));
         let job_ends = ends_with_job(context, breakaway) == Some(true);
-        let mut route: Option<Box<dyn StartRoute>> = None;
+        // A route the plug names goes into `named` at once, as the reference appends it: a refusal after it was named
+        // is told to it too.
         if !setting_on {
             match self.plug().start_route(context) {
-                Answer::Is(found) => route = Some(found),
+                Answer::Is(found) => named.push(found),
                 Answer::Defer => {
                     return Ok(match held_word(&self.plug().start_held()) {
                         Some(held) => format!("off (held: {held})"),
@@ -316,20 +329,15 @@ impl Control {
             return Ok("not started: not installed".to_owned());
         }
         if job_ends {
-            if route.is_none()
+            if named.is_empty()
                 && let Answer::Is(found) = self.plug().start_route(context)
             {
-                route = Some(found);
+                named.push(found);
             }
-            let Some(route) = route else {
+            let Some(route) = named.first() else {
                 return Ok("not started: this Codex ends what its plugins start".to_owned());
             };
-            let decision = self.start_through_route(&*route);
-            named.push(route);
-            return decision;
-        }
-        if let Some(route) = route {
-            named.push(route);
+            return self.start_through_route(&**route);
         }
         if self.host.install_in_progress() != Some(false) {
             return Ok("not started: an installation is in progress".to_owned());

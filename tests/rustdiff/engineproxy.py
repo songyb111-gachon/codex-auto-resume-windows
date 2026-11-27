@@ -423,7 +423,8 @@ class Engine:
             return {"value": plain(answer)}
         number = len(self._plug_objects) + 1
         self._plug_objects[number] = answer
-        return {"object": number, "has": [name for name in ("run", "send", "pools", "resume", "takes_words", "start")
+        return {"object": number, "has": [name for name in ("run", "send", "pools", "resume", "takes_words", "start",
+                                                        "told")
                                           if getattr(answer, name, None) is not None]}
 
     def _plug_object(self, found, name, arguments):

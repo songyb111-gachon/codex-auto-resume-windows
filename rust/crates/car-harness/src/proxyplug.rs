@@ -367,6 +367,12 @@ impl StartRoute for Held {
         )];
         Held::value(self.call("start", args, None, None))
     }
+    /// The test's route's own `told`, where it has one (core's `_tell` asks `getattr(route, "told", None)`).
+    fn told(&self, word: &str) {
+        if self.has.iter().any(|each| each == "told") {
+            let _ = self.call("told", vec![Value::from(word)], None, None);
+        }
+    }
 }
 
 fn held(found: Py<Value>, wants: &str) -> Hook<Box<Held>> {

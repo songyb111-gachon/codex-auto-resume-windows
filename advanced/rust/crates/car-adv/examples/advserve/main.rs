@@ -896,6 +896,10 @@ fn object_call(session: &Session, number: i64, method: &str, line: &Value) -> Re
             ))
         }
         (Held::Start(start), "start") => Ok(start.start(&words(&arg(0)))),
+        (Held::Start(start), "told") => {
+            start.told(word(&arg(0)).unwrap_or_default());
+            Ok(Value::Null)
+        }
         _ => Err(Fault::new("AttributeError", method)),
     }
 }

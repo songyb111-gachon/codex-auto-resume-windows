@@ -296,6 +296,37 @@ if world.get("status_plug") is not None:
             return world["status_plug"] if name == _Surface.STATUS else {}
     _edition.plug = lambda paths: _StatusPlug()
 
+if world.get("start_plug") is not None:
+    # Integration 12: a plug that names a start route at P9 (`route`: what its start answers; no `route`, DEFER), says
+    # why it held one (`held`), and - unless `told` is false - is told what core made of it, each word a line of
+    # told.log in the home (`told_raises`: its told raises after writing).
+    from codex_auto_resume import edition as _edition
+    from codex_auto_resume.domain.plug import DEFER as _DEFER, Plug as _Plug
+    _start = world["start_plug"]
+
+    class _StartRoute:
+        def start(self, command):
+            return _start.get("route")
+
+    class _ToldRoute(_StartRoute):
+        def told(self, word):
+            with open(_Path(spec["home"]) / "told.log", "a", encoding="utf-8", newline="\n") as told:
+                told.write("%s\n" % word)
+            if _start.get("told_raises"):
+                raise RuntimeError("told")
+
+    class _StartPlug(_Plug):
+        __slots__ = ()
+
+        def start_route(self, request):
+            if "route" not in _start:
+                return _DEFER
+            return _ToldRoute() if _start.get("told", True) else _StartRoute()
+
+        def start_held(self):
+            return _start.get("held")
+    _edition.plug = lambda paths: _StartPlug()
+
 if mode == "call":
     from codex_auto_resume import ownreport as _ownreport
     _layer = control.Control(Path(home))

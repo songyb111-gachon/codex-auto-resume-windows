@@ -888,6 +888,39 @@ class ControlCallDiff(ActingBase):
                 made = dict({"process_context": JOBS[3], "watcher_running": False}, **world)
                 self.call("start_for_codex", [0], world=made, tune=chained(launcher, setting(True), tune),
                           label="start for Codex: " + label)
+        # Integration 12: a plug's start route is told what core made of it (`_tell`): the first word at the note, and
+        # "ended" when the watcher it started is gone; a route the plug named before a refusal is told the refusal.
+        routes = [("started, then gone", {"route": {"pid": 4242}}, {"process_context": JOBS[0], "alive": []}, None, 8),
+                  ("started, still there", {"route": {"pid": 4242}}, {"process_context": JOBS[0], "alive": [4242]},
+                   None, 8),
+                  ("refused", {"route": {"code": 5}}, {"process_context": JOBS[0]}, None, 0),
+                  ("uncertain", {"route": {"uncertain": "timeout"}}, {"process_context": JOBS[0]}, None, 0),
+                  ("no pid", {"route": {}}, {"process_context": JOBS[0]}, None, 0),
+                  ("an answer that is no dict", {"route": [1]}, {"process_context": JOBS[0]}, None, 0),
+                  ("paused after it was named", {"route": {"pid": 4242}}, {"process_context": JOBS[0]},
+                   state_sql("UPDATE settings SET enabled=0"), 0),
+                  ("running", {"route": {"pid": 4242}}, {"process_context": JOBS[0], "watcher_running": True}, None, 0),
+                  ("cannot be asked", {"route": {"pid": 4242}}, {"process_context": JOBS[0], "watcher_running": None},
+                   None, 0),
+                  ("installing", {"route": {"pid": 4242}}, {"process_context": JOBS[0], "install_in_progress": True},
+                   None, 0),
+                  ("not installed", {"route": {"pid": 4242}}, {"process_context": JOBS[0]},
+                   lambda ws: (ws / "home" / "watcher-launcher.py").unlink(), 0),
+                  ("not in a job: core starts it", {"route": {"pid": 4242}},
+                   {"process_context": JOBS[3], "alive": []}, None, 8),
+                  ("a route with no told", {"route": {"pid": 4242}, "told": False},
+                   {"process_context": JOBS[0], "alive": []}, None, 8),
+                  ("a told that raises", {"route": {"pid": 4242}, "told_raises": True},
+                   {"process_context": JOBS[0], "alive": []}, None, 8),
+                  ("no route, held", {"held": "armed_later"}, {"process_context": JOBS[0]}, None, 0),
+                  ("no route, a held that is no word", {"held": "Not A Word"}, {"process_context": JOBS[0]}, None, 0),
+                  ("the context raises", {"route": {"pid": 4242}}, {"process_context": {"raise": "OSError"}}, None, 0)]
+        for label, plug, world, tune, seconds in routes:
+            with self.subTest(route=label):
+                made = dict({"watcher_running": False, "launch": {"pid": 4242, "polls": [None]}, "start_plug": plug},
+                            **world)
+                self.call("start_for_codex", [seconds], world=made, tune=chained(launcher, setting(False), on, tune),
+                          label="start for Codex through a plug's route: " + label)
         full = write_file("home/logs/codex-start.log", "".join("[2026-01-01 00:00:%02d] old %d\n" % (i, i)
                                                                 for i in range(60)))
         self.call("start_for_codex", [0], world={"process_context": JOBS[3]}, tune=chained(launcher, full),

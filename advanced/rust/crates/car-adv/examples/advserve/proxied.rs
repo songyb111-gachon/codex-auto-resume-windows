@@ -468,6 +468,12 @@ impl StartRoute for ProxyThing {
             .map(|answer| plain_of(&answer))
             .unwrap_or(Value::Null)
     }
+    /// The test's route's own `told`, where it has one (core's `_tell`).
+    fn told(&self, word: &str) {
+        if self.owns("told") {
+            let _ = self.call("told", vec![text(word)]);
+        }
+    }
 }
 
 // ------------------------------------------------------------------ core's view

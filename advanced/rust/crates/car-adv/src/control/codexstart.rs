@@ -5,8 +5,8 @@
 //! the watcher, whose parent becomes WmiPrvSE - outside the job. Core builds the command line and calls [`Route::start`]
 //! once; this runs one constant PowerShell script through car-platform's `pwsh` (values in environment variables,
 //! PowerShell by its System32 path, CREATE_NO_WINDOW) and reads back the created watcher's pid. Nothing here builds a
-//! command line, sends, claims or touches a setting. What core made of the route is `told` (car-control's StartRoute
-//! has no `told` yet: S5.1b's seam), written to the journal as the capability's own code.
+//! command line, sends, claims or touches a setting. What core made of the route is `told` (car-policy's
+//! `StartRoute::told`, which car-control's start for Codex calls), written to the journal as the capability's own code.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -210,6 +210,11 @@ fn python_int(text: &str) -> Option<i64> {
 impl StartRoute for Route {
     fn start(&self, command: &[String]) -> Value {
         self.run(&command.join(" "))
+    }
+
+    /// Core's `_tell` (car-control `codexstart::tell`, Integration 12): the word core made of this route.
+    fn told(&self, word: &str) {
+        Route::told(self, &Value::Str(Str::new(word)));
     }
 }
 

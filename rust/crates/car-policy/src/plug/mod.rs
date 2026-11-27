@@ -179,6 +179,9 @@ pub trait Errand: Send {
 /// A route that starts the watcher outside Codex's job (P9): core calls `start` with the command line it built.
 pub trait StartRoute: Send {
     fn start(&self, command: &[String]) -> Value;
+    /// `told(word)`: what core made of the route (`control/codexstart.py` `_tell`: OUTCOMES' words, and "ended"). The
+    /// reference's is optional (`getattr(route, "told", None)`): a route without one is told nothing, as here.
+    fn told(&self, _word: &str) {}
 }
 
 /// What P16 answers beside DEFER: a route, or one of the two queued answers core carries out as its ordinary send.
