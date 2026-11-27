@@ -114,9 +114,10 @@ class Queue:
 
 
 class FakeSession:
-    def __init__(self, measurement, script, log):
+    def __init__(self, measurement, script, log, shared=None):
         self.allowed = protocol.methods_for(measurement)
-        self.replies = {method: Queue(value) for method, value in (script.get("replies") or {}).items()}
+        self.replies = shared if shared is not None else {
+            method: Queue(value) for method, value in (script.get("replies") or {}).items()}
         self.events = list(script.get("events") or [])
         self.declined = script.get("declined", 0)
         self.enter_raises = script.get("enter_raises")
@@ -152,6 +153,10 @@ class FakeSession:
 
 
 def factory_of(script, log):
+    # "shared": one set of answers for every session the case opens (MAL's reads, MF's resumes), else each its own.
+    shared = ({method: Queue(value) for method, value in (script.get("replies") or {}).items()}
+              if script.get("shared") is True else None)
+
     def opened(measurement, home, config):
         log.append(["open", str(measurement), None if home is None else str(home),
                     None if config is None else list(config)])
@@ -159,7 +164,7 @@ def factory_of(script, log):
             answer(script["open_raises"])
         if home is not None and script.get("writes_config") is True:
             (Path(home) / "config.toml").write_bytes(b"x")
-        return FakeSession(measurement, script, log)
+        return FakeSession(measurement, script, log, shared)
     takes_home, takes_config = script.get("takes_home") is True, script.get("takes_config") is True
     if takes_home and takes_config:
         return lambda measurement, home=None, config=None: opened(measurement, home, config)
@@ -190,6 +195,8 @@ class Clock:
         self.log.append(["sleep", float(seconds)])
         self.now += seconds
         self.mono += seconds
+        self.slept = getattr(self, "slept", 0) + 1
+        grow(getattr(self, "grows", None), getattr(self, "home", None), self.slept)
 
     def uuid4(self):
         self.log.append(["uuid"])
@@ -269,6 +276,28 @@ def holders(case, log):
     pairing.session_kind = session_kind
 
 
+def grow(steps, home, slept):
+    """The Codex home changing while a probe watches it: each step at its sleep (`at`), history rows and rollout
+    lines added."""
+    import sqlite3
+    if not steps or home is None:
+        return
+    for step in steps:
+        if step.get("at") != slept:
+            continue
+        for sql in step.get("history_sql") or ():
+            connection = sqlite3.connect(Path(home) / "thread_history_1.sqlite")
+            try:
+                connection.execute(sql[0], sql[1:])
+                connection.commit()
+            finally:
+                connection.close()
+        for thread, lines in (step.get("append") or {}).items():
+            with (Path(home) / "sessions" / ("rollout-" + thread + ".jsonl")).open("ab") as stream:
+                for line in lines:
+                    stream.write(json.dumps(line).encode("utf-8") + b"\n")
+
+
 def seams(case, log):
     given = {}
     backend = case.get("backend")
@@ -338,6 +367,8 @@ def one(case, log):
     for name, value in (case.get("timing") or {}).items():
         setattr(measure, TIMING[name], value)
     folder = case.get("dir")
+    clock.grows = case.get("grow")
+    clock.home = (case.get("backend") or {}).get("codex_home") if isinstance(case.get("backend"), dict) else None
     product, windows = case.get("product_version", "0.6.26"), case.get("windows_build")
     measure.config = types.SimpleNamespace(version=lambda: product)
     measure.sys = types.SimpleNamespace(getwindowsversion=None if windows is None else (
@@ -420,10 +451,13 @@ def build_home(root: Path, spec: dict) -> Path:
     `append` (rollout lines per thread: events, or {"$hex": raw}), `files` (relative path: hex) and `remove`."""
     from rustdiff import codexdiff
     home = codexdiff.Home(root)
+
+    def rooted(sql):
+        return [sql[0]] + [each.replace("$root", str(root)) if isinstance(each, str) else each for each in sql[1:]]
     for sql in spec.get("state_sql") or ():
-        home.state(sql[0], *sql[1:])
+        home.state(*rooted(sql))
     for sql in spec.get("history_sql") or ():
-        home.history(sql[0], *sql[1:])
+        home.history(*rooted(sql))
     for row in spec.get("threads") or ():
         row = dict(row)
         thread = row.pop("id")
@@ -451,7 +485,7 @@ def build_home(root: Path, spec: dict) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(bytes.fromhex(raw))
     for sql in spec.get("after_sql") or ():
-        home.state(sql[0], *sql[1:])
+        home.state(*rooted(sql))
     for name in spec.get("remove") or ():
         (root / name).unlink()
     return root

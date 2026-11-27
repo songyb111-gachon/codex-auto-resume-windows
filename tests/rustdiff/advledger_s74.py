@@ -19,15 +19,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rustdiff import advledger_s72a as base  # noqa: E402
 
 PORTED = {"M1", "M2", "M2b", "M3", "M5", "M6", "M7", "MH", "MA", "MQ", "MT", "MW", "MP1", "MP2", "MP3", "MU", "MN",
-          "MR", "MIPC", "MAWS", "MCLOUD", "M6B"}
+          "MR", "MIPC", "MAWS", "MCLOUD", "M6B",
+          # S7.4b: the 31 S7.4 left - every measurement is ported now.
+          "M4", "ME", "MS", "MK", "MO", "MX", "MXA", "MF", "M3B", "MB", "MB2", "MC1", "MC2", "MQO", "MQP", "MQG",
+          "MTOK", "MOPEN", "MAL", "MALR", "MWAKE", "MHK", "M4B", "MANCHOR", "MIMG", "MSTEER", "MSTEER2", "MGAVE",
+          "MPROFILE", "MSWAP", "MAUTO"}
 # The measurements' words as the tests spell them: Measurement.M2B, "m2b", "measure mqo", ...
 WORDS = ["M1", "M2", "M2B", "M3", "M4", "M5", "M6", "M7", "MH", "MA", "MW", "MP1", "MP2", "MP3", "MU", "MN", "MR", "MQ",
          "ME", "MS", "MK", "MT", "MIPC", "MAWS", "MCLOUD", "M6B", "MO", "MX", "MXA", "MF", "M3B", "MB", "MC1", "MC2",
          "MQO", "MQP", "MQG", "MTOK", "MOPEN", "MAL", "MALR", "MWAKE", "MHK", "M4B", "MANCHOR", "MIMG", "MSTEER",
          "MSTEER2", "MGAVE", "MB2", "MPROFILE", "MSWAP", "MAUTO"]
 SPELLED = {"M2B": "M2b"}
-# The seats that have landed on this branch's base (car-v0627-s72a at 8e6362cbf) besides S7.4 itself.
-LANDED = {"S7.1", "S7.2c", "S7.3c", "S7.2a", "S7.4"}
+# The seats that have landed on this branch's base (car-v0627-rust at 8cbcd6ac3, Integration 11) besides S7.4 itself.
+LANDED = {"S7.1", "S7.2c", "S7.3c", "S7.2a", "S7.4", "S7.2b", "S7.2d", "S7.2e1", "S7.2e2", "S7.3b"}
 
 
 def measurements(source: str) -> set:

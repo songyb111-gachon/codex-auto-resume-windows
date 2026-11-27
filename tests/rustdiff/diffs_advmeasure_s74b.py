@@ -42,12 +42,14 @@ def given(measurement, session=None, **extra):
     """A run on the named throwaway conversation, the backend's home and holders as given."""
     extra.setdefault("thread", THREAD)
     extra.setdefault("timing", FAST)
+    if "backend" in extra and "home" not in extra:
+        extra["home"] = SIMPLE_HISTORY
     return run_case(measurement, session, **extra)
 
 
 def history(*turns, items=(), users=(), threads=(THREAD,), **more):
     found = {"threads": [{"id": thread} for thread in threads],
-             "turns": [dict(zip(("thread", "turn", "status", "ordinal"), turn)) for turn in turns],
+             "turns": [dict(zip(("thread", "turn", "status", "ordinal", "final_agent"), turn)) for turn in turns],
              "items": [dict(zip(("thread", "turn", "item", "type", "payload", "ordinal"), item)) for item in items],
              "users": [dict(zip(("thread", "turn", "item", "text", "client_id", "ordinal"), user)) for user in users]}
     found.update(more)
@@ -241,6 +243,12 @@ class MeasureHistoryDiff(Base):
                  history(), {"remove": ["thread_history_1.sqlite"]},
                  history((THREAD, T1, "completed", 1), edges=[[THREAD, OTHER, "open"], [THREAD, "junk", "x"]],
                          threads=(THREAD, OTHER)),
+                 dict(history((THREAD, T1, "completed", 1, "item-final"), threads=(THREAD, OTHER, THIRD)),
+                      edges=[[THREAD, OTHER, "open"], [THREAD, THIRD, "open"]],
+                      history_sql=[["INSERT INTO thread_turns (thread_id, turn_id, rollout_ordinal, status, error_json, "
+                                    "started_at, completed_at) VALUES (?,?,?,?,?,?,?)", THIRD, T3, 1, "failed",
+                                    json.dumps({"codexErrorInfo": "usageLimitExceeded"}), 1789990000,
+                                    1789999000]]),
                  {"threads": [{"id": THREAD, "source": "cli", "thread_source": "subagent", "history_mode": 5,
                                "originator": "codex-tui", "extra_meta": {"cli_version": "0.1"}}]},
                  {"threads": [{"id": THREAD, "source": "exec", "originator": "codex_vscode"}]},
@@ -258,6 +266,52 @@ class MeasureHistoryDiff(Base):
                                        users=users, holder=holder, backend=backend(), home=home))
             cases.append(given(measurement, {}, users=[[OTHER_USER]], holder=[True],
                                backend={"engine_version": "x", "app_identity": {}}, home=homes[0]))
+        self.held(cases)
+
+    def test_watched(self):
+        """The history and the rollout change while MC2, MQG, MQO and MSTEER watch them (`grow`, at a sleep)."""
+        task = {"type": "event_msg", "payload": {"type": "task_started"}}
+        done = {"type": "event_msg", "payload": {"type": "task_complete"}}
+        wait = {"type": "event_msg", "payload": {"type": "request_permissions"}}
+        new_turn = ["INSERT INTO thread_turns (thread_id, turn_id, rollout_ordinal, status) VALUES (?,?,?,?)",
+                    THREAD, T2, 2, "inProgress"]
+        ended = ["UPDATE thread_turns SET status=? WHERE turn_id=?", "completed", T2]
+        reply = ["INSERT INTO thread_items (thread_id, turn_id, item_id, rollout_ordinal, item_json, item_type) "
+                 "VALUES (?,?,?,?,?,?)", THREAD, T2, "a1", 1, "{}", "agentMessage"]
+        cases = []
+        for steps in ([{"at": 1, "history_sql": [new_turn], "append": {THREAD: [task]}},
+                       {"at": 3, "history_sql": [ended, reply], "append": {THREAD: [wait, done]}}],
+                      [{"at": 1, "append": {THREAD: [task, done]}}, {"at": 2, "history_sql": [new_turn, ended]}],
+                      [{"at": 2, "history_sql": [new_turn, ["UPDATE thread_turns SET status=? WHERE turn_id=?",
+                                                             "other", T2]]}],
+                      [{"at": 1, "history_sql": [new_turn, ended], "append": {THREAD: [task, done]}}],
+                      [{"at": 1, "history_sql": [new_turn]}, {"at": 9, "history_sql": [ended]},
+                       {"at": 12, "append": {THREAD: [task, done]}}]):
+            for timing in (FAST, dict(FAST, mc2=20.0, mc2_poll=0.5)):
+                cases.append(given("MC2", None, backend=backend(), home=history((THREAD, T1, "completed", 1)),
+                                   grow=steps, timing=timing))
+        mqg = "00000000-0000-7000-8000-00000000000a"
+        for steps in ([{"at": 1, "history_sql": [new_turn, ended]}],
+                      [{"at": 1, "history_sql": [new_turn]}, {"at": 2, "history_sql": [
+                          ["INSERT INTO thread_turns (thread_id, turn_id, rollout_ordinal, status) VALUES (?,?,?,?)",
+                           THREAD, T3, 3, "completed"], ["INSERT INTO thread_items (thread_id, turn_id, item_id, "
+                                                          "rollout_ordinal, item_json, item_type) VALUES "
+                                                          "(?,?,?,?,?,?)", THREAD, T3, "u9", 1,
+                                                          json.dumps({"clientId": mqg}), "userMessage"]]}],
+                      []):
+            for first in (history((THREAD, T1, "completed", 1)), history()):
+                cases.append(given("MQG", {"replies": {"thread/goal/get": {"goal": {"status": "paused"}},
+                                                       "thread/queue/list": [{"data": [{"clientUserMessageId": mqg}]},
+                                                                             {"data": [{"clientUserMessageId": mqg}]},
+                                                                             {"data": []}]}},
+                                   users=[[]], backend=backend(), home=first, grow=steps))
+        running = history((THREAD, T1, "inProgress", 1))
+        for steps in ([], [{"at": 1, "history_sql": [new_turn]}], [{"at": 2, "history_sql": [reply]}]):
+            cases.append(given("MSTEER", {"replies": {"turn/steer": {"turnId": T1}}}, users=[[]], backend=backend(),
+                               home=running, grow=steps))
+            cases.append(given("MQO", {"replies": {"thread/queue/list": [
+                {"data": [{"clientUserMessageId": "00000000-0000-7000-8000-000000000005"}]}, {"data": []}]}},
+                users=[[]], backend=backend(), home=running, grow=steps))
         self.held(cases)
 
     def test_mc2(self):
@@ -329,6 +383,17 @@ class MeasureHistoryDiff(Base):
             {"history_sql": [["INSERT INTO thread_turns (thread_id, turn_id, status, completed_at, error_json) "
                               "VALUES (?,?,?,?,?)", 5, T1, "failed", 1790000000, "not json"]]},
             {"remove": ["thread_history_1.sqlite"]}, history()]
+        archived = "archived_sessions/2026/rollout-x-%s.jsonl" % THREAD
+        homes.append({"threads": [{"id": THREAD, "write_file": False}, {"id": OTHER, "write_file": False}],
+                      "turns": [failed(THREAD, T1, "serverOverloaded"), failed(OTHER, T2, "serverOverloaded")],
+                      "files": {archived: b"".join(json.dumps(line).encode() + b"\n" for line in
+                                                   [started(T1), retry("serverOverloaded")]).hex(),
+                                "sessions/rollout-2026-10-14T12-00-00-%s.jsonl" % OTHER: b"".join(
+                                    json.dumps(line).encode() + b"\n" for line in
+                                    [started(T2), retry("serverOverloaded")]).hex()},
+                      "after_sql": [["UPDATE threads SET rollout_path=? WHERE id=?", "$root\\" +
+                                     archived.replace("/", "\\"), THREAD], ["UPDATE threads SET rollout_path=NULL "
+                                                                              "WHERE id=?", OTHER]]})
         cases = [given("MGAVE", None, backend=backend(), home=home) for home in homes]
         cases.append(given("MGAVE", None, backend=backend(), home=homes[0], clock={"time": 1790000000.0 + 86400 * 95}))
         self.held(cases)
@@ -386,9 +451,11 @@ class MeasureScratchDiff(Base):
         for listed in models:
             for resumes in ([{"model": "m-own"}], [{"model": "m-own"}, {"model": "m-default"}, {"model": "m-own"}],
                             [{"model": "m-default"}], [{}]):
-                cases.append(given("MF", {"replies": {"model/list": listed, "thread/resume": resumes,
-                                                      "turn/start": {"turn": {"id": "t-1"}}},
-                                          "events": [[completed(THREAD, "t-1", "completed")]]}))
+                for shared in (True, False):
+                    cases.append(given("MF", {"replies": {"model/list": listed, "thread/resume": resumes,
+                                                          "turn/start": {"turn": {"id": "t-1"}}},
+                                              "events": [[completed(THREAD, "t-1", "completed")]],
+                                              "shared": shared}))
         self.held(cases)
 
     def test_schema_probes(self):
@@ -424,8 +491,9 @@ class MeasureScratchDiff(Base):
                                                          limits(0, 1790018040), limits(0, 1790018060)]):
             for ran in ({"code": 0, "input": 3, "cached": True, "output": 2.0, "folder_empty_after": True},
                         {"code": False}, {"code": 1}, "x", RAISES[4]):
-                cases.append(given("MANCHOR", {"replies": {"account/rateLimits/read": replies}},
-                                   hands={"anchor_request": [ran]}))
+                for shared in (True, False):
+                    cases.append(given("MANCHOR", {"replies": {"account/rateLimits/read": replies},
+                                                   "shared": shared}, hands={"anchor_request": [ran]}))
         for power in ({"wake_ac": 1, "wake_dc": True, "on_battery": False, "modern_standby": True, "lid_present": 1},
                       {"on_battery": True}, "x", None):
             for woke in ({"set": True, "fired": True, "slept_seconds": 600, "late_seconds": 3},
@@ -462,6 +530,7 @@ class MeasureAccountDiff(Base):
         for reads in ([signed, out, {"account": {"plan_type": "weird"}}], [signed, RAISES[0], out, RAISES[3], signed],
                       [signed], [out], [{}], [{"account": "x"}], [signed, out, RAISES[4]],
                       [{"account": {"planType": 5}}, out, {"account": {}}]):
+            cases.append(given("MAL", {"replies": {"account/read": reads}, "shared": True}))
             cases.append(given("MAL", {"replies": {"account/read": reads}}))
             for restart in ({"reads": 1, "answer": {"outcome": "restarted", "how": "closed"}},
                             {"reads": 2, "answer": {"outcome": "not_ended", "busy": ["queued", "x"]}},
@@ -469,8 +538,8 @@ class MeasureAccountDiff(Base):
                             {"reads": 1, "answer": {"outcome": ["x"], "busy": "turn_running"}},
                             {"reads": 0, "answer": {"busy": 5}}, {"reads": 1, "answer": RAISES[4]},
                             {"reads": 3, "answer": "x"}, None):
-                cases.append(given("MALR", {"replies": {"account/read": reads + [signed]}}, restart=restart,
-                                   backend=backend()))
+                cases.append(given("MALR", {"replies": {"account/read": reads + [signed]}, "shared": True},
+                                   restart=restart, backend=backend()))
         for answered in ({"profile_given": True, "account_read": True, "own_account": True, "usage_read": True,
                           "real_file_unchanged": True, "app_unchanged": True, "real_still_signed_in": True,
                           "store_word": "usable"},

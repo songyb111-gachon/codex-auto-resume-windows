@@ -89,6 +89,18 @@ impl Queue {
 struct Script {
     script: Value,
     log: Log,
+    /// `"shared": true`: one set of answers for every session the case opens.
+    shared: Option<Arc<Mutex<BTreeMap<String, Queue>>>>,
+}
+
+fn replies_of(script: &Value) -> BTreeMap<String, Queue> {
+    let mut replies = BTreeMap::new();
+    if let Some(Value::Object(found)) = get(script, "replies") {
+        for (method, answers) in found {
+            replies.insert(found_key(method), Queue::of(Some(answers)));
+        }
+    }
+    replies
 }
 
 impl Script {
@@ -120,12 +132,10 @@ impl Script {
         if let (Some(home), Some(Value::Bool(true))) = (home, get(&self.script, "writes_config")) {
             let _ = std::fs::write(home.join("config.toml"), b"x");
         }
-        let mut replies = BTreeMap::new();
-        if let Some(Value::Object(found)) = get(&self.script, "replies") {
-            for (method, answers) in found {
-                replies.insert(found_key(method), Queue::of(Some(answers)));
-            }
-        }
+        let replies = match &self.shared {
+            Some(shared) => Replies::Shared(Arc::clone(shared)),
+            None => Replies::Own(replies_of(&self.script)),
+        };
         let events = match get(&self.script, "events") {
             Some(Value::Array(found)) => found.clone(),
             _ => vec![],
@@ -143,9 +153,14 @@ impl Script {
     }
 }
 
+enum Replies {
+    Own(BTreeMap<String, Queue>),
+    Shared(Arc<Mutex<BTreeMap<String, Queue>>>),
+}
+
 struct FakeSession {
     allowed: std::collections::BTreeSet<&'static str>,
-    replies: BTreeMap<String, Queue>,
+    replies: Replies,
     events: Vec<Value>,
     declined: Value,
     enter: Option<Value>,
@@ -169,7 +184,17 @@ impl MeasureSession for FakeSession {
         if !self.allowed.contains(method) {
             return Err(Raised::Refused);
         }
-        match self.replies.get_mut(method) {
+        let mut held;
+        let replies = match &mut self.replies {
+            Replies::Own(own) => own,
+            Replies::Shared(shared) => {
+                held = shared
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                &mut *held
+            }
+        };
+        match replies.get_mut(method) {
             Some(queue) => queue.next(Value::Object(Map::new())),
             None => Ok(Value::Object(Map::new())),
         }
@@ -236,6 +261,79 @@ struct Clock {
     monotonic: f64,
     ids: u64,
     log: Log,
+    /// The Codex home changing while a probe watches it (`grow`: at its sleep, history rows and rollout lines).
+    grows: Value,
+    home: Option<PathBuf>,
+    slept: i64,
+}
+
+fn param(value: &Value) -> rusqlite::types::Value {
+    match value {
+        Value::Str(found) => {
+            rusqlite::types::Value::Text(found.as_str().unwrap_or_default().to_owned())
+        }
+        Value::Int(found) => rusqlite::types::Value::Integer(found.as_i64().unwrap_or_default()),
+        Value::Float(found) => rusqlite::types::Value::Real(*found),
+        Value::Bool(found) => rusqlite::types::Value::Integer(i64::from(*found)),
+        _ => rusqlite::types::Value::Null,
+    }
+}
+
+impl Clock {
+    fn grow(&mut self) {
+        let (Value::Array(steps), Some(home)) = (&self.grows, &self.home) else {
+            return;
+        };
+        for step in steps {
+            if !matches!(get(step, "at"), Some(Value::Int(at)) if at.as_i64() == Some(self.slept)) {
+                continue;
+            }
+            if let Some(Value::Array(statements)) = get(step, "history_sql") {
+                for statement in statements {
+                    let Value::Array(parts) = statement else {
+                        continue;
+                    };
+                    let Some(sql) = parts.first().and_then(|first| text_of(Some(first))) else {
+                        continue;
+                    };
+                    if let Ok(connection) =
+                        rusqlite::Connection::open(home.join("thread_history_1.sqlite"))
+                    {
+                        let params: Vec<rusqlite::types::Value> =
+                            parts[1..].iter().map(param).collect();
+                        let _ = connection.execute(&sql, rusqlite::params_from_iter(params));
+                    }
+                }
+            }
+            if let Some(Value::Object(appended)) = get(step, "append") {
+                for (thread, lines) in appended {
+                    let path = home
+                        .join("sessions")
+                        .join(format!("rollout-{}.jsonl", found_key(thread)));
+                    let mut bytes = Vec::new();
+                    if let Value::Array(lines) = lines {
+                        for line in lines {
+                            bytes.extend(python_json(line).into_bytes());
+                            bytes.push(b'\n');
+                        }
+                    }
+                    use std::io::Write;
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open(&path)
+                    {
+                        let _ = file.write_all(&bytes);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// `json.dumps(value)` (its default separators, ASCII only) for the lines a step appends.
+fn python_json(value: &Value) -> String {
+    car_machine::json::to_string(value, &Options::new()).unwrap_or_default()
 }
 
 impl World for Clock {
@@ -251,6 +349,8 @@ impl World for Clock {
         note(&self.log, vec![s("sleep"), Value::from(seconds)]);
         self.time += seconds;
         self.monotonic += seconds;
+        self.slept += 1;
+        self.grow();
     }
     fn uuid4(&mut self) -> String {
         note(&self.log, vec![s("uuid")]);
@@ -335,9 +435,12 @@ fn seams(case: &Value, log: &Log) -> measure::Seams {
         ..measure::Seams::default()
     };
     if let Some(script) = get(case, "session").filter(|found| !matches!(found, Value::Null)) {
+        let shared = matches!(get(script, "shared"), Some(Value::Bool(true)))
+            .then(|| Arc::new(Mutex::new(replies_of(script))));
         seams.session_factory = Some(Box::new(Factory(Script {
             script: script.clone(),
             log: log.clone(),
+            shared,
         })));
     }
     if let Some(spec) = get(case, "launcher").filter(|found| !matches!(found, Value::Null)) {
@@ -385,7 +488,9 @@ fn seams(case: &Value, log: &Log) -> measure::Seams {
         }
     }
     // `windows.resource_users` (the reference refuses it where the case names none: a RuntimeError, nothing logged).
-    let users = get(case, "users").cloned();
+    let users = get(case, "users")
+        .filter(|found| !matches!(found, Value::Null))
+        .cloned();
     let mut users_queue = Queue::of(users.as_ref());
     let users_log = log.clone();
     seams.resource_users = Some(Box::new(move |path: &Path| {
@@ -500,6 +605,11 @@ fn one(case: &Value, log: &Log) -> Value {
         monotonic: number(get(&clock_spec, "monotonic"), 1000.0),
         ids: 0,
         log: log.clone(),
+        grows: get(case, "grow").cloned().unwrap_or(Value::Null),
+        home: get(case, "backend")
+            .and_then(|found| text_of(get(found, "codex_home")))
+            .map(PathBuf::from),
+        slept: 0,
     };
     let folder = directory(case);
     let versions = match get(case, "versions") {
