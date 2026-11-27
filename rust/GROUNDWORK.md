@@ -3743,3 +3743,58 @@ Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_cla
   forwarders in `advproxy/table.py` (S7.2a3's how-to). `ledger.py --seat <seat>` lists what waits.
 * **S7.3a**: `seam_p7::OpenCodex` is the one edge left; **S7.3d**: the host's `Edges` calls
   `engine::account::forget_real`, `control::hookplugin::follow_real`, and hands the runtime its state.
+
+## Seat proxy2: the advanced proxy, completion part 1 (branch `car-v0627-proxy2`, 2026-11-27)
+
+From `80c6b29ff` (Integration 10, `ledger.py --run` GREEN 9 of 32). Reference: the v0.6.26 tree's advanced tests,
+both lanes on the bundled 3.14.10 (`ledger.py --run`). Owner Q3 (c): every advanced test file unedited on Rust.
+
+### What is built
+
+* **"A build of version N"** (step 3, the main session's call): car-adv `state::builds` (test-only, empty in the
+  product, as `runtime::faults`): `prepare` reads `SCHEMA_VERSION`, `TABLES` and the statements `UPGRADE_TO_V019`,
+  `FREE_OPTIONS`, `FREE_WORDINGS`, `MARKED` through it. The pipe (`pipe.build`) sends `"build"` with every request while
+  a test has the reference's `state.session` names patched; advserve sets it for that request. A registry that only
+  answers `get` (state_options' SimpleNamespace) opens car-adv's state at the first call with what `get` answers.
+  The pipe now carries NaN/inf as `{"__float__": ...}` both ways (a NaN reading ended advserve: state_v5).
+  **Nothing is "reference only" any more**: state_v5/v6/v7, schema_v8 and state_options are GREEN.
+* **Core's engine proxy carries the test's plug** (step 4 and the key to every engine-scenario file): car-harness
+  `proxyplug.rs` - `Engine(..., plug=...)` is handed to car-engine as `Guarded::new(AskPlug)`, every hook asked back
+  (`plug.<hook>` on the raw plug; car-policy's `Guarded` does what the reference's does); errands, channels, routes and
+  start routes stay the test's objects by number; the view a hook is handed and core's errand guards are reached by
+  callbacks while the ask waits (`guard_enter` holds car-engine's guard until `guard_exit`). AskStore has
+  `reserve_record` and `record_guard` (the engine's own plug as the ledger, Python side). engineproxy.py:
+  `_plug_call`, `_HarnessView`, `_HarnessGuard`; `CODEX_AR_ENGINEPROXY_TRACE=1` prints every ask (and every world seam).
+  `test_advanced_admission`: all 23 green with `CODEX_AR_ADVPROXY=0`; through the proxy 21 of 23 - the two claim tests
+  meet `Runtime.claim` (P11, the host's).
+* **The worlds of the shipped codes** (step 1's infrastructure): advserve `worlds.rs` makes usage_meter, usage_wrap_up,
+  usage_pause, reset_message and reset_credit with a `usage::World` whose every seam asks the test (`{"ask": "world"}`:
+  home, locale, Turns' running/latest/between, LocalSource, the backend and its sessions, ipc's stop/start with core's
+  gate by number, uuid keys, `_switched_at`), answered by `advproxy/worlds.py` with the reference module's function at
+  the time of the ask; `runtime._code_of` of a shipped capability is a `RustCode` whose `_stop`/`_start`/`_home` the
+  seams read. advserve installs a refusing `usage::World` at start, so no code made there with car-adv's defaults reaches
+  this PC's Codex (credits' `system_opener`, autoswitch and retries still have system defaults: not made in a test yet).
+* **Pure rules** (step 2, part): `advproxy/pure.py` forwards `arming.standing`, `arming.warnings_for`, `registry.offered`
+  through advserve's `op`. `registry.problems` stays the reference's: test_advanced_registry hands it definitions car-adv's
+  closed types cannot hold, and a dump loses what it judges (forwarding it turned 6 GREEN tests red).
+
+### Where the 23 "ready" files stand (system Python, CODEX_AR_CORE=rust)
+
+* usage family (usagestop_*, stop_held_windows, reset_message_counting_held): the stop's tick now reaches car-adv's
+  UsageStop through the plug and its world, but it **defers**: `PauseCore::marking` marks no window newly over (it asked
+  `switched` and `home`, never `running`), where the reference stops the turn. Next: trace `marking` (meter rows,
+  `acting_of`, `percent`, `stale`) against the reference on `test_advanced_usagestop_hold_ends`. `stop_held_windows` also
+  reads `code.holding()` (a RustCode method to forward).
+* prompt queue (go_on_series, prompt_command_line, self_check_handed), empty_response_own, every_conversation,
+  goal_set_race, subagent_told_at_send: their codes (`prompt_queue`, `empty_response`, `every_conversation`,
+  `goal_continuation`, `subagent_parent`) need worlds like the usage family's (`make_with` seams: `Open`, `TurnRunning`,
+  `LookWorld`, `GoalWorld`), and `worlds.MODULES` rows.
+* the 7 that reach no forwarded code (korean_words, notice_kinds, shots_render, statement_programs,
+  statement_stopped_route, usage_word_split, words_late): their subjects are statement/plug words - forwarders for
+  `statement`'s rendering and `plug`'s notice kinds.
+
+### Not done (exactly what is left)
+
+Step 1 beyond the usage family's infrastructure; step 2 for credits, headless, hook_input, credentials, examples,
+word_keys, measure_m4b (and the 7 above); step 5's full run of every ready file with RUN_WAITS reasons. The gates of
+this seat are in its RETURN.

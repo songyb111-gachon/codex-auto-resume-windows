@@ -86,9 +86,9 @@ RUN_WAITS = {
     "test_advanced_ledger.py": ("P11 host", "the claim ledger on core's connection (`state._open`, `claim`)"),
     "test_advanced_state.py": ("P11 host", "AttachTests and RecordTests attach the file to core's connection "
                                "(`state._open`); the other 61 tests are green through the proxy"),
-    "test_advanced_admission.py": ("S4.2 proxy", "EngineCase (6) fails on the core proxy alone too "
-                                   "(CODEX_AR_ADVPROXY=0): core's engine through car-harness with an advanced plug "
-                                   "(P11 and P2 through AskStore); the other 21 tests are green through the proxy"),
+    "test_advanced_admission.py": ("P11 host", "core's engine proxy now carries the plug (car-harness proxyplug.rs) and "
+                                   "AskStore has reserve_record/record_guard: 23 of 23 green with CODEX_AR_ADVPROXY=0; "
+                                   "through the proxy 21 of 23 - EngineCase's two claim tests reach Runtime.claim (P11)"),
     "test_advanced_examples.py": ("S7.1b", "reaches no forwarded code: statement's and registry's own functions"),
     "test_advanced_measure_m4b.py": ("S7.4", "reaches no forwarded code: the measurement table's words"),
     "test_advanced_word_keys.py": ("S7.1", "reaches no forwarded code: statement and images' own functions"),
