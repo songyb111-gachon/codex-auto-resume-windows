@@ -267,6 +267,11 @@ EXTERN_DEFINITION = re.compile(r'extern\s+"C"\s+fn\b')
 # store/ledger.py `_ledger_authorizer`, set with `sqlite3_set_authorizer` on the claim's own connection): a definition
 # SQLite calls, not a call into Windows or the C runtime. Held to its file and its one function's name.
 SQLITE_CALLBACKS = {"rust/crates/car-store/src/ledger.rs": "authorizer"}
+# S6.4e: car-harness's opener stand-in (src/opener.rs) names the callback type of the copy of car-platform's handover.rs it
+# compiles over a scratch world (`EnumWindows(Some(each), ..)`): a fn type, which calls nothing and declares nothing; the
+# harness links no Windows crate, so no Windows function can be reached from it. Held to its file and to a fn type (no name).
+FN_TYPES = {"rust/crates/car-harness/src/opener.rs"}
+FN_TYPE = re.compile(r'extern\s+"system"\s+fn\s*\(')
 TINY_BINARIES: set[str] = set()
 EXTERN_SYSTEM = re.compile(r'extern\s+"(system|C)"')
 # math.erfc: CPython calls the C library's, and so does car-brand's elevation colour (pyfmt.rs).
@@ -323,6 +328,8 @@ def check_windows_calls_in_platform() -> None:
                     if found.group(1) == "C" and c_math_only(source, text, number):
                         continue
                     if name in EXPORTERS and EXTERN_DEFINITION.search(line):
+                        continue
+                    if source.relative_to(ROOT).as_posix() in FN_TYPES and FN_TYPE.search(line):
                         continue
                     callback = SQLITE_CALLBACKS.get(source.relative_to(ROOT).as_posix())
                     if callback and re.search(r'extern\s+"C"\s+fn\s+%s\(' % callback, line):
