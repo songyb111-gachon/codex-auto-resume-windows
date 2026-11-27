@@ -834,11 +834,14 @@ impl Code for ResetCredit {
     }
 }
 
-/// `make(paths)`: the capability's code for one installation, its session the product's own.
+/// `make(paths)`: the capability's code for one installation, its session and keys the installed world's (the
+/// product's own where none is installed: [`system_opener`], `uuid4`) - as reset_message's, so a code made inside a
+/// harness that installed a refusing world opens nothing.
 pub fn make(paths: &Paths) -> Option<Box<dyn Code>> {
+    let world = super::usage::World::installed();
     Some(Box::new(ResetCredit::new(
         paths.clone(),
-        system_opener(),
-        Arc::new(car_platform::ipc_pipe::uuid4),
+        world.open,
+        world.keys,
     )))
 }

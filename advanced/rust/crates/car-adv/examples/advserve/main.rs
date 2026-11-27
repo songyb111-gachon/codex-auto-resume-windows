@@ -32,6 +32,7 @@ mod ops_statement;
 #[allow(dead_code)]
 mod ops_words;
 mod proxied;
+mod refused;
 #[path = "../advprobe/util.rs"]
 #[allow(dead_code)]
 mod util;
@@ -523,10 +524,15 @@ fn open(line: &Value) -> Result<Value, Fault> {
                 maker: Arc::new(
                     move |definition: &CapabilityDef, paths: &car_config::Paths| {
                         if shipped.contains(&definition.id) {
-                            if let Some(made) = worlds::make(definition, paths, id, &folder) {
-                                return made;
-                            }
-                            return car_adv::capabilities::make(definition, paths);
+                            // Nothing made here reaches this PC (refused.rs): asked, refused, read and bare, or none.
+                            return match refused::made(&definition.id) {
+                                refused::Made::Asked => {
+                                    worlds::make(definition, paths, id, &folder).flatten()
+                                }
+                                refused::Made::Refused => refused::make(&definition.id, paths),
+                                refused::Made::Bare => car_adv::capabilities::make(definition, paths),
+                                refused::Made::Withheld => None,
+                            };
                         }
                         let answer = wire::ask(
                             "make",
