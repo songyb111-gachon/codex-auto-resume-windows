@@ -4832,6 +4832,74 @@ Left, in the coordinator's order (every count is UI tests not yet held):
    start, then its proxy beside perform's; `test_single_rules.PageTests` with it. Not started.
 3. **Drawn, 424 tests** - the plan proxy; `test_motion_tray_story` (4) by the drawn route. Not started.
 4. `test_screenshots` (34): pending, "moves with the pictures (main session's pass)" - done.
+### S6.4d (2026-11-27): the window rows - the icon's commands, its failure, its menu
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown, nothing captured,
+nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`; the shim runs used
+`CODEX_AR_HARNESS_EXE` = a copy of `car-v0627-rust`'s `rust/target/release/car-harness.exe` (this worktree has no `rust/target`).
+
+| What | Where | State |
+|---|---|---|
+| **`icon_steps`**: a TrayIcon with no window and no shell icon (Hwnd a number, or none where the test's `_hwnd` is none), every Windows call recorded (SurfaceScreen.Probe), given the state the test set, runs a list of steps (update, refresh, select, failure_seen, unseen, act, menu, choose, native, drop_menu, popup_can_open) and reports what it posted (RecordingActions, on the calling thread), logged, recorded, and its state. What the port's icon asks the core or the test is asked back: FailureUnseen's answers in order ("raise" throws), each drawn-menu opening's answer (RecordingMenu: shown / refused / "raise"), the command Windows' menu returns (NativeChoice); a question past the answers is reported unanswered and the step run again | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`menu_keys`**, **`menu_messages`**: MenuPlan's Step/End/Letter; a MenuWindow with no window, its plan its own renderer's MenuLayout (as Open lays it out), open, its Telling recorded and its Speaking as SurfaceAccess.Attach's with the announcement recorded as the Changes it would make, driven by steps (send, visible, select, spoken, accessible) | `tests/rustdiff/HostProbe.cs` | - |
+| **`HostTray`** / **`HostMenu`**: the reference `Tray` and `Menu` as the tests drive them, over those probes. Posts go to the callback the reference would have called (toggle -> on_toggle(paused), stop -> on_stop, open_dashboard page None -> on_open, "pending" -> on_pending, failure_seen -> control.acknowledge_failure, disarm_power -> control.disarm_power_action("tray")); a post where the reference had no callback FAILS (the reference took no action there); a raising callback is the post that raised (run again with that post throwing; the host's own log lines go to the test's `log`). The test's FakeDrawn / patched `popup.Menu` answers each opening; its patched user32 is handed exactly the host's calls (CreatePopupMenu, AppendMenuW, TrackPopupMenu, DestroyMenu) and never the real one (refused if unpatched); a later `on_choose` replays the host's own opening (that moment's snapshot and answers), then the snapshot of now, then the choice. `HostMenu` replays the test's history of assignments and messages on a fresh MenuWindow per question | `tests/rustdiff/hosticon.py` | - |
+| Twins (each the Python class subclassed, bodies through `super()`, only the object made changed; MENU_* numbers the host's, held equal to the reference's) | `tests/test_host_icon_act.py` (13: TrayMenuOnHostTests 9 with the numbers check, IconOnHostTests 4), `tests/test_host_icon_menu.py` (20: Parity 3, Fallback 5, Key 2, Behaviour 10) | OK through `gui_lock.sh`, one module at a time |
+
+Ledger: **host 30** (was 29: `test_failure_seen` - 4 twins, `test_a_failure_turns...` in `host_tests` (the shim's icon_state and
+tooltip), `test_every_language_says_it` moved to `unaffected` (it reads only `l10n.catalog`)), **pending 53** (the ceiling is left at 54
+for the integration to set), python-only 1. Partly moved, still pending: `test_surface_properties` (8 of 9 TrayMenuTests twinned; the
+opener's page refusal is S6.4e's), `test_tray_menu_drawn` (20 twins + 1 routed of 37; LiveWindowTests 3 left, and PlacementTests 6,
+RightToLeftTests 1, LookTests 6 marked as the drawing's, S6.4f's). `summary.by_status` re-counted (it still said host 20 / pending 63).
+
+**Mutation checks** (each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mutate.py`): on gui/ - Act's toggle
+told `!paused`, Stop posting open_dashboard, Post's catch not logging, FailureSeen without Refresh (2 fail), Unseen's failing read red, Refresh
+telling the shell every second, Unseen with no control layer still asking, NativeMenu's grayed flag inverted, a broken drawn menu tried again,
+the menu drawn with no window, the drawn choice told `!paused`, Pending always offered in the drawn menu, DropMenu not destroying,
+MenuPlan.Step without its wrap, Letter's one match only moving (2), Home/End swapped, a press on the card closing it, WM_MOUSELEAVE keeping
+the item in hand, Close not telling MENUPOPUPEND, AccessibleItems without "hot"; on the twin's side - the pending page reaching on_open,
+separators not handed to user32, tellings not handed on: each fails its test. **Survivors**: Act offering pending with no on_pending
+survived the first run (the twin dropped a post with no callback), so such a post now fails the twin; Char's control-character guard
+removed is equivalent here (Letter strips "\r" to nothing and leaves the item in hand); `Armed()` returning null was not a valid mutant
+(unreachable code fails `-warnaserror`).
+
+### What is left of the window rows (per row, the route), for the next seat
+
+Largest first (UI tests not yet held): `test_popup_row_menu_drawn` 27 (Parity/Fallback/Submenu*: the popup's row menus are MenuWindow too;
+`menu_messages` takes submenus once its steps can open a child - `OpenChild` needs a window: a Create'd never-shown one, as
+`SurfaceRenderWindows.MenuWindowCase` makes; its PlacementTests 5 are the drawing's), `test_tray_tipcard` 22 (Place/Draw/Accessible/CardState:
+a `tip_steps` probe over TipCard as `icon_steps` is over TrayIcon), `test_popup_access` 21 (PopupWindow's accessible items and text size: a
+`popup_messages` probe), `test_tray_tip_messages` 17 (extend `icon_steps` with a recording ITrayTip and the shell's hover messages through
+TrayIcon's window procedure), `test_popup_card_still` 14, `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11, `test_popup_opening_motion` 11,
+`test_tray_open_popup` 11 (Item/Offered: `icon_steps` already has the menu and MenuPopup -> RecordingPopup.Show; the opener half of OpensTests
+is S6.4e's), `test_popup_motion_held` 10, `test_menu_opening_motion` 6 (MenuWindow's fade: `menu_messages` plus its clock and FadeStep),
+`test_card_focus` 5, `test_tray` 5 (PowerMenuTests: `icon_steps` with `power_armed` and MenuPowerOff; LiveIconTests), `test_tray_menu_no_glow` 5,
+`test_corners_by_design` 4 (Renderer pixels: S6.4f's), `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3,
+`test_notice_stay` 2, `test_tray_menu_drawn.LiveWindowTests` 3, and `test_surface_properties`' opener test (S6.4e).
+
+### Seams and notes
+
+* `hosticon.HostTray` covers the members the tests above call; another test's member is one more step name in `IconSteps` and one method
+  there. Members a test replaces on the object are honoured where the host has the seam (`_notify`, `_refresh`, `_popup_for_click`, the
+  drawn menu, user32); the rest (`_sync_motion`, `_adopt_settings`, `_theme_menu`, `_adopt_reduce_motion`) are kept and not asked (the
+  host's are off or no-ops in the probe: MenuTheming false, AdoptSettings a no-op).
+* The icon has an IHostActions where the reference had a control layer or any callback, so PopupCanOpen (Actions != null) is true for an
+  icon with callbacks and no control, where the reference's `_popup_can_open` (control is not None) is false: no twin above meets the case;
+  the live host always has both.
+* `HostMenu` reads the host's plan back through `_plan`, so where a test points is an item of the host's plan; that the host's plan is the
+  reference's is the drawing's question (S6.4f).
+
+### Checks
+
+```
+test_host_icon_act (gui_lock.sh)                                                     Ran 13, OK
+test_host_icon_menu (gui_lock.sh)                                                    Ran 20, OK
+test_surface_ledger test_tray_menu_drawn test_host_shape test_host_tray_place        Ran 80, OK
+test_surface_ledger test_failure_seen test_surface_properties (the Python originals) Ran 76, OK
+CODEX_AR_CORE=rust: test_failure_seen.IconTests.test_a_failure_turns_the_icon_red_and_says_so_when_hovered   Ran 1, OK (rustdiff_surfaceproxy)
+python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26 (gui_lock.sh, detached)   130 ledger tests on the shim and the ledger + every twin home (85) pass against the tag; no row: test_status_newest_usage.py   exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are S6.3's and Integration 11's;
+`python -X utf8 rust/tools/check_groundwork.py`: OK.
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
