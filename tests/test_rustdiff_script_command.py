@@ -95,7 +95,11 @@ class NoMoreSystemExecutable(unittest.TestCase):
     `reference.command`, `script_command` or `productpy`, so none of them names `sys.executable` for the reference."""
 
     FILES = ("advref.py", "diffs_store.py", "diffs_engine.py", "cliworld.py", "gen_cli.py", "gen_vocab.py", "gen_logbook.py",
-             "gen_advcodex.py", "productpy.py")
+             "gen_advcodex.py", "productpy.py",
+             # Integration 10: every advanced family of the P7 seats, and the advanced proxy's two lanes (advproxy/ledger.py)
+             "advdiff.py", "advplug.py", "advstore.py", "advcodex.py", "advcodexd.py", "advreport.py", "diffs_advhook_claim.py",
+             "advcourier.py", "advaccount.py", "advusage.py", "advturns.py", "advturnsworld.py", "advtime.py",
+             "advproxy/ledger.py")
 
     def test_the_reference_is_never_started_by_sys_executable_in_these_files(self):
         for name in self.FILES:

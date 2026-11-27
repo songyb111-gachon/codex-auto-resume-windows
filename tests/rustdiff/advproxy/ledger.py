@@ -15,8 +15,14 @@ A file is
   runs on the reference only, as do the files retired by D8.
 
 `--run` runs each file named, one process at a time, on both lanes through scripts/test_parts.py's worker, compares
-the outcomes test by test and prints the counts of calls it made to advserve - what a seat pastes into GREEN.
-GREEN only grows; a file leaves it only with the row of table.py that put it there.
+the outcomes test by test and prints the counts of calls it made to advserve - what a seat pastes into GREEN. `--run`
+with no file runs every GREEN file and every "ready" one and ends with the count of GREEN. GREEN only grows; a file
+leaves it only with the row of table.py that put it there.
+
+Both lanes run on the reference's Python (Integration 10): the product's bundled embeddable 3.14.10 by default, as every
+diff of tests/rustdiff does (refpython.py; `--reference-python bundled|system|PATH`, or CODEX_AR_REFERENCE_PYTHON). The
+embeddable runtime ignores PYTHONPATH, so the lane's folders (this tree, `src`, `advanced/src`) reach the worker through
+`refpython.script_command`'s boot; PYTHONPATH is still set for an installed interpreter and for what a test starts.
 """
 from __future__ import annotations
 
@@ -32,6 +38,9 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+if str(ROOT / "tests") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tests"))
+from rustdiff import refpython  # noqa: E402 - the reference's Python, which both lanes run on
 
 
 def _load(name, path):
@@ -154,8 +163,12 @@ def _lane(files, proxied: bool, scratch: Path, debug: bool):
         if debug:
             environment["CODEX_AR_ADVSERVE_EXE"] = str(ROOT / "advanced" / "rust" / "target" / "debug" / "examples"
                                                        / "advserve.exe")
-    subprocess.run([sys.executable, "scripts/test_parts.py", "--worker", "advanced/tests", "--report", str(report),
-                    *files], cwd=str(ROOT), env=environment, creationflags=NO_WINDOW, capture_output=True)
+    folders = [ROOT, ROOT / "src", ROOT / "advanced" / "src"]
+    # a test lane, not a reference: advanced/tests bring tests/no_real_codex.py (test_parts' worker installs it) and their
+    # own stand-ins, so refguard's program does not run here (guard=False; test_rustdiff_refguard names this one file)
+    subprocess.run(refpython.script_command(ROOT / "scripts" / "test_parts.py", "--worker", "advanced/tests", "--report",
+                                            str(report), *files, paths=folders, guard=False),
+                   cwd=str(ROOT), env=environment, creationflags=NO_WINDOW, capture_output=True)
     outcomes = json.loads(report.read_text(encoding="utf-8")) if report.is_file() else {}
     calls = {}
     if proxied and counts.is_file():
@@ -172,7 +185,8 @@ def _outcomes(report) -> dict:
 
 
 def run(files, debug: bool) -> int:
-    worst = 0
+    worst, green = 0, 0
+    print("both lanes on %s" % refpython.describe())
     for name in files:
         with tempfile.TemporaryDirectory(prefix="car-advproxy-") as scratch:
             scratch = Path(scratch)
@@ -183,9 +197,11 @@ def run(files, debug: bool) -> int:
             bad = sorted(key for key, outcome in got.items() if outcome not in ("pass", "skip", "expected-failure"))
             ok = bool(got) and not differ and not bad and sum(calls.values()) > 0
             worst = worst or (0 if ok else 1)
+            green += ok
             print("%-52s %s  tests %d  calls %s%s" % (name, "GREEN" if ok else "NOT GREEN", len(got),
                                                      json.dumps(calls, sort_keys=True),
                                                      "" if not differ else "  differ: " + ", ".join(differ[:6])))
+    print("GREEN %d of %d files run" % (green, len(files)))
     return worst
 
 
@@ -194,11 +210,16 @@ def main() -> int:
     parser.add_argument("--tag", default="v0.6.26")
     parser.add_argument("--markdown", action="store_true")
     parser.add_argument("--seat")
-    parser.add_argument("--run", nargs="+")
+    parser.add_argument("--run", nargs="*", help="these files on both lanes; none: every GREEN and ready file")
     parser.add_argument("--debug", action="store_true", help="the debug build of advserve")
+    parser.add_argument("--reference-python", metavar="bundled|system|PATH",
+                        help="the Python both lanes run on (refpython.py; default bundled)")
     args = parser.parse_args()
-    if args.run:
-        return run(args.run, args.debug)
+    if args.reference_python:
+        refpython.select(args.reference_python)
+    if args.run is not None:
+        files = args.run or sorted(set(GREEN) | {row["file"] for row in rows(args.tag) if row["status"] == "ready"})
+        return run(files, args.debug)
     found = rows(args.tag)
     if args.markdown:
         counts = {}
