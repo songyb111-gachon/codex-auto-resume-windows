@@ -285,8 +285,10 @@ class StampedBuildTests(unittest.TestCase):
     def test_make_gui_stamps_each_executable_it_builds_after_normalising_it(self):
         script = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
         self.assertIn("gui_stamp.py", script)
-        self.assertEqual(script.count(" -Kind '"), 1)
+        # The window and, in the standard run, the watcher host (S6.2b): every executable through Build, each stamped.
+        self.assertEqual(script.count(" -Kind '"), 2)
         self.assertIn("-Kind 'window'", script)
+        self.assertIn("-Kind 'host'", script)
         build = script[script.index("function Build {"):script.index("$WindowSources = ")]
         self.assertLess(build.index("normalizer $exe"), build.index("$stamper"))
         self.assertLess(build.index("Remove-Item -LiteralPath ($exe + '.stamp')"), build.index("& $csc"))
