@@ -60,7 +60,9 @@ class LegacySkillLines(unittest.TestCase):
 
     def test_every_skill_command_reaches_the_core(self):
         built = core.target_dir() / "release" / "python.exe"
-        core_stub = core.target_dir() / "release" / "codex-auto-resume.exe"
+        # The stub core (car-bin's car-core-proof.exe, as build/rust_legacy_bootstraps.py's PROOF_CORE): since S6.2b the
+        # release codex-auto-resume.exe is the real core, whose setup and uninstall would act on this PC.
+        core_stub = core.target_dir() / "release" / "car-core-proof.exe"
         for program in (built, core_stub):
             if not program.is_file():
                 self.skipTest("not built: %s (cargo build --release --manifest-path rust/Cargo.toml)" % program)
