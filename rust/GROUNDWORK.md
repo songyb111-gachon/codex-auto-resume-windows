@@ -5053,6 +5053,20 @@ S6.4e's opener), `test_popup_motion_held` 10, `test_menu_opening_motion` 6 (Menu
 clicks and holds on windows of its own: CardMotion is S6.4f's replay, the stack a probe with message-only windows), `test_tray_menu_drawn.LiveWindowTests` 3,
 `test_surface_properties`' opener test (S6.4e), and the first rest and live card of `test_tray_tip_messages` (gui/ seams above).
 
+### Checks (S6.4d3)
+
+```
+test_host_popup_access (gui_lock.sh)                               Ran 20, OK
+test_host_tray_tip_messages (gui_lock.sh)                          Ran 14, OK
+test_surface_ledger (wait_quiet.sh)                                Ran 7, OK (after test_host_popup_access joined HOST_SIDE and its
+                                                                   inherited twins were named in its own file)
+privacy_scan.py on the new and changed files                       clean
+```
+Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad copy of car-v0627-rust's release car-harness.exe):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` - the shim installed: 130 ledger tests + test_surface_askback
+(Ran 134, OK); the ledger and every twin home (Ran 148, OK: 114 before, + 20 + 14); no row: test_status_newest_usage.py; exit 0.
+No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
