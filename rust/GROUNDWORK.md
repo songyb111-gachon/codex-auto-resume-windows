@@ -4832,6 +4832,43 @@ Left, in the coordinator's order (every count is UI tests not yet held):
    start, then its proxy beside perform's; `test_single_rules.PageTests` with it. Not started.
 3. **Drawn, 424 tests** - the plan proxy; `test_motion_tray_story` (4) by the drawn route. Not started.
 4. `test_screenshots` (34): pending, "moves with the pictures (main session's pass)" - done.
+### S6.4e (seat S6.4e, branch `car-v0627-s64e`, 2026-11-27): the Dashboard opener rows
+
+Writes only `rust/crates/car-harness` (the one writer of it in this wave), `tests/` and this section; no product crate, nothing in `gui/`,
+`src/` or `build/` changed; no window shown, nothing captured, nothing started, nothing pushed. Every run kept
+`CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`. This worktree built its own `rust/target` (release harness).
+
+| What | Where | State |
+|---|---|---|
+| **The opener's own Rust over a scratch world**: `build.rs` copies car-watcher's `dashboard.rs` and car-platform's `handover.rs` into OUT_DIR with only their Windows names (`use windows::...`, `crate::kernel::process_image`) and their start (`car_platform::spawn::{Spawn, SystemStarter}`, `car_platform::handover::hand_over`) re-pointed at `opener.rs`'s `world`; each re-pointing is counted and the build fails when a product file's lines move. The harness links no `windows` crate, so a Windows call left in a copy cannot compile. The world lists the windows `EnumWindows` gives (visible, owner, process, class, the `WM_COPYDATA` answer), each process's image and whether the start fails, and records the images asked, `AllowSetForegroundWindow`, every message (window, message, wparam, mark, size, bytes, flags, timeout), the hand-over asked and the start (argv, cwd, flags, command line) | `rust/crates/car-harness/build.rs`, `src/opener.rs`; `surface.batch` cases `opener.dashboard`, `opener.chat`, `opener.row_argument`, `opener.request_text`, `opener.spelled`, `opener.windows_of`, `opener.consts` | built |
+| **The diff**: the same worlds through the tag's `dashboard.py`/`handover.py` (`handover._dll` answered from the world, `dashboard.subprocess` a recorder) | `tests/rustdiff/diffs_ui_opener.py` (`OpenerDiff`, `PiecesDiff`) | 486 `open_dashboard` + 40 `open_chat` cases (140 messages, 81 starts) and 106 pieces equal v0.6.26 on the bundled 3.14.10 |
+| Three product differences, each an expected failure of its own family (an unexpected success fails the run, so the marker goes when the product is fixed) | `OpenerDiff.test_a_start_that_fails` (dashboard.rs drops a failed start's error and answers true; the reference raises OSError), `test_an_image_written_with_forward_slashes` (handover.rs splits the image at `\` only), `test_a_row_python_unpacks` (the reference unpacks a three-character text or a dict as the row) | named in AUDIT-v0628.md; none reachable from the host (the host sends an array or nothing; Windows writes images with `\`), the first changes only a log line |
+| **The proxy** beside perform's: `open_dashboard`, `open_chat`, `PAGES`, `ROW_DIALOGS` of `ui/tray/dashboard.py` from `opener.*`; the hand-over asked back of the test's `win.handover.hand_over` in the reference's shape (`(exe, page)`, or `(exe, page, row)`; the exe a Path), the recorded start handed to the test's `subprocess.Popen(argv, cwd=, close_fds=True, creationflags=)`; an OSError from it dropped as dashboard.rs drops it | `tests/rustdiff/surfaceproxy.py` `_opener`, `shim.SURFACE` + `codex_auto_resume.ui.tray.dashboard` | held by `tests/test_surface_opener.py` (5 tests: 960 open_dashboard and 14 open_chat combinations against `__wrapped__` on recording stand-ins) |
+| Twins of the wiring tests: the host's TrayMenu `Act` posts Toggle with `paused` only; api.rs's toggle arm is `set_enabled(paused)` and nothing else; PopupMessages `Fields` posts OpenDashboard on Pending with the row, and api.rs hands the row to `open_dashboard` | `tests/test_host_opener.py` (3 tests) | OK |
+
+Ledger: **host 32** (was 29: `test_notice_click_chat`, `test_single_rules`, `test_tray_reuses_window`), **pending 51**, python-only 1 (the ceiling is
+the integration's to lower: 54 -> 51 for this seat). `test_popup_row_menu_parity` holds 14 of 16 (left: the two tests that choose in the Python popup's
+drawn row menu, `shown_popup`: the window route); `test_surface_properties` gains `TrayMenuTests.test_the_window_is_only_ever_opened_on_a_page_it_has`
+(the other 8 are S6.4d's `icon_act`). `test_tray_open_popup` holds **no** opener test (its ItemTests, OfferedTests and OpensTests drive the icon's
+menu and popup): it waits on the window route and its `needs` says so. `test_postpone_and_tiers`' last pure test is the Windows-menu one, not the opener.
+`test_surface_opener.py` is in `test_surface_ledger.HOST_SIDE`.
+
+**Mutation checks** (each alone, restored with the file's bytes): the proxy's hand-over always given the row (3 errors in test_tray_reuses_window),
+`close_fds` dropped, the test's hand-over answer ignored, the exe handed back as text, the start's cwd dropped (each fails test_surface_opener);
+api.rs's toggle inverted, TrayMenu's toggle posting Stop, api.rs dropping the row (each fails its twin); in the copied product, see Checks.
+
+The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_opener.py --reference v0.6.26` (`--no-build` with binaries built): the opener's Python files
+changed since the final, `run.py -k OpenerDiff -k PiecesDiff`, then `test_surface_opener` and every `host_tests` entry of the five rows on
+`CODEX_AR_CORE=rust` with the tag's package first. `rediff_ui_tests.py` picks the new host_tests up as well.
+
+Seams and what later seats need:
+* dashboard.rs and handover.rs have no seam of their own (the start and the Windows calls are direct), which is why the harness compiles copies. A
+  product seat that gives `open_dashboard`/`open_chat` a `Starter` and `hand_over` a window lister could call the product directly; `build.rs`'s
+  counted re-pointings then go.
+* A product seat should decide the three differences above (and `close_fds`: Rust's `Command` always inherits handles) and drop each expected
+  failure as it is fixed.
+* `test_status_newest_usage.py` still waits for Integration 12's merge of the final (S6.4c).
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
