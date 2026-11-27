@@ -2991,3 +2991,60 @@ bash advanced/rust/tools/check_rebuild.sh            rc=0, every binary the same
 run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher -k diffs_bridge_acting
                                                      Ran 29 in 1104 s, OK
 ```
+
+### The third part (seat S6.2b3, same branch, 2026-11-27)
+
+**0. The real-engine guard (`9322fee62`, its own commit).** Twice a test reached real discovery and started this PC's
+installed codex.exe. car-platform `realengine` names this PC's real Codex by the folders Windows knows
+(`SHGetKnownFolderPath`: LocalAppData\OpenAI, LocalAppData\Microsoft\WindowsApps, ProgramFiles\WindowsApps, the
+profile's .vscode\extensions, RoamingAppData\npm) - never the environment, which tests point at scratch folders (a
+scratch folder under %TEMP% is none of them, so the diffs' planted engines still run). Where the guard is on - the
+switch `CAR_NO_REAL_ENGINE`, or a crate's own `cfg!(test)` - car-config's discovery leaves those builds out (the
+probes' new `Links::engine_refused`: a candidate skipped, a named one "does not exist", the app's engines not offered),
+the process list (car-platform `kernel::processes_named`, car-codex `Platform`) leaves out the Codex app's rows (real
+paths, OpenAI.* families), and `SystemStarter::start_guarded(spawn, cfg!(test))` refuses the engine or a `codex:` /
+`shell:AppsFolder\OpenAI.*` argument before `Command::new` (error 2, as a missing program). Every car-codex, car-watcher
+and car-control start passes its own `cfg!(test)`. The switch is set by car-harness's three binaries (first statement
+of main), `tests/rustdiff/core.py` (every diff), `tests/sitecustomize.py` (every interpreter of the suite, so every Rust
+child of a Python test), `test_host_shell` and the host's and watcher's Rust tests. `car-watcher/tests/real_engine_guard.rs`
+points discovery at the real LocalAppData with the switch set: no real build checked or chosen, a named one refused, no
+real row listed, a start refused before `Command::new` (`last_started_flags` unchanged). With the switch's read turned
+off it FAILS, naming this PC's two real builds (the bin's and the Store app's) - the exact route of the incidents.
+
+**1. The card route (`98f164066`, `416d867ff`).** car-platform `presence`: notice_presence.py's probes (the shell's
+notification state, the two WinRT reads by the reference's IIDs and vtable slots with COM up only where this brought it
+up, the screen reader, a remote session, the input desktop's name, battery saver, the dismiss time); on this PC both
+sides answer the same. car-watcher `notices`: `presence()` (snapshot under the product's AUMID), `Route::deliver`
+(App._deliver: the plug told, then notifier.deliver with the stack's inbox), `_show_watcher_notice` and
+`_watcher_notice` (`WatcherNotices`: a final one now as the toast, the rest on their own Toasts; power notices past the
+switches) - the old `{event, detail, final}` notice event is gone - and the card announce in `surface::activate` now
+uses the inbox and the card setting. `Events` holds App._inbox: `cards_attached` attaches it with a wake that hands
+each notice over as `notice {id, key, title, stays, view, letters}` (notice_card.view; fonts._letters of the view's
+locale), `cards_detached` ends what was never taken as the toast off the calling thread, `notice_complete {id, shown}`
+runs notifier.complete once per id (an id the core never gave answers ok false). Tests: car-watcher `notices` 3,
+`host_watcher` (attach, an unknown id, detach).
+
+**3. The advanced DLL (`f846f1ae7`).** car-adv-host: `export_core!(advanced_plug)`, the advanced plug as the core sees
+it with no capability on (edition advanced, badge "Advanced", the trait's defaults - plug.py's AdvancedPlug answers as
+NULL while nothing is on). S7.3d puts the capabilities behind the same factory. `abi_exports` with `CAR_CORE_DLL` on
+the advanced release DLL: 3 passed.
+
+**4. The entry test (`85bfd58f4`).** Cause: `EntryRunTests` still took `rust/target/release/codex-auto-resume.exe`,
+which 858f8d875 made the real core, while the proof's own `entry_from_archive` was moved to the stub; the real core
+answered the bootstraps' lines itself (car-legacy passes its code through; 1 reads "missing the core"). It now takes
+`PROOF_CORE`: Ran 2, OK. No real value changed: this PC's Run value is still the installed Python watcher's, and
+neither the AUMID key nor a link handler of ours exists.
+
+### Still left after the third part
+
+* **Step 2, the detection-check and rescan goldens through the real host: NOT done** (this seat's context went to the
+  guard, the card route and the proofs). Needed: car-watcher `checkup::run` (settings load/read with the unread
+  reason, `managed()`, `sources_for`, `_conversations` - LocalSource `written`/`cloud_tasks`/`passed_over(since,
+  now-72h, every_status, newest 200, deadline 10 s)`, an `Engine(store, source, None, clock=now)` with
+  `apply_policy(values, held)` for `detection_since`/`not_taken_up`/`managed.disable_auto_resume`, the records by
+  thread and turn - `get_status`, `_presence` (now possible: `notices::presence` + car-surface `card_allowed`),
+  `_compatibility`, `_skip_lines` over `search_logs`, `lines`), `rescan::judge_for` (an engine with no backend and no
+  store per home key, HOME_UNKNOWN, one deadline), and a Host wrapper over car-control's SystemHost answering
+  `checkup`/`checkup_for_bundle`/`rescan_judge`, used by `Watcher::bridge` and car-bin's bridge; then the two goldens
+  (tests/golden/bridge/detection-check.json, rescan.json) compared through the real host.
+* The `demo` event (`App._demo`, `show_demo` over the inbox) is not wired.
