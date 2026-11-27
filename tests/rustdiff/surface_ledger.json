@@ -1107,13 +1107,28 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 11 UI tests run on the host (none); 11 are still on the Python UI (11 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "CardWindowTests.test_the_popup_is_one_layered_window_owned_by_its_shadow_and_nothing_of_windows_frame": "test_host_popup_card_window.py::CardWindowOnHostTests.test_the_popup_is_one_layered_window_owned_by_its_shadow_and_nothing_of_windows_frame",
+    "CardWindowTests.test_its_window_is_exactly_the_card_and_its_shadow_reaches_round_it": "test_host_popup_card_window.py::CardWindowOnHostTests.test_its_window_is_exactly_the_card_and_its_shadow_reaches_round_it",
+    "CardWindowTests.test_high_contrast_and_a_design_without_depth_float_no_shadow": "test_host_popup_card_window.py::CardWindowOnHostTests.test_high_contrast_and_a_design_without_depth_float_no_shadow",
+    "CardWindowTests.test_high_contrast_coming_while_it_is_open_takes_its_shadow_away_and_going_brings_it_back": "test_host_popup_card_window.py::CardWindowOnHostTests.test_high_contrast_coming_while_it_is_open_takes_its_shadow_away_and_going_brings_it_back",
+    "CardWindowTests.test_destroyed_both_windows_go": "test_host_popup_card_window.py::CardWindowOnHostTests.test_destroyed_both_windows_go",
+    "CardWindowTests.test_a_frame_of_the_light_uploads_only_its_rows": "test_host_popup_card_window.py::CardWindowOnHostTests.test_a_frame_of_the_light_uploads_only_its_rows",
+    "CardWindowTests.test_a_whole_frame_uploads_the_card_from_its_corner_of_the_canvas": "test_host_popup_card_window.py::CardWindowOnHostTests.test_a_whole_frame_uploads_the_card_from_its_corner_of_the_canvas",
+    "CardWindowTests.test_the_opening_fades_through_the_layers_and_never_sets_layered_attributes": "test_host_popup_card_window.py::CardWindowOnHostTests.test_the_opening_fades_through_the_layers_and_never_sets_layered_attributes",
+    "CardWindowTests.test_it_opens_its_card_the_window_s_gap_from_the_taskbar": "test_host_popup_card_window.py::CardWindowOnHostTests.test_it_opens_its_card_the_window_s_gap_from_the_taskbar",
+    "CardWindowTests.test_a_click_and_a_screen_reader_find_what_is_drawn_there": "test_host_popup_card_window.py::CardWindowOnHostTests.test_a_click_and_a_screen_reader_find_what_is_drawn_there",
+    "CardWindowTests.test_refused_it_is_the_plain_window_it_was": "test_host_popup_card_window.py::CardWindowOnHostTests.test_refused_it_is_the_plain_window_it_was"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_popup_card_window.py",
+    "tests/rustdiff/hostcardwindow.py"
+   ]
   },
   "test_popup_motion_held.py": {
    "holds": "v0.6.23 (second round, F1): the popup's light, scene, glides and sweep hold still under battery saver and a locked session.",
@@ -1134,12 +1149,17 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 10 UI tests run on the host (none); 10 are still on the Python UI (10 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "1 of 10 UI tests is held by a twin (WindowTests, the host's real popup); 9 are still on the Python UI: GateTests 7 (the frame timer, the still light, the switches and the sweep held, on a popup made without a window) and IconReadingTests 2 (the icon's reading of battery saver and a locked session, and the popup made with it)",
+   "needs": "GateTests: a replay probe over PopupWindow's SyncFrames, Frame, FollowSwitches, TitlePress and AskStill with no window and every Windows call recorded, and the two source rules read from gui/PopupWindow.cs and gui/PopupMessages.cs; IconReadingTests: TrayIcon's PopupHeld with the session and battery saver stood in, and gui/TrayIcon.cs's popup made with it",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "WindowTests.test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again": "test_host_popup_motion_held.py::WindowOnHostTests.test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_popup_motion_held.py",
+    "tests/rustdiff/hostcardwindow.py"
+   ]
   },
   "test_popup_opening_motion.py": {
    "holds": "v0.6.23 (second round, F3): the popup opens with the brand's fade and a small rise, and its buttons' faces glide.",
@@ -1162,12 +1182,22 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 11 UI tests run on the host (none); 11 are still on the Python UI (5 drawn, 6 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "6 of 11 UI tests are held by a twin (WindowTests, on the host's real popup windows); 5 are still on the Python UI: ArithmeticTests 3 and FaceDrawnTests 2 (motion's arithmetic and the faces drawn: the drawing, seat S6.4f's route)",
+   "needs": "ArithmeticTests: PopupMotion's Opening, Closing and FaceLength asked of the render serve; FaceDrawnTests: the render serve's draw with faces and its pixels (seat S6.4f)",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "WindowTests.test_it_fades_in_and_rises_frame_by_frame_and_ends_an_ordinary_window": "test_host_popup_opening_motion.py::WindowOnHostTests.test_it_fades_in_and_rises_frame_by_frame_and_ends_an_ordinary_window",
+    "WindowTests.test_held_or_reduced_it_is_simply_there": "test_host_popup_opening_motion.py::WindowOnHostTests.test_held_or_reduced_it_is_simply_there",
+    "WindowTests.test_closed_while_it_opens_it_leaves_nothing_behind": "test_host_popup_opening_motion.py::WindowOnHostTests.test_closed_while_it_opens_it_leaves_nothing_behind",
+    "WindowTests.test_a_button_s_face_glides_to_the_pointer_and_to_a_press": "test_host_popup_opening_motion.py::WindowOnHostTests.test_a_button_s_face_glides_to_the_pointer_and_to_a_press",
+    "WindowTests.test_a_popup_is_kept_alive_while_its_window_exists": "test_host_popup_opening_motion.py::WindowOnHostTests.test_a_popup_is_kept_alive_while_its_window_exists",
+    "WindowTests.test_held_a_face_changes_at_once": "test_host_popup_opening_motion.py::WindowOnHostTests.test_held_a_face_changes_at_once"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_popup_opening_motion.py",
+    "tests/rustdiff/hostcardwindow.py"
+   ]
   },
   "test_popup_row_menu_drawn.py": {
    "holds": "The popup's row menus, drawn by the code that draws the icon's menu (v0.6.20).",
@@ -2752,8 +2782,8 @@
   "on_host": 195,
   "retired": 6,
   "by_status": {
-   "host": 30,
-   "pending": 53,
+   "host": 31,
+   "pending": 52,
    "python-only": 1
   },
   "by_kind": {

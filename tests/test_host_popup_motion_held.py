@@ -93,6 +93,10 @@ class WindowOnHostTests(BASE):  # noqa: F821 (BASE is deleted below, so the orig
         for window in self.made:
             window.pump(seconds)
 
+    # the inherited tests, named here so the ledger can find each twin
+    def test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again(self):
+        super().test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again()
+
 
 del BASE
 

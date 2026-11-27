@@ -71,6 +71,37 @@ class CardWindowOnHostTests(BASE):  # noqa: F821 (BASE is deleted below, so the 
         with mock.patch.object(original.access, "PopupAccessible", hostcardwindow.HostAccessible):
             super().test_a_click_and_a_screen_reader_find_what_is_drawn_there()
 
+    # the inherited tests, named here so the ledger can find each twin
+    def test_the_popup_is_one_layered_window_owned_by_its_shadow_and_nothing_of_windows_frame(self):
+        super().test_the_popup_is_one_layered_window_owned_by_its_shadow_and_nothing_of_windows_frame()
+
+    def test_its_window_is_exactly_the_card_and_its_shadow_reaches_round_it(self):
+        super().test_its_window_is_exactly_the_card_and_its_shadow_reaches_round_it()
+
+    def test_high_contrast_and_a_design_without_depth_float_no_shadow(self):
+        super().test_high_contrast_and_a_design_without_depth_float_no_shadow()
+
+    def test_high_contrast_coming_while_it_is_open_takes_its_shadow_away_and_going_brings_it_back(self):
+        super().test_high_contrast_coming_while_it_is_open_takes_its_shadow_away_and_going_brings_it_back()
+
+    def test_destroyed_both_windows_go(self):
+        super().test_destroyed_both_windows_go()
+
+    def test_a_frame_of_the_light_uploads_only_its_rows(self):
+        super().test_a_frame_of_the_light_uploads_only_its_rows()
+
+    def test_a_whole_frame_uploads_the_card_from_its_corner_of_the_canvas(self):
+        super().test_a_whole_frame_uploads_the_card_from_its_corner_of_the_canvas()
+
+    def test_the_opening_fades_through_the_layers_and_never_sets_layered_attributes(self):
+        super().test_the_opening_fades_through_the_layers_and_never_sets_layered_attributes()
+
+    def test_it_opens_its_card_the_window_s_gap_from_the_taskbar(self):
+        super().test_it_opens_its_card_the_window_s_gap_from_the_taskbar()
+
+    def test_refused_it_is_the_plain_window_it_was(self):
+        super().test_refused_it_is_the_plain_window_it_was()
+
 
 del BASE
 

@@ -81,6 +81,22 @@ class WindowOnHostTests(BASE):  # noqa: F821 (BASE is deleted below, so the orig
         self.assertFalse(user32.IsWindow(hwnd), "and let go with its window")
         self.assertIsNone(window.hwnd)
 
+    # the inherited tests, named here so the ledger can find each twin
+    def test_it_fades_in_and_rises_frame_by_frame_and_ends_an_ordinary_window(self):
+        super().test_it_fades_in_and_rises_frame_by_frame_and_ends_an_ordinary_window()
+
+    def test_held_or_reduced_it_is_simply_there(self):
+        super().test_held_or_reduced_it_is_simply_there()
+
+    def test_closed_while_it_opens_it_leaves_nothing_behind(self):
+        super().test_closed_while_it_opens_it_leaves_nothing_behind()
+
+    def test_a_button_s_face_glides_to_the_pointer_and_to_a_press(self):
+        super().test_a_button_s_face_glides_to_the_pointer_and_to_a_press()
+
+    def test_held_a_face_changes_at_once(self):
+        super().test_held_a_face_changes_at_once()
+
 
 del BASE
 
