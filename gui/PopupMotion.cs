@@ -98,7 +98,7 @@ namespace CodexAutoResume
         internal static int[] Opening(double elapsedMs, int rise)
         {
             double progress = Math.Max(0.0, elapsedMs) / Brand.TransitionMs;
-            if (progress >= 1.0) return new[] { 255, 0, 1 };
+            if (progress >= 1.0) return SurfaceMath.Three(255, 0, 1);
             double eased = Brand.Ease(progress);
             return new[] { SurfaceMath.Round(255 * eased), SurfaceMath.Round(rise * (1.0 - eased)), 0 };
         }

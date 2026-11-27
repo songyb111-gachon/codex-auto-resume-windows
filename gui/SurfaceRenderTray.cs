@@ -88,7 +88,7 @@ namespace CodexAutoResume
             var actions = new TrayProbeActions();
             var work = new List<Action>();
             double clock = (double)task["clock"], now = (double)task["now"];
-            var rect = new int[][] { new[] { 1880, 1040, 1904, 1064 } };
+            var rect = new int[][] { SurfaceMath.Four(1880, 1040, 1904, 1064) };
             bool contrast = false, reduced = false, battery = false, overflowed = false, demo = false;
             bool unseen = false, unconfirmed = false;
             object armed = null;
@@ -268,7 +268,7 @@ namespace CodexAutoResume
                 made = new TrayIcon
                 {
                     Now = () => now, Monotonic = () => 5000.0, PerfCounter = () => 0.0, Metric = unused => 16,
-                    IconRectReader = () => new[] { 1880, 1040, 1904, 1064 }, AskContrast = () => false, AskReduced = () => false,
+                    IconRectReader = () => SurfaceMath.Four(1880, 1040, 1904, 1064), AskContrast = () => false, AskReduced = () => false,
                     AskBatterySaver = () => false, AskPlacement = () => false, AskOverflowOpen = () => false,
                     MakeCards = () => new ProbeCards { Asked = new List<object>() },
                 };

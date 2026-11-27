@@ -21,7 +21,7 @@ namespace CodexAutoResume
         internal const int LowLeft = 10;
         internal const int WeekMinutes = 7 * 24 * 60;
         private const string NameHeld = "\u0000";
-        private static readonly char[] RoundTheName = { ' ', ':', ' ', ' ' };
+        private static readonly char[] RoundTheName = " :\u00A0\u202F".ToCharArray();
 
         private static readonly Dictionary<string, string> UsageWords = new Dictionary<string, string>
         {

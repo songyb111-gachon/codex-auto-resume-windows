@@ -40,6 +40,30 @@ namespace CodexAutoResume
             return (int)Math.Round(value, MidpointRounding.ToEven);
         }
 
+        // Arrays of three or more constants are filled one element at a time: the in-box compiler turns a constant
+        // initializer into <PrivateImplementationDetails>{GUID}, a class it names at random, and build/normalize_pe.py
+        // refuses an image that has one (tests/test_reproducible.py reads these sources for it).
+        internal static int[] Three(int a, int b, int c)
+        {
+            var values = new int[3];
+            values[0] = a; values[1] = b; values[2] = c;
+            return values;
+        }
+
+        internal static int[] Four(int a, int b, int c, int d)
+        {
+            var values = new int[4];
+            values[0] = a; values[1] = b; values[2] = c; values[3] = d;
+            return values;
+        }
+
+        internal static int[] Six(int a, int b, int c, int d, int e, int f)
+        {
+            var values = new int[6];
+            values[0] = a; values[1] = b; values[2] = c; values[3] = d; values[4] = e; values[5] = f;
+            return values;
+        }
+
         /// The layouts' px(): device pixels for a size in device-independent pixels at `scale`.
         internal static int Px(double value, double scale)
         {

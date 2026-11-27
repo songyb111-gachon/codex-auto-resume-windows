@@ -31,7 +31,7 @@ namespace CodexAutoResume
         internal const int E_INVALIDARG = -2147024809, DISP_E_MEMBERNOTFOUND = -2147352573;
         internal const int VT_EMPTY = 0, VT_I4 = 3;
         internal const int ROLE_SYSTEM_TOOLTIP = 0x0D, STATE_SYSTEM_READONLY = 0x40;
-        private static readonly int[] NavigateNext = { 2, 4, 5 }, NavigatePrevious = { 1, 3, 6 };
+        private static readonly int[] NavigateNext = SurfaceMath.Three(2, 4, 5), NavigatePrevious = SurfaceMath.Three(1, 3, 6);
         private const int NavigateFirst = 7, NavigateLast = 8;
         private static readonly string[] PickedFirst = { "switch", "button" }, Passing = { "focused", "hot" };
         internal static readonly Guid IidUnknown = new Guid(0x00000000, 0x0000, 0x0000, 0xC0, 0, 0, 0, 0, 0, 0, 0x46);
@@ -708,14 +708,14 @@ namespace CodexAutoResume
                     for (int at = 0; at < 24; at++) Marshal.WriteByte(variant, at, 0);
                     Marshal.WriteInt16(variant, 0, VT_I4);
                     Marshal.WriteInt32(variant, 8, child);
-                    foreach (int slot in new[] { 10, 11, 12, 20 })
+                    foreach (int slot in SurfaceMath.Four(10, 11, 12, 20))
                     {
                         Marshal.WriteIntPtr(found, IntPtr.Zero);
                         int code = ((OfChild)callbacks[slot])(Pointer, variant, found);
                         IntPtr text = Marshal.ReadIntPtr(found);
                         row.Add(new List<object> { code, text == IntPtr.Zero ? null : Marshal.PtrToStringBSTR(text) });
                     }
-                    foreach (int direction in new[] { 0, 0, 1, 2, 7, 8 })
+                    foreach (int direction in SurfaceMath.Six(0, 0, 1, 2, 7, 8))
                     {
                         for (int at = 0; at < 24; at++) Marshal.WriteByte(found, at, 0);
                         int code;

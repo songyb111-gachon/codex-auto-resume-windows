@@ -257,7 +257,7 @@ namespace CodexAutoResume
             fadeWay = null;
             if (hwnd != IntPtr.Zero)
             {
-                foreach (int timer in new[] { TipTick, TipFrame, TipFade, TipWatch })
+                foreach (int timer in SurfaceMath.Four(TipTick, TipFrame, TipFade, TipWatch))
                     SurfaceNative.KillTimer(hwnd, new UIntPtr((uint)timer));
                 SurfaceNative.DestroyWindow(hwnd);
             }
@@ -308,7 +308,7 @@ namespace CodexAutoResume
                 return;
             }
             Visible = false;
-            foreach (int timer in new[] { TipTick, TipFrame, TipWatch }) KillTimer(timer);
+            foreach (int timer in SurfaceMath.Three(TipTick, TipFrame, TipWatch)) KillTimer(timer);
             frameRunning = false;
             Tell(EVENT_OBJECT_HIDE);
             if (atOnce || !Moves() || Alpha <= 0)

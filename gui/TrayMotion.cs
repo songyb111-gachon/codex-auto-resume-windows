@@ -343,7 +343,7 @@ namespace CodexAutoResume
         internal static int[] Pixel(int[] sample, int[] head)
         {
             int covered = sample[0], heads = sample[1];
-            if (covered == 0) return new[] { 0, 0, 0, 0 };
+            if (covered == 0) return new int[4];
             return new[] { (sample[2] + heads * head[0]) / covered, (sample[3] + heads * head[1]) / covered,
                            (sample[4] + heads * head[2]) / covered, covered * 255 / (Supersample * Supersample) };
         }
@@ -382,7 +382,7 @@ namespace CodexAutoResume
             for (int y = 0; y < rows.Length; y++)
                 for (int x = 0; x < rows[y].Length; x++)
                 {
-                    int[] pixel = IconMark.Pixel(rows[y][x], new[] { 0, 0, 0 });
+                    int[] pixel = IconMark.Pixel(rows[y][x], new int[3]);
                     int[] cover;
                     if (pixel[3] != 0 && mark.TryGetValue(y * size + x, out cover)) Marked(pixel, cover);
                     int index = (y * size + x) * 4;

@@ -249,7 +249,7 @@ namespace CodexAutoResume
             Visible = false;
             if (hwnd != IntPtr.Zero)
             {
-                foreach (int timer in new[] { TimerTick, TimerFrame, TimerFirst }) SurfaceScreen.KillTimer(hwnd, timer);
+                foreach (int timer in SurfaceMath.Three(TimerTick, TimerFrame, TimerFirst)) SurfaceScreen.KillTimer(hwnd, timer);
                 SurfaceNative.DestroyWindow(hwnd);
             }
             CardLayers layers = Layers;
@@ -470,7 +470,7 @@ namespace CodexAutoResume
             if (menu != null) menu.Close();
             IntPtr hwnd = Hwnd;
             if (hwnd == IntPtr.Zero) return;
-            foreach (int timer in new[] { TimerTick, TimerFrame, TimerFirst }) SurfaceScreen.KillTimer(hwnd, timer);
+            foreach (int timer in SurfaceMath.Three(TimerTick, TimerFrame, TimerFirst)) SurfaceScreen.KillTimer(hwnd, timer);
             FrameRunning = false;
             if (Visible)
             {
