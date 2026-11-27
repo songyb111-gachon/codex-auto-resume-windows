@@ -612,11 +612,13 @@ impl Watcher {
         let Ok(paths) = crate::app::paths(home.as_deref(), &self.project_root) else {
             return Vec::new();
         };
-        let control = car_control::Control::new(
-            paths,
+        // S6.2b4: the bridge's host answers Diagnostics' check and Rescan's judge by the watcher's own rules.
+        let host = crate::checkhost::WatcherHost::system(
             Arc::new(car_control::host::SystemHost::new(&self.project_root)),
             self.plug.get(),
+            &self.project_root,
         );
+        let control = car_control::Control::new(paths, Arc::new(host), self.plug.get());
         let mut input: &[u8] = line;
         let mut output = Vec::new();
         car_control::bridge::serve(&control, &mut input, &mut output);

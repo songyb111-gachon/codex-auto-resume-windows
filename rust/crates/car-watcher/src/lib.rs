@@ -8,6 +8,7 @@
 pub mod afterwork;
 pub mod api;
 pub mod app;
+pub mod checkhost;
 pub mod checkup;
 pub mod clock;
 pub mod dashboard;
@@ -19,6 +20,7 @@ pub mod join;
 pub mod launcher;
 pub mod notices;
 pub mod plugnotices;
+pub mod reading;
 pub mod rescan;
 pub mod setaside;
 pub mod surface;

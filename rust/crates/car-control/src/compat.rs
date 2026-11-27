@@ -12,7 +12,10 @@ use crate::host::{Event, Raised};
 use crate::layer::Control;
 
 fn raised(error: Raised) -> Failure {
-    Failure::Other(error.class)
+    match error.as_control() {
+        Some(refused) => Failure::Control(refused),
+        None => Failure::Other(error.class),
+    }
 }
 
 impl Control {
