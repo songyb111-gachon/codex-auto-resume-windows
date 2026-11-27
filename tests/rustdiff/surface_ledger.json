@@ -1,6 +1,6 @@
 {
  "format": "car-surface-ledger/1",
- "about": "P6-DESIGN 3.4: the 84 test files that import the Python UI (codex_auto_resume.ui, notice_window, tray_place), one row each. kind = what most of the tests that touch the UI hold: pure (car-surface), drawn (pixels, plans, motion), window (messages, focus, windows), scan (source rules). parts = the classes by their own kind, with the count of tests that touch the UI. unaffected = tests in the file that do not touch the UI and stay as they are. status: host (every UI test of the file also runs green on the C# host, `port` names where), pending (not yet: `why` and `needs` say what is missing), python-only (kept on the Python product by rule: `why`). The ledger only ever shrinks: tests/test_surface_ledger.py holds the pending count to a ceiling.",
+ "about": "P6-DESIGN 3.4: the 85 test files that import the Python UI (codex_auto_resume.ui, notice_window, tray_place), one row each. kind = what most of the tests that touch the UI hold: pure (car-surface), drawn (pixels, plans, motion), window (messages, focus, windows), scan (source rules). parts = the classes by their own kind, with the count of tests that touch the UI. unaffected = tests in the file that do not touch the UI and stay as they are. status: host (every UI test of the file also runs green on the C# host, `port` names where), pending (not yet: `why` and `needs` say what is missing), python-only (kept on the Python product by rule: `why`). The ledger only ever shrinks: tests/test_surface_ledger.py holds the pending count to a ceiling.",
  "kinds": {
   "pure": "through the CODEX_AR_CORE=rust shim against car-surface, unchanged",
   "drawn": "against the render mode's plan dump (comparison A)",
@@ -1580,6 +1580,35 @@
     "tests/rustdiff/surfaceproxy.py"
    ]
   },
+  "test_status_newest_usage.py": {
+   "holds": "The v0.6.26 final: the status carries the meter's usage reading where it is newer, and every surface says that one reading (the popup asks the one rule, domain/usage.newest).",
+   "tests": 7,
+   "ui_tests": 2,
+   "unaffected": 5,
+   "kind": "pure",
+   "by_kind": {
+    "pure": 2
+   },
+   "parts": {
+    "pure": {
+     "StatusTests": 1,
+     "RuleTests": 1
+    }
+   },
+   "route": "shim",
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "RuleTests.test_the_popup_asks_the_one_rule",
+    "StatusTests.test_every_surface_then_says_the_one_reading"
+   ],
+   "twins": {},
+   "no_twin": {},
+   "port": [
+    "tests/rustdiff/surfaceproxy.py"
+   ]
+  },
   "test_surface_parity.py": {
    "holds": "Comparison A (P6-DESIGN 3.3): the C# host's surfaces laid out exactly as the Python reference lays them out.",
    "tests": 21,
@@ -2571,18 +2600,18 @@
   }
  },
  "summary": {
-  "files": 84,
-  "tests": 1976,
-  "ui_tests": 985,
-  "on_host": 195,
+  "files": 85,
+  "tests": 1983,
+  "ui_tests": 987,
+  "on_host": 197,
   "retired": 6,
   "by_status": {
-   "host": 20,
+   "host": 21,
    "pending": 63,
    "python-only": 1
   },
   "by_kind": {
-   "pure": 16,
+   "pure": 17,
    "window": 29,
    "scan": 11,
    "drawn": 28

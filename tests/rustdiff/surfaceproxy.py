@@ -369,7 +369,11 @@ def _model(module):
     case = PIPE.case
     original = {name: getattr(module, name) for name in (
         "activity", "light_for", "icon_attention", "watcher_known_running", "snapshot_activity", "urgency", "is_waiting",
-        "_blocked", "task_item", "row_menu", "view_model", "busy_key", "select_action")}
+        "_blocked", "task_item", "row_menu", "view_model", "busy_key", "select_action", "newest_reading")}
+
+    def newest_reading(status):
+        # Integration 12: the v0.6.26 final's rule (domain/usage.newest), car-surface's `popup::model::newest_reading`.
+        return case("popup.newest_reading", status)
 
     def activity(status, rows, now):
         return case("popup.activity", status, rows, now)
@@ -422,7 +426,8 @@ def _model(module):
                            ("watcher_known_running", watcher_known_running), ("snapshot_activity", snapshot_activity),
                            ("urgency", urgency), ("is_waiting", is_waiting), ("_blocked", _blocked),
                            ("task_item", task_item), ("row_menu", row_menu), ("view_model", view_model),
-                           ("busy_key", busy_key), ("select_action", select_action)):
+                           ("busy_key", busy_key), ("select_action", select_action),
+                           ("newest_reading", newest_reading)):
         function.rust_core = "surface"
         function.__wrapped__ = original[name]
         function.__doc__ = original[name].__doc__

@@ -1350,6 +1350,8 @@ fn popup_case(name: &str, a: &Args) -> Option<Py<Value>> {
         }
         "popup.urgency" => model::urgency(v(0)).map(Value::Array),
         "popup.is_waiting" => model::is_waiting(v(0)).map(Value::Bool),
+        // Integration 12: the v0.6.26 final's `newest_reading`, for test_status_newest_usage through surfaceproxy.
+        "popup.newest_reading" => model::newest_reading(v(0)),
         "popup.blocked" => Ok(Value::Bool(model::blocked(v(0)))),
         "popup.task" => {
             let ctx = ctx_for(v(3));
