@@ -58,13 +58,21 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 5 UI tests run on the host (none); 5 are still on the Python UI (5 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "FocusLineTests.test_a_change_is_one_line_and_no_change_is_none": "test_host_card_focus.py::FocusLineOnHostTests.test_a_change_is_one_line_and_no_change_is_none",
+    "FocusLineTests.test_a_probe_that_fails_says_nothing": "test_host_card_focus.py::FocusLineOnHostTests.test_a_probe_that_fails_says_nothing",
+    "FocusLineTests.test_only_plain_words_reach_the_log": "test_host_card_focus.py::FocusLineOnHostTests.test_only_plain_words_reach_the_log",
+    "FocusLineTests.test_the_probe_answers_its_three_keys_on_this_machine": "test_host_card_focus.py::FocusLineOnHostTests.test_the_probe_answers_its_three_keys_on_this_machine",
+    "SecondLookTests.test_cards_shown_start_no_thread_and_the_timer_takes_one_look_from_before_the_first": "test_host_card_focus.py::SecondLookOnHostTests.test_cards_shown_start_no_thread_and_the_timer_takes_one_look_from_before_the_first"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_card_focus.py"
+   ]
   },
   "test_card_shadow_under_body.py": {
    "holds": "v0.6.24: nothing of the notification card's shadow lies under its body.",
@@ -885,13 +893,19 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 3 UI tests run on the host (none); 3 are still on the Python UI (3 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "CardTests.test_a_click_on_the_face_opens_where_the_notice_is_about_and_the_card_goes": "test_host_notice_cards.py::CardClickOnHostTests.test_a_click_on_the_face_opens_where_the_notice_is_about_and_the_card_goes",
+    "CardTests.test_a_button_still_does_only_what_it_says": "test_host_notice_cards.py::CardClickOnHostTests.test_a_button_still_does_only_what_it_says",
+    "CardTests.test_a_right_click_and_a_demo_s_face_open_nothing": "test_host_notice_cards.py::CardClickOnHostTests.test_a_right_click_and_a_demo_s_face_open_nothing"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_notice_cards.py"
+   ]
   },
   "test_notice_click_chat.py": {
    "holds": "Where a click on a notice goes while the in-app chat is on (v0.6.19, the roadmap's \"the person picks that",
@@ -931,13 +945,18 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 2 UI tests run on the host or are held by a twin or a no_twin reason; 2 are still on the Python UI (2 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "CardTests.test_a_hold_until_clicked_never_runs_out_and_asks_for_no_timer": "test_host_notice_cards.py::CardStayOnHostTests.test_a_hold_until_clicked_never_runs_out_and_asks_for_no_timer",
+    "CardTests.test_the_card_of_a_notice_that_stays_holds_until_it_is_clicked": "test_host_notice_cards.py::CardStayOnHostTests.test_the_card_of_a_notice_that_stays_holds_until_it_is_clicked"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_notice_cards.py"
+   ]
   },
   "test_observe_and_admission.py": {
    "holds": "v0.6.11: observe only, delivery receipts, and which conversations and projects may resume.",
@@ -2801,8 +2820,8 @@
   "on_host": 195,
   "retired": 6,
   "by_status": {
-   "host": 32,
-   "pending": 51,
+   "host": 35,
+   "pending": 48,
    "python-only": 1
   },
   "by_kind": {
