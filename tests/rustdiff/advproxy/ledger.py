@@ -77,6 +77,22 @@ GREEN = {
     "test_advanced_every_conversation.py": "proxy2 (runtime through core's engine proxy with the test's plug, proxyplug.rs)",
     "test_advanced_usage_refusal.py": "proxy2 (arming.standing, arming.warnings_for: advserve op)",
     "test_advanced_hidden.py": "proxy2 (registry.offered: advserve op)",
+    # proxy2 part 2: the forced stop on car-adv (usage_pause's world asked of the test, its answers JSON; the stop's
+    # `notices` and `holding` through advserve `code_call`)
+    "test_advanced_stop_held_windows.py": "proxy2 part 2 (UsageStop through its world; RustCode.holding)",
+    "test_advanced_usagestop_archive_grace.py": "proxy2 part 2 (UsageStop; RustCode.notices)",
+    "test_advanced_usagestop_carry_held.py": "proxy2 part 2 (UsageStop and ResetMessage through their worlds)",
+    "test_advanced_usagestop_continue_off.py": "proxy2 part 2 (UsageStop through its world)",
+    "test_advanced_usagestop_continue_turned_off.py": "proxy2 part 2 (UsageStop through its world)",
+    "test_advanced_usagestop_reset_message.py": "proxy2 part 2 (UsageStop and ResetMessage through their worlds)",
+    "test_advanced_reset_message_counting_held.py": "proxy2 part 2 (ResetMessage and UsageStop through their worlds)",
+    # no advanced code reached (NO_CODE): both lanes pass test by test
+    "test_advanced_korean_words.py": "proxy2 part 2 (no advanced code: NO_CODE)",
+    "test_advanced_statement_programs.py": "proxy2 part 2 (no advanced code: NO_CODE)",
+    "test_advanced_usage_word_split.py": "proxy2 part 2 (no advanced code: NO_CODE)",
+    "test_advanced_words_late.py": "proxy2 part 2 (no advanced code: NO_CODE)",
+    "test_advanced_notice_kinds.py": "proxy2 part 2 (no advanced code: NO_CODE)",
+    "test_advanced_statement_stopped_route.py": "proxy2 part 2 (no advanced code: NO_CODE)",
 }
 
 # What a run found that the imports cannot say (`--run`): the seat or the reason a file still waits for, each with
@@ -92,9 +108,35 @@ RUN_WAITS = {
     "test_advanced_admission.py": ("P11 host", "core's engine proxy now carries the plug (car-harness proxyplug.rs) and "
                                    "AskStore has reserve_record/record_guard: 23 of 23 green with CODEX_AR_ADVPROXY=0; "
                                    "through the proxy 21 of 23 - EngineCase's two claim tests reach Runtime.claim (P11)"),
-    "test_advanced_examples.py": ("S7.1b", "reaches no forwarded code: statement's and registry's own functions"),
     "test_advanced_measure_m4b.py": ("S7.4", "reaches no forwarded code: the measurement table's words"),
-    "test_advanced_word_keys.py": ("S7.1", "reaches no forwarded code: statement and images' own functions"),
+    # proxy2 part 2: the files whose one red test is a send of a plug record (P11 at reserve_record)
+    "test_advanced_go_on_series.py": ("P11 host", "its send is a plug record: core's reserve_record asks the plug's ledger (P11, `Runtime.claim`), which runs on core's own connection in core's process - the integrated host (S7.3d); every test before the send is green through the proxy"),
+    "test_advanced_prompt_command_line.py": ("P11 host", "its send is a plug record: core's reserve_record asks the plug's ledger (P11, `Runtime.claim`), which runs on core's own connection in core's process - the integrated host (S7.3d); every test before the send is green through the proxy"),
+    "test_advanced_self_check_handed.py": ("P11 host", "its send is a plug record: core's reserve_record asks the plug's ledger (P11, `Runtime.claim`), which runs on core's own connection in core's process - the integrated host (S7.3d); every test before the send is green through the proxy"),
+    "test_advanced_empty_response_own.py": ("P11 host", "its send is a plug record: core's reserve_record asks the plug's ledger (P11, `Runtime.claim`), which runs on core's own connection in core's process - the integrated host (S7.3d); every test before the send is green through the proxy"),
+    "test_advanced_usagestop_hold_ends.py": ("P11 host", "its send is a plug record: core's reserve_record asks the plug's ledger (P11, `Runtime.claim`), which runs on core's own connection in core's process - the integrated host (S7.3d); every test before the send is green through the proxy"),
+    "test_advanced_usagestop_carry_other_window.py": ("P11 host", "its send is a plug record: core's reserve_record asks the plug's ledger (P11, `Runtime.claim`), which runs on core's own connection in core's process - the integrated host (S7.3d); every test before the send is green through the proxy"),
+    "test_advanced_subagent_told_at_send.py": ("P11 host", "its one test's send is a plug record: reserve_record asks "
+                                               "the plug's ledger (P11, `Runtime.claim`) and is held"),
+    "test_advanced_goal_set_race.py": ("S7.2e1", "goal_continuation's world is asked its goal (usage_limited) but car-adv "
+                                       "asks neither M2b nor the session, so the set is not made: trace "
+                                       "GoalContinuation.unloaded/route against the reference (proxy2 part 2)"),
+    "test_advanced_examples.py": ("S7.1b", "statement's Catalogs (`words`, `own`, `text`, `badge`): its forwarder "
+                                  "waits - proxy2 part 2's try turned hidden and registry red (`badge` takes a count, "
+                                  "the catalogs' dump needs its pairs decoded) and was taken back"),
+    "test_advanced_shots_render.py": ("S6.2a", "the Advanced page drawn offscreen by the C# window (a GUI set, "
+                                      "gui_lock.sh): the window's seat; a proxy seat runs no GUI test"),
+}
+
+# Files that reach no advanced code at all - catalogs' files read as data, core's own words - and so prove nothing of
+# car-adv: GREEN when both lanes pass test by test, with no call to advserve asked of them.
+NO_CODE = {
+    "test_advanced_korean_words.py": "the Korean catalog's file, read as data",
+    "test_advanced_usage_word_split.py": "every catalog's file, read as data",
+    "test_advanced_words_late.py": "the catalogs' files, read as data",
+    "test_advanced_statement_programs.py": "statement.DIRECTORY's files, read as data",
+    "test_advanced_notice_kinds.py": "core's notice kinds and notifier; the plug is made, no runtime is asked",
+    "test_advanced_statement_stopped_route.py": "the catalogs' stopped-route words, read as data",
 }
 
 # The names a HANDED or THROUGH module hands car-adv as data (a test may build them): any other function of the module
@@ -203,7 +245,7 @@ def run(files, debug: bool) -> int:
             want, got = _outcomes(python), _outcomes(rust)
             differ = sorted(key for key in set(want) | set(got) if want.get(key) != got.get(key))
             bad = sorted(key for key, outcome in got.items() if outcome not in ("pass", "skip", "expected-failure"))
-            ok = bool(got) and not differ and not bad and sum(calls.values()) > 0
+            ok = bool(got) and not differ and not bad and (sum(calls.values()) > 0 or name in NO_CODE)
             worst = worst or (0 if ok else 1)
             green += ok
             print("%-52s %s  tests %d  calls %s%s" % (name, "GREEN" if ok else "NOT GREEN", len(got),

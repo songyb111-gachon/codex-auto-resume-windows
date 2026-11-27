@@ -21,7 +21,12 @@ BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 SCOPE = ["advanced/tests", "advanced/src/codex_auto_resume_advanced/runtime.py",
          "advanced/src/codex_auto_resume_advanced/plug.py", "advanced/src/codex_auto_resume_advanced/arming.py",
-         "advanced/src/codex_auto_resume_advanced/state", "advanced/src/codex_auto_resume_advanced/registry.py"]
+         "advanced/src/codex_auto_resume_advanced/state", "advanced/src/codex_auto_resume_advanced/registry.py",
+         # proxy2 part 2: the codes whose worlds advserve asks, and the catalogs forwarded
+         "advanced/src/codex_auto_resume_advanced/statement.py"] + [
+         "advanced/src/codex_auto_resume_advanced/engine/%s.py" % name for name in (
+             "usage", "usagestop", "resetmessage", "credits", "emptyreply", "subagent", "goal", "promptqueue",
+             "markerfree")]
 
 
 def main(argv=None) -> int:
