@@ -25,6 +25,11 @@ what the product's own entry points do (make_release.collect_runtime), and nothi
 
 Stdlib only, and the tag's own code: if a diff's script ever needs a package the embeddable runtime lacks, `check()`
 (run once, when the runtime is first resolved) names the import that failed.
+
+Every reference process runs refguard.py's program first, on any runtime (Integration 10): core's process lookups and the
+advanced edition's engine discovery refuse, and CODEX_AUTO_RESUME_CODEX_EXE points where no codex.exe is, unless the
+caller's environment names one. So `command` and `script_command` always start through the boot, an installed
+interpreter too (its PYTHONPATH then names the same folders the boot puts first).
 """
 from __future__ import annotations
 
@@ -38,7 +43,14 @@ import sys
 import tempfile
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[2]
+try:
+    from rustdiff import refguard
+except ImportError:  # loaded by path, without tests/ on sys.path
+    _spec = importlib.util.spec_from_file_location("rustdiff_refguard", Path(__file__).resolve().parent / "refguard.py")
+    refguard = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(refguard)
+
+ROOT =Path(__file__).resolve().parents[2]
 VARIABLE = "CODEX_AR_REFERENCE_PYTHON"
 ZIP_VARIABLE = "CODEX_AR_RUNTIME_ZIP"
 # What `interpreter()` has resolved in this process, and the variable a child process finds it again by (so a run.py
@@ -200,14 +212,13 @@ def ignores_environment(exe: Path) -> bool:
     return any(Path(exe).parent.glob("python*._pth"))
 
 
-def boot(paths) -> str:
+def boot(paths, guard: bool = True) -> str:
     """The program text that runs `script` (argv[1]) with `paths` on sys.path, for a runtime that ignores PYTHONPATH.
     `sys.argv` is what `-c script args` would have given: ['-c', *args]. It runs in __main__, as -c does. The script runs
     one Python frame deeper than under -c (this boot's own module frame), so the recursion limit is raised by that one
     frame: a recursion the product's entry points (`-c`, no exec) stop at depth N stops at N here too (Integration 8:
     the MCP server's batch depth, RecursionError at 995 under -c, came at 994 under this boot)."""
-    return ("import sys\nsys.path[0:0] = %r\nsys.setrecursionlimit(sys.getrecursionlimit() + 1)\n"
-            "exec(compile(sys.argv.pop(1), '<string>', 'exec'))\n" % ([str(each) for each in paths],))
+    return refguard.boot(paths, guard)  # the guard first (refguard.py), then the path and the frame's recursion room
 
 
 def command(script: str, *arguments, paths=(), which: str | None = None) -> list:
@@ -215,9 +226,7 @@ def command(script: str, *arguments, paths=(), which: str | None = None) -> list
     (also given as PYTHONPATH by the caller, which a runtime that honours it needs and one that does not ignores).
     `which` names another runtime than the chosen one (reftwin.py)."""
     exe = interpreter(which)
-    if ignores_environment(exe):
-        return [str(exe), "-X", "utf8", "-c", boot(paths), script, *map(str, arguments)]
-    return [str(exe), "-X", "utf8", "-c", script, *map(str, arguments)]
+    return [str(exe), "-X", "utf8", "-c", boot(paths), script, *map(str, arguments)]
 
 
 # A script FILE under a runtime that ignores PYTHONPATH: `boot` has run, `sys.argv` is ['-c', path, *arguments]; the file runs
@@ -226,13 +235,16 @@ FILE_RUNNER = ("import runpy, sys\npath = sys.argv[1]\nsys.argv[:] = sys.argv[1:
                "runpy.run_path(path, run_name='__main__')")
 
 
-def script_command(path, *arguments, paths=(), which: str | None = None) -> list:
+def script_command(path, *arguments, paths=(), which: str | None = None, guard: bool = True) -> list:
     """The argv that runs the script FILE `path` with `arguments` on the reference Python, `paths` first on its sys.path: what
-    `command` is for a script's text (the generators, and a long script the command line cannot hold)."""
+    `command` is for a script's text (the generators, and a long script the command line cannot hold). `guard=False`
+    only for a test lane that is no reference (refguard.boot)."""
     exe = interpreter(which)
     if ignores_environment(exe):
-        return [str(exe), "-X", "utf8", "-c", boot(paths), FILE_RUNNER, str(path), *map(str, arguments)]
-    return [str(exe), "-X", "utf8", str(path), *map(str, arguments)]
+        return [str(exe), "-X", "utf8", "-c", boot(paths, guard), FILE_RUNNER, str(path), *map(str, arguments)]
+    # an installed interpreter put the script's own folder first, as `python path` does
+    return [str(exe), "-X", "utf8", "-c", boot([Path(path).resolve().parent, *paths], guard), FILE_RUNNER, str(path),
+            *map(str, arguments)]
 
 
 def describe() -> str:

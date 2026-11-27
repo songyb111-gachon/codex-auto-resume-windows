@@ -20,7 +20,7 @@ import sys
 import tempfile
 
 import released
-from rustdiff import refpython, reftwin
+from rustdiff import refguard, refpython, reftwin
 
 # D17's tag. Until v0.6.26 is tagged, its last pre-release stands in (change this line, not the callers). The tag
 # that `run.py --reference` (CODEX_AR_REFERENCE) names is the one every run uses; this is only what no one named.
@@ -33,11 +33,12 @@ DROPPED = ("CODEX_AR_CORE", "CODEX_AR_CORE_EXE", "CODEX_AR_HARNESS_EXE", "CODEX_
 
 
 def scratch_environment(profile: Path, **extra) -> dict:
-    """os.environ with every home pointed at `profile` and the shim's variables gone."""
+    """os.environ with every home pointed at `profile`, the shim's variables gone, and the engine's path pointing where no
+    codex.exe is (refguard.py) unless `extra` hands one (a path) or asks for none (`CODEX_AUTO_RESUME_CODEX_EXE=None`).
+    Both sides of a diff build their environment here, so both see the same engine path."""
     environment = {name: value for name, value in os.environ.items() if name not in DROPPED}
     environment.update({name: str(profile) for name in HOME_VARIABLES})
-    environment.update(extra)
-    return environment
+    return refguard.environment(environment, **extra)
 
 
 def command(script: str, *arguments, paths, which=None) -> list:

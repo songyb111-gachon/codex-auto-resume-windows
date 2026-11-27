@@ -63,8 +63,9 @@ class Choice(unittest.TestCase):
         refpython.select("system")
         self.assertEqual(refpython.interpreter(), Path(sys.executable))
         self.assertFalse(refpython.ignores_environment(refpython.interpreter()))
+        # Integration 10: an installed interpreter starts through the boot too, so refguard.py's program runs first
         self.assertEqual(refpython.command("print(1)", "a", paths=["x"]),
-                         [sys.executable, "-X", "utf8", "-c", "print(1)", "a"])
+                         [sys.executable, "-X", "utf8", "-c", refpython.boot(["x"]), "print(1)", "a"])
         self.assertIn("%d.%d" % sys.version_info[:2], refpython.version())
 
     def test_a_path_names_an_interpreter_or_its_folder(self):

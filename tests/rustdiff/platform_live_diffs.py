@@ -23,7 +23,7 @@ import time
 import unittest
 
 import released
-from rustdiff import core, reference
+from rustdiff import core, refguard, reference
 from rustdiff.platform_diffs import NO_WINDOW, RECORD, Base, Probe, ref
 
 CRATES = core.ROOT / "rust" / "crates"
@@ -250,7 +250,9 @@ class LiveQuestions(Base):
                        "families": [], "held": [str(held)], "exe": str(self.scratch / "nothing.exe"),
                        "spell": [str(self.scratch / "A B" / ".." / "x"), "relative\\p", str(self.scratch).upper(), "C:\\Windows\\System32\\.."],
                        "dirs": [str(folder), os.environ.get("SystemRoot", r"C:\Windows")]}
-            want = ref(LIVE_SCRIPT, request, self.profile)
+            # this PC's process table is the subject here (explorer.exe, the test's own sleepers): asked for by name
+            # (refguard.py; the engine discovery and the engine path stay refused)
+            want = ref(LIVE_SCRIPT, request, self.profile, env={refguard.VARIABLE: refguard.LIVE})
             with self.probe() as probe:
                 got = probe.ask("live")
                 identity = [probe.ask("process_identity", pid=pid) for pid in request["pids"]]
@@ -355,8 +357,9 @@ class ReferenceHolder:
         self.profile = profile
 
     def __enter__(self):
-        environment = reference.scratch_environment(self.profile, PYTHONPATH=str(released.package(reference.TAG)))
-        self.process = subprocess.Popen([sys.executable, "-X", "utf8", "-c", HOLDER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        source = released.package(reference.TAG)
+        environment = reference.scratch_environment(self.profile, PYTHONPATH=str(source))
+        self.process = subprocess.Popen(reference.command(HOLDER, paths=[source]), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, env=environment, cwd=str(self.profile), creationflags=NO_WINDOW)
         return self
 

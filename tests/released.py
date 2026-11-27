@@ -13,6 +13,10 @@ with no console window (tests/test_no_console_windows.py).
 Skipped where the tag is not in the checkout, except on CI, which fetches the tags: there a
 missing tag is a failure, not a quiet skip.
 
+Nothing a release does in that process reaches this PC's Codex or its processes (v0.6.27, Integration 10): the script
+runs after tests/rustdiff/refguard.py's program, which makes core's process lookups and the advanced engine discovery
+refuse, and CODEX_AUTO_RESUME_CODEX_EXE names a path where no codex.exe is.
+
 Not a test module (no `test_` prefix), so discovery does not collect it.
 """
 from __future__ import annotations
@@ -31,6 +35,22 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _refguard():
+    """tests/rustdiff/refguard.py, loaded by path (this module is imported with and without tests/ on sys.path)."""
+    import importlib.util
+    loaded = sys.modules.get("rustdiff.refguard") or sys.modules.get("rustdiff_refguard")
+    if loaded is not None:
+        return loaded
+    spec = importlib.util.spec_from_file_location("rustdiff_refguard", ROOT / "tests" / "rustdiff" / "refguard.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules["rustdiff_refguard"] = module
+    return module
+
+
+refguard = _refguard()
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _EXTRACTED: dict = {}   # tag -> (its src folder, every file the archive put beside it)
 # Each time a cached package was found no longer whole and taken out again: {tag, folder, at, ...}.
@@ -85,9 +105,10 @@ def run(tag: str, script: str, *arguments):
     JSON value it prints. A script that fails fails the test, with the end of what it said."""
     source = package(tag)
     with tempfile.TemporaryDirectory(prefix="released-home-") as home:
-        environment = dict(os.environ, PYTHONPATH=str(source), **{name: home for name in (
-            "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME", "CODEX_AUTO_RESUME_HOME")})
-        done = subprocess.run([sys.executable, "-c", script, *map(str, arguments)], capture_output=True,
+        environment = refguard.environment(dict(os.environ, PYTHONPATH=str(source), **{name: home for name in (
+            "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME", "CODEX_AUTO_RESUME_HOME")}))
+        done = subprocess.run([sys.executable, "-c", refguard.boot([source]), script, *map(str, arguments)],
+                              capture_output=True,
                               text=True, encoding="utf-8", env=environment, cwd=home,
                               creationflags=NO_WINDOW, timeout=300)
     if done.returncode != 0:
