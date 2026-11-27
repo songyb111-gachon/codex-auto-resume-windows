@@ -53,11 +53,48 @@ class StoryOnHostTests(original.StoryTests):
         self.assertEqual(motion.GLIDE_FRAME_MS, host_glide_frame_ms())
 
 
-# Only the twins run here: the rest of StoryTests is the original module's.
-for _name in [name for name in dir(original.StoryTests) if name.startswith("test_")]:
-    if _name not in StoryOnHostTests.__dict__:
-        setattr(StoryOnHostTests, _name, None)
-del _name
+def host_tip_gap() -> int:
+    """The hover card's gap from the taskbar and the icon on the host: gui/TipPlan.cs TipGap (PlanProbe `constant`)."""
+    found = planproxy.PROBE.ask("constant", name="tip_gap")
+    if os.environ.get("CAR_PLAN_MUTATE") == "constant":
+        found += 1
+    return int(found)
+
+
+@unittest.skipUnless(os.name == "nt" and planproxy.CSC.is_file(), "the host's surfaces need the in-box C# compiler")
+class DrawnOnHostTests(original.DrawnTests):
+    """Twin of DrawnTests' hover-card placement (S6.4f3): the picture's card (build/motion_tip.py TipFrames.reading) laid
+    out by the host's own renderer (gui/SurfaceDrawn.cs TipLayout, through planproxy.HostTipRenderer), placed by the
+    host's TipCard.TipPlace, and held to the host's TipGap - the test's own body, through `super()`, with those three
+    standing where the Python's TipRenderer, tip_place and TIP_GAP stood, for the length of the test. Nothing is shown:
+    the probe lays the card out in memory."""
+
+    def test_the_hover_card_stands_beside_the_icon_on_the_taskbar_s_side_as_the_product_places_it(self):
+        from codex_auto_resume.ui.tray import tipcard, tipplan
+        with mock.patch.object(tipcard, "TipRenderer", lambda: planproxy.host_tip_renderer(tipcard)),                 mock.patch.object(tipcard, "tip_place", planproxy.host_tip_place),                 mock.patch.object(tipplan, "TIP_GAP", host_tip_gap()):
+            super().test_the_hover_card_stands_beside_the_icon_on_the_taskbar_s_side_as_the_product_places_it()
+
+    def test_the_card_and_the_place_are_the_host_s(self):
+        """What the test above reads is the C#'s: the renderer TipFrames makes, the place and the gap."""
+        from codex_auto_resume.ui.tray import tipcard, tipplan
+        import motion_tip
+        with mock.patch.object(tipcard, "TipRenderer", lambda: planproxy.host_tip_renderer(tipcard)),                 mock.patch.object(tipcard, "tip_place", planproxy.host_tip_place),                 mock.patch.object(tipplan, "TIP_GAP", host_tip_gap()):
+            tip = motion_tip.TipFrames("en", scale=2.0, work=self.work, monitor=self.monitor, box=self.anchor)
+            try:
+                self.assertIsInstance(tip.renderer, planproxy.HostTipRenderer)
+                plan, _light, _where = tip.reading(0)
+                self.assertIsInstance(plan, planproxy.HostPlan)
+            finally:
+                tip.close()
+            self.assertEqual(tipplan.TIP_GAP, host_tip_gap())
+
+
+# Only the twins run here: the rest of StoryTests and DrawnTests is the original module's.
+for _twin, _first in ((StoryOnHostTests, original.StoryTests), (DrawnOnHostTests, original.DrawnTests)):
+    for _name in [name for name in dir(_first) if name.startswith("test_")]:
+        if _name not in _twin.__dict__:
+            setattr(_twin, _name, None)
+del _twin, _first, _name
 
 
 if __name__ == "__main__":

@@ -272,8 +272,15 @@ namespace CodexAutoResume
                     return true;
                 }
                 case "renderer_open":
-                    answer = Keep(SurfaceRenderer.Open());
+                {
+                    // S6.4f3: with the C#'s own first look (theme, design, High Contrast, lone, sweep), which a test's
+                    // renderer starts from as the Python's starts from its own.
+                    SurfaceRenderer made = SurfaceRenderer.Open();
+                    answer = new Dictionary<string, object> { { "renderer", Keep(made) }, { "theme", made.Theme }, { "design", made.Design },
+                                                              { "contrast", made.Contrast }, { "lone", made.Lone },
+                                                              { "sweep_ms", made.SweepMs.HasValue ? (object)made.SweepMs.Value : null } };
                     return true;
+                }
                 case "renderer_close":
                 {
                     SurfaceRenderer renderer = Kept<SurfaceRenderer>(call, "renderer");
@@ -318,9 +325,12 @@ namespace CodexAutoResume
                         var four = (List<object>)entry;
                         faces[SurfaceRender.TargetOf(four[0])] = new ButtonFace(Ints(four[1]), Ints(four[2]), (double)four[3]);
                     }
-                    renderer.Draw(Kept<SurfacePlan>(call, "plan"), FrameOf(F(call, "frame")), SurfaceRender.TargetOf(F(call, "hover")),
-                                  SurfaceRender.TargetOf(F(call, "pressed")), SurfaceRender.TargetOf(F(call, "focus")), glides,
-                                  D(call, "scene_ms"), faces);
+                    SurfacePlan plan = Kept<SurfacePlan>(call, "plan");
+                    // S6.4f3: drawn without its words when the test stood a no-op in for the renderer's _text.
+                    if (call.ContainsKey("words") && !B(call, "words")) plan = Wordless(plan);
+                    WithSpecks(F(call, "specks"), plan, () => renderer.Draw(plan, FrameOf(F(call, "frame")), SurfaceRender.TargetOf(F(call, "hover")),
+                                                                         SurfaceRender.TargetOf(F(call, "pressed")), SurfaceRender.TargetOf(F(call, "focus")),
+                                                                         glides, D(call, "scene_ms"), faces));
                     answer = Rows(renderer);
                     return true;
                 }
@@ -332,8 +342,12 @@ namespace CodexAutoResume
                     return true;
                 }
                 case "renderer_draw_scene":
-                    Look(call).DrawScene(Kept<SurfacePlan>(call, "plan"), D(call, "ms"));
+                {
+                    SurfaceRenderer renderer = Look(call);
+                    SurfacePlan plan = Kept<SurfacePlan>(call, "plan");
+                    WithSpecks(F(call, "specks"), plan, () => renderer.DrawScene(plan, D(call, "ms")));
                     return true;
+                }
                 case "renderer_canvas":
                 {
                     SurfaceCanvas canvas = Kept<SurfaceRenderer>(call, "renderer").Canvas;
@@ -491,9 +505,272 @@ namespace CodexAutoResume
             return false;
         }
 
+        // ------------------------------------------------------------- S6.4f3: what a test reads of a renderer's own state
+        /// One handle per C# object: the same object asked twice answers the same handle, so the Python side can hand
+        /// back the same Python object where the C# answered the same one (`is` holds exactly where it holds here).
+        private sealed class SameObject : IEqualityComparer<object>
+        {
+            public new bool Equals(object one, object other) { return ReferenceEquals(one, other); }
+            public int GetHashCode(object value) { return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value); }
+        }
+
+        private static readonly Dictionary<object, double> handles = new Dictionary<object, double>(new SameObject());
+
+        private static double Same(object value)
+        {
+            double handle;
+            if (!handles.TryGetValue(value, out handle)) handle = handles[value] = Keep(value);
+            return handle;
+        }
+
+        private const System.Reflection.BindingFlags Private = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        private const System.Reflection.BindingFlags PrivateStatic = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+
+        /// A private field of the C#'s own, read as it is (the renderer's kept images and ground key: a test reads them only
+        /// to see what is kept, never to change it).
+        private static object FieldOf(object owner, string name)
+        {
+            var field = owner.GetType().GetField(name, Private);
+            if (field == null) throw new MissingFieldException(owner.GetType().Name, name);
+            return field.GetValue(owner);
+        }
+
+        private static object Image(SurfaceShadowImage image)
+        {
+            return new Dictionary<string, object> { { "image", Same(image) }, { "width", (double)image.Width }, { "height", (double)image.Height } };
+        }
+
+        /// A plan a test built itself (a dict of its own, or one of the host's it changed after): the C#'s SurfacePlan of
+        /// the same fields, its targets as SurfaceTarget, a rectangle of whole numbers as int[] (as the layouts make it).
+        private static SurfacePlan PlanOf(Dictionary<string, object> map)
+        {
+            var plan = new SurfacePlan { Size = Ints(map["size"]), Scale = (double)map["scale"], Card = Ints(F(map, "card")) };
+            foreach (object entry in (F(map, "items") as List<object>) ?? new List<object>())
+            {
+                var item = new PlanItem();
+                foreach (KeyValuePair<string, object> pair in (Dictionary<string, object>)entry)
+                    item[pair.Key] = pair.Key == "target" ? SurfaceRender.TargetOf(pair.Value)
+                                   : pair.Key == "rect" && Whole(pair.Value) ? (object)Ints(pair.Value) : pair.Value;
+                plan.Items.Add(item);
+            }
+            plan.Targets = TargetPairs(F(map, "targets")) ?? new List<KeyValuePair<object, int[]>>();
+            plan.Rows = TargetPairs(F(map, "rows"));
+            object rtl = F(map, "rtl");
+            plan.Rtl = map.ContainsKey("rtl") ? SurfaceMath.Truthy(rtl) : (bool?)null;
+            return plan;
+        }
+
+        private static bool Whole(object value)
+        {
+            var list = value as List<object>;
+            if (list == null) return false;
+            foreach (object each in list) if (!(each is double) || (double)each != Math.Floor((double)each)) return false;
+            return true;
+        }
+
+        private static List<KeyValuePair<object, int[]>> TargetPairs(object value)
+        {
+            return value == null ? null : Targets(value);
+        }
+
+        /// The plan a renderer call names: the kept one by its handle.
+        private static SurfacePlan PlanNamed(Dictionary<string, object> call)
+        {
+            return Kept<SurfacePlan>(call, "plan");
+        }
+
+        /// The plan drawn without its words (a test that stands a no-op in for the renderer's _text): the same plan less its
+        /// lines of text, which only the words and the card-alone seal read.
+        private static SurfacePlan Wordless(SurfacePlan plan)
+        {
+            SurfacePlan copy = plan.Copy();
+            copy.Items = copy.Items.FindAll(item => item.Kind != "text");
+            return copy;
+        }
+
+        /// `draw` with the day's specks as a test stood them in for brand.speck_frame: "none" (a speck_frame that answers
+        /// nothing) empties the looks' specks, "unculled" (one that answers every speck whatever band is asked) makes every
+        /// speck reach every band; null draws as the product does. SurfaceDays' own tables, put back after.
+        private static T WithSpecks<T>(object mode, SurfacePlan plan, Func<T> draw)
+        {
+            if (mode == null) return draw();
+            var specks = (Dictionary<string, List<DayElement>>)typeof(SurfaceDays).GetField("Specks", PrivateStatic).GetValue(null);
+            var reaches = (Dictionary<string, List<double[]>>)typeof(SurfaceDays).GetField("Reaches", PrivateStatic).GetValue(null);
+            var saved = new List<object[]>();
+            foreach (PlanItem item in plan.Items)
+            {
+                if (item.Kind != "scene") continue;
+                string look = (string)item["scene"];
+                List<DayElement> elements = SurfaceDays.SpeckElements(look);
+                List<double[]> reach = SurfaceDays.SpeckReach(look);
+                saved.Add(new object[] { look, elements, reach });
+                if ((string)mode == "none")
+                {
+                    specks[look] = new List<DayElement>();
+                    reaches[look] = new List<double[]>();
+                }
+                else if ((string)mode == "unculled")
+                {
+                    var every = new List<double[]>();
+                    foreach (DayElement element in elements) every.Add(new[] { double.NegativeInfinity, double.PositiveInfinity });
+                    reaches[look] = every;
+                }
+                else if ((string)mode == "scenegone")
+                {
+                    // for the mutation checks only: a look whose scene the host cannot draw
+                    var scenes = (Dictionary<string, List<DayElement>>)typeof(SurfaceDays).GetField("Scenes", PrivateStatic).GetValue(null);
+                    scenes[look] = null;
+                }
+                else throw new ArgumentException("no speck mode " + mode);
+            }
+            try { return draw(); }
+            finally
+            {
+                var scenes = (Dictionary<string, List<DayElement>>)typeof(SurfaceDays).GetField("Scenes", PrivateStatic).GetValue(null);
+                foreach (object[] kept in saved)
+                {
+                    specks[(string)kept[0]] = (List<DayElement>)kept[1];
+                    reaches[(string)kept[0]] = (List<double[]>)kept[2];
+                    if ((string)mode == "scenegone") scenes.Remove((string)kept[0]);
+                }
+            }
+        }
+
+        private static List<object> FloatsList(List<FloatShadow> shadows) { return FloatList(shadows); }
+
+        /// S6.4f3's questions: the GDI+ count, a renderer's kept images and ground key, a plan of the test's own, the
+        /// shadow window's layers, the icon's card renderer and its place. False when `op` is none of them.
+        private static bool Further(string op, Dictionary<string, object> call, out object answer)
+        {
+            answer = null;
+            switch (op)
+            {
+                case "gdiplus_objects":
+                    answer = (double)SurfaceGdip.GdipObjects;
+                    return true;
+                case "renderer_images":
+                {
+                    var images = (Dictionary<string, SurfaceShadowImage>)FieldOf(Kept<SurfaceRenderer>(call, "renderer"), "images");
+                    var listed = new List<object>();
+                    foreach (KeyValuePair<string, SurfaceShadowImage> pair in images)
+                    {
+                        var one = (Dictionary<string, object>)Image(pair.Value);
+                        one["key"] = pair.Key;
+                        listed.Add(one);
+                    }
+                    answer = listed;
+                    return true;
+                }
+                case "renderer_image":
+                {
+                    var mask = (Dictionary<string, object>)call["mask"];
+                    var levels = (List<object>)mask["coverage"];
+                    var coverage = new byte[levels.Count];
+                    for (int i = 0; i < coverage.Length; i++) coverage[i] = (byte)(double)levels[i];
+                    var made = new ShadowMask { Key = (string)mask["key"], Width = (int)(double)mask["width"], Height = (int)(double)mask["height"],
+                                                Extent = (int)(double)mask["extent"], Centre = Ints(mask["centre"]), Coverage = coverage };
+                    var six = (List<object>)call["shadow"];
+                    var shadow = new SurfaceShadow { Dx = (double)six[0], Dy = (double)six[1], Blur = (double)six[2], Token = (string)six[3],
+                                                     Alpha = (double)six[4], Inset = Equals(six[5], true) };
+                    SurfaceRenderer renderer = Look(call);
+                    var method = typeof(SurfaceRenderer).GetMethod("Image", Private);
+                    answer = Image((SurfaceShadowImage)method.Invoke(renderer, new object[] { made, shadow }));
+                    return true;
+                }
+                case "image_pixels":
+                {
+                    var image = Kept<SurfaceShadowImage>(call, "image");
+                    answer = Picture((byte[])FieldOf(image, "pixels"), image.Width, image.Height);
+                    return true;
+                }
+                case "renderer_ground_key":
+                    answer = FieldOf(Kept<SurfaceRenderer>(call, "renderer"), "groundKey");
+                    return true;
+                case "plan_from_dict":
+                    answer = Keep(PlanOf((Dictionary<string, object>)call["plan"]));
+                    return true;
+                case "layers_open":
+                    answer = Keep(new CardLayers(IntPtr.Zero));
+                    return true;
+                case "layers_shade":
+                {
+                    var layers = Kept<CardLayers>(call, "layers");
+                    bool changed = layers.Shade(Look(call), PlanNamed(call));
+                    answer = new Dictionary<string, object> { { "changed", changed }, { "margin", (double)layers.Margin },
+                                                              { "shadows", FloatsList(layers.Shadows) } };
+                    return true;
+                }
+                case "layers_canvas":
+                {
+                    var layers = Kept<CardLayers>(call, "layers");
+                    answer = new List<object> { (double)layers.Picture.Width, (double)layers.Picture.Height };
+                    return true;
+                }
+                case "layers_pixels":
+                {
+                    var layers = Kept<CardLayers>(call, "layers");
+                    SurfaceNative.GdiFlush();
+                    answer = Picture(layers.Picture.Pixels(), layers.Picture.Width, layers.Picture.Height);
+                    return true;
+                }
+                case "layers_images":
+                    answer = (double)Kept<CardLayers>(call, "layers").Images.Count;
+                    return true;
+                case "layers_drop_images":
+                {
+                    // CardLayers' own way to let its images go is its Dispose (close); the Python's _drop_images is the
+                    // same loop over the same table, without the window.
+                    var layers = Kept<CardLayers>(call, "layers");
+                    foreach (SurfaceShadowImage image in layers.Images.Values) image.Dispose();
+                    layers.Images.Clear();
+                    return true;
+                }
+                case "layers_close":
+                {
+                    var layers = Kept<CardLayers>(call, "layers");
+                    kept.Remove(I(call, "layers"));
+                    layers.Dispose();
+                    return true;
+                }
+                case "renderer_tip_layout":
+                    answer = KeptPlan(Look(call).TipLayout((Dictionary<string, object>)call["parts"], F(call, "light"), D(call, "scale"),
+                                                           (string)call["locale"], F(call, "day") as string));
+                    return true;
+                case "renderer_metrics":
+                    answer = SurfaceRender.Dump(Look(call).Text.Calc.Metrics((string)call["role"]));
+                    return true;
+                case "renderer_ink":
+                    answer = SurfaceRender.Dump(Look(call).Text.Calc.Ink((string)call["role"], F(call, "text") as string));
+                    return true;
+                case "renderer_draw_tip":
+                {
+                    SurfaceRenderer renderer = Look(call);
+                    SurfacePlan plan = PlanNamed(call);
+                    WithSpecks(F(call, "specks"), plan, () => renderer.DrawTip(plan, FrameOf(F(call, "frame"))));
+                    answer = Rows(renderer);
+                    return true;
+                }
+                case "renderer_draw_tip_light":
+                {
+                    SurfaceRenderer renderer = Look(call);
+                    renderer.DrawTipLight(PlanNamed(call), FrameOf(F(call, "frame")), B(call, "restore"));
+                    answer = Rows(renderer);
+                    return true;
+                }
+                case "tip_day":
+                    answer = SurfaceRenderer.TipDay(F(call, "look") as string, B(call, "contrast"), F(call, "design") as string);
+                    return true;
+                case "tip_place":
+                    answer = SurfaceRender.Dump(TipCard.TipPlace(PlanNamed(call), Ints(call["work"]), Ints(call["monitor"]), Ints(F(call, "box"))));
+                    return true;
+            }
+            return false;
+        }
+
         private static object Answer(string op, Dictionary<string, object> call)
         {
             object drawn;
+            if (Further(op, call, out drawn)) return drawn;
             if (Drawn(op, call, out drawn)) return drawn;
             if (op == "render") return Render(call);
             // ------------------------------------------------------------- the icon (gui/TrayMotion.cs)

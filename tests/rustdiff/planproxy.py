@@ -227,6 +227,10 @@ def _mutated(op, fields, found):
         found = found[:-1]
     elif rule == "entrance" and op == "entrance":
         found["alpha"] = found["alpha"] * 0.5
+    elif rule == "rise" and op == "entrance":
+        found["offset"] = 0.0
+    elif rule == "symbolface" and op == "font_candidates" and found:
+        found = [["Marlett", each[1]] for each in found]
     elif rule == "face" and op in ("font_faces", "font_candidates") and len(found) > 1:
         found = found[::-1]
     elif rule == "facefirst" and op in ("font_faces", "font_candidates") and found:
@@ -241,6 +245,16 @@ def _mutated(op, fields, found):
         found = found + 1
     elif rule == "contrast" and op == "contrast_colour":
         found = "GrayText" if found != "GrayText" else "WindowText"
+    elif rule == "images" and op == "renderer_images" and found:
+        found = found[:-1]
+    elif rule == "sceneedge" and plan:
+        for item in plan["items"]:
+            if item.get("kind") == "scene" and item.get("rect"):
+                item["rect"][2] -= 1
+    elif rule == "sceneshown" and plan:
+        for item in plan["items"]:
+            if item.get("kind") == "scene":
+                item["scene_shown"] = False
     elif rule == "widen" and op in ("layout_kept", "renderer_layout"):
         for item in found["dump"]["items"]:
             if item.get("kind") in ("scene", "band") and item.get("rect"):
@@ -869,6 +883,8 @@ def _premultiply(module):
     """The card's pixels cut at its corners and premultiplied (gui/CardWindow.cs CardCorner.Premultiply)."""
     def premultiply(original):
         def premultiply(pixels, width, height, radius, top=0, smoothing=None):
+            if os.environ.get("CAR_PLAN_MUTATE") == "bandtop":
+                top = 0                          # the mutation checks: a band cut as if it began at the card's top
             return bytearray(ask("premultiply", pixels=list(pixels), width=int(width), height=int(height), radius=float(radius),
                                  top=int(top), smoothing=None if smoothing is None else float(smoothing)))
         return premultiply
@@ -913,7 +929,19 @@ class _HostCanvas:
         self._owner = owner
 
     def pixels(self) -> bytes:
-        return _picture(ask("renderer_pixels", renderer=self._owner.handle))
+        data = _picture(ask("renderer_pixels", renderer=self._owner.handle))
+        drawn = self._owner._drawn
+        if os.environ.get("CAR_PLAN_MUTATE") == "flat" and isinstance(drawn, dict) and drawn.get("card"):
+            # the mutation checks: nothing drawn round the card (its lift lost) - every pixel outside it the corner's
+            width = int(drawn["size"][0])
+            left, top, right, bottom = (int(part) for part in drawn["card"])
+            changed = bytearray(data)
+            for index in range(0, len(changed), 4):
+                x, y = (index // 4) % width, (index // 4) // width
+                if not (left <= x < right and top <= y < bottom):
+                    changed[index:index + 4] = data[0:4]
+            data = bytes(changed)
+        return data
 
     @property
     def width(self):
@@ -944,13 +972,21 @@ class HostRenderer:
     LOOK = ("theme", "design", "contrast", "lone", "sweep_ms")
 
     def __init__(self):
-        self.theme, self.design, self.contrast, self.lone, self.sweep_ms = "light", "soft", False, False, None
-        self.handle = ask("renderer_open")
+        found = ask("renderer_open")             # the C#'s own first look (S6.4f3), as the Python starts from its own
+        if os.environ.get("CAR_PLAN_MUTATE") == "defaultdesign":
+            found["design"] = "plain"
+        self.handle = found["renderer"]
+        self.theme, self.design, self.contrast, self.lone = found["theme"], found["design"], found["contrast"], found["lone"]
+        self.sweep_ms = found["sweep_ms"]
         self.canvas = _HostCanvas(self)
         self._items = {}
+        self._drawn = None
 
     def _look(self) -> dict:
-        return {"theme": self.theme, "design": self.design, "contrast": bool(self.contrast), "lone": bool(self.lone),
+        contrast = bool(self.contrast)
+        if os.environ.get("CAR_PLAN_MUTATE") == "hcdrop" and self.design == "classic":
+            contrast = False                     # the mutation checks: one design escaping High Contrast
+        return {"theme": self.theme, "design": self.design, "contrast": contrast, "lone": bool(self.lone),
                 "sweep_ms": None if self.sweep_ms is None else float(self.sweep_ms)}
 
     def _letters(self, locale):
@@ -999,24 +1035,66 @@ class HostRenderer:
             self._items[id(item)] = (plan, index)
         return plan
 
+    def _text(self, *unused):
+        """The Python renderer's words. A test may stand a no-op in for it (patch.object(renderer, "_text", ...)): the host
+        then draws the plan without its lines of text (S6.4f3); called itself, it is refused."""
+        raise TypeError("the host draws its own words; a stand-in for _text draws the plan without them")
+
+    def _words(self) -> bool:
+        """False when the test stood a no-op in for _text: the C# draws the plan less its text items, which only its words
+        and the card-alone seal read - so a renderer drawing the card alone (lone) is refused rather than answered."""
+        if "_text" not in self.__dict__ or os.environ.get("CAR_PLAN_MUTATE") == "words":
+            return True
+        if self.lone:
+            raise TypeError("the host draws without its words only a plan not drawn alone (the seal reads the words' boxes)")
+        return False
+
     def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None, scene_ms=0.0, faces=None):
-        ask("renderer_draw", renderer=self.handle, plan=handle_of(plan), frame=_frame_wire(frame), hover=wire(hover),
+        self._drawn = plan
+        if os.environ.get("CAR_PLAN_MUTATE") == "frozen":
+            scene_ms = 0.0                       # the mutation checks: a scene that does not move
+        ask("renderer_draw", renderer=self.handle, plan=plan_handle(plan), frame=_frame_wire(frame), hover=wire(hover),
             pressed=wire(pressed), focus=wire(focus),
             glides=[[wire(target), float(amount)] for target, amount in (glides or {}).items()], scene_ms=float(scene_ms),
             faces=[[wire(target), wire(fill), wire(edge), float(amount)]
-                   for target, ((fill, edge), amount) in (faces or {}).items()], look=self._look())
+                   for target, ((fill, edge), amount) in (faces or {}).items()], look=self._look(), words=self._words(),
+            specks=_specks(plan, scene_ms))
         return self.canvas
 
     def draw_halo(self, plan, frame, *, restore=True):
-        ask("renderer_draw_halo", renderer=self.handle, plan=handle_of(plan), frame=_frame_wire(frame), restore=bool(restore),
+        ask("renderer_draw_halo", renderer=self.handle, plan=plan_handle(plan), frame=_frame_wire(frame), restore=bool(restore),
             look=self._look())
         return self.canvas
 
     def draw_scene(self, plan, milliseconds):
         if os.environ.get("CAR_PLAN_MUTATE") == "scene_ms":
             milliseconds = float(milliseconds) + 40.0
-        ask("renderer_draw_scene", renderer=self.handle, plan=handle_of(plan), ms=float(milliseconds), look=self._look())
+        ask("renderer_draw_scene", renderer=self.handle, plan=plan_handle(plan), ms=float(milliseconds), look=self._look(),
+            specks=_specks(plan, milliseconds))
         return self.canvas
+
+    # What a test reads of the Python renderer's own state, answered from the C#'s (S6.4f3): its shadow images and its kept
+    # ground, by the reference's tuple keys rebuilt from the C#'s string keys (SurfaceRenderer.KeyOf).
+    @property
+    def _images(self) -> dict:
+        found = ask("renderer_images", renderer=self.handle)
+        return {_key_of(each["key"]): _host_image(each) for each in found}
+
+    @property
+    def _ground_key(self):
+        found = ask("renderer_ground_key", renderer=self.handle)
+        if found is None:
+            return None
+        key = list(_key_of(found))
+        key[6] = _keys_of(key[6])           # the parts: one string of each part's key, as the C# joins them
+        return tuple(key)
+
+    def _image(self, mask, shadow):
+        found = ask("renderer_image", renderer=self.handle, mask={name: wire(mask[name]) for name in
+                                                                   ("key", "width", "height", "centre", "extent", "coverage")},
+                    shadow=[float(shadow.dx), float(shadow.dy), float(shadow.blur), shadow.token, float(shadow.alpha),
+                            bool(shadow.inset)], look=self._look())
+        return _host_image(found)
 
     @property
     def halo_rows(self):
@@ -1032,7 +1110,7 @@ class HostRenderer:
         return tuple(fill), tuple(edge)
 
     def card_still(self, plan, pad=None) -> tuple:
-        found = ask("renderer_card_still", renderer=self.handle, plan=handle_of(plan), pad=None if pad is None else int(pad),
+        found = ask("renderer_card_still", renderer=self.handle, plan=plan_handle(plan), pad=None if pad is None else int(pad),
                     look=self._look())
         return int(found["width"]), int(found["height"]), _picture(found)
 
@@ -1113,6 +1191,15 @@ class _HostIconFrames:
             self.budget = 1e12
         elif rule == "raster":
             self.ground = bytes(level - 3 if index % 4 != 3 and level >= 3 else level for index, level in enumerate(self.ground))
+        elif rule == "lookbody" and look is not None:
+            # a day's body drawn upside down: the ground's rows in the other order
+            row = 4 * self.size
+            self.ground = b"".join(self.ground[start:start + row] for start in range(len(self.ground) - row, -1, -row))
+        elif rule == "lookring" and look is not None:
+            # a day's body over the ring: the ground's lowest third forty levels darker
+            row = 4 * self.size
+            self.ground = bytes(max(0, level - 40) if index % 4 != 3 and index // row >= self.size * 0.7 else level
+                                for index, level in enumerate(self.ground))
         self._count, self._heads, self._cache = int(found["count"]), None, {}
 
     @property
@@ -1272,3 +1359,325 @@ _role_sizes = MODULES["codex_auto_resume.ui.popup.fonts"]
 MODULES["codex_auto_resume.ui.popup.fonts"] = lambda module: (_role_sizes(module), _fonts_faces(module))
 _contrast_colours = MODULES["codex_auto_resume.ui.popup.theme"]
 MODULES["codex_auto_resume.ui.popup.theme"] = lambda module: (_contrast_colours(module), _theme_readers(module))
+
+
+# ------------------------------------------------------------------------------------------- S6.4f3
+def plan_handle(plan):
+    """The probe's handle of the plan a renderer call names: the host's own plan as it laid it out, or - a dict the test
+    built itself, or a host plan it changed after - the C#'s SurfacePlan of the same fields (PlanProbe `plan_from_dict`).
+    Anything that is not a plan is refused."""
+    if isinstance(plan, HostPlan) and _seal(plan) == plan.sealed:
+        return plan.handle
+    if not isinstance(plan, dict):
+        raise TypeError("the host draws a plan (a dict), not a %s" % type(plan).__name__)
+    sent = wire(plan)
+    if os.environ.get("CAR_PLAN_MUTATE") == "dictplan" and sent.get("items"):
+        sent["items"] = sent["items"][:-1]
+    return ask("plan_from_dict", plan=sent)
+
+
+def _specks(plan, milliseconds):
+    """How the test stood brand.speck_frame in, for the host to draw the same (PlanProbe WithSpecks): None while it is the
+    product's own; "none" when the stand-in answers no speck for any band; "unculled" when it answers every speck whatever
+    band is asked (the product's culling taken away). Any other stand-in is refused: the C# draws its own specks, and only
+    these two can be stood in there (by its own tables). The C# keeps its culling by height (out of the band's top and
+    foot, where the band's clip shows nothing of a speck either)."""
+    from codex_auto_resume import brand
+    from codex_auto_resume.brand import days
+    current = brand.speck_frame
+    looks = sorted({item["scene"] for item in plan.get("items", ()) if item.get("kind") == "scene" and item.get("scene")}) \
+        if isinstance(plan, dict) else []
+    if os.environ.get("CAR_PLAN_MUTATE") == "scenegone" and looks:
+        return "scenegone"                       # the mutation checks: a look whose scene the host cannot draw
+    if current is days.speck_frame or not looks or os.environ.get("CAR_PLAN_MUTATE") == "specks":
+        return None
+    modes = set()
+    for look in looks:
+        every = days.speck_frame(look, milliseconds)
+        none = current(look, milliseconds) == [] and current(look, milliseconds, (0.0, days.SPECK_BAND)) == []
+        unculled = (bool(every) and current(look, milliseconds, (0.0, 0.0)) == every
+                    and current(look, milliseconds, (days.SPECK_BAND, days.SPECK_BAND)) == every)
+        modes.add("none" if none and every else "unculled" if unculled else None)
+    if len(modes) != 1 or None in modes:
+        raise TypeError("the host draws its own specks; brand.speck_frame may be stood in only by one answering none or "
+                        "every speck")
+    return modes.pop()
+
+
+_NUMBER = []
+
+
+def _parse_key(text, at):
+    """One value of SurfaceRenderer.KeyOf's form ("~", "T", "F", "s<length>:<text>", "n<number>", "t<name>[<key>]",
+    "[<value>,...]") from `at`: (the value, where it ends). Lists as tuples, as the reference's keys hold them."""
+    if not _NUMBER:
+        import re
+        _NUMBER.append(re.compile(r"-?(?:Infinity|NaN|[0-9.]+(?:E[-+]?[0-9]+)?)"))
+    head = text[at]
+    if head == "~":
+        return None, at + 1
+    if head in "TF":
+        return head == "T", at + 1
+    if head == "s":
+        colon = text.index(":", at)
+        length = int(text[at + 1:colon])
+        return text[colon + 1:colon + 1 + length], colon + 1 + length
+    if head == "n":
+        found = _NUMBER[0].match(text, at + 1)
+        number = found.group(0)
+        return (float(number) if any(mark in number for mark in ".EIN") else int(number)), found.end()
+    if head == "t":
+        name, at = _parse_key(text, at + 1)
+        if at < len(text) and text[at] not in ",]":
+            key, at = _parse_key(text, at)
+            return (name, key), at
+        return (name,), at
+    if head == "[":
+        items, at = [], at + 1
+        while text[at] != "]":
+            value, at = _parse_key(text, at)
+            if text[at] != ",":
+                raise ValueError("a key list's item ends at ',': %r" % text[at:at + 20])
+            items.append(value)
+            at += 1
+        return tuple(items), at + 1
+    raise ValueError("no key value at %r" % text[at:at + 20])
+
+
+def _key_of(text):
+    value, end = _parse_key(text, 0)
+    if end != len(text):
+        raise ValueError("a key has more after its value: %r" % text[end:end + 20])
+    rule = os.environ.get("CAR_PLAN_MUTATE")
+    if rule == "imagekey" and isinstance(value, tuple) and len(value) == 5:
+        value = (value[0], {"light": "dark"}.get(value[1], "light"), {"soft": "plain"}.get(value[2], "soft")) + value[3:]
+    elif rule == "groundkey" and isinstance(value, tuple) and len(value) == 8:
+        value = value[:2] + ({"light": "dark"}.get(value[2], "light"), {"soft": "plain"}.get(value[3], "soft")) + value[4:]
+    return value
+
+
+def _keys_of(text):
+    """Keys one after another in one string (the ground key's parts, as the C# joins them): a tuple of them."""
+    found, at = [], 0
+    while at < len(text):
+        value, at = _parse_key(text, at)
+        found.append(value)
+    return tuple(found)
+
+
+class _HostImage:
+    """One of the C# renderer's kept shadow images (SurfaceShadowImage): its size, and its premultiplied BGRA pixels read
+    when asked. The same C# image is the same object here (`is` holds where the C# kept one image)."""
+
+    def __init__(self, found):
+        self.handle, self.width, self.height = found["image"], int(found["width"]), int(found["height"])
+        self._data = None
+
+    @property
+    def _pixels(self) -> bytearray:
+        if self._data is None:
+            self._data = bytearray(_picture(ask("image_pixels", image=self.handle)))
+        return self._data
+
+
+_HOST_IMAGES: dict = {}
+
+
+def _host_image(found):
+    if os.environ.get("CAR_PLAN_MUTATE") == "imagesame":
+        return _HostImage(found)
+    image = _HOST_IMAGES.get(found["image"])
+    if image is None:
+        image = _HOST_IMAGES[found["image"]] = _HostImage(found)
+    return image
+
+
+_LEAKED = [0]
+
+
+def _gdiplus(module):
+    """gdiplus_objects() of a test's own call: the Python's own count and the C# surfaces' (SurfaceGdip.GdipObjects) in
+    the plan probe, which holds every host renderer's images, graphics, brushes, pens and paths."""
+    def objects(original):
+        def gdiplus_objects():
+            found = int(ask("gdiplus_objects"))
+            if os.environ.get("CAR_PLAN_MUTATE") == "leak":
+                _LEAKED[0] += 1
+                found += _LEAKED[0]
+            return original() + found
+        return gdiplus_objects
+    _replace(module, "gdiplus_objects", objects)
+
+
+MODULES["codex_auto_resume.ui.popup.gdiplus"] = _gdiplus
+
+
+# ------------------------------------------------------------------------------------------- the shadow window's layers
+class _HostLayerPicture:
+    """The shadow window's picture of a host CardLayers (its SurfaceCanvas): pixels, size, close."""
+
+    def __init__(self, layers):
+        self._layers = layers
+
+    def pixels(self) -> bytes:
+        return _picture(ask("layers_pixels", layers=self._layers.handle))
+
+    @property
+    def width(self):
+        return int(ask("layers_canvas", layers=self._layers.handle)[0])
+
+    @property
+    def height(self):
+        return int(ask("layers_canvas", layers=self._layers.handle)[1])
+
+    def close(self):
+        if self._layers.handle is not None:
+            ask("layers_close", layers=self._layers.handle)
+            self._layers.handle = None
+
+
+class _HostLayerImages:
+    """How many shadow images a host CardLayers keeps (its Images)."""
+
+    def __init__(self, layers):
+        self._layers = layers
+
+    def __len__(self):
+        found = int(ask("layers_images", layers=self._layers.handle))
+        return found + 1 if os.environ.get("CAR_PLAN_MUTATE") == "layerimages" else found
+
+    def __bool__(self):
+        return len(self) > 0
+
+
+class _HostLayers:
+    def __init__(self):
+        self.handle = ask("layers_open")
+        self.picture, self.images = _HostLayerPicture(self), _HostLayerImages(self)
+
+
+def _card_layers(module):
+    """CardLayers.shade(renderer, plan) with a host renderer: the C#'s CardLayers.Shade (gui/SurfaceLayers.cs) in the plan
+    probe, a shadow window of no window; the layers' picture, margin, shadows and images are then the C#'s. A Python
+    renderer (the product's own window) keeps Python's."""
+    cls = module.CardLayers
+    shade_first, drop_first = cls.shade, cls._drop_images
+
+    def shade(self, renderer, plan):
+        if not isinstance(renderer, HostRenderer):
+            return shade_first(self, renderer, plan)
+        host = self.__dict__.get("_host_layers")
+        if host is None:
+            host = _HostLayers()
+            self.picture.close()
+            self._host_layers, self.picture, self.images = host, host.picture, host.images
+        found = ask("layers_shade", layers=host.handle, renderer=renderer.handle, plan=plan_handle(plan),
+                    look=renderer._look())
+        self.margin = int(found["margin"])
+        self.shadows = tuple(module.FloatShadow(*each) for each in found["shadows"])
+        return bool(found["changed"])
+
+    def _drop_images(self):
+        host = self.__dict__.get("_host_layers")
+        if host is None:
+            return drop_first(self)
+        if host.handle is not None:
+            ask("layers_drop_images", layers=host.handle)
+        return None
+
+    for name, proxy, first in (("shade", shade, shade_first), ("_drop_images", _drop_images, drop_first)):
+        proxy.rust_core, proxy.__wrapped__, proxy.__doc__ = "host", first, first.__doc__
+        setattr(cls, name, proxy)
+
+
+_layers_first = MODULES["codex_auto_resume.ui.popup.layers"]
+MODULES["codex_auto_resume.ui.popup.layers"] = lambda module: (_layers_first(module), _card_layers(module))
+
+
+# ------------------------------------------------------------------------------------------- the icon's card
+class HostTipRenderer(HostRenderer):
+    """tipcard.TipRenderer as the C#'s SurfaceRenderer drawing the icon's card (gui/SurfaceDrawn.cs TipLayout, DrawTip,
+    DrawTipLight; the fonts' metrics and ink are its GDI's): tip_layout, metrics, ink, draw_tip and draw_tip_light, with
+    everything HostRenderer answers. A light drawn alone before its card is the C#'s ArgumentException, raised as Python's
+    ValueError."""
+
+    tipcard = None
+
+    def tip_layout(self, parts, light, scale, locale, day=None):
+        found = ask("renderer_tip_layout", renderer=self.handle, parts=wire(parts), light=light, scale=float(scale),
+                    locale=locale, day=day, letters=self._letters(locale), pinned=self._stand_in(), look=self._look())
+        tipcard = self.tipcard
+        mirrored = tipcard.l10n.right_to_left(locale)
+
+        def ink(role, text):
+            first, last = self.ink(role, text)
+            return (last, first) if mirrored else (first, last)
+        # the reference's container kinds, at the host's own measures, metrics and ink
+        reference = tipcard.tip_layout(parts, light, scale, self.measure, self.metrics, day, ink)
+        return _kept(found, tipcard.popup.mirror(reference) if mirrored else reference)
+
+    def metrics(self, role):
+        return tuple(float(each) for each in ask("renderer_metrics", renderer=self.handle, role=role))
+
+    def ink(self, role, text):
+        return tuple(int(each) for each in ask("renderer_ink", renderer=self.handle, role=role, text=text))
+
+    def draw_tip(self, plan, frame=None):
+        ask("renderer_draw_tip", renderer=self.handle, plan=plan_handle(plan), frame=_frame_wire(frame), look=self._look(),
+            specks=_specks(plan, 0.0))
+        return self.canvas
+
+    def draw_tip_light(self, plan, frame, *, restore=True):
+        try:
+            ask("renderer_draw_tip_light", renderer=self.handle, plan=plan_handle(plan), frame=_frame_wire(frame),
+                restore=bool(restore), look=self._look())
+        except HostRefused as refused:
+            if refused.kind == "ArgumentException":
+                raise ValueError(str(refused)) from None
+            raise
+        return self.canvas
+
+
+def host_tip_renderer(tipcard):
+    """A HostTipRenderer for the tipcard module given (a twin hands it in where the product makes its TipRenderer)."""
+    host = type("TipRenderer", (HostTipRenderer,), {"tipcard": tipcard, "module": sys.modules[tipcard.popup.__name__ + ".renderer"],
+                                                     "__doc__": HostTipRenderer.__doc__})
+    return host()
+
+
+def host_tip_place(plan, work, monitor, box) -> tuple:
+    """tipcard.tip_place as the C#'s TipCard.TipPlace on the plan the probe holds."""
+    found = ask("tip_place", plan=plan_handle(plan), work=wire(work), monitor=wire(monitor), box=wire(box))
+    if os.environ.get("CAR_PLAN_MUTATE") == "tipplace":
+        found = [found[0], found[1] + 1]
+    return tuple(found)
+
+
+def _tipcard(module):
+    """A test's own tipcard.draw_offscreen and tip_place: the host's (HostTipRenderer, TipCard.TipPlace, TipDay)."""
+    def offscreen(original):
+        import inspect
+        signature = inspect.signature(original)
+
+        def draw_offscreen(*args, **kwargs):
+            bound = signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            given = bound.arguments
+            renderer = host_tip_renderer(module)
+            try:
+                renderer.theme, renderer.design, renderer.contrast = given["theme"], given["design"], given["contrast"]
+                day = ask("tip_day", look=given["day"], contrast=bool(given["contrast"]), design=given["design"])
+                plan = renderer.tip_layout(given["parts"], given["light"], given["scale"], given["locale"], day)
+                return plan, bytes(renderer.draw_tip(plan, given["frame"]).pixels())
+            finally:
+                renderer.close()
+        return draw_offscreen
+
+    def place(original):
+        return host_tip_place
+
+    _replace(module, "draw_offscreen", offscreen)
+    _replace(module, "tip_place", place)
+
+
+MODULES["codex_auto_resume.ui.tray.tipcard"] = _tipcard
