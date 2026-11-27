@@ -315,6 +315,7 @@ fn case(name: &str, a: &Args) -> Option<Py<Value>> {
         .or_else(|| card_case(name, a))
         .or_else(|| popup_case(name, a))
         .or_else(|| tray_case(name, a))
+        .or_else(|| crate::opener::case(name, a))
 }
 
 fn uris(name: &str, a: &Args) -> Option<Py<Value>> {
