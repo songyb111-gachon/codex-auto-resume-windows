@@ -8,7 +8,7 @@ from rustdiff import advsurface
 
 
 class AdvSurfaceDiff(unittest.TestCase):
-    """Status, tray and diagnostics; every bridge command but the three unported cards'; the MCP tools - over five
+    """Status, tray and diagnostics; every bridge command; the MCP tools - over eight
     homes, on the bundled reference Python."""
 
     def test_every_answer_is_the_tags(self):

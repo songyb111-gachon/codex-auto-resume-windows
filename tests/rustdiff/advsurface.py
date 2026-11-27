@@ -399,6 +399,62 @@ say("6.armed", {key: (json.loads(paths.power_action_file.read_text(encoding="utf
 runtime.arming.disarm("power_after_tasks", actor="dashboard")
 say("6.armed after off", json.loads(paths.power_action_file.read_text(encoding="utf-8"))["armed"])
 bridge("6.view off", runtime, "advanced-power-tasks", {})
+
+# ---------------------------------------------------------------- 7. the saved accounts (S7.3a2)
+EXTRA = tuple(SHIPPED[name] for name in ("account_switch", "account_auto_switch", "usage_analytics") if name in SHIPPED)
+paths, runtime = make_more(profile / "seven")
+bridge("7.accounts off", runtime, "advanced-accounts", {})
+for command in ("advanced-accounts-add", "advanced-accounts-save", "advanced-accounts-read"):
+    bridge("7.%s off" % command, runtime, command, {})
+for argument in ({}, {"id": 5}, {"id": "nope"}, {"id": None}, {"extra": 1}):
+    bridge("7.switch %s" % json.dumps(argument), runtime, "advanced-accounts-switch", argument)
+for argument in ({}, {"id": "nope"}, {"id": 5}, {"all": 1}, {"all": False}, {"all": True}, {"all": True, "id": "x"},
+                 {"other": 1}):
+    bridge("7.delete %s" % json.dumps(argument), runtime, "advanced-accounts-delete", argument)
+arm("7.arm account_switch", runtime, "account_switch")
+bridge("7.accounts standing", runtime, "advanced-accounts", {})
+bridge("7.save standing", runtime, "advanced-accounts-save", {})
+bridge("7.switch standing", runtime, "advanced-accounts-switch", {"id": "0" * 32})
+arm("7.arm auto", runtime, "account_auto_switch")
+bridge("7.accounts auto", runtime, "advanced-accounts", {})
+runtime.arming.disarm("account_switch", actor="dashboard")
+runtime.arming.disarm("account_auto_switch", actor="dashboard")
+bridge("7.accounts after", runtime, "advanced-accounts", {})
+
+# ---------------------------------------------------------------- 8. analytics (S7.3a2)
+with sqlite3.connect(codex / "state_5.sqlite") as db:
+    db.execute("ALTER TABLE threads ADD COLUMN tokens_used INTEGER")
+    db.execute("UPDATE threads SET tokens_used = 4321, cwd = ? WHERE id = ?", (r"C:\ExampleUser\example-service", OTHER))   # one folder on both lanes: the key is its digest
+paths, runtime = make_more(profile / "eight")
+bridge("8.view off", runtime, "advanced-analytics", {})
+for days in (8, True, "7", 7.0, None):
+    bridge("8.view days %r" % (days,), runtime, "advanced-analytics", {"days": days} if days is not None else {})
+arm("8.arm meter", runtime, "usage_meter")
+arm("8.arm", runtime, "usage_analytics")
+import time as clock_module
+day = lambda back: clock_module.strftime("%Y-%m-%d", clock_module.localtime(NOW - back * 86400))
+THIRD = "0a1b2c3d-0001-7000-8000-000000000003"
+for file_key, thread, project, days in (("1" * 16, THREAD, "b" * 16, {day(0): [10, 2, 5, 1, 1], day(3): [3, 0, 4, 0, 2]}),
+                                        ("2" * 16, THREAD, "b" * 16, {day(0): [1, 1, 1, 1, 1]}),
+                                        ("3" * 16, THIRD, None, {day(40): [100, 0, 1, 0, 1]}),
+                                        ("4" * 16, "0a1b2c3d-0001-7000-8000-000000000004", "c" * 16,
+                                         {day(1): [7, 0, 9, 0, 1]})):
+    try:
+        say("8.ingest", runtime.state.ingest_file(file_key, thread, size=10, offset=10, changed_ns=1, days=days,
+                                                  project_key=project, at=NOW))
+    except Exception as error:
+        print("8.ingest RAISED " + type(error).__name__, flush=True)
+for argument in ({}, {"days": 30}, {"days": 90}, {"days": 1}):
+    bridge("8.view %s" % json.dumps(argument), runtime, "advanced-analytics", argument)
+target = profile / "eight" / "usage é.csv"
+for label, argument in (("relative", {"path": "usage.csv"}), ("empty", {"path": ""}), ("nul", {"path": str(target) + "\x00"}),
+                        ("type", {"path": 5}), ("replace-type", {"path": str(target), "replace": "yes"}),
+                        ("days", {"path": str(target), "days": 3}), ("first", {"path": str(target)}),
+                        ("again", {"path": str(target)}), ("replace", {"path": str(target), "replace": True, "days": 90}),
+                        ("folder", {"path": str(profile / "eight"), "replace": True}),
+                        ("missing", {"path": str(profile / "nope" / "x.csv")})):
+    bridge("8.csv " + label, runtime, "advanced-analytics-csv", argument)
+say("8.csv bytes", target.read_bytes().hex() if target.exists() else None)
 '''
 
 

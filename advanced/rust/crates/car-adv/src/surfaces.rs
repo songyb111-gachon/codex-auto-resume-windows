@@ -216,7 +216,50 @@ pub struct World {
     /// The Windows user's preferred UI languages (`GetUserPreferredUILanguages`, which `l10n` reads for `system`):
     /// none in the bare world, as car-control's system host (car-platform has no reader yet).
     pub windows_languages: Arc<dyn Fn() -> Vec<String> + Send + Sync>,
+    /// `codex/swap.add_by_login(paths, store)`: Add an account's own `codex login` on a scratch home - the saved
+    /// profile's id, or None.
+    pub accounts_add: AddFn,
+    /// `codex/swap.read_profile(paths, store, profile_id, now=)`: one saved account's usage read on a scratch home.
+    pub accounts_read_one: ReadOneFn,
+    /// `AutoSwitch(paths, store=, home=).put_in(profile_id, at, manual=True)`: a person's switch, and its outcome.
+    pub accounts_put_in: PutInFn,
+    /// `codex/restart.busy(paths, usage_waiting_ok=True)`: whether a person's switch must wait.
+    pub accounts_busy: PathsFn<bool>,
+    /// `swap.other_engines(swap._inventory(), app_open=True)`: another Codex engine runs that may use this home.
+    pub other_engine: Arc<dyn Fn() -> bool + Send + Sync>,
 }
+
+/// The saved accounts' Add an account.
+pub type AddFn = Arc<
+    dyn Fn(
+            &car_config::Paths,
+            &crate::profiles::Profiles,
+        ) -> std::result::Result<Option<String>, crate::codex::authfile::Fault>
+        + Send
+        + Sync,
+>;
+/// One saved account's usage read: (paths, store, profile id, now).
+pub type ReadOneFn = Arc<
+    dyn Fn(
+            &car_config::Paths,
+            &crate::profiles::Profiles,
+            &str,
+            i64,
+        ) -> std::result::Result<Map, crate::codex::authfile::Fault>
+        + Send
+        + Sync,
+>;
+/// A person's switch: (paths, the Codex home, profile id, at) - the switch's outcome word.
+pub type PutInFn = Arc<
+    dyn Fn(
+            &car_config::Paths,
+            &std::path::Path,
+            &str,
+            i64,
+        ) -> std::result::Result<&'static str, crate::codex::authfile::Fault>
+        + Send
+        + Sync,
+>;
 
 impl World {
     /// No entry point handed one: an empty Credential Manager of this process's own, no courier, no watcher, and
@@ -242,6 +285,15 @@ impl World {
                     .is_ok()
             }),
             windows_languages: Arc::new(Vec::new),
+            accounts_add: Arc::new(|_, _| Ok(None)),
+            accounts_read_one: Arc::new(|_, _, _, _| {
+                let mut found = Map::new();
+                found.insert(Str::new("present"), Value::Null);
+                Ok(found)
+            }),
+            accounts_put_in: Arc::new(|_, _, _, _| Ok(crate::codex::swap::FAILED)),
+            accounts_busy: Arc::new(|_| true),
+            other_engine: Arc::new(|| false),
         }
     }
 }
@@ -993,9 +1045,6 @@ pub fn bridge(runtime: &Runtime, command: &Value, argument: &Value) -> Result<Op
     let Value::Object(argument) = argument else {
         return Ok(None);
     };
-    if unported(command) {
-        return Ok(None);
-    }
     let allowed = arguments(command);
     if argument
         .keys()
@@ -1004,23 +1053,6 @@ pub fn bridge(runtime: &Runtime, command: &Value, argument: &Value) -> Result<Op
         return Ok(Some(refusal(Refusal::InvalidRequest)));
     }
     Ok(Some(dispatch(runtime, command, argument)?))
-}
-
-/// The commands whose cards are not ported yet (`control/autoswitch`, `control/powertasks`, `control/analytics`):
-/// passed over, as the tag's `UNANSWERED` passes a command whose card is not built (rust/GROUNDWORK.md, "Seat S7.3a").
-pub fn unported(command: BridgeCommand) -> bool {
-    use BridgeCommand as B;
-    matches!(
-        command,
-        B::AdvancedAccounts
-            | B::AdvancedAccountsAdd
-            | B::AdvancedAccountsSave
-            | B::AdvancedAccountsRead
-            | B::AdvancedAccountsSwitch
-            | B::AdvancedAccountsDelete
-            | B::AdvancedAnalytics
-            | B::AdvancedAnalyticsCsv
-    )
 }
 
 fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result<Value> {
@@ -1230,14 +1262,18 @@ fn dispatch(runtime: &Runtime, command: BridgeCommand, argument: &Map) -> Result
         B::AdvancedCeiling => {
             arming.set_global_hourly(&a("global_hourly"), &a("generation"), &dashboard())
         }
-        B::AdvancedAccounts
-        | B::AdvancedAccountsAdd
-        | B::AdvancedAccountsSave
-        | B::AdvancedAccountsRead
-        | B::AdvancedAccountsSwitch
-        | B::AdvancedAccountsDelete
-        | B::AdvancedAnalytics
-        | B::AdvancedAnalyticsCsv => unreachable!("passed over before"),
+        B::AdvancedAccounts => card::autoswitch::view(runtime, None, None, None)?,
+        B::AdvancedAccountsAdd => card::autoswitch::add(runtime)?,
+        B::AdvancedAccountsSave => card::autoswitch::save(runtime)?,
+        B::AdvancedAccountsRead => card::autoswitch::read(runtime, None)?,
+        B::AdvancedAccountsSwitch => {
+            card::autoswitch::switch(runtime, &Value::Object(argument.clone()))?
+        }
+        B::AdvancedAccountsDelete => {
+            card::autoswitch::delete(runtime, &Value::Object(argument.clone()))?
+        }
+        B::AdvancedAnalytics => card::analytics::view(runtime, &a("days"))?,
+        B::AdvancedAnalyticsCsv => card::analytics::save_csv(runtime, argument)?,
     })
 }
 
