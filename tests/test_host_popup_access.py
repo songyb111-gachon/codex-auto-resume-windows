@@ -114,6 +114,30 @@ class AccessibleItemsOnHostTests(original.AccessibleItemsTests):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def test_every_child_is_named_in_every_language(self):
+        super().test_every_child_is_named_in_every_language()
+
+    def test_the_children_are_what_is_drawn_in_the_order_it_is_drawn(self):
+        super().test_the_children_are_what_is_drawn_in_the_order_it_is_drawn()
+
+    def test_each_switch_is_named_with_its_task_in_every_language(self):
+        super().test_each_switch_is_named_with_its_task_in_every_language()
+
+    def test_each_switch_and_button_is_where_it_is_drawn_and_in_the_keyboards_order(self):
+        super().test_each_switch_and_button_is_where_it_is_drawn_and_in_the_keyboards_order()
+
+    def test_a_childs_state_is_what_is_drawn(self):
+        super().test_a_childs_state_is_what_is_drawn()
+
+    def test_nothing_on_screen_is_no_child(self):
+        super().test_nothing_on_screen_is_no_child()
+
+    def test_a_hit_lands_on_the_switch_before_the_row_it_is_in(self):
+        super().test_a_hit_lands_on_the_switch_before_the_row_it_is_in()
+
+    def test_what_changes_on_screen_is_announced_and_a_ticking_countdown_is_not(self):
+        super().test_what_changes_on_screen_is_announced_and_a_ticking_countdown_is_not()
+
     def test_the_hosts_event_numbers_are_the_references(self):
         self.assertEqual(_ask("events"), {"focus": access.EVENT_FOCUS, "reorder": access.EVENT_REORDER,
                                           "statechange": access.EVENT_STATECHANGE, "namechange": access.EVENT_NAMECHANGE})
