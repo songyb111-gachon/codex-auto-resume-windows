@@ -12,6 +12,7 @@ pub mod checkhost;
 pub mod checkup;
 pub mod clock;
 pub mod dashboard;
+pub mod demo;
 pub mod events;
 pub mod fail;
 pub mod health;

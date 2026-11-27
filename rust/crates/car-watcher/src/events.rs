@@ -201,6 +201,26 @@ impl Events {
         true
     }
 
+    /// `show_demo`'s `inbox.post(notice)` as the event table carries it (S6.2b4): the made-up card as one `demo`
+    /// event under an id of its own, while the host's card stack is attached; False otherwise (nothing is shown).
+    pub fn post_demo(&self, notice: &Notice) -> bool {
+        if self.is_ended() || !self.inbox.attached() {
+            return false;
+        }
+        let id = {
+            let mut posted = self.posted.lock().unwrap_or_else(PoisonError::into_inner);
+            posted.0 += 1;
+            let id = posted.0;
+            posted.1.insert(id, notice.clone());
+            id
+        };
+        self.push(event(
+            "demo",
+            [("notice", crate::notices::card_event(id, notice))],
+        ));
+        true
+    }
+
     /// The notice the host ends (`notice_complete {id}`), once: None for an id it was never given or already ended.
     pub fn take_posted(&self, id: &Value) -> Option<Notice> {
         let id = match id {

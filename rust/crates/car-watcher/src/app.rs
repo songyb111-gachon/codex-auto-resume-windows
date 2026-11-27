@@ -196,6 +196,8 @@ pub struct App {
     popup: crate::surface::Popup,
     /// `_watcher_toasts`, made at the first watcher notice that is not the last one.
     watcher_notices: std::sync::OnceLock<Arc<crate::notices::WatcherNotices>>,
+    /// The icon's look at the demo event (`on_demo=self._demo`), while the surfaces are up.
+    demo: Option<crate::demo::DemoLook>,
 }
 
 fn stamp(path: &str) -> Option<(u128, u64)> {
@@ -254,6 +256,7 @@ impl App {
                 .to_string_lossy()
                 .into_owned(),
             tray: false,
+            demo: None,
             shared_settings: Arc::new(std::sync::Mutex::new(Map::new())),
             notices: crate::plugnotices::PlugNotices::new(),
             popup: start.popup,
@@ -699,6 +702,18 @@ impl World for App {
             edition,
             &self.paths.state_dir,
         );
+        if self.tray {
+            let log = self.log.clone();
+            self.demo = Some(crate::demo::DemoLook::start(
+                &self.paths.state_dir,
+                Arc::clone(&self.events),
+                Arc::clone(&self.shared_settings),
+                Arc::new(move |line: &str| log.info(line)),
+                Arc::new(|| {
+                    crate::notices::presence().map_err(|raised| Failed::new(&raised.class, ""))
+                }),
+            ));
+        }
         self.tray
     }
     fn update_tray(&mut self, store: &Store, blocked: bool) {
@@ -753,6 +768,9 @@ impl World for App {
         });
     }
     fn stop_tray(&mut self) {
+        if let Some(look) = self.demo.take() {
+            look.stop();
+        }
         if self.tray {
             self.events.close_surfaces();
             self.tray = false;
