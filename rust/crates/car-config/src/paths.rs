@@ -112,6 +112,18 @@ pub trait Links: Send + Sync + std::fmt::Debug {
         let _ = path;
         Err(50)
     }
+    /// Whether discovery leaves `path` out, as if it were not installed: this PC's installed Codex where the
+    /// real-engine guard is on (car-platform's `realengine::refused`: the switch `CAR_NO_REAL_ENGINE`, or the probe's
+    /// own crate's tests). A probe that does not know answers no.
+    fn engine_refused(&self, path: &str) -> bool {
+        let _ = path;
+        false
+    }
+}
+
+/// Whether discovery leaves `path` out (the probe's [`Links::engine_refused`]).
+pub fn engine_refused(os: &Os, path: &str) -> bool {
+    os.links.engine_refused(path)
 }
 
 /// The questions `Path.resolve()` asks, through this `Os`: the final path by std, links and real names by the probe.

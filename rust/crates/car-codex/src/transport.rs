@@ -231,7 +231,9 @@ pub(crate) fn run_to_end(
     spawn: &Spawn,
     seconds: f64,
 ) -> std::result::Result<(i64, Vec<u8>), RunError> {
-    let mut child = SystemStarter.start(spawn).map_err(|_| RunError::Os)?;
+    let mut child = SystemStarter
+        .start_guarded(spawn, cfg!(test))
+        .map_err(|_| RunError::Os)?;
     let Some(stdout) = child.stdout.take() else {
         let _ = child.kill();
         let _ = child.wait();
@@ -879,7 +881,7 @@ impl Backend {
             .with_env(self.environment())
             .with_cwd(&self.codex_home)
             .with_streams(Stream::Null, Stream::Piped, Stream::Null);
-        SystemStarter.start(&spawn)
+        SystemStarter.start_guarded(&spawn, cfg!(test))
     }
 
     /// `delete_queue(thread_id, queue_id)`: whether the App Server says it deleted our queued message.

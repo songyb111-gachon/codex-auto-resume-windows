@@ -683,7 +683,7 @@ impl<'a> Protocol<'a> {
                 car_platform::spawn::Stream::Null,
             );
         let mut child = car_platform::spawn::SystemStarter
-            .start(&spawn)
+            .start_guarded(&spawn, cfg!(test))
             .map_err(|_| Error::Os)?;
         let stdout = child.stdout.take();
         *self.input.lock().unwrap_or_else(|p| p.into_inner()) = child.stdin.take();

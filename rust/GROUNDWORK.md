@@ -4261,3 +4261,356 @@ every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`); `gui/
 `build/make_gui.ps1` have no diff from the base. `rediff_host_surface.py` now also watches `ui/tray/icon.py`, `menu.py`,
 `animation.py`, `clicks.py`, `cards.py`, `win32.py`, `__init__.py` and `ui/popup/access.py`: exact against v0.6.26 (29
 tests; only `ui/popup/model.py` differs from the tag, as before).
+
+## P6 step 2: the host shell (seat S6.2b, branch `car-v0627-s62b`, 2026-11-27)
+
+Cut from Integration 9 (`cfdabfe59`). P6-DESIGN 1 (exports, panics, threads, the closed tables, start/end, no console
+windows, the mutex handover), 4.1 row 2 and 4.2 risk 3, under the owner's answers (Q3 one host exe, Q6 F10 kept). No
+window was shown (every host run has show_tray off; the pump's window is message-only), no picture made, nothing pushed.
+
+### What is here
+
+| Commit | What |
+|---|---|
+| `e44a74af2` | The decided contract taken word for word from car-v0627-s63 (`5fc0226ab`, `874cfd91e`): abi.rs's tables (`surfaces` + `locale`, `letters`; `snapshot` + `popup`; `strings` + `locale`, `letters`), `gui/ISurfaces.cs`, test_host_contract's SurfaceTests, guiscan's `host_group` - identical hunks for Integration 10 |
+| `257973aa6` | car-host's six over car-watcher's `api::Watcher`: `car_start` starts it (project root = the folder above the image's `bin`; a second start `bad_request`), `car_stop` signals its stop (0), `car_bridge` = `Watcher::bridge` on `run_deep`, `car_next_event`/`car_post_action` the watcher's (the abi queue still first, for tests). A caught export panic is also recorded as `App._record_failure` records one (`Watcher::record_failure`: `"<export> failed (panic); no submission was made"`, the detail in `errors.log`). car-watcher `surface` (new): the catalog's locale and letters (`locale_of`, `typeface.letters(l10n.catalog(locale))`), the popup's model read and drawn (`snapshot.popup = {view, menus, read, attention}`), the snapshot's `failure_unseen`, `unconfirmed_unseen`, `power_armed`; a `strings` event, a popup call and a seen failure are each followed by a snapshot at once. `post_action` answers `popup` (`ControlPopup`: car-control with actor `gui` and the popup's names), `failure_seen`/`mark_seen` (`acknowledge_failure()`). Feature `panic-test` (car-host -> car-watcher `trip`): `CAR_CORE_PANIC` trips the tick, the toasts worker or an export once |
+| `793a74402` | `gui/HostMain.cs`, `gui/HostPump.cs`, `gui/HostStandIn.cs`, `gui/SurfaceJson.cs` (s63's, word for word), `gui/host.manifest`, `gui/host.sources` (`[host]`, `[contract]`, `[standin]`); make_gui.ps1 builds `CodexAutoResume.exe` in the standard run (Q3), gui_stamp kind `host`; rust_release `HOST` staged once for both editions; `tests/test_host_shell.py` |
+| `858f8d875` | car-bin `main.rs` -> `main_with(&[])`; the stub is `car-core-proof.exe` (`src/bin/proof.rs`), which the installer proofs and the bootstraps' entry run use |
+
+### Decided here, with the evidence
+
+* **EDITION_BINARIES is not where the host goes.** EDITION_BINARIES is what each edition's workspace builds (cargo's
+  `bins`, the budget test, the audit's `PER_EDITION`, whose entries may differ between archives). The host is C# and the
+  same bytes in both (Q3), so it is `rust_release.HOST`, in `BINARIES` (the audit's (d) reads it) and not in
+  `PER_EDITION`, so the audit's (f) holds the two archives' copies identical. Its subsystem (2) is checked at staging.
+* **The real core and the proofs.** Integration 8 kept the stub as the core because the proofs ran it with the
+  installer's commands, and the real `setup` writes the Run value, the AUMID and the link handler into the real HKCU
+  (a scratch profile does not redirect HKCU). Now the proofs never run the real core: `rust_stage` copies
+  `car-core-proof.exe` over the staged `codex-auto-resume.exe` (test_review9_install shares it), and
+  `rust_legacy_bootstraps.entry_from_archive` takes the stub built beside car-legacy (`rust/target/release`), not the
+  archive's core. The release's own guard is unchanged: a core with the test forward that is not the stub stops it.
+* **The host's surfaces until Integration 10**: `[standin]` (`SurfaceRender.Run/Probe` -> null, `HostSurfaces` with no
+  icon). Integration 10 deletes `gui/HostStandIn.cs` and the `[standin]` group and takes S6.3's `[surface]` and
+  `[generated]` groups; `HostPump.Deliver` already speaks S6.3's `ISurfaces` (SnapshotEvent, StringsEvent).
+* **Numbers from the window's JSON reader are doubles**: the host reads `abi` and `exit_code` as doubles (the first run
+  refused "abi 1" until it did).
+
+### Proofs
+
+* Rust: `car-host` unit 9; `abi_exports` 3 (`the_release_dll_has_no_panic_wire` reads `CAR_CORE_DLL`); `host_watcher`
+  (start, the second start refused, `surfaces` with its seven fields and `locale`/`letters`, a snapshot with `popup` and
+  the three keys, the bridge, a popup `set_enabled` drawn as paused in the next snapshot, `failure_seen`, `open_chat`
+  `not_ported`, stop, `close`, `ended` 0 last); `panic_feature` (feature on: the first tick's panic recorded and the next
+  tick runs, `car_bridge` answers `panic`, is recorded in the log and `errors.log`, and the next call answers);
+  car-watcher `toasts::a_panic_in_the_worker_costs_one_notice` (feature on) and `surface` 3.
+* Python (`wait_quiet.sh`): `test_host_shell test_host_contract test_guiscan` Ran 32, OK - the DLL-load test (no DLL
+  beside the host, a real `car_core.dll` in the current directory and on PATH: exit 1, the launcher's errors.log line,
+  no state made; and its own DLL loaded beside a planted non-DLL), the GUI-subsystem check (subsystem 2, no `dpiAware`),
+  the mutex handover 1.9 (a) host exits 3 with `runtime/loop.py:104`'s line while the v0.6.26 Python watcher runs, (b)
+  the stop event ends Python 0 and the host takes the mutex, (c) the reverse, (d) each killed with a third handle open
+  (a named mutex dies with its last handle, so nothing can be abandoned without one): the next watcher of the other
+  language logs the abandoned-mutex line first.
+* make_gui both editions into scratch folders: window `ec1ae342...`, MCP launcher `382bbb9c...`, advanced window
+  `101f257d...` (unchanged), host `1c202eef...` (37,376 bytes, subsystem 2).
+
+### Not done (and why)
+
+* **The engine join** (`app::EngineMaker` over car-engine, discovery and the evaluator; `Given.plug` taking App's
+  `Arc<Guarded>`): not started - this seat's context went to the done-check. It needs the harness's `EngineStore` moved
+  into a product crate (car-watcher), a `TickEngine` for `car_engine::Engine`, the `Toasts` notifier and `EngineLog`,
+  `discover_codex_exe` with car-codex's checks, the Evaluator and layout watch, `engine_moved`'s stamps; then a diff of
+  the watch loop with the engine over codexsim. The watcher still logs `EngineNotJoined` and sends nothing.
+* `open_dashboard`, `open_chat`, `notice_action`, `notice_complete` answer `not_ported` (the Dashboard opener, cut C6,
+  and the notifier's activation are not in a product crate); the `notice` event is still car-watcher's
+  `{event, detail, final}`, not S6.3's `{id, key, title, stays, view, letters}` (the notifier seam).
+* car-adv-host's `export_core!(<advanced plug factory>)` (with S7.3d): the advanced `car_core.dll` still exports nothing.
+* No re-diff command: the host shell has no reference file of its own beyond what car-watcher's `rediff_watcher.py`
+  covers (the launcher, the loop); the mutex handover runs against this tree's Python, which is the v0.6.26 final's.
+
+### Risk 3 measured (P6-DESIGN 4.2: the CLR in the watcher)
+
+The host (release `car_core.dll`, the stand-in surfaces, show_tray off) beside the v0.6.26 Python watcher (this tree's
+src on Python 3.13), each on its own scratch home, five runs each, medians; private commit 10 s after "watcher started":
+
+| | start to "watcher started" | private commit | working set |
+|---|---|---|---|
+| host (CLR + car_core.dll) | 1.02 s | 10.8 MiB (10.7-10.9) | 20.2 MiB |
+| Python watcher | 3.65 s | 27.8 MiB (27.4-28.3) | 39.7 MiB |
+
+memguard's default limit (1024 MiB, off by default, `memguard.py:31`) fits with room; no re-check with the owner is
+needed on this. The commit with S6.3's surfaces drawing (GDI+, the popup) is the 24-hour soak's (Integration 10).
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `. tools/rustflags.sh`; rustc 1.100.0; code at `858f8d875`)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check: advisories, bans, licenses, sources ok
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+cargo test -p car-host -p car-watcher --features car-host/panic-test     every result ok (panic_feature 1, toasts 8)
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every binary the same with and without advanced/;
+                                                     profile-path scan none
+cargo build --release -p car-host; CAR_CORE_DLL=<release car_core.dll> cargo test -p car-host --test abi_exports
+                                                     3 passed: the six, and no panic wire in the release DLL
+Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan  Ran 32, OK
+```
+
+### For the next seats
+
+* **Integration 10**: drop `[standin]` and `gui/HostStandIn.cs`, take S6.3's host.sources groups; `gui/SurfaceJson.cs`
+  and the contract files are identical on both branches. guiscan's `HOST` is `[host]` + `[contract]`.
+* **The engine join** (above, "Not done"): `Watcher::start_with(.., maker)` is the seam; car-host's `abi::start` calls
+  `Watcher::start` today and would pass the maker.
+* **S8.2**: install.ps1's `Get-OwnedWatcherProcess` must learn `app\bin\CodexAutoResume.exe` (1.9); the archive now
+  carries the host (`rust_release.HOST`).
+* **Mutation checks: NOT run by this seat** (its context ran out after the gates). Proposed for the reviewer, each alone:
+  `abi::start` without the second-start refusal (`host_watcher`); `surface::icon_answers` not called in `update_tray`
+  (`host_watcher`); `locale`/`letters` dropped from `start_surfaces` (`host_watcher`); `Load` by bare name with flags 0
+  (the planted-DLL test); the `tick` trip moved outside `guarded` (`panic_feature`).
+
+### Left for the second part (main session's list of 2026-11-27; this seat stopped at a safe point, context exhausted)
+
+Nothing of the five steps below is started; the tree is clean at this commit.
+1. Engine join: move car-harness `engine.rs`'s `EngineStore` into car-watcher (a `join` module; the harness re-exports it);
+   car-engine `Given.plug`/`Engine.plug` -> `Arc<Guarded>` (every `Given { plug: Guarded::null() }` in car-harness
+   `proxy.rs`/`engine.rs` passes `Arc::new(..)`); `EngineMaker::engine(store, values, managed, plug: Arc<Guarded>)`;
+   a `Joined` maker: `App.backend()` (car-config `discover_codex_exe` with car-codex `Backend::_compatible` checks,
+   `app_engines`, the engine-word log line, `plug.codex(exe, home)`), `engine_moved` (file stamp, `_served_elsewhere`
+   with ELSEWHERE waits), `engine_state`, `_compatibility_tick` (car-codex `Evaluator::tick`, `layout::Watch`), a
+   `TickEngine` impl over `car_engine::Engine` (tick, watch_needed, watch, last_usage, detection_failed, handed_waits,
+   apply_policy, set_retiring, latest_failures, after_sleep, activity, follow_option), `Toasts(notifier)` and `EngineLog`,
+   `home_backend`/`home_engine` (NULL plug, `require_holder`); car-host `abi::start` -> `Watcher::start_with(.., maker)`.
+   Prove: `run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher` and the detection-check and
+   rescan goldens through car-control `Host::checkup`/`rescan_judge`.
+2. post_action `open_dashboard`/`open_chat` (ui/tray/dashboard.py, cut C6), `notice_action` (actor "toast",
+   car-surface `notifier::activate`), `notice_complete` (`notifier::complete`); the `notice` event as
+   `{id, key, title, stays, view, letters}` (car-surface `notice_card::view`); car-adv-host `export_core!(<advanced
+   factory>)` with S7.3d, then `abi_exports` with `CAR_CORE_DLL` on the advanced release DLL.
+3. `test_rust_release` and `test_rust_install` (both lanes) DETACHED via run_detached.sh + one background wait: both
+   timed out at ~580 s in foreground calls here and have no result.
+4. The five mutation checks listed above, and `tests/rustdiff/rediff_host.py --reference v0.6.26`.
+5. Gates in both workspaces, check_groundwork, check_rebuild; update this section.
+
+### The second part (seat S6.2b2, same branch, 2026-11-27)
+
+**1. The engine join (`0ffdd39fb`).** car-watcher `join`: `store::EngineStore` (moved from car-harness, which
+re-exports it; its second field is now a claim hook, `Option<fn(&Claim)>`, the harness's `note.claim`), `engine::Driven`
+(TickEngine over `car_engine::Engine`: tick, watch_needed, watch, last_usage, detection_failed, handed_waits,
+apply_policy, retiring, `source.latest_failures(since, (), True, True)`, after_sleep, activity, the follow option),
+`engine::Words` (car-control's `OnceWords` as the engine's), and `maker::Joined`, the product's `EngineMaker`:
+`App.backend()` (car-config `discover_codex_exe` with every candidate's `Backend::compatible` checks kept for the
+registry, the app asked through `pairing::app_engines`, its log line, `named_engine`, the engine line in the registry's
+word, `plug.codex(exe, home)`), `engine_moved` and `_served_elsewhere` (ELSEWHERE 60 s doubling to 15 min),
+`engine_state`, `_compatibility_tick` (car-codex `Evaluator`, a failure "unknown" and recorded) and `_layout_look`
+(`layout::Watch`), the engine's keywords (EngineLog in the watcher's one log - App's `Logbook` is now shared,
+`SharedLog`, and opened with the engine's STATE codes - Toasts over App's notifier, one dispatch lock, connectivity,
+the words for this time, `WATCHER_OPTIONS`), `home_backend`/`home_engine` (NULL plug, `require_holder`, the backend
+`home_backend` made reused by the next `home_engine`, as the reference's `run.backend`) and `_recovery_facts` (the
+Restart Manager through car-codex's `System::resource_users`). `App.app_runs` is `pairing::app_running_now`. Seams that
+moved: car-engine `Given.plug`/`Engine.plug` are `Arc<Guarded>`; car-engine `impl Backend for Arc<T>` (App and the
+engine hold one backend); `World::open_store` returns `Rc<Store>` and `World::engine`, `HomesApp::home_engine` and
+`Homes::sync` take `&Rc<Store>` (the engine shares the loop's store; `store.close()` at the end closes it once the
+engines are gone); `EngineMaker` gained `bind(Bound)`, `refresh_codex_exe` and the plug/values/managed arguments.
+car-host's `abi::start` passes `Joined` through `Watcher::start_with`.
+
+The notifier (`App::announce`): `notification_enabled` on the settings in force (shared with the Toasts thread),
+the identity, `notifier::build`, `with_open_codex`, the plug told (P20, `told` with a store of its own), and
+`notifier::deliver` with no card inbox and an empty presence answer, so the route is the toast
+(`notify::show_content` through `SystemPowerShell`). The card route waits for this PC's presence probes (car-platform,
+D3: not ported) and the notice event below.
+
+Safety: the host's tests and test_host_shell set `CODEX_AUTO_RESUME_CODEX_EXE` to a file that is not there, so
+discovery ends with ConfigError before any candidate is started; `host_watcher` asserts that line ("initialising Codex
+adapter failed (ConfigError)") and that EngineNotJoined is gone; `panic_feature` waits for it after the panicked tick.
+
+**2. The actions (`b29a3e138`).** car-watcher `dashboard` (ui/tray/dashboard.py, cut C6: the page and the row checked
+first - `row_argument`, PAGES, ROW_DIALOGS - the window asked to come forward through car-platform `handover`, else
+started with CREATE_NO_WINDOW; `open_chat` by a canonical UUID alone) and `surface::activate` (App._notice_action:
+`notifier::activate` over car-control with actor "toast", the openers, `open_in_codex`, and the toast route for what a
+cancel announces). `host_watcher` checks the refusals and that nothing starts where no Dashboard is installed.
+
+**3. Proofs.** `run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher -k diffs_bridge_acting`:
+Ran 29 tests in 1104 s, OK (the six watcher diffs and the 23 acting diffs, GoldenActsDiff's detection-check and rescan
+cases among them). `rediff_host.py` (`ffd55dcb0`) lists the followed files and reruns those and `diffs_engine`,
+`diffs_surface_notifier` against a tag. Mutation checks, each alone, all five failed their test: the second-start
+refusal removed (host_watcher:20), `icon_answers` not called in `update_tray` (host_watcher:52), `locale`/`letters`
+dropped from `start_surfaces` (host_watcher:31), the host started with no maker (host_watcher:116, the join's
+ConfigError line), the tick's trip moved outside `guarded` (panic_feature: the loop thread dies).
+
+### Still left after the second part (and why)
+
+* **The card route and the notice event** `{id, key, title, stays, view, letters}`, `notice_complete`: `deliver` needs
+  this PC's presence answers (car-surface `seam::Presence`, car-platform has no probe yet: every answer is "cannot
+  tell", so the route is always the toast) and a store of posted notices by id for `notice_complete`; watcher notices
+  are still car-watcher's `{event, detail, final}`.
+* **The detection-check and rescan goldens through the real host**: `SystemHost::checkup`/`rescan_judge` still refuse
+  (car-control's defaults); a car-watcher Host wrapper with `checkup::run` (`_conversations`: `passed_over`, the
+  engine's `not_taken_up`/`detection_since`) and `judge_for` (an engine with no backend per home) is the next piece.
+  The acting diffs pass over the stand-ins as before.
+* **car-adv-host `export_core!`** with the advanced factory (S7.3d) and `abi_exports` on the advanced release DLL.
+* Small differences recorded here, not hidden: `Words::prune` keeps every entry after `keep` raised and raises after
+  car-control's prune (the reference writes nothing when `keep` raises inside the change); the engine's `language` and
+  the notifier's locale read the environment's language (Windows' preferred languages are not in car-platform yet, as
+  for the icon's strings).
+* **`test_rust_release` fails on both lanes, one test**: `EntryRunTests.test_every_bootstrap_line_reaches_the_core` -
+  "does not reach the core: missing the core" (car-legacy's exit 1). It came with the first part's `858f8d875`
+  (the entry run now takes `car-core-proof.exe` from rust/target/release), which never ran it (both proofs timed out
+  there); this part touched neither car-legacy, car-bin nor `build/rust_legacy_bootstraps.py`, and the stub itself,
+  run directly in a scratch profile as `<home>\app\bin\codex-auto-resume.exe setup`, answers 3 (NOT_PORTED). Left
+  for the main session: why car-legacy's runtime python.exe does not find the stub at `app\bin` in the entry run.
+
+### Checks of the second part (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10; code at `ec4cfa3a2`)
+
+```
+Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan    Ran 32 in 168 s, OK
+test_rust_release, standard and advanced lanes (detached)                   Ran 25, FAILED (failures=1, skipped=1) each:
+                                                                            test_every_bootstrap_line_reaches_the_core
+test_rust_install, standard and advanced lanes (detached)                   Ran 11, OK (skipped=7) each
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check rc=0
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0 (its lock learned the
+                   car-watcher -> car-scheduler edge, `507aa8366`)
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates) after EXPECTED learned
+                                                     car-watcher -> car-scheduler (`c170c6c73`)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every binary the same with and without advanced/;
+                                                     profile-path scan none
+run.py --build --reference v0.6.26 --reference-python bundled -k diffs_watcher -k diffs_bridge_acting
+                                                     Ran 29 in 1104 s, OK
+```
+
+### The third part (seat S6.2b3, same branch, 2026-11-27)
+
+**0. The real-engine guard (`9322fee62`, its own commit).** Twice a test reached real discovery and started this PC's
+installed codex.exe. car-platform `realengine` names this PC's real Codex by the folders Windows knows
+(`SHGetKnownFolderPath`: LocalAppData\OpenAI, LocalAppData\Microsoft\WindowsApps, ProgramFiles\WindowsApps, the
+profile's .vscode\extensions, RoamingAppData\npm) - never the environment, which tests point at scratch folders (a
+scratch folder under %TEMP% is none of them, so the diffs' planted engines still run). Where the guard is on - the
+switch `CAR_NO_REAL_ENGINE`, or a crate's own `cfg!(test)` - car-config's discovery leaves those builds out (the
+probes' new `Links::engine_refused`: a candidate skipped, a named one "does not exist", the app's engines not offered),
+the process list (car-platform `kernel::processes_named`, car-codex `Platform`) leaves out the Codex app's rows (real
+paths, OpenAI.* families), and `SystemStarter::start_guarded(spawn, cfg!(test))` refuses the engine or a `codex:` /
+`shell:AppsFolder\OpenAI.*` argument before `Command::new` (error 2, as a missing program). Every car-codex, car-watcher
+and car-control start passes its own `cfg!(test)`. The switch is set by car-harness's three binaries (first statement
+of main), `tests/rustdiff/core.py` (every diff), `tests/sitecustomize.py` (every interpreter of the suite, so every Rust
+child of a Python test), `test_host_shell` and the host's and watcher's Rust tests. `car-watcher/tests/real_engine_guard.rs`
+points discovery at the real LocalAppData with the switch set: no real build checked or chosen, a named one refused, no
+real row listed, a start refused before `Command::new` (`last_started_flags` unchanged). With the switch's read turned
+off it FAILS, naming this PC's two real builds (the bin's and the Store app's) - the exact route of the incidents.
+
+**1. The card route (`98f164066`, `416d867ff`).** car-platform `presence`: notice_presence.py's probes (the shell's
+notification state, the two WinRT reads by the reference's IIDs and vtable slots with COM up only where this brought it
+up, the screen reader, a remote session, the input desktop's name, battery saver, the dismiss time); on this PC both
+sides answer the same. car-watcher `notices`: `presence()` (snapshot under the product's AUMID), `Route::deliver`
+(App._deliver: the plug told, then notifier.deliver with the stack's inbox), `_show_watcher_notice` and
+`_watcher_notice` (`WatcherNotices`: a final one now as the toast, the rest on their own Toasts; power notices past the
+switches) - the old `{event, detail, final}` notice event is gone - and the card announce in `surface::activate` now
+uses the inbox and the card setting. `Events` holds App._inbox: `cards_attached` attaches it with a wake that hands
+each notice over as `notice {id, key, title, stays, view, letters}` (notice_card.view; fonts._letters of the view's
+locale), `cards_detached` ends what was never taken as the toast off the calling thread, `notice_complete {id, shown}`
+runs notifier.complete once per id (an id the core never gave answers ok false). Tests: car-watcher `notices` 3,
+`host_watcher` (attach, an unknown id, detach).
+
+**3. The advanced DLL (`f846f1ae7`).** car-adv-host: `export_core!(advanced_plug)`, the advanced plug as the core sees
+it with no capability on (edition advanced, badge "Advanced", the trait's defaults - plug.py's AdvancedPlug answers as
+NULL while nothing is on). S7.3d puts the capabilities behind the same factory. `abi_exports` with `CAR_CORE_DLL` on
+the advanced release DLL: 3 passed.
+
+**4. The entry test (`85bfd58f4`).** Cause: `EntryRunTests` still took `rust/target/release/codex-auto-resume.exe`,
+which 858f8d875 made the real core, while the proof's own `entry_from_archive` was moved to the stub; the real core
+answered the bootstraps' lines itself (car-legacy passes its code through; 1 reads "missing the core"). It now takes
+`PROOF_CORE`: Ran 2, OK. No real value changed: this PC's Run value is still the installed Python watcher's, and
+neither the AUMID key nor a link handler of ours exists.
+
+### Still left after the third part
+
+* **Step 2, the detection-check and rescan goldens through the real host: NOT done** (this seat's context went to the
+  guard, the card route and the proofs). Needed: car-watcher `checkup::run` (settings load/read with the unread
+  reason, `managed()`, `sources_for`, `_conversations` - LocalSource `written`/`cloud_tasks`/`passed_over(since,
+  now-72h, every_status, newest 200, deadline 10 s)`, an `Engine(store, source, None, clock=now)` with
+  `apply_policy(values, held)` for `detection_since`/`not_taken_up`/`managed.disable_auto_resume`, the records by
+  thread and turn - `get_status`, `_presence` (now possible: `notices::presence` + car-surface `card_allowed`),
+  `_compatibility`, `_skip_lines` over `search_logs`, `lines`), `rescan::judge_for` (an engine with no backend and no
+  store per home key, HOME_UNKNOWN, one deadline), and a Host wrapper over car-control's SystemHost answering
+  `checkup`/`checkup_for_bundle`/`rescan_judge`, used by `Watcher::bridge` and car-bin's bridge; then the two goldens
+  (tests/golden/bridge/detection-check.json, rescan.json) compared through the real host.
+* The `demo` event (`App._demo`, `show_demo` over the inbox) is not wired.
+
+**rustflags (`3538dacf2`).** check_rebuild found the scratch checkout's path in the advanced `car_core.dll` once it
+exported the six (car-host and car-policy are path dependencies outside advanced/rust). Both `tools/rustflags.sh`
+(identical) now remap the repository, found by its car-host crate, to `/repo` first; the workspace's own remap still
+wins for its files, so the standard binaries are unchanged.
+
+### Checks of the third part (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check rc=0
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0 (at 3538dacf2), every binary the same; profile-path scan none
+python -X utf8 tests/rustdiff/rediff_host.py --reference v0.6.26     rc=0: diffs_watcher, diffs_bridge_acting (112 golden
+                                                     cases, 270 streams), diffs_engine, diffs_surface_notifier equal
+test_rust_release, standard and advanced lanes (detached)    Ran 25, OK (skipped=1) each
+test_rust_install, standard and advanced lanes (detached)    Ran 11, OK (skipped=7) each
+Python (wait_quiet.sh): test_host_shell test_host_contract test_guiscan    Ran 32, OK
+CAR_CORE_DLL=<advanced release car_core.dll> cargo test -p car-host --test abi_exports    3 passed
+Mutation: realengine::switched() answering false -> real_engine_guard FAILS (discovery checked this PC's two builds)
+```
+
+### The fourth part (seat S6.2b4, same branch, 2026-11-27)
+
+**1. Diagnostics' check and Rescan's judge through the real host (`8d222a52f`, `767502254`).** car-watcher
+`checkup::run` (with `_conversations`, `_presence`, `_skip_lines`, `sources_for`, `for_bundle`: the settings loaded and
+read with the unread reason said second, `managed()`, every home's `written`/`cloud_tasks`/`passed_over(since,
+now-72h, every_status, newest 200, deadline 10 s)`, an engine per home with `apply_policy(values, held)` for
+`detection_since`, `managed.disable_auto_resume` and `not_taken_up`, the records by thread and turn, `get_status`, the
+registry's view through car-control's now-public `bundle_compatibility`) and `rescan::judge_for` (`sources_for` by
+`homes::key`, one engine per home key with no store and no backend, HOME_UNKNOWN, one deadline). car-watcher `reading`:
+`NoStore`/`NoBackend` are the reference's `None` (every call `AttributeError`), `reading::engine` is `Engine(store,
+source, None, clock=lambda: now, home_key=key)` with the reference's defaults, `Reading` the `RescanEngine` over
+car-engine's `Engine` (its reader for `rescan_evidence` a second reader of the same home). car-watcher `checkhost::
+WatcherHost` wraps any `Host` and answers `checkup`, `checkup_for_bundle` and `rescan_judge`, everything else the
+wrapped host's: car-bin's `system_machine` and `Watcher::bridge` (the host's `car_bridge`) use it over `SystemHost`,
+car-harness `bridge.run` over its world's host when the world says `real_checks`. car-control: a `ControlError` leaving
+the host whole (`Raised::control` / `as_control`, so `checkup`'s `control._open()` refusal answers as `except
+ControlError` does) and `Redactor::with_key`.
+* **HistoryNotYet** (the main session's input): `checkup::history_not_yet(&Error)` reads the class `"HistoryNotYet"`;
+  car-v0627-finalport's car-codex raises it, Integration 11 joins the two (or replaces the body with
+  `error.is_history_not_yet()`). Until then a fresh home is `"readable": false` here and true in the tag (AUDIT line).
+* **Diffs** `tests/rustdiff/diffs_host_checks.py`: GoldenChecksDiff runs car-watcher over tests/wiregolden.py's own
+  installation (made in place: a copied template keeps the template's rollout paths, which is why the copy's Rescan
+  answers `unreadable` on both sides) and equals tests/golden/bridge/detection-check.json and rescan.json; CheckupDiff
+  (23 worlds, the bundle, an empty and a fresh home) and RescanDiff (10 worlds) equal the tag's `checkup.run` and
+  `rescan.judge_for` - replies, files, state and every Host call. Only `checkup._presence` (and, for the golden, the
+  aliases' key) are stood in for.
+
+**2. The demo event (`6e105dbc2`).** car-watcher `demo`: the core makes and looks at the demo event
+(`DemoEvent(str(paths.state_dir))`, once a second) while the surfaces are up, as the icon did (`ui/tray/icon.py:270-286`),
+and each signal runs `App._demo` on a worker: `notifier.build_demo(time.time())`, then `show_demo`'s gates (card setting
+exactly True, the host's stack attached, this PC's presence answers) and `Events::post_demo` - `demo {notice}`, the
+card's view under an id `notice_complete` ends once. Never a toast. Tests: `demo` 2 (every gate; the look stops).
+
+**3. Checks of the fourth part** (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `CAR_NO_REAL_ENGINE=1` in every run;
+reference v0.6.26 on the bundled 3.14.10):
+
+```
+run.py --build --reference v0.6.26 --reference-python bundled -k diffs_host_checks   Ran 6, OK: both goldens'
+                         cases through car-watcher; detection-check over 24 worlds, rescan over 10, equal to the tag
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0 (after the demo log's needless
+                   borrow); test --locked --no-fail-fast rc=0; cargo deny --locked check rc=0
+## advanced/rust   fmt rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny rc=0
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0 (at 53879617f), every binary the same; profile-path scan none
+Mutations, each alone, each failed its test: `brought` with `||` for `&&` (CheckupDiff: the golden home, paused, ...);
+  an unknown home key judged by the default home's engine (RescanDiff: a record of a home Settings do not know);
+  `history_not_yet` true for a SourceError (CheckupDiff: the history gone, damaged); every home `current`
+  (CheckupDiff: a second home - it passed until the case named a list Settings accept, `02773a39d`);
+  the demo's card-setting gate dropped (car-watcher demo test).
+```
+
+### Still left after the fourth part
+
+* Integration 11: `checkup::history_not_yet` against finalport's car-codex HistoryNotYet, and a diff world of a fresh
+  home (a state database with no conversation, no history database).
+* rediff: `python -X utf8 tests/rustdiff/rediff_host.py --reference v0.6.26` now includes `diffs_host_checks` and the
+  check's and judge's followed files; not rerun whole here (its other four diffs were last run by the third part).

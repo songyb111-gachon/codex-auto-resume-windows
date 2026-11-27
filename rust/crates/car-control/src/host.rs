@@ -47,7 +47,32 @@ impl Raised {
             format!("{what} is not wired into this host"),
         )
     }
+
+    /// A `ControlError` a call through the host let out (S6.2b4: `checkup.run`'s `control._open()`), carried whole -
+    /// its code and its message - so the bridge answers it as the reference's `except ControlError` does.
+    pub fn control(error: &crate::error::ControlError) -> Raised {
+        let mut message = error.code.clone();
+        message.push(CODE_END);
+        message.push_str(&String::from_utf8_lossy(error.message.as_bytes()));
+        Raised::new(CONTROL_ERROR, message)
+    }
+
+    /// The `ControlError` [`Raised::control`] carried, or None for any other exception.
+    pub fn as_control(&self) -> Option<crate::error::ControlError> {
+        if self.class != CONTROL_ERROR {
+            return None;
+        }
+        let (code, message) = self.message.split_once(CODE_END)?;
+        Some(crate::error::ControlError {
+            message: Str::from(message),
+            code: code.to_owned(),
+        })
+    }
 }
+
+const CONTROL_ERROR: &str = "ControlError";
+/// Between a carried ControlError's code (a closed word) and its message.
+const CODE_END: char = '\u{1f}';
 
 /// The three named events the control layer signals (`win/sync.py`): Retry now's look-now, Stop watcher's stop,
 /// and the demo card of Show me what happens.
@@ -691,7 +716,7 @@ impl Host for SystemHost {
             .with_flags(flags)
             .with_streams(Stream::Null, Stream::Null, Stream::Null)
             .with_cwd(cwd);
-        match SystemStarter.start(&request) {
+        match SystemStarter.start_guarded(&request, cfg!(test)) {
             Ok(child) => Ok(Box::new(Started(child))),
             Err(car_platform::spawn::SpawnError::Os(error)) => {
                 Err(Raised::new("OSError", os_error_text(&error)))
@@ -800,5 +825,8 @@ pub fn path_of(text: &str) -> PathBuf {
 impl car_config::Links for Probe {
     fn is_symlink(&self, path: &Path) -> bool {
         car_platform::links::is_symlink(path)
+    }
+    fn engine_refused(&self, path: &str) -> bool {
+        car_platform::realengine::refused(cfg!(test), path)
     }
 }

@@ -12,6 +12,8 @@
 use car_machine::json::{Map, Str, Value};
 use car_machine::vocab_gen::domain_states::WATCHED;
 use car_policy::settings::homes as configured;
+use std::rc::Rc;
+
 use car_store::Store;
 
 use crate::fail::{Failed, Res, guarded};
@@ -62,7 +64,7 @@ pub trait HomesApp {
     /// `home_engine(store, source, backend, key, held)`: the engine of that home, its lock read through `held`.
     fn home_engine(
         &mut self,
-        store: &Store,
+        store: &Rc<Store>,
         path: &str,
         exe: &str,
         key: &str,
@@ -158,7 +160,7 @@ impl Homes {
 
     /// `sync(store)`: bring the runs in line with Settings - retire what was removed, let go of what has settled,
     /// start what can be started (each at most every RETRY_SECONDS), and rebuild every engine on a new codex.exe.
-    pub fn sync(&mut self, app: &mut dyn HomesApp, store: &Store) -> Res<()> {
+    pub fn sync(&mut self, app: &mut dyn HomesApp, store: &Rc<Store>) -> Res<()> {
         let wanted = Homes::configured(app);
         let now = app.monotonic();
         let os = app.path_os();
@@ -276,7 +278,7 @@ impl Homes {
     fn start(
         &mut self,
         app: &mut dyn HomesApp,
-        store: &Store,
+        store: &Rc<Store>,
         key: &str,
         path: &str,
         alias: &Value,

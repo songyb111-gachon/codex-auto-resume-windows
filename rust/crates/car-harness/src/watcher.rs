@@ -301,7 +301,7 @@ impl HomesApp for ScriptWorld {
     }
     fn home_engine(
         &mut self,
-        _store: &Store,
+        _store: &std::rc::Rc<Store>,
         _path: &str,
         _exe: &str,
         _key: &str,
@@ -422,7 +422,7 @@ impl World for ScriptWorld {
     fn edition_badge(&self) -> Option<String> {
         None
     }
-    fn open_store(&mut self) -> Res<(Store, Option<i64>)> {
+    fn open_store(&mut self) -> Res<(std::rc::Rc<Store>, Option<i64>)> {
         call(&self.calls, vec!["open".into()]);
         if let Some(failed) = raised(&self.script.next("opens", Value::Null)) {
             return Err(failed);
@@ -432,13 +432,13 @@ impl World for ScriptWorld {
         options.check = true;
         let store = Store::open_with(Path::new(&self.state_dir), options)?;
         let from = store.migrated_from;
-        Ok((store, from))
+        Ok((std::rc::Rc::new(store), from))
     }
     fn engine_moved(&mut self) -> bool {
         call(&self.calls, vec!["moved".into()]);
         false
     }
-    fn engine(&mut self, _store: &Store) -> Res<Box<dyn TickEngine>> {
+    fn engine(&mut self, _store: &std::rc::Rc<Store>) -> Res<Box<dyn TickEngine>> {
         call(&self.calls, vec!["build".into()]);
         if let Some(failed) = raised(&self.script.next("builds", Value::Null)) {
             return Err(failed);

@@ -50,7 +50,7 @@ STANDARD = {
     "car-control": {"car-brand", "car-codex", "car-config", "car-machine", "car-platform", "car-policy",
                     "car-store", "car-surface", "car-words"},
     "car-watcher": {"car-codex", "car-config", "car-control", "car-engine", "car-machine", "car-platform",
-                    "car-policy", "car-store", "car-surface", "car-words"},
+                    "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
     # the entry points sit above control and watcher (C5)
     # S8.2: the stub core's test-double forward and the setup program start their child through car-platform's starter
     # S5.2: the command line reads the config, the store, the settings, the words and the vocabulary and asks
@@ -81,7 +81,8 @@ ADVANCED = {
     "car-adv": set(LIBS),
     # S6.2a: the Stop hook launcher (codex-auto-resume-hook) starts the core through car-platform's one starter.
     "car-adv-bin": {"car-adv", "car-bin", "car-platform"},
-    "car-adv-host": {"car-adv", "car-host"},
+    # S6.2b: the advanced factory's plug is a `car_policy::plug::Plug` (plug.py's AdvancedPlug), handed car-host as a Guarded
+    "car-adv-host": {"car-adv", "car-host", "car-policy"},
 }
 
 SHARED_FILES = ["rust-toolchain.toml", ".cargo/config.toml", "deny.toml", "tools/rustflags.sh"]

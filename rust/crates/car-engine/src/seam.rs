@@ -263,6 +263,47 @@ pub trait Backend {
 pub type WorkerSend =
     std::sync::Arc<dyn Fn(&str, &Str, &dyn LaunchGuard) -> Py<Value> + Send + Sync>;
 
+/// One backend held by the engine and by whoever built it (the watcher's App keeps `self._backend` beside the engine
+/// that drives it: the evaluator, the layout watch and `engine_moved` read the same object).
+impl<T: Backend + ?Sized> Backend for std::sync::Arc<T> {
+    fn app_identity(&self) -> Py<Value> {
+        (**self).app_identity()
+    }
+    fn loaded(&self, thread_id: &str, app_identity: &Value) -> Py<Value> {
+        (**self).loaded(thread_id, app_identity)
+    }
+    fn usage(&self) -> Py<Value> {
+        (**self).usage()
+    }
+    fn send(&self, thread_id: &str, prompt: &Str, launch_guard: &dyn LaunchGuard) -> Py<Value> {
+        (**self).send(thread_id, prompt, launch_guard)
+    }
+    fn delete_queue(&self, thread_id: &str, queue_id: &str) -> Py<Value> {
+        (**self).delete_queue(thread_id, queue_id)
+    }
+    fn app_look(&self) -> Value {
+        (**self).app_look()
+    }
+    fn app_unmatched_reason(&self) -> Value {
+        (**self).app_unmatched_reason()
+    }
+    fn protocol_results(&self) -> Value {
+        (**self).protocol_results()
+    }
+    fn session_holder(&self) -> Value {
+        (**self).session_holder()
+    }
+    fn engine_version(&self) -> Value {
+        (**self).engine_version()
+    }
+    fn holder(&self, thread_id: &str) -> Option<Py<Value>> {
+        (**self).holder(thread_id)
+    }
+    fn worker_send(&self) -> Option<WorkerSend> {
+        (**self).worker_send()
+    }
+}
+
 /// A person's words for this time (`control/oncewords.py`'s `OnceWords`).
 pub trait OnceWords {
     fn words(&self, interruption_id: &str) -> Py<Value>;

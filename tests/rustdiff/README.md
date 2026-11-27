@@ -580,3 +580,17 @@ The rows of the v0.6.26 final whose crates existed, ported from the tag itself. 
 | `diffs_finalport.py` PackageEnginesDiff | `package_engines`, `_package_engines` and `_binding_holds` over a scratch WindowsApps: the world's `packages` (appserverdiff's `fake_packages` and car-harness's `World::package_roots`, never this PC's), roots of 17 kinds x signed or not x the app open, closed or refused, then the engine replaced and gone |
 
 The re-diff: `python -X utf8 tests/rustdiff/rediff_finalport.py --reference v0.6.26`.
+
+## Diagnostics' check and Rescan through the real host (seat S6.2b4)
+
+`diffs_host_checks.py` runs `detection-check`, `rescan` and `diagnostics` through `bridge.run` with the world's
+`"real_checks": true`: car-harness wraps its world's host in car-watcher's `checkhost::WatcherHost`, as car-bin's
+bridge and the host's `car_bridge` wrap `SystemHost`, so car-watcher's `checkup::run` and `rescan::judge_for` answer.
+The reference is the tag's `controlcli` with actworld's stand-ins for both put back (`KEEP`/`REAL` around actworld's
+HOOK): only `checkup._presence` (the world's `presence`) and, for the golden case, `checkup.Redactor`'s key
+(`check_key`, as tests/wiregolden.py pins it) are stood in for. GoldenChecksDiff holds the reference over the world to
+tests/golden/bridge/detection-check.json and rescan.json and car-watcher to the reference; CheckupDiff and RescanDiff
+add the edges (paused, an administrator's pause, a conversation or category off, damaged settings, a missing or
+damaged history, a second home and refused entries, every presence and registry-view shape, other languages, empty
+and fresh homes, a person's later turn, a record of an unknown home). Equal: the replies, the files, the state and
+every Host call with its arguments.

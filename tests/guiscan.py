@@ -34,11 +34,8 @@ class ScanError(RuntimeError):
     """The window could not be listed. Never caught: a scan over nothing proves nothing."""
 
 
-# v0.6.27 (P6 step 0): the watcher host's contracts with car_core.dll, compiled alone by tests/test_host_contract.py
-# until the host's own list (gui/host.sources, S6.2b) builds them; never part of the window. (The MCP launcher and the
-# advanced Stop hook launcher that were built here from their own sources are Rust since v0.6.27: car-bin's
-# codex-auto-resume-mcp.exe and car-adv-bin's codex-auto-resume-hook.exe.)
-HOST = ("gui/HostCore.cs", "gui/ISurfaces.cs")
+# v0.6.27 (P6 step 0): the MCP launcher and the advanced Stop hook launcher that were built here from their own sources
+# are Rust since v0.6.27: car-bin's codex-auto-resume-mcp.exe and car-adv-bin's codex-auto-resume-hook.exe.
 # v0.6.27 (S6.3): the host's own list, gui/host.sources, and the surfaces its [surface] group names - the popup, the
 # icon's menu, the tip, the cards and the icon the host draws. Built into the host, never into the window.
 HOST_MANIFEST = GUI / "host.sources"
@@ -63,6 +60,9 @@ def host_group(name: str) -> tuple[str, ...]:
 
 
 SURFACE = host_group("surface")
+# v0.6.27 (S6.2b): the host's own files - its Main, pump and the core's imports ([host]) and the contract the surfaces
+# implement ([contract]). Built into the host from gui/host.sources, never into the window.
+HOST = host_group("host") + host_group("contract")
 SEPARATE = HOST + SURFACE
 
 # The groups `gui/window.sources` divides the compile list into, and what each one means:

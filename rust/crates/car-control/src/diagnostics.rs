@@ -196,6 +196,16 @@ impl Redactor {
         }
     }
 
+    /// `Redactor()` whose key is `key` (the bundle's own, handed to `checkup.for_bundle`'s check): no random bytes
+    /// are asked for.
+    pub fn with_key(control: &Control, key: &[u8]) -> Redactor {
+        let user = control.host.environ("USERNAME").unwrap_or_default();
+        Redactor {
+            key: key.to_vec(),
+            user: (user.chars().count() >= 3).then_some(user),
+        }
+    }
+
     pub fn key(&self) -> &[u8] {
         &self.key
     }
@@ -447,7 +457,7 @@ impl Control {
     }
 
     /// `_compatibility(control)`: the registry's view as a reader checks it, content-free.
-    fn bundle_compatibility(&self) -> Value {
+    pub fn bundle_compatibility(&self) -> Value {
         match self.get_settings() {
             Ok(values) => {
                 let mut explicit = Map::new();

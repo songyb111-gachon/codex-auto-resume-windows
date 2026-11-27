@@ -121,11 +121,15 @@ def function_text(text: str, name: str) -> str:
     return found.group(0)
 
 
+# car-bin's stub core (src/bin/proof.rs), built in the standard workspace only.
+PROOF_CORE = "car-core-proof.exe"
+
+
 def missing_build() -> str | None:
     for edition, folder in RELEASE.items():
         names = ["codex-auto-resume.exe", "codex-auto-resume-setup.exe", "car_core.dll"]
         if edition == "standard":
-            names += ["python.exe", "pythonw.exe"]
+            names += ["python.exe", "pythonw.exe", PROOF_CORE]
         for name in names:
             if not (folder / name).is_file():
                 return "not built: %s (cargo build --release in both workspaces)" % (folder / name)
@@ -271,8 +275,11 @@ def rust_stage(folder: Path, edition: str, lock: str) -> Path:
     shutil.copyfile(RELEASE["standard"] / "python.exe", work / "launcher.exe")
     stage = rust_release.stage_edition(folder / ("rust-" + edition), edition, VERSION, bins=RELEASE[edition],
                                        legacy=RELEASE["standard"], window=work / "window.exe",
-                                       launcher=work / "launcher.exe")
+                                       launcher=work / "launcher.exe", host=RELEASE["standard"] / "pythonw.exe")
     copy_python(stage / "payload" / "app" / "bin", host=True)
+    # The stub core in the real core's place (S6.2b): the double answers the installer's commands through it, and the
+    # real core's `setup`, which writes the real HKCU, never runs in a proof.
+    shutil.copyfile(RELEASE["standard"] / PROOF_CORE, stage / "payload" / "app" / "bin" / "codex-auto-resume.exe")
     installer = stage / "install" / "install.ps1"
     installer.write_bytes(compose(installer.read_bytes().decode("utf-8"), lock).encode("utf-8"))
     return stage

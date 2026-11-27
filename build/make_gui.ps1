@@ -112,7 +112,8 @@ function Build {
         [string[]]$References,
         [string]$Description,
         [string]$Kind,
-        [switch]$WithManifest
+        [switch]$WithManifest,
+        [string]$ManifestPath
     )
     $exe = Join-Path $Out $Name
     # A stamp from an earlier build never stands beside an executable that is being replaced: if
@@ -125,8 +126,12 @@ function Build {
                    ('/out:' + $exe))
     foreach ($reference in $References) { $arguments += ('/reference:' + $reference) }
     $arguments += ('/win32icon:' + $icon)
-    # Only the window declares per-monitor DPI awareness.
-    if ($WithManifest) { $arguments += ('/win32manifest:' + $manifest) }
+    # Only the window declares per-monitor DPI awareness; the host has its own manifest, which declares none.
+    if ($WithManifest) {
+        $chosen = $manifest
+        if ($ManifestPath) { $chosen = $ManifestPath }
+        $arguments += ('/win32manifest:' + $chosen)
+    }
     $arguments += $Sources
     & $csc @arguments
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' failed to compile.') }
@@ -191,3 +196,18 @@ Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -Kind 'window' -WithM
       -Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)') `
       -Sources $WindowSources `
       -References @('System.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll')
+
+# v0.6.27 (P6-DESIGN 1.7, Q3): the watcher host, CodexAutoResume.exe - one file for both editions (what differs is each
+# edition's car_core.dll), so only the standard run builds it. A GUI-subsystem program
+# (/target:winexe) with its own manifest, which declares no DPI awareness (gui/host.manifest); its sources are
+# gui/host.sources; System.dll and System.Drawing.dll only. Normalised and stamped like every executable here.
+if ($Edition -eq 'standard') {
+    $hostManifest = Join-Path $Root 'gui\host.manifest'
+    if (-not (Test-Path -LiteralPath $hostManifest -PathType Leaf)) { throw ($hostManifest + ' is missing; the host is not built without it.') }
+    $HostSources = @(Read-SourceList 'gui\host.sources')
+    if ($HostSources.Count -lt 1) { throw 'gui/host.sources names no source' }
+    Build -Name 'CodexAutoResume.exe' -Target 'winexe' -Kind 'host' -WithManifest -ManifestPath $hostManifest `
+          -Description 'Codex Auto Resume watcher host' `
+          -Sources $HostSources `
+          -References @('System.dll', 'System.Drawing.dll')
+}

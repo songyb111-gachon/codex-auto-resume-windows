@@ -17,8 +17,8 @@ and `check` refuses an executable whose stamp is missing, or names another versi
 digest than the tree holds now. It is a check on the tree being packed, not on the compiler:
 CI builds the executables and packs them in one job, so the stamp always matches there.
 
-    python build/gui_stamp.py write --root ROOT --edition standard|advanced --kind window EXE
-    python build/gui_stamp.py check --root ROOT --edition standard|advanced --kind window EXE
+    python build/gui_stamp.py write --root ROOT --edition standard|advanced --kind window|host EXE
+    python build/gui_stamp.py check --root ROOT --edition standard|advanced --kind window|host EXE
 """
 from __future__ import annotations
 
@@ -29,13 +29,14 @@ from pathlib import Path
 import sys
 
 STAMP_SUFFIX = ".stamp"
-# The one kind of executable make_gui.ps1 builds (v0.6.27: the launcher went to cargo).
-KINDS = ("window",)
+# The kinds of executable make_gui.ps1 builds (v0.6.27: the launcher went to cargo; the watcher host is C#).
+KINDS = ("window", "host")
 # Fixed inputs of every executable: the manifest and icon compiled into the window, and the two
 # scripts that decide the bytes.
 BUILD_SCRIPTS = ("build/make_gui.ps1", "build/normalize_pe.py")
 ICON = "assets/codex-auto-resume.ico"
 MANIFEST = "gui/app.manifest"
+HOST_MANIFEST = "gui/host.manifest"
 
 
 class StaleBuild(Exception):
@@ -59,19 +60,24 @@ def _source_list(root: Path, list_file: str) -> list:
 
 def inputs(root: Path, edition: str, kind: str) -> list:
     """Every file the build reads, as root-relative names in the order the compiler takes them."""
-    if kind == "window":
+    if kind == "host":
+        # v0.6.27: the watcher host, one file in both editions (built by the standard run only).
+        names = ["gui/host.sources"] + _source_list(root, "gui/host.sources") + [HOST_MANIFEST, ICON]
+    elif kind == "window":
         names = ["gui/window.sources"] + _source_list(root, "gui/window.sources")
         if edition == "advanced":
             names += ["advanced/gui/window.sources"] + _source_list(root, "advanced/gui/window.sources")
         names += [MANIFEST, ICON]
     else:
-        raise ValueError("kind is window, not %r" % kind)
+        raise ValueError("kind is window or host, not %r" % kind)
     return names + list(BUILD_SCRIPTS)
 
 
 def describe(root: Path, edition: str, kind: str) -> dict:
     """The stamp this tree would give an executable of that kind and edition."""
     root = Path(root)
+    if kind == "host":
+        edition = "standard"           # one file in both editions, built by the standard run only
     manifest = json.loads((root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8-sig"))
     digest = hashlib.sha256()
     # The version resource is a pure function of these three fields (make_gui.ps1).
@@ -95,8 +101,8 @@ def write(exe: Path, root: Path, edition: str, kind: str) -> dict:
 
 
 def rebuild_command(edition: str, kind: str) -> str:
-    """What makes the executable again."""
-    if edition == "standard":
+    """What makes the executable again; the host is built by the standard run only."""
+    if kind == "host" or edition == "standard":
         return "powershell -File build/make_gui.ps1"
     return "powershell -File build/make_gui.ps1 -Edition %s" % edition
 

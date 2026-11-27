@@ -436,6 +436,7 @@ pub fn run(home: &Path, request: &Map) -> Value {
         Err(class) => return rejected(class, "request_failed"),
     };
     let acts = Arc::clone(&host.acts);
+    let host = real_checks(&world, host, home);
     let control = car_control::Control::new(paths, host, Arc::new(Guarded::null()));
     let input = match request.get("input") {
         Some(Value::Str(text)) => unhex(text.as_str().unwrap_or_default()),
@@ -502,6 +503,50 @@ impl car_policy::plug::Plug for StatusPlug {
             },
         ))
     }
+}
+
+/// S6.2b4: with `"real_checks": true` the world's host is wrapped as the product wraps its own
+/// (car-watcher `checkhost::WatcherHost`): Diagnostics' check and Rescan's judge run by the watcher's own rules over the
+/// world's answers, and `presence` is what Windows says of a notice's route (`{"raise": class}` raises).
+fn real_checks(world: &Map, host: Arc<WorldHost>, home: &Path) -> Arc<dyn Host> {
+    if !matches!(world.get("real_checks"), Some(Value::Bool(true))) {
+        return host;
+    }
+    let presence = world.get("presence").cloned().unwrap_or(Value::Null);
+    let key = match world.get("check_key") {
+        Some(Value::Str(text)) => Some(unhex(text.as_str().unwrap_or_default())),
+        _ => None,
+    };
+    let root = home.to_string_lossy().into_owned();
+    let made = car_watcher::checkhost::WatcherHost::new(
+        host,
+        Arc::new(Guarded::null()),
+        Arc::new(move |home: &Path| {
+            let no_env = |_: &str| None;
+            car_config::Paths::new(
+                Some(&home.to_string_lossy()),
+                &root,
+                &no_env,
+                car_config::Os::here(false, crate::links::for_config()),
+            )
+        }),
+        Arc::new(move || match &presence {
+            Value::Object(map) if map.contains_key("raise") => Err(Raised::new(
+                map.get("raise")
+                    .and_then(|class| match class {
+                        Value::Str(text) => text.as_str(),
+                        _ => None,
+                    })
+                    .unwrap_or("Exception"),
+                "",
+            )),
+            found => Ok(found.clone()),
+        }),
+    );
+    Arc::new(match key {
+        Some(key) => made.with_key(&key),
+        None => made,
+    })
 }
 
 /// What a Control method answered, as `control.call` replies it: `{"value": v}`, `{"refusal": [sentence, code]}`

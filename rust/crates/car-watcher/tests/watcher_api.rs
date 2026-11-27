@@ -57,6 +57,8 @@ fn a_watcher_starts_is_stopped_and_says_ended_last() {
             std::env::set_var(name, &base);
         }
         std::env::set_var("CODEX_HOME", &codex);
+        // The real-engine guard (car-platform `realengine`): no engine or app of this PC is found, listed or started.
+        std::env::set_var("CAR_NO_REAL_ENGINE", "1");
         std::env::remove_var("CODEX_AUTO_RESUME_HOME");
         std::env::remove_var("CODEX_AUTO_RESUME_RELAUNCHED");
         std::env::remove_var("CODEX_AUTO_RESUME_AFTER_STOP");

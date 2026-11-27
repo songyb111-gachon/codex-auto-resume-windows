@@ -16,6 +16,9 @@ import sys as _sys
 # "unittest" is in sys.modules, and a Rust child of a test has no sys.modules, so every interpreter of the suite says
 # it in the one way the Rust side reads, before anything can start a child. No test can sleep or shut this PC down.
 _os.environ.setdefault("CAR_NO_POWER_ACTION", "1")
+# The Rust core's real-engine guard (car-platform realengine), the same way: no Rust child of a test finds, lists or
+# starts this PC's installed Codex engine or the Codex app.
+_os.environ.setdefault("CAR_NO_REAL_ENGINE", "1")
 
 if _os.environ.get("CODEX_AR_CORE") == "rust":
     try:

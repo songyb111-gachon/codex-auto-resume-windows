@@ -19,6 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 # tests/sitecustomize.py gives every interpreter of the suite: the reference refuses under unittest, Rust by this.
 POWER_GUARD = "CAR_NO_POWER_ACTION"
 os.environ.setdefault(POWER_GUARD, "1")
+# And the real-engine guard (car-platform realengine): no Rust process of a diff finds, lists or starts this PC's
+# installed Codex engine or app (twice on 2026-11-27 a test reached the owner's codex.exe).
+REAL_ENGINE_GUARD = "CAR_NO_REAL_ENGINE"
+os.environ.setdefault(REAL_ENGINE_GUARD, "1")
 CRATE = ROOT / "rust" / "crates" / "car-harness"
 MANIFEST = CRATE / "Cargo.toml"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)

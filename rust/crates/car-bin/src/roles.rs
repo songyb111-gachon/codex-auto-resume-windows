@@ -227,7 +227,12 @@ pub fn system_machine() -> Machine {
     let project_root = crate::setup::project_root_of(&exe)
         .to_string_lossy()
         .into_owned();
-    let host: Arc<dyn Host> = Arc::new(car_control::host::SystemHost::new(&project_root));
+    // S6.2b4: Diagnostics' check and Rescan's judge are the watcher's own rules (car-watcher `checkhost`).
+    let host: Arc<dyn Host> = Arc::new(car_watcher::checkhost::WatcherHost::system(
+        Arc::new(car_control::host::SystemHost::new(&project_root)),
+        Arc::new(car_policy::plug::Guarded::null()),
+        &project_root,
+    ));
     Machine {
         host,
         outside: Arc::new(crate::seam::SystemOutside),

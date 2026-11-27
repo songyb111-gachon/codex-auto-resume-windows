@@ -156,6 +156,10 @@ fn serve() -> i32 {
 }
 
 fn main() {
+    // The real-engine guard (car-platform `realengine`): the harness is test-only, so no engine or app of this PC is
+    // ever found, listed or started from it, whatever environment a diff gives it.
+    // SAFETY: the first statement of main, before any thread exists.
+    unsafe { std::env::set_var("CAR_NO_REAL_ENGINE", "1") };
     // A thread with the stack for a deeply nested document (car_machine::stack).
     car_machine::stack::run_deep(run);
 }

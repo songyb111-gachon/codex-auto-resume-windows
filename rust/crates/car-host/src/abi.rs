@@ -32,12 +32,14 @@
 //! * **A null `out_len`.** The call does nothing and answers NULL: a reply the host cannot measure is a reply it
 //!   cannot free.
 //!
-//! **The empty core.** Until S6.1's watcher is here there is nothing to start: `car_start` reads the request and
-//! answers `{"abi": 1, "ok": false, "error": "not_ported"}` (as the stub core refuses every command, car-bin
-//! `NOT_PORTED`: it never answers success for work it did not do); `car_stop` has nothing to stop and answers 0;
-//! `car_bridge` and every known action answer `{"ok":false,"error":"not_started"}`; `car_next_event` has no event to
-//! give and answers NULL when `timeout_ms` has passed. S6.2b fills these bodies over car-watcher; the six signatures,
-//! the tables and the rules above change only by the main session's word (P6-DESIGN 4.1).
+//! **The core (S6.2b).** The six drive car-watcher's [`Watcher`]: `car_start` starts it (the launcher on a thread of
+//! its own, the watch loop over App in this process; `{"abi": 1, "ok": true}`); a second `car_start` in one process
+//! is `bad_request`, since one process hosts one watcher. Before a start `car_stop` has nothing to stop and answers 0,
+//! `car_bridge` and every known action answer `{"ok":false,"error":"not_started"}`, and `car_next_event` gives only
+//! what [`queue`] put there; after it, each export is the watcher's own call (`stop`, `bridge` on a deep stack,
+//! `next_event`, `post_action`). A panic caught at an export is also recorded as `App._record_failure` records an
+//! exception once the watcher has a home (the class alone in the log, the detail in `errors.log`). The six
+//! signatures, the tables and the rules above change only by the main session's word (P6-DESIGN 4.1).
 //!
 //! **One generic entry (Q3, P7-DESIGN 2.4).** One `CodexAutoResume.exe` serves both editions; what differs is in each
 //! edition's `car_core.dll`, and only in the [`Factory`] it hands [`export_core!`](crate::export_core): car-host's own
@@ -46,11 +48,12 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use car_machine::json::{self, Map, Options, Str, Value};
 use car_policy::plug::Guarded;
+use car_watcher::api::Watcher;
 
 /// The contract's version, in every `car_start` reply. A host and a core of different versions never run together.
 pub const ABI: i64 = 1;
@@ -400,7 +403,7 @@ pub enum Refusal {
     BadRequest,
     /// An action outside the closed table.
     UnknownAction,
-    /// The core has no watcher to start (the empty core, until S6.1).
+    /// The core has no watcher to start (the empty core of step 0; no longer answered).
     NotPorted,
     /// Nothing is started, so there is nothing to ask.
     NotStarted,
@@ -434,13 +437,23 @@ static STATE: Mutex<State> = Mutex::new(State {
 /// Rung when an event is queued, so `car_next_event` returns as soon as there is one.
 static QUEUED: Condvar = Condvar::new();
 static PANICS: AtomicU64 = AtomicU64::new(0);
+/// The one watcher this process hosts, once `car_start` started it.
+static WATCHER: Mutex<Option<Arc<Watcher>>> = Mutex::new(None);
+
+/// The watcher, where one was started.
+fn watcher() -> Option<Arc<Watcher>> {
+    WATCHER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
 
 fn state() -> MutexGuard<'static, State> {
     STATE.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// How many panics the exports caught since the DLL was loaded. S6.2b also records each one as
-/// `App._record_failure` does (a class-only line in the main log, the detail in `errors.log`) once the core has a home.
+/// How many panics the exports caught since the DLL was loaded. Each one is also recorded as `App._record_failure`
+/// records an exception (a class-only line in the main log, the detail in `errors.log`) once the core has a home.
 pub fn panics() -> u64 {
     PANICS.load(Ordering::Relaxed)
 }
@@ -467,21 +480,40 @@ pub(crate) fn trip(name: &'static str) {
     TRIP.with(|trip| trip.set(name));
 }
 
-/// The test hook: panics where a test asked this export to. Nothing in a build that is not a test.
+/// The test hook: panics where a test asked this export to (a unit test's thread-local, or `CAR_CORE_PANIC` in a
+/// core built with the feature `panic-test`). Nothing in a shipped build.
 #[inline]
 fn tripwire(_name: &str) {
     #[cfg(test)]
     if TRIP.with(|trip| trip.get()) == _name {
         panic!("tripped in {_name}");
     }
+    car_watcher::trip::wire(_name);
 }
 
-/// `body()`, a panic caught and counted.
-fn guarded<T>(body: impl FnOnce() -> T) -> Option<T> {
+/// What a panic carried, as text.
+fn said(payload: &car_machine::caught::Payload) -> String {
+    if let Some(text) = payload.downcast_ref::<&str>() {
+        (*text).to_owned()
+    } else if let Some(text) = payload.downcast_ref::<String>() {
+        text.clone()
+    } else {
+        String::new()
+    }
+}
+
+/// `body()`, a panic caught, counted and recorded under the export's name.
+fn guarded<T>(name: &str, body: impl FnOnce() -> T) -> Option<T> {
     match car_machine::caught::catch(body) {
         Ok(value) => Some(value),
-        Err(_) => {
+        Err(payload) => {
             PANICS.fetch_add(1, Ordering::Relaxed);
+            let detail = said(&payload);
+            let _ = car_machine::caught::catch(|| {
+                if let Some(watcher) = watcher() {
+                    watcher.record_failure(name, "panic", &detail);
+                }
+            });
             None
         }
     }
@@ -550,7 +582,7 @@ unsafe fn answer(
     if out_len.is_null() {
         return std::ptr::null_mut();
     }
-    let bytes = guarded(|| {
+    let bytes = guarded(name, || {
         tripwire(name);
         work()
     })
@@ -567,7 +599,9 @@ unsafe fn answer(
 }
 
 /// `car_start`: `{"argv": [<text>...], "home": ..., "image": ...}` -> `{"abi": 1, "ok": ...}`. A request that is not
-/// an object whose `argv` is a list of texts is `bad_request`; the empty core then answers `not_ported`.
+/// an object whose `argv` is a list of texts is `bad_request`, and so is a second start in one process; otherwise
+/// the watcher is started over the edition's plug (`factory`), its project root the folder above the image's `bin`
+/// (`app\bin\CodexAutoResume.exe` -> `app`, `config.PROJECT_ROOT`), and the answer is `{"abi": 1, "ok": true}`.
 ///
 /// # Safety
 /// `request` points at `request_len` readable bytes (or is null with a length of 0); `out_len` is null or writable.
@@ -587,11 +621,45 @@ pub unsafe fn start(
             if read.is_none() {
                 return Some(refused(Refusal::BadRequest, true));
             }
-            // S6.1: the watcher is built here with `factory()` and the reply is `{"abi": 1, "ok": true}`.
-            let _ = factory;
-            Some(refused(Refusal::NotPorted, true))
+            let Some(request) = read else {
+                return Some(refused(Refusal::BadRequest, true));
+            };
+            let mut held = WATCHER.lock().unwrap_or_else(PoisonError::into_inner);
+            if held.is_some() {
+                return Some(refused(Refusal::BadRequest, true));
+            }
+            let root = project_root(&request);
+            match Watcher::start_with(&request, factory, &root, Some(joined())) {
+                Ok(started) => {
+                    *held = Some(Arc::new(started));
+                    let mut map = Map::new();
+                    map.insert(Str::new("abi"), int(ABI));
+                    map.insert(Str::new("ok"), Value::Bool(true));
+                    Some(written(&Value::Object(map)))
+                }
+                Err(_) => Some(refused(Refusal::BadRequest, true)),
+            }
         })
     }
+}
+
+/// `config.PROJECT_ROOT` for the host's image: the folder above its `bin` (the image's grandparent), the running
+/// program's where the request names no image.
+fn project_root(request: &Value) -> String {
+    let image = match request {
+        Value::Object(map) => match map.get(&Str::new("image")) {
+            Some(Value::Str(text)) => text.as_str().map(std::path::PathBuf::from),
+            _ => None,
+        },
+        _ => None,
+    }
+    .or_else(|| std::env::current_exe().ok())
+    .unwrap_or_default();
+    image
+        .parent()
+        .and_then(std::path::Path::parent)
+        .map(|root| root.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 fn start_request_holds(request: &Value) -> bool {
@@ -604,18 +672,21 @@ fn start_request_holds(request: &Value) -> bool {
     }
 }
 
-/// `car_stop`: the in-process stop (`StopEvent.signal()`'s effect). 0 once it is signalled (the empty core has
-/// nothing to stop, which is signalled at once); -1 when a panic was caught.
+/// `car_stop`: the in-process stop (`StopEvent.signal()`'s effect). 0 once it is signalled (before a start there is
+/// nothing to stop, which is stopped at once); -1 when a panic was caught.
 pub fn stop() -> i32 {
-    guarded(|| {
+    guarded("car_stop", || {
         tripwire("car_stop");
+        if let Some(watcher) = watcher() {
+            let _ = watcher.stop();
+        }
         0
     })
     .unwrap_or(-1)
 }
 
-/// `car_bridge`: one bridge request line -> its reply, the bytes `bridge serve` writes for it. The empty core answers
-/// `not_started`.
+/// `car_bridge`: one bridge request line -> its reply, the bytes `bridge serve` writes for it (car-control's `serve`
+/// over the watcher's home, read on a deep stack: car-machine `stack`). Before a start: `not_started`.
 ///
 /// # Safety
 /// As [`start`].
@@ -624,10 +695,19 @@ pub unsafe fn bridge(line: *const u8, length: usize, out_len: *mut usize) -> *mu
     unsafe {
         answer("car_bridge", out_len, false, || {
             // SAFETY: the caller's promise about `line`.
-            if request(line, length).is_none() {
+            let Some(bytes) = request(line, length) else {
                 return Some(refused(Refusal::BadRequest, false));
+            };
+            let Some(watcher) = watcher() else {
+                return Some(refused(Refusal::NotStarted, false));
+            };
+            let bytes = bytes.to_vec();
+            let reply = car_machine::stack::run_deep(move || watcher.bridge(&bytes));
+            // No home to answer from: nothing is started that could answer (an empty reply has no buffer to free).
+            if reply.is_empty() {
+                return Some(refused(Refusal::NotStarted, false));
             }
-            Some(refused(Refusal::NotStarted, false))
+            Some(reply)
         })
     }
 }
@@ -640,6 +720,14 @@ pub unsafe fn next_event(timeout_ms: u32, out_len: *mut usize) -> *mut u8 {
     // SAFETY: the caller's promise, handed on.
     unsafe {
         answer("car_next_event", out_len, false, || {
+            if let Some(watcher) = watcher() {
+                if let Some(event) = state().events.pop_front() {
+                    return Some(written(&event.to_json()));
+                }
+                return watcher
+                    .next_event(Duration::from_millis(u64::from(timeout_ms)))
+                    .map(|event| written(&event));
+            }
             let deadline = Instant::now() + Duration::from_millis(u64::from(timeout_ms));
             let mut held = state();
             loop {
@@ -660,7 +748,8 @@ pub unsafe fn next_event(timeout_ms: u32, out_len: *mut usize) -> *mut u8 {
 }
 
 /// `car_post_action`: one action of the closed table -> its answer. `bad_request` and `unknown_action` as
-/// [`Action::parse`] says; the empty core answers every known action `not_started`.
+/// [`Action::parse`] says; before a start every known action is `not_started`; after it, the watcher's answer
+/// (`Watcher::post_action`, its fields by the table's names, a field left out null).
 ///
 /// # Safety
 /// As [`start`].
@@ -676,7 +765,16 @@ pub unsafe fn post_action(request_bytes: *const u8, length: usize, out_len: *mut
             };
             match Action::parse(&read) {
                 Err(refusal) => Some(refused(refusal, false)),
-                Ok(_action) => Some(refused(Refusal::NotStarted, false)),
+                Ok(action) => match watcher() {
+                    None => Some(refused(Refusal::NotStarted, false)),
+                    Some(watcher) => {
+                        let mut fields = Map::new();
+                        for (name, value) in action.kind.fields().iter().zip(action.fields) {
+                            fields.insert(Str::new(name), value);
+                        }
+                        Some(written(&watcher.post_action(action.kind.name(), &fields)))
+                    }
+                },
             }
         })
     }
@@ -688,7 +786,7 @@ pub unsafe fn post_action(request_bytes: *const u8, length: usize, out_len: *mut
 /// # Safety
 /// None beyond the call itself: the pointer is only compared with the replies the core recorded.
 pub unsafe fn free(buffer: *mut u8, length: usize) {
-    let _ = guarded(|| {
+    let _ = guarded("car_free", || {
         tripwire("car_free");
         if buffer.is_null() {
             return;
@@ -771,6 +869,14 @@ macro_rules! export_core {
     };
 }
 
+/// The engine join (S6.2b2): the watcher's engine, its backend and the Compatibility Registry, over car-engine and
+/// car-codex on this machine.
+fn joined() -> Box<dyn FnOnce() -> Box<dyn car_watcher::app::EngineMaker> + Send> {
+    Box::new(|| {
+        Box::new(car_watcher::join::Joined::new()) as Box<dyn car_watcher::app::EngineMaker>
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -816,13 +922,7 @@ mod tests {
     }
 
     #[test]
-    fn start_answers_the_abi_and_the_empty_core_refuses() {
-        let refused = r#"{"abi": 1, "ok": false, "error": "not_ported"}"#;
-        assert_eq!(
-            started(r#"{"argv": ["run"], "home": null, "image": "C:\\x"}"#).as_deref(),
-            Some(refused)
-        );
-        assert_eq!(started(r#"{"argv": []}"#).as_deref(), Some(refused));
+    fn start_answers_the_abi_and_refuses_what_it_cannot_read() {
         let bad = r#"{"abi": 1, "ok": false, "error": "bad_request"}"#;
         for request in [
             "",
@@ -847,7 +947,7 @@ mod tests {
 
     #[test]
     fn a_null_out_len_does_nothing() {
-        let request = r#"{"argv": []}"#;
+        let request = r#"{"argv": [1]}"#;
         // SAFETY: a null `out_len` is never written.
         let buffer = unsafe {
             start(
@@ -985,7 +1085,7 @@ mod tests {
 
     #[test]
     fn car_free_frees_once_and_only_what_it_made() {
-        let request = r#"{"argv": []}"#;
+        let request = r#"{"argv": "run"}"#;
         let mut length = 0usize;
         // SAFETY: `request` lives for the call; `length` is the test's.
         let buffer = unsafe { start(null_plug, request.as_ptr(), request.len(), &mut length) };
@@ -1011,7 +1111,7 @@ mod tests {
     fn a_panic_in_an_export_is_caught_and_answered() {
         let before = panics();
         trip("car_start");
-        let text = started(r#"{"argv": []}"#);
+        let text = started(r#"{"argv": [1]}"#);
         assert_eq!(
             text.as_deref(),
             Some(r#"{"abi": 1, "ok": false, "error": "panic"}"#)
@@ -1039,6 +1139,16 @@ mod tests {
         assert!(panics() >= before + 6, "every caught panic is counted");
         // And the next call runs as before.
         assert_eq!(stop(), 0);
+    }
+
+    #[test]
+    fn the_project_root_is_the_folder_above_the_images_bin() {
+        let request =
+            json::from_str(r#"{"argv": [], "image": "C:\\h\\app\\bin\\CodexAutoResume.exe"}"#)
+                .unwrap();
+        assert_eq!(project_root(&request), "C:\\h\\app");
+        let named = json::from_str(r#"{"argv": [], "image": 3}"#).unwrap();
+        assert!(!project_root(&named).is_empty(), "the running program's");
     }
 
     #[test]

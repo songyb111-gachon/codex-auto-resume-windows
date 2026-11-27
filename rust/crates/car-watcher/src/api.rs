@@ -60,6 +60,7 @@ pub struct Watcher {
     home: Option<String>,
     project_root: String,
     plug: Arc<SharedPlug>,
+    popup: crate::surface::Popup,
     thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
@@ -85,6 +86,7 @@ struct SystemLauncher {
     events: Arc<Events>,
     state: Arc<Mutex<Option<String>>>,
     maker: Option<Box<dyn FnOnce() -> Box<dyn EngineMaker> + Send>>,
+    popup: crate::surface::Popup,
 }
 
 struct Process(std::process::Child);
@@ -214,6 +216,7 @@ impl LauncherWorld for SystemLauncher {
             host,
             events: Arc::clone(&self.events),
             maker,
+            popup: Arc::clone(&self.popup),
         });
         let mut state = crate::watchloop::Loop::new();
         crate::watchloop::run(&mut app, &mut state, false, None)
@@ -228,7 +231,7 @@ impl LauncherWorld for SystemLauncher {
             car_platform::spawn::Stream::Null,
         );
         car_platform::spawn::SystemStarter
-            .start(&spawn)
+            .start_guarded(&spawn, cfg!(test))
             .map(|child| Box::new(Process(child)) as Box<dyn Child>)
             .map_err(|error| error.to_string())
     }
@@ -247,7 +250,7 @@ impl LauncherWorld for SystemLauncher {
                 car_platform::spawn::Stream::Null,
             );
         car_platform::spawn::SystemStarter
-            .start(&spawn)
+            .start_guarded(&spawn, cfg!(test))
             .map(|_| ())
             .map_err(|error| error.to_string())
     }
@@ -301,6 +304,7 @@ impl Watcher {
         let events = Arc::new(Events::new());
         let state = Arc::new(Mutex::new(None));
         let plug = Arc::new(SharedPlug::new(factory));
+        let popup = crate::surface::new_popup();
         let mut world = SystemLauncher {
             here,
             image,
@@ -309,6 +313,7 @@ impl Watcher {
             events: Arc::clone(&events),
             state: Arc::clone(&state),
             maker,
+            popup: Arc::clone(&popup),
         };
         let ended = Arc::clone(&events);
         // The watcher reads the state, the settings and Codex's lines: a deep stack (car-machine `stack`).
@@ -326,6 +331,7 @@ impl Watcher {
             home,
             project_root: project_root.to_owned(),
             plug,
+            popup,
             thread: Mutex::new(Some(thread)),
         })
     }
@@ -353,7 +359,12 @@ impl Watcher {
 
     /// The host's answers to the two waits and the card stack's attachment (`tray_started`, `closed`,
     /// `cards_attached`, `cards_detached`); `toggle`, `stop` and `disarm_power` through the control layer with the
-    /// reference's actors. Every other action of the table is the surfaces' (S6.2b, S6.3): `not_ported` until then.
+    /// reference's actors; `popup {call, args}` done as `perform` does it (`surface::Shared::act`) and
+    /// `failure_seen`/`mark_seen` as the icon's `_failure_seen` (`acknowledge_failure()`), each followed at once by a
+    /// snapshot drawn from the outcome; `open_dashboard` and `open_chat` as `ui/tray/dashboard.py` opens the window,
+    /// `notice_action` as `App._notice_action` (`notifier.activate`, actor "toast"); `cards_attached`/`cards_detached`
+    /// attach and detach the card stack's inbox, and `notice_complete {id, shown}` ends a card's notice
+    /// (`notifier.complete`).
     pub fn post_action(&self, action: &str, fields: &Map) -> Value {
         let answer = |ok: bool| {
             let mut map = Map::new();
@@ -370,12 +381,32 @@ impl Watcher {
                 answer(true)
             }
             "cards_attached" => {
-                self.events.cards(true);
+                self.events.attach_cards();
                 answer(true)
             }
             "cards_detached" => {
-                self.events.cards(false);
+                // The stack's `stop`: what it never took ends as the toast, off this thread (`_complete(notice, False)`).
+                let waiting = self.events.detach_cards();
+                if !waiting.is_empty() {
+                    std::thread::spawn(move || {
+                        for notice in waiting {
+                            crate::notices::complete(&notice, &Value::Bool(false));
+                        }
+                    });
+                }
                 answer(true)
+            }
+            "notice_complete" => {
+                // `notifier.complete(notice, shown is True)`; the host posts it on a worker thread (PowerShell runs).
+                let id = fields.get("id").cloned().unwrap_or(Value::Null);
+                match self.events.take_posted(&id) {
+                    Some(notice) => {
+                        let shown =
+                            Value::Bool(matches!(fields.get("shown"), Some(Value::Bool(true))));
+                        answer(crate::notices::complete(&notice, &shown))
+                    }
+                    None => answer(false),
+                }
             }
             "stop" => answer(
                 self.stop() != 0
@@ -397,6 +428,82 @@ impl Watcher {
                 }
                 None => answer(false),
             },
+            "popup" => match self.control() {
+                Some(control) => {
+                    let call = match fields.get("call") {
+                        Some(Value::Str(call)) => call.as_str().unwrap_or_default().to_owned(),
+                        _ => String::new(),
+                    };
+                    let args = fields.get("args").cloned().unwrap_or(Value::Null);
+                    let source = self.names();
+                    let popup = crate::surface::ControlPopup {
+                        control: &control,
+                        source,
+                    };
+                    let said = crate::surface::held(&self.popup).act(
+                        &popup,
+                        &call,
+                        &args,
+                        crate::clock::wall(),
+                    );
+                    self.snapshot_now(&control);
+                    said
+                }
+                None => answer(false),
+            },
+            "failure_seen" | "mark_seen" => match self.control() {
+                Some(control) => match control.acknowledge_failure(None, false) {
+                    Ok(_) => {
+                        self.snapshot_now(&control);
+                        answer(true)
+                    }
+                    Err(failure) => {
+                        let failed = crate::fail::Failed::from(failure);
+                        self.log(&format!(
+                            "tray failure acknowledgement failed ({})",
+                            failed.class
+                        ));
+                        answer(false)
+                    }
+                },
+                None => answer(false),
+            },
+            "open_dashboard" | "open_chat" => {
+                let Some(paths) = self.paths() else {
+                    return answer(false);
+                };
+                let home = Path::new(&paths.home);
+                let opened = if action == "open_dashboard" {
+                    let page = match fields.get("page") {
+                        Some(Value::Str(page)) => page.as_str(),
+                        _ => None,
+                    };
+                    let row = fields.get("row").filter(|row| !matches!(row, Value::Null));
+                    crate::dashboard::open_dashboard(home, page, row)
+                } else {
+                    crate::dashboard::open_chat(home, fields.get("thread").unwrap_or(&Value::Null))
+                };
+                match opened {
+                    Ok(done) => answer(done),
+                    Err(refused) => {
+                        let mut map = Map::new();
+                        map.insert("ok".into(), Value::Bool(false));
+                        map.insert("error".into(), Value::from(refused.0));
+                        Value::Object(map)
+                    }
+                }
+            }
+            "notice_action" => match (self.control(), self.paths()) {
+                (Some(control), Some(paths)) => {
+                    let uri = fields.get("uri").cloned().unwrap_or(Value::Null);
+                    let word = crate::surface::activate(self, &control, &paths, &uri);
+                    let mut map = Map::new();
+                    map.insert("ok".into(), Value::Bool(true));
+                    map.insert("result".into(), Value::from(word));
+                    Value::Object(map)
+                }
+                _ => answer(false),
+            },
             _ => {
                 let mut map = Map::new();
                 map.insert("ok".into(), Value::Bool(false));
@@ -406,15 +513,85 @@ impl Watcher {
         }
     }
 
-    /// The control layer bound to the watcher's home, once the watcher runs.
-    fn control(&self) -> Option<car_control::Control> {
+    /// The event queue and the card stack's inbox.
+    pub fn events(&self) -> &Events {
+        &self.events
+    }
+
+    /// One line of the watcher's log, from the host's side (`self.logger.info`).
+    pub fn info(&self, line: &str) {
+        self.log(line);
+    }
+
+    /// The popup's names, as App reads them (`App.source()`).
+    fn names(&self) -> Option<car_codex::source::LocalSource> {
+        let paths = self.paths()?;
+        let host = car_control::host::SystemHost::new(&self.project_root);
+        crate::surface::names(&host, &paths.split_chains_file)
+    }
+
+    /// The last snapshot again, at once, with the icon's answers asked again and the popup's view drawn from what the
+    /// click changed - where a tray snapshot was sent before.
+    fn snapshot_now(&self, control: &car_control::Control) {
+        let mut popup = crate::surface::held(&self.popup);
+        let Some(mut last) = popup.snapshot.clone() else {
+            return;
+        };
+        crate::surface::icon_answers(control, &mut last);
+        popup.snapshot = Some(last.clone());
+        let field = popup.field(crate::clock::wall());
+        drop(popup);
+        self.events.queue_snapshot(Value::Object(last), field);
+    }
+
+    /// The watcher's paths, once it runs.
+    fn paths(&self) -> Option<car_config::Paths> {
         let state = self
             .state
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()?;
         let home = Path::new(&state).parent()?.to_string_lossy().into_owned();
-        let paths = crate::app::paths(Some(&home), &self.project_root).ok()?;
+        crate::app::paths(Some(&home), &self.project_root).ok()
+    }
+
+    /// One line in the watcher's log, where it runs.
+    fn log(&self, line: &str) {
+        if let Some(paths) = self.paths() {
+            let log = car_config::logbook::Logbook::open(&paths.log_file, "", &[])
+                .with_rename(car_platform::files::rename);
+            log.info(line, &crate::clock::LogClock::here());
+        }
+    }
+
+    /// `App._record_failure(label)` for a failure the host's boundary caught (D15): the class alone in the main log,
+    /// the detail in the rotating `errors.log` - once the watcher has a home; nothing before.
+    pub fn record_failure(&self, label: &str, class: &str, detail: &str) {
+        let Some(paths) = self.paths() else {
+            return;
+        };
+        self.log(&format!("{label} failed ({class}); no submission was made"));
+        let path = std::path::PathBuf::from(&paths.error_log);
+        let _ = (|| -> std::io::Result<()> {
+            use std::io::Write;
+            let mut stream = car_machine::pyfile::options()
+                .create(true)
+                .append(true)
+                .open(&path)?;
+            let when = crate::app::stamp_now();
+            let text = format!("{when}{label}\n{class}: {detail}\n");
+            stream.write_all(text.replace('\n', "\r\n").as_bytes())?;
+            drop(stream);
+            if std::fs::metadata(&path)?.len() > 2_000_000 {
+                car_platform::files::replace(&path, &path.with_extension("log.1"))?;
+            }
+            Ok(())
+        })();
+    }
+
+    /// The control layer bound to the watcher's home, once the watcher runs.
+    fn control(&self) -> Option<car_control::Control> {
+        let paths = self.paths()?;
         Some(car_control::Control::new(
             paths,
             Arc::new(car_control::host::SystemHost::new(&self.project_root)),
@@ -435,11 +612,13 @@ impl Watcher {
         let Ok(paths) = crate::app::paths(home.as_deref(), &self.project_root) else {
             return Vec::new();
         };
-        let control = car_control::Control::new(
-            paths,
+        // S6.2b4: the bridge's host answers Diagnostics' check and Rescan's judge by the watcher's own rules.
+        let host = crate::checkhost::WatcherHost::system(
             Arc::new(car_control::host::SystemHost::new(&self.project_root)),
             self.plug.get(),
+            &self.project_root,
         );
+        let control = car_control::Control::new(paths, Arc::new(host), self.plug.get());
         let mut input: &[u8] = line;
         let mut output = Vec::new();
         car_control::bridge::serve(&control, &mut input, &mut output);
@@ -513,6 +692,7 @@ mod tests {
             events: Arc::clone(&events),
             state: Arc::clone(&state),
             maker: None,
+            popup: crate::surface::new_popup(),
         };
         let watcher = Watcher {
             events: Arc::clone(&events),
@@ -520,6 +700,7 @@ mod tests {
             home: Some(home_text.clone()),
             project_root: project_root.clone(),
             plug: Arc::clone(&plug),
+            popup: crate::surface::new_popup(),
             thread: Mutex::new(None),
         };
         let app = App::new(Start {
@@ -530,6 +711,7 @@ mod tests {
             host: Arc::new(car_control::host::SystemHost::new(&project_root)),
             events,
             maker: Box::new(NotJoined),
+            popup: crate::surface::new_popup(),
         });
         assert_eq!(launcher.supervise_held(&home), count(1));
         assert_eq!(app.control().plug().supervise_held(), count(2));

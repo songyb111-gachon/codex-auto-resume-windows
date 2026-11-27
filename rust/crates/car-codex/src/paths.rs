@@ -79,7 +79,7 @@ pub fn kind(name: &str) -> Option<&'static Kind> {
 
 /// The value of the digits of a generation, as the decimal text `int()` reads them to, leading zeros gone (a number
 /// of any length, compared as text).
-fn generation(name: &str, found: &Kind) -> Option<String> {
+pub fn generation(name: &str, found: &Kind) -> Option<String> {
     let digits = name
         .strip_prefix(found.prefix)?
         .strip_suffix(found.suffix)?;

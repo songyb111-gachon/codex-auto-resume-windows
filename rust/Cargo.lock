@@ -177,6 +177,7 @@ dependencies = [
  "car-machine",
  "car-platform",
  "car-policy",
+ "car-scheduler",
  "car-store",
  "car-surface",
  "car-words",

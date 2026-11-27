@@ -19,6 +19,14 @@ _car_win() { local p bs; bs='\'; p="$(cd "$1" 2>/dev/null && pwd -W)"; printf '%
 _car_ws="$(_car_win "$(dirname "${BASH_SOURCE[0]}")/..")"
 _car_cargo="$(_car_win "${CARGO_HOME:-$HOME/.cargo}")"
 _car_rustup="$(_car_win "${RUSTUP_HOME:-$HOME/.rustup}")"
-export RUSTFLAGS="--remap-path-prefix=${_car_ws}=/build --remap-path-prefix=${_car_cargo}=/cargo --remap-path-prefix=${_car_rustup}=/rustup -C link-arg=/Brepro -C link-arg=/PDBALTPATH:%_PDB%"
+# The repository (the folder above the standard workspace, found by its car-host crate): the advanced workspace builds
+# car-host and car-policy from rust/crates, outside its own folder, so their panic locations would name the checkout.
+# Remapped first: where both match, rustc applies the last, so a workspace's own files stay /build.
+_car_repo=""; _car_up="$(dirname "${BASH_SOURCE[0]}")/.."
+for _car_i in 1 2 3; do
+    _car_up="$_car_up/.."
+    if [ -f "$_car_up/rust/crates/car-host/Cargo.toml" ]; then _car_repo="--remap-path-prefix=$(_car_win "$_car_up")=/repo "; break; fi
+done
+export RUSTFLAGS="${_car_repo}--remap-path-prefix=${_car_ws}=/build --remap-path-prefix=${_car_cargo}=/cargo --remap-path-prefix=${_car_rustup}=/rustup -C link-arg=/Brepro -C link-arg=/PDBALTPATH:%_PDB%"
 if [ "${1:-}" = "release" ]; then export RUSTFLAGS="$RUSTFLAGS -C link-arg=/DEBUG:NONE"; fi
-unset _car_ws _car_cargo _car_rustup
+unset _car_ws _car_cargo _car_rustup _car_repo _car_up _car_i

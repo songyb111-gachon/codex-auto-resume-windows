@@ -3,10 +3,10 @@
 //!
 //! Here: every verdict and every word of it that does not read Codex - the usage reading (`_usage`), the summary
 //! (`_summary`, its FIRST order), the times in words (`_ago`, `_within`), a reason's words (`_reason`) and the result
-//! said line by line (`lines`), in every language the catalogs hold. What reads Codex and the records - `_conversations`
-//! (the failure scan's `passed_over`, the engine's `not_taken_up` and `detection_since`) and `run` gathering it - is
-//! joined with the engine by the integration, through car-control's `Host::checkup` (P6-DESIGN 4.1 row 1a's
-//! `detection-check` golden then runs whole).
+//! said line by line (`lines`), in every language the catalogs hold; and (S6.2b4) what reads Codex and the records -
+//! `_conversations` (the failure scan's `passed_over`, the engine's `not_taken_up` and `detection_since`),
+//! `_presence`, `_skip_lines`, `sources_for` and `run` gathering it, which car-control's `Host::checkup` answers
+//! through [`crate::checkhost::WatcherHost`].
 
 use car_machine::json::{Map, Value};
 use car_machine::pyval;
@@ -612,4 +612,531 @@ pub fn lines(result: &Value, now: f64, locale: &str) -> Vec<String> {
         said.push(format!("  {}", car_machine::pytext::py_str(&line)));
     }
     said
+}
+
+// ------------------------------------------------------------------------------------------- run (S6.2b4)
+
+use std::collections::BTreeSet;
+use std::rc::Rc;
+
+use car_codex::source::LocalSource;
+use car_control::Control;
+use car_control::diagnostics::Redactor;
+use car_control::error::Failure;
+use car_control::host::Raised;
+
+/// What `run` lets out, as the reference raises it: a ControlError whole, anything else by its class.
+fn failure(failed: Failure) -> Raised {
+    match failed {
+        Failure::Control(refused) => Raised::control(&refused),
+        Failure::Other(class) => Raised::new(&class, ""),
+    }
+}
+
+fn store_failed(error: car_store::errors::Error) -> Raised {
+    Raised::new(error.class(), error.message())
+}
+
+fn reader_failed(failed: crate::fail::Failed) -> Raised {
+    Raised::new(&failed.class, failed.message)
+}
+
+/// `except HistoryNotYet:` (v0.6.26 final): a fresh home whose history Codex has not made yet - read, and holding
+/// nothing - is passed by, not unreadable. car-codex says so by the exception's class; the final-port seat's
+/// `Error::is_history_not_yet()` answers the same, and Integration 11 joins the two.
+pub fn history_not_yet(error: &car_codex::errors::Error) -> bool {
+    error.class() == "HistoryNotYet"
+}
+
+/// `sources_for(control)`: (label, reader) for each Codex home the watcher knows - the default (label None) first,
+/// then each one Settings add, by its number (2, 3, ...).
+pub fn sources_for(control: &Control) -> Result<Vec<(Value, LocalSource)>, Raised> {
+    let chains = control.paths.split_chains_file.clone();
+    let host = &control.host;
+    let mut found = vec![(
+        Value::Null,
+        crate::reading::source(host, &chains, &host.codex_home()).map_err(reader_failed)?,
+    )];
+    let named = control
+        .get_settings()
+        .ok()
+        .and_then(|values| values.get(car_policy::settings::homes::FIELD).cloned())
+        .unwrap_or(Value::Null);
+    if let Value::Array(entries) = named {
+        for (number, entry) in (2i64..).zip(&entries) {
+            if let Value::Object(entry) = entry
+                && let Some(Value::Str(path)) = entry.get("path")
+            {
+                let path = crate::fail::lossy(path);
+                found.push((
+                    Value::from(number),
+                    crate::reading::source(host, &chains, &path).map_err(reader_failed)?,
+                ));
+            }
+        }
+    }
+    Ok(found)
+}
+
+/// `_presence()` over the probes' answers: how a notice reaches the person now - card or toast, Do not disturb,
+/// this app's notifications, each None where Windows cannot say.
+pub fn presence(found: &Map) -> Value {
+    let mode = found
+        .get("notification_mode")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let allowed = found
+        .get("app_notifications")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let card = car_surface::notice_presence::card_allowed(
+        &car_surface::notice_presence::Answers::from_probes(found),
+    );
+    let int = |value: &Value| match value {
+        Value::Int(int) => int.as_i64(),
+        _ => None,
+    };
+    let mut out = Map::new();
+    out.insert(
+        "route".into(),
+        Value::from(if card { "card" } else { "toast" }),
+    );
+    out.insert(
+        "do_not_disturb".into(),
+        int(&mode).map_or(Value::Null, |mode| {
+            Value::Bool(mode != car_surface::notice_presence::MODE_UNRESTRICTED)
+        }),
+    );
+    out.insert(
+        "app_allowed".into(),
+        int(&allowed).map_or(Value::Null, |allowed| {
+            Value::Bool(allowed == car_surface::notice_presence::APP_ENABLED)
+        }),
+    );
+    Value::Object(out)
+}
+
+/// This PC's `_presence()`: the probes read now under the product's AUMID.
+pub fn system_presence() -> Result<Value, Raised> {
+    match crate::notices::presence().map_err(|_| Raised::new("OSError", ""))? {
+        Value::Object(found) => Ok(presence(&found)),
+        _ => Err(Raised::new("TypeError", "")),
+    }
+}
+
+/// `_skip_lines(control, redact)`: the watcher's last skip lines (and the two lines beside them), redacted.
+fn skip_lines(control: &Control, redact: &Redactor) -> Vec<Value> {
+    let lines_of = |query: &str, limit: usize| -> Option<Vec<Value>> {
+        let found = control
+            .search_logs(&Value::from(query), &Value::from(limit as i64))
+            .ok()?;
+        match get(&found, "lines") {
+            Value::Array(lines) => Some(lines.clone()),
+            _ => None,
+        }
+    };
+    let Some(mut found) = lines_of("not taken up", SKIP_LINES) else {
+        return Vec::new();
+    };
+    let Some(more) = lines_of("automatic recovery is off", 3) else {
+        return Vec::new();
+    };
+    found.extend(more);
+    found.sort_by_key(|line| car_machine::pytext::py_str(get(line, "at")));
+    let start = found.len().saturating_sub(SKIP_LINES);
+    found[start..]
+        .iter()
+        .map(|line| {
+            Value::from(redact.text(&format!(
+                "{} {}",
+                car_machine::pytext::py_str(get(line, "at")),
+                car_machine::pytext::py_str(get(line, "text"))
+            )))
+        })
+        .collect()
+}
+
+fn obj(pairs: Vec<(&str, Value)>) -> Map {
+    let mut map = Map::new();
+    for (key, value) in pairs {
+        map.insert(key.into(), value);
+    }
+    map
+}
+
+/// What `_conversations` hands back: the rows, the homes, and how many were left out and unchecked.
+struct Read {
+    rows: Vec<Value>,
+    homes: Vec<Map>,
+    left: (i64, i64),
+}
+
+/// `_conversations(control, sources, engine_for, now, redact)`: each recent conversation's latest turn in every
+/// home, and for one the failure scan brings, the engine's own remaining reasons and the records of that turn.
+fn conversations(
+    control: &Control,
+    sources: &[(Value, LocalSource)],
+    values: &Value,
+    held: &car_policy::settings::managed::Managed,
+    now: f64,
+    redact: &Redactor,
+) -> Result<Read, Raised> {
+    let (mut found, mut homes, mut left) = (Vec::new(), Vec::new(), (0i64, 0i64));
+    let deadline = car_codex::rollout::monotonic() + SECONDS;
+    let store = Rc::new(control.open_current().map_err(failure)?);
+    let stored = store.settings().map_err(store_failed)?;
+    let records = store.all_records().map_err(store_failed)?;
+    for (label, source) in sources {
+        let mut home = obj(vec![
+            ("home", label.clone()),
+            ("state_written", Value::Null),
+            ("history_written", Value::Null),
+            ("current", Value::Bool(false)),
+            ("readable", Value::Bool(true)),
+            ("cloud_tasks", Value::Null),
+        ]);
+        match source.written() {
+            Ok(written) => {
+                let time = |at: Option<f64>| at.map_or(Value::Null, Value::Float);
+                home.insert("state_written".into(), time(written.state_written));
+                home.insert("history_written".into(), time(written.history_written));
+                home.insert(
+                    "cloud_tasks".into(),
+                    source.cloud_tasks().map_or(Value::Null, Value::from),
+                );
+            }
+            Err(_) => {
+                home.insert("readable".into(), Value::Bool(false));
+            }
+        }
+        homes.push(home);
+        let at = homes.len() - 1;
+        // `engine_for(store, source)`: the engine reads through a reader of its own over the same home.
+        let reader = crate::reading::source(
+            &control.host,
+            &control.paths.split_chains_file,
+            &source.home,
+        )
+        .map_err(reader_failed)?;
+        let mut engine =
+            crate::reading::engine(&control.host, Some(Rc::clone(&store)), reader, now, "");
+        engine.apply_policy(values, Some(held.clone()));
+        let since = engine
+            .detection_since(&stored)
+            .map_err(|class| Raised::new(class, ""))?;
+        let read = match source.passed_over(
+            &Value::Float(since),
+            &Value::Float(now - (HOURS * 3600) as f64),
+            true,
+            &BTreeSet::new(),
+            Some(NEWEST as usize),
+            Some(deadline),
+        ) {
+            Ok(read) => read,
+            Err(error) if history_not_yet(&error) => continue,
+            Err(_) => {
+                homes[at].insert("readable".into(), Value::Bool(false));
+                continue;
+            }
+        };
+        let count = |name: &str| match read.get(name) {
+            Some(Value::Int(int)) => int.as_i64().unwrap_or(0),
+            _ => 0,
+        };
+        left.0 += count("more");
+        left.1 += count("unchecked");
+        let passed = match read.get("passed") {
+            Some(Value::Array(passed)) => passed.clone(),
+            _ => Vec::new(),
+        };
+        for entry in &passed {
+            let Value::Object(fields) = entry else {
+                continue;
+            };
+            let field = |name: &str| fields.get(name).cloned().unwrap_or(Value::Null);
+            let brought = text(&field("status")).as_deref() == Some("failed")
+                && matches!(field("reason"), Value::Null);
+            let turns = field("turns_id");
+            let mut remaining = Vec::new();
+            let mut taken = Vec::new();
+            if brought {
+                if !pyval::truthy(stored.get("enabled").unwrap_or(&Value::Null))
+                    || engine.managed.disable_auto_resume
+                {
+                    remaining.push(Value::from(
+                        car_machine::vocab_gen::domain_skips::RECOVERY_OFF,
+                    ));
+                }
+                if let Some((why, _)) = engine
+                    .not_taken_up(fields)
+                    .map_err(|class| Raised::new(class, ""))?
+                {
+                    remaining.push(Value::from(why.as_str()));
+                }
+                for record in &records {
+                    let of = |name: &str| record.get(name).unwrap_or(&Value::Null);
+                    if pyval::eq(of("thread_id"), &field("thread_id"))
+                        && pyval::eq(of("turn_id"), &field("turn_id"))
+                    {
+                        taken.push(of("state").clone());
+                    }
+                }
+            }
+            let under = if pyval::truthy(&turns) {
+                Value::from(redact.alias(&turns, "thread"))
+            } else {
+                Value::Null
+            };
+            found.push(Value::Object(obj(vec![
+                (
+                    "thread",
+                    Value::from(redact.alias(&field("thread_id"), "thread")),
+                ),
+                ("home", label.clone()),
+                ("status", field("status")),
+                ("category", field("category")),
+                ("completed_at", field("completed_at")),
+                ("reason", field("reason")),
+                ("kind", field("kind")),
+                ("turns_under", under),
+                ("brought", Value::Bool(brought)),
+                ("remaining", Value::Array(remaining)),
+                ("records", Value::Array(taken)),
+            ])));
+        }
+    }
+    let newest = homes
+        .iter()
+        .filter_map(|home| match home.get("history_written") {
+            Some(Value::Float(at)) => Some(*at),
+            _ => None,
+        })
+        .reduce(f64::max);
+    for home in &mut homes {
+        let current = match (newest, home.get("history_written")) {
+            (Some(newest), Some(Value::Float(at))) => *at == newest,
+            _ => false,
+        };
+        home.insert("current".into(), Value::Bool(current));
+    }
+    let completed = |row: &Value| {
+        let at = get(row, "completed_at");
+        if pyval::truthy(at) {
+            number(at).unwrap_or(0.0)
+        } else {
+            0.0
+        }
+    };
+    found.sort_by(|a, b| {
+        completed(a)
+            .partial_cmp(&completed(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(Read {
+        rows: found,
+        homes,
+        left,
+    })
+}
+
+/// How `run` is asked: the clock, the aliases' key (a fresh one where None), the language (the Interface
+/// language where None) and how a notice reaches the person now.
+pub struct Asked<'a> {
+    pub now: f64,
+    pub key: Option<&'a [u8]>,
+    pub locale: Option<&'a str>,
+    pub presence: &'a dyn Fn() -> Result<Value, Raised>,
+}
+
+fn interface_locale(control: &Control) -> String {
+    match control.get_settings() {
+        Ok(values) => {
+            let host = &control.host;
+            let environ = |name: &str| host.environ(name);
+            let windows = || host.windows_languages();
+            let preference = match values.get("interface_language") {
+                Some(Value::Str(text)) => Some(crate::fail::lossy(text)),
+                _ => None,
+            };
+            car_words::l10n::resolve(preference.as_deref(), &environ, &windows).to_owned()
+        }
+        Err(_) => car_words::l10n::DEFAULT.to_owned(),
+    }
+}
+
+/// `run(control, sources=None, *, now=None, redact=None, locale=None, presence=None)`: the check, run now - the
+/// structured result and `lines`, the summary first.
+pub fn run(control: &Control, asked: &Asked<'_>) -> Result<Value, Raised> {
+    let now = asked.now;
+    let sources = sources_for(control)?;
+    let redact = match asked.key {
+        Some(key) => Redactor::with_key(control, key),
+        None => Redactor::new(control),
+    };
+    let locale = match asked.locale {
+        Some(locale) => locale.to_owned(),
+        None => interface_locale(control),
+    };
+    let os = control.host.os();
+    let path = control.settings_path();
+    let settings_failed = |error: car_policy::settings::SettingsError| {
+        Raised::new(error.class(), lossy_text(&error.message()))
+    };
+    let values = car_policy::settings::load(&*os, &path).map_err(settings_failed)?;
+    let unread = match car_policy::settings::read(&*os, &path) {
+        Ok(_) => None,
+        Err(car_policy::settings::SettingsError::Unreadable { reason, .. }) => Some(reason),
+        Err(error) => return Err(settings_failed(error)),
+    };
+    let held = control.managed();
+    let read = conversations(
+        control,
+        &sources,
+        &Value::Object(values),
+        &held,
+        now,
+        &redact,
+    )?;
+    let status = control
+        .get_status()
+        .unwrap_or_else(|_| Value::Object(Map::new()));
+    let running = pyval::truthy(get(&status, "watcher_running"));
+    let notices = (asked.presence)().unwrap_or_else(|_| {
+        Value::Object(obj(vec![
+            ("route", Value::Null),
+            ("do_not_disturb", Value::Null),
+            ("app_allowed", Value::Null),
+        ]))
+    });
+    let codex = codex_of(&control.bundle_compatibility());
+    let cloud: Vec<i64> = read
+        .homes
+        .iter()
+        .filter_map(|home| match home.get("cloud_tasks") {
+            Some(Value::Int(int)) => int.as_i64(),
+            _ => None,
+        })
+        .collect();
+    let total: i64 = cloud.iter().sum();
+    let mut split: Vec<(String, String)> = read
+        .rows
+        .iter()
+        .filter(|row| pyval::truthy(get(row, "turns_under")))
+        .map(|row| {
+            (
+                text(get(row, "thread")).unwrap_or_default(),
+                text(get(row, "turns_under")).unwrap_or_default(),
+            )
+        })
+        .collect();
+    split.sort();
+    split.dedup();
+    let split = split
+        .iter()
+        .map(|(thread, other)| {
+            Value::Object(obj(vec![
+                ("thread", Value::from(thread.as_str())),
+                ("turns_under", Value::from(other.as_str())),
+            ]))
+        })
+        .collect();
+    let said = summary(&read.rows, running, &Value::from(total));
+    let mut result = obj(vec![
+        ("summary", Value::from(said.as_str())),
+        ("watcher_running", Value::Bool(running)),
+        ("conversations", Value::Array(read.rows)),
+        (
+            "left_out",
+            Value::Object(obj(vec![
+                ("conversations", Value::from(read.left.0)),
+                ("unchecked", Value::from(read.left.1)),
+            ])),
+        ),
+        ("split", Value::Array(split)),
+        (
+            "homes",
+            Value::Array(read.homes.into_iter().map(Value::Object).collect()),
+        ),
+        (
+            "cloud_tasks",
+            if cloud.is_empty() {
+                Value::Null
+            } else {
+                Value::from(total)
+            },
+        ),
+        ("usage", usage(&status, now)),
+        ("notices", notices),
+        ("codex", codex),
+        ("skips", Value::Array(skip_lines(control, &redact))),
+    ]);
+    let mut words: Vec<Value> = lines(&Value::Object(result.clone()), now, &locale)
+        .into_iter()
+        .map(Value::from)
+        .collect();
+    if let Some(reason) = unread {
+        // The verdicts above are on the defaults, which the watcher does not act on while the file cannot be read.
+        let line = t("check.settings_unreadable", &locale, &[("reason", reason)]);
+        words.insert(1.min(words.len()), Value::from(line));
+    }
+    result.insert("lines".into(), Value::Array(words));
+    Ok(Value::Object(result))
+}
+
+/// `{"version", "tier", "engine_found"}` of the registry's view (`_compatibility(control)`); the defaults for a view
+/// that is not a dict, or whose engine is neither a dict nor empty (the reference's `AttributeError`, caught).
+fn codex_of(compat: &Value) -> Value {
+    let fallback = || {
+        Value::Object(obj(vec![
+            ("version", Value::Null),
+            ("tier", Value::Null),
+            ("engine_found", Value::Bool(false)),
+        ]))
+    };
+    let Value::Object(compat) = compat else {
+        return fallback();
+    };
+    let engine = compat.get("engine").cloned().unwrap_or(Value::Null);
+    let engine = if pyval::truthy(&engine) {
+        match engine {
+            Value::Object(map) => map,
+            _ => return fallback(),
+        }
+    } else {
+        Map::new()
+    };
+    let found = pyval::truthy(engine.get("found").unwrap_or(&Value::Null));
+    Value::Object(obj(vec![
+        (
+            "version",
+            engine.get("version").cloned().unwrap_or(Value::Null),
+        ),
+        (
+            "tier",
+            compat.get("overall").cloned().unwrap_or(Value::Null),
+        ),
+        ("engine_found", Value::Bool(found)),
+    ]))
+}
+
+fn lossy_text(text: &car_machine::json::Str) -> String {
+    crate::fail::lossy(text)
+}
+
+/// `for_bundle(control)(redact)`: the check as the diagnostics bundle runs it - in English, under the bundle's key.
+pub fn for_bundle(
+    control: &Control,
+    key: &[u8],
+    now: f64,
+    presence: &dyn Fn() -> Result<Value, Raised>,
+) -> Result<Value, Raised> {
+    run(
+        control,
+        &Asked {
+            now,
+            key: Some(key),
+            locale: Some(car_words::l10n::DEFAULT),
+            presence,
+        },
+    )
 }

@@ -989,7 +989,7 @@ fn open(request: &Map) -> Engine {
         language,
         home_lock: Some(Box::new(|| boolean(ask("home_lock", Vec::new())))),
         engine_state: Some(Box::new(|| ask("engine_state", Vec::new()))),
-        plug: Guarded::null(),
+        plug: std::sync::Arc::new(Guarded::null()),
         connectivity: Some(Box::new(|| ask("connectivity", Vec::new()))),
         home_key,
         open_store: false,

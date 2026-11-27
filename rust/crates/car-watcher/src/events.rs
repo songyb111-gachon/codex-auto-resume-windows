@@ -5,11 +5,16 @@
 //!
 //! Each event is `{"kind": ..., <its fields in the table's order>}`; `ended` is always the last.
 
-use std::collections::VecDeque;
-use std::sync::{Condvar, Mutex, PoisonError};
+use std::collections::{BTreeMap, VecDeque};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use car_machine::json::{Map, Value};
+
+use car_surface::notice_inbox::Inbox;
+use car_surface::notifier::Notice;
+
+use crate::surface::Catalog;
 
 /// `Tray.start` waits this long for the icon's thread; `Tray.stop` joins it this long.
 pub const SURFACE_WAIT_SECONDS: f64 = 5.0;
@@ -21,15 +26,17 @@ struct Queue {
     started: Option<bool>,
     closed: bool,
     ended: bool,
-    /// The card stack is attached (`cards_attached`): notices may go to it.
-    cards: bool,
 }
 
-/// The queue and the waits.
+/// The queue and the waits, and the card stack's inbox (`App._inbox`): attached while the host's stack is
+/// (`cards_attached`), each notice it takes handed over as a `notice` event under an id of its own, kept until the
+/// host ends it (`notice_complete`).
 #[derive(Default)]
 pub struct Events {
     queue: Mutex<Queue>,
     ready: Condvar,
+    inbox: Inbox<Notice>,
+    posted: Mutex<(i64, BTreeMap<i64, Notice>)>,
 }
 
 fn event<const N: usize>(kind: &str, fields: [(&str, Value); N]) -> Value {
@@ -79,16 +86,26 @@ impl Events {
         }
     }
 
-    /// The `surfaces` event, and the wait for `tray_started` (`Tray.start`): whether the icon came up.
-    pub fn start_surfaces(&self, icon: &str, settings: &Value, edition: &str, demo: &str) -> bool {
+    /// The `surfaces` event, and the wait for `tray_started` (`Tray.start`): whether the icon came up. The catalog's
+    /// locale and letters go with it, so the first frame is drawn in that language (DECISIONS.md's addendum).
+    pub fn start_surfaces(
+        &self,
+        icon: &str,
+        catalog: &Catalog,
+        settings: &Value,
+        edition: &str,
+        demo: &str,
+    ) -> bool {
         self.push(event(
             "surfaces",
             [
                 ("icon", Value::from(icon)),
-                ("strings", strings()),
+                ("strings", Value::Object(catalog.strings.clone())),
                 ("settings", settings.clone()),
                 ("edition", Value::from(edition)),
                 ("demo", Value::from(demo)),
+                ("locale", Value::from(catalog.locale.as_str())),
+                ("letters", Value::from(catalog.letters.as_str())),
             ],
         ));
         self.wait(SURFACE_WAIT_SECONDS, |queue| queue.started.is_some())
@@ -120,26 +137,102 @@ impl Events {
         let _ = self.wait(SURFACE_WAIT_SECONDS, |queue| queue.closed);
     }
 
-    pub fn queue_snapshot(&self, snapshot: Value) {
-        self.push(event("snapshot", [("snapshot", snapshot)]));
+    /// The tray's snapshot and the popup's ready view (`surface::Shared::field`).
+    pub fn queue_snapshot(&self, snapshot: Value, popup: Value) {
+        self.push(event(
+            "snapshot",
+            [("snapshot", snapshot), ("popup", popup)],
+        ));
     }
 
     pub fn queue_settings(&self, settings: &Value) {
         self.push(event("settings", [("settings", settings.clone())]));
     }
 
-    pub fn queue_strings(&self) {
-        self.push(event("strings", [("strings", strings())]));
+    /// A new catalog with its locale and letters. The caller sends a snapshot right after it, drawn in those words.
+    pub fn queue_strings(&self, catalog: &Catalog) {
+        self.push(event(
+            "strings",
+            [
+                ("strings", Value::Object(catalog.strings.clone())),
+                ("locale", Value::from(catalog.locale.as_str())),
+                ("letters", Value::from(catalog.letters.as_str())),
+            ],
+        ));
     }
 
-    /// A watcher notice (`_watcher_notice`): the card where the host attached it and the notice is not the last one,
-    /// else - the notifier's toast is car-surface's, raised by the host's notifier seam (S6.2b) - the same event.
-    pub fn queue_watcher_notice(&self, event_name: &str, detail: Map, last: bool) {
-        let mut notice = Map::new();
-        notice.insert("event".into(), Value::from(event_name));
-        notice.insert("detail".into(), Value::Object(detail));
-        notice.insert("final".into(), Value::Bool(last));
-        self.push(event("notice", [("notice", Value::Object(notice))]));
+    /// The card stack's inbox (`App._inbox`), which `notifier.deliver` posts to.
+    pub fn inbox(&self) -> &Inbox<Notice> {
+        &self.inbox
+    }
+
+    /// `cards_attached`: the inbox attached; its wake hands what was posted to the host at once.
+    pub fn attach_cards(self: &Arc<Self>) {
+        let events = Arc::downgrade(self);
+        self.inbox.attach(Arc::new(move || {
+            events.upgrade().is_some_and(|events| events.hand_over())
+        }));
+    }
+
+    /// `cards_detached`: nothing more is accepted; what was posted and not yet handed over comes back, oldest first.
+    pub fn detach_cards(&self) -> Vec<Notice> {
+        self.inbox.detach()
+    }
+
+    /// The stack's `WM_NOTICE`: every notice taken from the inbox, each a `notice` event under a new id. False once
+    /// the watcher ended (the notice is then the toast's).
+    fn hand_over(&self) -> bool {
+        if self.is_ended() {
+            return false;
+        }
+        for notice in self.inbox.take() {
+            let id = {
+                let mut posted = self.posted.lock().unwrap_or_else(PoisonError::into_inner);
+                posted.0 += 1;
+                let id = posted.0;
+                posted.1.insert(id, notice.clone());
+                id
+            };
+            self.push(event(
+                "notice",
+                [("notice", crate::notices::card_event(id, &notice))],
+            ));
+        }
+        true
+    }
+
+    /// `show_demo`'s `inbox.post(notice)` as the event table carries it (S6.2b4): the made-up card as one `demo`
+    /// event under an id of its own, while the host's card stack is attached; False otherwise (nothing is shown).
+    pub fn post_demo(&self, notice: &Notice) -> bool {
+        if self.is_ended() || !self.inbox.attached() {
+            return false;
+        }
+        let id = {
+            let mut posted = self.posted.lock().unwrap_or_else(PoisonError::into_inner);
+            posted.0 += 1;
+            let id = posted.0;
+            posted.1.insert(id, notice.clone());
+            id
+        };
+        self.push(event(
+            "demo",
+            [("notice", crate::notices::card_event(id, notice))],
+        ));
+        true
+    }
+
+    /// The notice the host ends (`notice_complete {id}`), once: None for an id it was never given or already ended.
+    pub fn take_posted(&self, id: &Value) -> Option<Notice> {
+        let id = match id {
+            Value::Int(number) => number.as_i64()?,
+            Value::Float(number) if number.fract() == 0.0 => *number as i64,
+            _ => return None,
+        };
+        self.posted
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .1
+            .remove(&id)
     }
 
     /// `ended {exit_code}`: always the last event.
@@ -167,29 +260,11 @@ impl Events {
         self.ready.notify_all();
     }
 
-    pub fn cards(&self, attached: bool) {
-        self.lock().cards = attached;
-        self.ready.notify_all();
-    }
-
     pub fn cards_attached(&self) -> bool {
-        self.lock().cards
+        self.inbox.attached()
     }
 
     pub fn is_ended(&self) -> bool {
         self.lock().ended
     }
-}
-
-/// `interface.catalog()`: every word the icon, its popup and its cards say, in the Interface language.
-fn strings() -> Value {
-    let environ = |name: &str| std::env::var(name).ok();
-    // Windows' preferred UI languages are not in car-platform yet (GROUNDWORK, Integration 6): `system` reads the
-    // environment's language as the bridge's host does until they are.
-    let catalog = car_words::interface::catalog(&environ, &Vec::new);
-    let mut map = Map::new();
-    for (key, value) in catalog.iter() {
-        map.insert(key.as_str().into(), Value::from(value.as_str()));
-    }
-    Value::Object(map)
 }

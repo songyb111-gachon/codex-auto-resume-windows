@@ -15,6 +15,8 @@ use std::collections::BTreeMap;
 
 use car_engine::impossible;
 use car_machine::json::{Map, Value};
+use std::rc::Rc;
+
 use car_store::Store;
 
 use crate::afterwork::AfterWork;
@@ -110,10 +112,10 @@ pub trait World: crate::homes::HomesApp {
 
     // ---------------------------------------------------------------- what App builds
     /// `Store(state_dir, migrate=True, check=True)`, and the schema it was upgraded from.
-    fn open_store(&mut self) -> Res<(Store, Option<i64>)>;
+    fn open_store(&mut self) -> Res<(Rc<Store>, Option<i64>)>;
     fn engine_moved(&mut self) -> bool;
     /// `self.engine(store)`: raises `Unreadable` while the settings file cannot be read.
-    fn engine(&mut self, store: &Store) -> Res<Box<dyn TickEngine>>;
+    fn engine(&mut self, store: &Rc<Store>) -> Res<Box<dyn TickEngine>>;
     fn compatibility_tick(&mut self);
     fn refresh_settings(&mut self, engine: Option<&mut Box<dyn TickEngine>>);
     fn engine_state(&self) -> String;
@@ -332,7 +334,7 @@ fn poll_seconds(found: Option<&Value>) -> Res<i64> {
 
 /// `_open_for_watcher(stop)`: the watcher's store, upgraded under the mutex it holds, retried with backoff. A Store,
 /// or an exit code.
-fn open_for_watcher(world: &mut dyn World) -> Result<Store, i32> {
+fn open_for_watcher(world: &mut dyn World) -> Result<Rc<Store>, i32> {
     let mut delay: f64 = 1.0;
     loop {
         match guarded(|| world.open_store()) {
@@ -640,7 +642,7 @@ fn between_ticks(
 fn tick_body(
     world: &mut dyn World,
     state: &mut Loop,
-    store: &Store,
+    store: &Rc<Store>,
     engine: &mut Option<Box<dyn TickEngine>>,
     last_enabled: &mut Option<bool>,
     waking: Option<&mut Waking>,
@@ -693,7 +695,7 @@ fn tick_body(
 }
 
 /// `_other_homes(store)`: the other Codex homes' tick, after the default home's.
-fn other_homes(world: &mut dyn World, state: &mut Loop, store: &Store) -> Res<()> {
+fn other_homes(world: &mut dyn World, state: &mut Loop, store: &Rc<Store>) -> Res<()> {
     let result = guarded(|| {
         state.homes.sync(world, store)?;
         state.homes.tick(world);
@@ -768,6 +770,7 @@ fn run_loop(
     loop {
         let mut ok = false;
         let result = guarded(|| {
+            crate::trip::wire("tick");
             tick_body(
                 world,
                 state,
@@ -884,8 +887,11 @@ fn run_loop(
     }
     state.homes.close(world);
     ended(world, health.as_mut(), &store, end);
-    let mut store = store;
-    store.close();
+    // `store.close()`: the engines hold the same store (`Rc`); theirs go with them, and the connection with the last.
+    drop(engine);
+    if let Ok(mut store) = Rc::try_unwrap(store) {
+        store.close();
+    }
     world.info("watcher stopped");
     exit_code
 }

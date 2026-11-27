@@ -7,8 +7,8 @@
 //!
 //! `proofs`, `persons` and `judge` are here, over [`RescanEngine`]: the engine's own calls the reference makes of
 //! `engine` and `engine.source` (car-engine's and car-codex's, each diffed on its own). `judge_for` - an engine of each
-//! record's own Codex home, with no backend and no store - is joined by the integration through car-control's
-//! `Host::rescan_judge`.
+//! record's own Codex home, with no backend and no store - is here too (S6.2b4),
+//! answering car-control's `Host::rescan_judge` through [`crate::checkhost::WatcherHost`].
 
 use car_machine::domain::ids;
 use car_machine::json::{Map, Value};
@@ -219,4 +219,124 @@ fn judged(
         _ => STALE,
     };
     Ok((UNRESOLVED, Some(reason.into())))
+}
+
+// ------------------------------------------------------------------------------------------- judge_for (S6.2b4)
+
+use std::collections::HashMap;
+
+use car_codex::source::LocalSource;
+use car_control::Control;
+use car_control::host::Raised;
+
+fn raised(failed: Failed) -> Raised {
+    Raised::new(&failed.class, failed.message)
+}
+
+/// `sources_for(control)`: {home_key: reader} for each Codex home the watcher knows - the default ('') and each one
+/// Settings add, by the key its records carry (`homes.key`), the first reader of a key kept; in the dict's order.
+pub fn sources_for(control: &Control) -> Result<Vec<(String, LocalSource)>, Raised> {
+    let chains = control.paths.split_chains_file.clone();
+    let host = &control.host;
+    let mut found = vec![(
+        String::new(),
+        crate::reading::source(host, &chains, &host.codex_home()).map_err(raised)?,
+    )];
+    let named = control
+        .get_settings()
+        .ok()
+        .and_then(|values| values.get(car_policy::settings::homes::FIELD).cloned())
+        .unwrap_or(Value::Null);
+    let Value::Array(entries) = named else {
+        return Ok(found);
+    };
+    let os = host.os();
+    for entry in &entries {
+        let Value::Object(entry) = entry else {
+            continue;
+        };
+        let Some(Value::Str(path)) = entry.get("path") else {
+            continue;
+        };
+        let Ok(key) = car_policy::settings::homes::key(&*os, path) else {
+            continue;
+        };
+        if found.iter().any(|(each, _)| *each == key) {
+            continue;
+        }
+        let Ok(reader) = crate::reading::source(host, &chains, &crate::fail::lossy(path)) else {
+            continue;
+        };
+        found.push((key, reader));
+    }
+    Ok(found)
+}
+
+/// `judge_for(control, sources=None, *, now=None, seconds=SECONDS)`'s `judged(row, kin)`: each record judged by an
+/// engine of its own Codex home's - one with no backend and no store, so it can read and nothing else - within
+/// `seconds` from the first record.
+pub struct Judged {
+    host: std::sync::Arc<dyn car_control::host::Host>,
+    chains: String,
+    sources: Vec<(String, LocalSource)>,
+    engines: HashMap<String, crate::reading::Reading>,
+    now: f64,
+    deadline: f64,
+}
+
+/// `judge_for(control, now=now)`.
+pub fn judge_for(control: &Control, now: f64, seconds: f64) -> Result<Judged, Raised> {
+    let sources = sources_for(control)?;
+    Ok(Judged {
+        host: std::sync::Arc::clone(&control.host),
+        chains: control.paths.split_chains_file.clone(),
+        sources,
+        engines: HashMap::new(),
+        now,
+        deadline: car_codex::rollout::monotonic() + seconds,
+    })
+}
+
+impl car_control::host::Judge for Judged {
+    fn judge(&mut self, row: &Map, kin: &[Map]) -> Result<(Value, Value), Raised> {
+        let key = match row.get("home_key") {
+            Some(value) if car_machine::pyval::truthy(value) => match value {
+                Value::Str(text) => Some(crate::fail::lossy(text)),
+                _ => None,
+            },
+            _ => Some(String::new()),
+        };
+        let Some((key, source)) = key.and_then(|key| {
+            self.sources
+                .iter()
+                .find(|(each, _)| *each == key)
+                .map(|(each, source)| (each.clone(), source))
+        }) else {
+            return Ok((Value::from(UNRESOLVED), Value::from(HOME_UNKNOWN)));
+        };
+        if !self.engines.contains_key(&key) {
+            let reader =
+                crate::reading::source(&self.host, &self.chains, &source.home).map_err(raised)?;
+            let evidence =
+                crate::reading::source(&self.host, &self.chains, &source.home).map_err(raised)?;
+            let engine = crate::reading::engine(&self.host, None, reader, self.now, &key);
+            self.engines
+                .insert(key.clone(), crate::reading::Reading { engine, evidence });
+        }
+        let Some(engine) = self.engines.get_mut(&key) else {
+            return Ok((Value::from(UNRESOLVED), Value::from(HOME_UNKNOWN)));
+        };
+        let (outcome, reason) = judge(
+            engine,
+            row,
+            kin,
+            Some(self.deadline),
+            car_codex::rollout::monotonic(),
+        )
+        .map_err(raised)?;
+        Ok((
+            Value::from(outcome),
+            reason.map_or(Value::Null, |reason| Value::from(reason.as_str())),
+        ))
+    }
 }

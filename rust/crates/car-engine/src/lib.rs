@@ -91,7 +91,7 @@ pub struct Given {
     pub language: Option<String>,
     pub home_lock: Option<Box<dyn Fn() -> Py<bool>>>,
     pub engine_state: Option<Box<dyn Fn() -> Py<Value>>>,
-    pub plug: Guarded,
+    pub plug: Arc<Guarded>,
     pub connectivity: Option<Box<dyn Fn() -> Py<Value>>>,
     pub home_key: String,
     /// `open_store`: whether a worker could open a store of its own; the opener itself is handed with
@@ -114,7 +114,7 @@ pub struct Engine {
     pub store: Box<dyn Store>,
     pub source: Box<dyn Source>,
     pub backend: Box<dyn Backend>,
-    pub plug: Guarded,
+    pub plug: Arc<Guarded>,
     pub dispatch_lock: Option<Arc<Mutex<()>>>,
     pub clock: Box<dyn Fn() -> f64>,
     pub log_sink: Log,

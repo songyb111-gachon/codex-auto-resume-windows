@@ -8,6 +8,10 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# The panic test's trip wire (src/trip.rs, P6-DESIGN 1.3): never in a shipped build.
+panic-test = []
+
 [dependencies]
 car-codex = { path = "../car-codex" }
 car-config = { path = "../car-config" }
@@ -16,6 +20,7 @@ car-engine = { path = "../car-engine" }
 car-machine = { path = "../car-machine" }
 car-platform = { path = "../car-platform" }
 car-policy = { path = "../car-policy" }
+car-scheduler = { path = "../car-scheduler" }
 car-store = { path = "../car-store" }
 car-surface = { path = "../car-surface" }
 car-words = { path = "../car-words" }
