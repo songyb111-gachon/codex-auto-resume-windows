@@ -10,8 +10,9 @@ engines (runtime/loop.py, runtime/homes.py), the engine's keywords (engine/__ini
 (config.py, codex/pairing.py), the Compatibility Registry's evaluator and word (compat/), the layout watch, the words
 for this time, the engine's log lines, the Dashboard's openers and handover, the notifier, and the launcher the host
 starts (scripts/watcher_launcher.py). Then it runs the diffs that reach them with the tag as the reference - car-watcher's
-(`diffs_watcher`), the bridge's acting commands (`diffs_bridge_acting`), the engine's (`diffs_engine`) and the
-notifier's (`diffs_surface_notifier`) - through `run.py --build --reference TAG`. Exit 0 only when the diffs are equal; a
+(`diffs_watcher`), the bridge's acting commands (`diffs_bridge_acting`), the engine's (`diffs_engine`), the
+notifier's (`diffs_surface_notifier`) and Diagnostics' check and Rescan's judge through the real host
+(`diffs_host_checks`, S6.2b4) - through `run.py --build --reference TAG`. Exit 0 only when the diffs are equal; a
 changed file is printed, not failed on - the diffs decide.
 """
 from __future__ import annotations
@@ -29,8 +30,12 @@ FOLLOWED = tuple("src/codex_auto_resume/" + each for each in (
     "engine/options.py", "config.py", "codex/pairing.py", "codex/transport.py", "codex/layout.py", "compat",
     "compatio.py", "oncewords.py", "logbook.py", "notifier.py", "notify.py", "notice_kinds.py", "notice_presence.py",
     "notice_inbox.py", "ui/card/stack.py", "ui/tray/dashboard.py",
-    "win/handover.py", "win/network.py")) + ("scripts/watcher_launcher.py",)
-DIFFS = ("diffs_watcher", "diffs_bridge_acting", "diffs_engine", "diffs_surface_notifier")
+    "win/handover.py", "win/network.py",
+    # S6.2b4: Diagnostics' check and Rescan's judge through the real host, and the demo card.
+    "checkup.py", "rescan.py", "diagnostics.py", "codex/history.py", "codex/schema.py", "codex/errors.py",
+    "engine/detect.py", "engine/freshness.py", "engine/compaction.py", "engine/plugrecords.py",
+    "ui/tray/icon.py")) + ("scripts/watcher_launcher.py",)
+DIFFS = ("diffs_watcher", "diffs_bridge_acting", "diffs_engine", "diffs_surface_notifier", "diffs_host_checks")
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 

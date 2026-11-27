@@ -25,6 +25,7 @@ import sqlite3
 
 from rustdiff import actworld as aw
 from rustdiff.diffs import RECORD
+from rustdiff.diffs_bridge import lines
 from rustdiff.diffs_bridge_acting import ActingBase, now, stream, with_store, write_file
 
 import wiregolden as wg
@@ -105,8 +106,10 @@ def history_gone(workspace: Path):
 
 
 def history_damaged(workspace: Path):
+    import os
     for path in sorted((workspace / "codex").glob("thread_history*.sqlite")):
         path.write_bytes(b"not a database")
+        os.utime(path, (now() - 600, now() - 600))
 
 
 def later_turn(workspace: Path):
@@ -146,21 +149,35 @@ class ChecksBase(ActingBase):
 
 
 class GoldenChecksDiff(ChecksBase):
+    """car-watcher over the wire goldens' own installation (tests/wiregolden.py `installation`, made in place, so
+    every path its Codex home records is where the reference had it) equals the golden files, case for case."""
+
+    def golden_run(self, command, requests, **world):
+        cases = wg.BRIDGE_CASES[command]
+        with wg.installation(watching=cases[0].watching, engine=cases[0].engine) as (workspace, _surface, rewriting):
+            using = cases[0].using(workspace) if cases[0].using else None
+            if using is not None:
+                using.__enter__()
+            try:
+                asked = aw.world_for(workspace, now=now(), **real(**world))
+                code, out, _calls, guard = aw.ask_rust(self.harness, workspace / "home", asked, stdin=lines(*requests))
+            finally:
+                if using is not None:
+                    using.__exit__(None, None, None)
+            self.assertTrue(guard)
+            self.assertEqual(code, 0)
+            return [wg.canonical(reply, rewriting) for reply in self.replies(out)]
+
     def test_detection_check_golden(self):
-        world = real(watcher_running=True, compat_view=golden_compat(), check_key=GOLDEN_KEY.hex())
-        out, _ = self.run_both("acts", requests=stream("detection-check", None), world=world, tune=check_pinned,
-                               label="detection-check: the golden case")
-        self.assertEqual(self.replies(out), [self.golden_case("detection-check", 0)],
-                         "the reference over this world is not the golden; so neither is car-watcher")
+        found = self.golden_run("detection-check", stream("detection-check", None), watcher_running=True,
+                                compat_view=golden_compat(), check_key=GOLDEN_KEY.hex())
+        self.assertEqual(found, [self.golden_case("detection-check", 0)])
         RECORD.append("host checks: detection-check's golden case equal through the real host")
 
     def test_rescan_golden(self):
-        for running in (True, False):
-            with self.subTest(running=running):
-                out, _ = self.run_both("acts", requests=stream("rescan", None, None),
-                                       world=real(watcher_running=running), label="rescan: the golden cases")
-                if running is False:
-                    self.assertEqual(self.replies(out), [self.golden_case("rescan", 0), self.golden_case("rescan", 1)])
+        found = self.golden_run("rescan", stream("rescan", None, None), watcher_running=True,
+                                compat_view=golden_compat())
+        self.assertEqual(found, [self.golden_case("rescan", 0), self.golden_case("rescan", 1)])
         RECORD.append("host checks: rescan's two golden cases equal through the real host")
 
 
