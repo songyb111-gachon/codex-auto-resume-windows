@@ -106,8 +106,11 @@ class Pipe:
             if not path.is_file():
                 raise Exited("advserve is not built: cargo build --release -p car-adv --example advserve "
                              "(in advanced/rust)")
+            # CODEX_AR_ADVSERVE_STDERR: a file advserve's own stderr is appended to (a seat's trace), else none
+            trace = os.environ.get("CODEX_AR_ADVSERVE_STDERR")
+            errors = open(trace, "ab") if trace else subprocess.DEVNULL
             self.process = subprocess.Popen([str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                            stderr=subprocess.DEVNULL, creationflags=NO_WINDOW, cwd=str(ROOT))
+                                            stderr=errors, creationflags=NO_WINDOW, cwd=str(ROOT))
         return self.process
 
     def session(self, owner) -> int:

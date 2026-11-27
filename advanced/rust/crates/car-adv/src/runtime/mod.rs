@@ -590,6 +590,16 @@ impl Runtime {
         self.code_of(definition).map(|_| ())
     }
 
+    /// `_code_of(self.registry.get(capability))` itself: the code made once (the advanced proxy's `RustCode` reaches
+    /// a shipped code's own methods through it - the stop's `notices`, the pause's `holding`).
+    pub fn code(&self, capability: &str) -> Result<CodeCell, Raised> {
+        let definition = self
+            .registry
+            .get(capability)
+            .ok_or_else(|| Raised::new("AttributeError"))?;
+        self.code_of(definition)
+    }
+
     /// `action(definition)`: the code of an action, made once, for the surface a person starts what it does from.
     pub fn action(&self, capability: &str) -> Result<CodeCell, &'static str> {
         match self.registry.get(capability) {

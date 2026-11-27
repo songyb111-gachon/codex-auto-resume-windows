@@ -746,6 +746,42 @@ fn runtime_call(
                 .map_err(|raised| Fault::class(&raised.class))?;
             Ok(Value::Null)
         }
+        "code_call" => {
+            // A shipped code's own method, as the test's RustCode calls it (worlds.py): the stop's `notices(now)` and
+            // the pause's `holding()`.
+            let capability = c.need(Some(0), "capability")?;
+            let method = c.need(Some(1), "method")?;
+            let arguments = c.opt(Some(2), "args");
+            shared.enter(|runtime| -> Result<Value, Fault> {
+                let cell = runtime
+                    .code(word(&capability).unwrap_or_default())
+                    .map_err(|raised| Fault::class(&raised.class))?;
+                let mut code = cell.borrow_mut();
+                let stop = code
+                    .as_any()
+                    .and_then(|any| any.downcast_mut::<car_adv::engine::usagestop::UsageStop>())
+                    .ok_or_else(|| Fault::new("AttributeError", "no such method of this code"))?;
+                let first = match &arguments {
+                    Value::Array(items) => items.first().cloned().unwrap_or(Value::Null),
+                    _ => Value::Null,
+                };
+                match word(&method).unwrap_or_default() {
+                    "notices" => {
+                        let now = match first {
+                            Value::Int(whole) => whole.as_i64().unwrap_or(0) as f64,
+                            Value::Float(each) => each,
+                            _ => return Err(Fault::class("TypeError")),
+                        };
+                        Ok(Value::Array(stop.with(|inner| inner.notices(now))))
+                    }
+                    "holding" => stop
+                        .with(|inner| inner.core.holding())
+                        .map(Value::Bool)
+                        .map_err(|raised| Fault::class(&raised.class)),
+                    other => Err(Fault::new("AttributeError", other)),
+                }
+            })
+        }
         "action" => {
             let capability = c.need(Some(0), "capability")?;
             shared

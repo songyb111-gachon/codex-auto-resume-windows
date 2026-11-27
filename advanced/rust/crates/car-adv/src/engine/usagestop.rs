@@ -1040,4 +1040,8 @@ impl Code for UsageStop {
     fn holds(&mut self, record: &Value) -> Option<Result<Value, Raised>> {
         Some(Ok(Value::Bool(self.lock().core.holds(record))))
     }
+
+    fn as_any(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
+    }
 }

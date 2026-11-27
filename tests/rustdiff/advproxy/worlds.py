@@ -20,7 +20,13 @@ from .pipe import PIPE, plain
 MODULES = {
     "usage_meter": "engine.usage", "usage_wrap_up": "engine.usage", "usage_pause": "engine.usagestop",
     "reset_message": "engine.resetmessage", "reset_credit": "engine.credits",
+    "empty_response": "engine.emptyreply", "subagent_parent": "engine.subagent", "goal_continuation": "engine.goal",
+    "prompt_queue": "engine.promptqueue",
 }
+
+# The reference's class of each code whose own methods a seam calls on a shadow of the code (`_Shadow`).
+CLASSES = {"goal_continuation": "GoalContinuation", "empty_response": "EmptyResponse",
+           "subagent_parent": "SubagentParent", "prompt_queue": "PromptQueue"}
 
 
 class RustCode:
@@ -36,7 +42,12 @@ class RustCode:
             raise AttributeError(name)
         if name.startswith("_"):
             return None
+        if name in self.METHODS.get(self.capability, ()):
+            return lambda *arguments: self._runtime._call("code_call", self.capability, name, list(arguments))
         raise AttributeError("advproxy: %s of car-adv's %s is not forwarded" % (name, self.capability))
+
+    # The code's own methods a surface or a test calls, car-adv's (advserve `code_call`).
+    METHODS = {"usage_pause": ("notices", "holding")}
 
 
 def _module(capability):
@@ -176,6 +187,111 @@ SEAMS = {"home": lambda runtime, capability, code: _home(runtime, capability, co
          "object": _object, "key": _key, "switched": _switched}
 
 
+
+# ---------------------------------------------------------------- the continuation family (completion part 2, step 2)
+
+class _Shadow:
+    """The reference's code as a seam calls its own method on: `paths` the runtime's, every attribute the test set on
+    the RustCode, the reference's default (None, or the class's own) for the rest."""
+
+    def __init__(self, runtime, code):
+        self.paths = runtime.paths
+        self.__dict__.update({name: value for name, value in (code.__dict__ if code is not None else {}).items()
+                              if not name.startswith("_runtime") and name != "capability"})
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return None
+
+
+def _class(capability):
+    return getattr(_module(capability), CLASSES[capability])
+
+
+def _codex_home(runtime, capability, code):
+    found = _set(code, "_home")
+    return found if found is not None else _module(capability).inuse.home(runtime.paths)
+
+
+def _session(runtime, capability, code, named):
+    """The code's own `_session()`: the test's patched one, its `_open`, or a Session over `inuse.backend`."""
+    from codex_auto_resume_advanced.codex import inuse, protocol
+    try:
+        if capability == "goal_continuation":
+            made = _class(capability)._session(_Shadow(runtime, code))
+        else:
+            opened = _set(code, "_session") or _set(code, "_open")
+            made = opened() if opened is not None else protocol.Session(inuse.backend(runtime.paths),
+                                                                         capability=named)
+        return _keep(runtime, made)
+    except Exception as error:   # noqa: BLE001 - said as the session's own raise, or re-raised
+        return _session_error(error)
+
+
+def _plain_turn(turn):
+    if turn is None:
+        return None
+    return {"turn_id": turn.turn_id, "status": turn.status, "errored": turn.errored, "completed_at": turn.completed_at,
+            "final_agent": turn.final_agent, "ordinal": turn.ordinal, "kinds": dict(turn.kinds),
+            "started_at": getattr(turn, "started_at", None)}
+
+
+def _look(runtime, capability, code, method, *args):
+    """The reference's reads of the code's Codex home, each through the code's own module (a test's patch of
+    `module.Turns` is what is met)."""
+    module = _module(capability)
+    home = _codex_home(runtime, capability, code)
+    if method == "recent":
+        return plain(list(module.Turns(home).recent(args[0])))
+    if method == "latest":
+        return _plain_turn(module.Turns(home).latest(args[0]))
+    if method == "between":
+        return module.Turns(home).between(*args)
+    if method == "plan_statuses":
+        found = module.Turns(home).plan_statuses(args[0])
+        return None if found is None else list(found)
+    if method == "goal":
+        goals = getattr(module, "Goals", None) or importlib.import_module(
+            "codex_auto_resume_advanced.codex.goals").Goals
+        found = goals(home).read(args[0])
+        return None if found is None else plain(getattr(found, "status", found))
+    if method == "own":
+        from codex_auto_resume.codex import LocalSource
+        from codex_auto_resume.domain.plughands import Widening
+        source = LocalSource(home)
+        source.widened = frozenset({Widening.EVERY_DESKTOP}) if args[1] else frozenset()
+        return source.latest(args[0]) is not None
+    if method == "children":
+        lineage = getattr(module, "Lineage", None) or importlib.import_module(
+            "codex_auto_resume_advanced.codex.lineage").Lineage
+        return [{"thread_id": child.thread_id, "turn_id": plain(child.turn_id), "status": plain(child.status),
+                 "category": plain(child.category)} for child in lineage(home).children(args[0])]
+    raise AttributeError("advproxy: look %s is not forwarded" % method)
+
+
+def _goal_read(runtime, capability, code, thread):
+    found = _class(capability)._goal(_Shadow(runtime, code), thread)
+    return None if found is None else {"goal_id": plain(found.goal_id), "status": plain(found.status)}
+
+
+def _m2b(runtime, capability, code):
+    return bool(_class(capability)._m2b(_Shadow(runtime, code)))
+
+
+def _clock(runtime, capability, code):
+    import time
+    found = _set(code, "clock")
+    return (found or time.time)()
+
+
+def _turn_in_progress(runtime, capability, code, thread):
+    return _module(capability).turn_in_progress(runtime.paths, thread)
+
+
+SEAMS.update({"session": _session, "look": _look, "goal_read": _goal_read, "m2b": _m2b, "clock": _clock,
+              "turn_in_progress": _turn_in_progress})
+
 def answer(runtime, line):
     import os
     capability = line["capability"]
@@ -191,4 +307,5 @@ def answer(runtime, line):
         import sys
         sys.stderr.write("WORLD %s %s %s -> %s\n" % (capability, line["seam"], str(line.get("args"))[:120],
                                                      str(found)[:160]))
-    return found
+    # what crosses the pipe is JSON: a Path a test set (`code._home = h.home.root`) as its text, as every answer
+    return plain(found)

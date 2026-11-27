@@ -37,6 +37,10 @@ pub const ASKED: &[&str] = &[
     "usage_pause",
     "reset_message",
     "reset_credit",
+    "empty_response",
+    "subagent_parent",
+    "goal_continuation",
+    "prompt_queue",
 ];
 
 /// The codes made here with hands that refuse.
@@ -46,7 +50,6 @@ pub const REFUSED: &[&str] = &["account_switch", "account_auto_switch"];
 /// opener), pure rules over the test's state, the told pair of the scratch home, or no code at all.
 pub const BARE: &[&str] = &[
     "start_with_codex",
-    "goal_continuation",
     "queue_for_open",
     "compact_continue",
     "model_fallback",
@@ -63,9 +66,6 @@ pub const BARE: &[&str] = &[
     "once_more_when_unsure",
     "send_now",
     "parallel_dispatch",
-    "prompt_queue",
-    "empty_response",
-    "subagent_parent",
     "keep_going",
     "every_conversation",
     "silent_continuation",
