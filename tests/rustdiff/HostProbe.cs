@@ -129,6 +129,10 @@ namespace CodexAutoResume
             if (name == "menu_arrow") return MenuArrow(call);
             if (name == "tip_steps") return TipSteps(call);
             if (name == "tip_access") return TipAccess(call);
+            if (name == "popup_access") return PopupAccess(call);
+            if (name == "card_fitting") return CardFitting(call);
+            if (name == "popup_fit") return PopupFit(call);
+            if (name == "popup_reader") return OnSta(() => PopupReader(call));
             if (name == "menu_numbered")
             {
                 var actions = new Dictionary<int, object>();
@@ -1095,6 +1099,536 @@ namespace CodexAutoResume
                 answers.Add(new Dictionary<string, object> { { "answer", placement.Overflowed() }, { "reads", new List<object>(keys.Reads) } });
             }
             return answers;
+        }
+
+        // ------------------------------------------------------------------ the popup for a screen reader (S6.4d3)
+        /// A target as the reference's tuple, from its JSON list: [name] or [name, key]; anything else as it is.
+        private static object TargetOf(object value)
+        {
+            var list = value as List<object>;
+            if (list == null || list.Count == 0 || !(list[0] is string)) return value;
+            return list.Count == 1 ? new SurfaceTarget((string)list[0]) : new SurfaceTarget((string)list[0], list[1]);
+        }
+
+        /// A plan as the reference's popup plan holds what accessible_items reads: its items (kind, rect, text, role...),
+        /// its targets and its rows, each rectangle an int[] and each target a SurfaceTarget.
+        private static SurfacePlan PlanOf(object value)
+        {
+            var json = value as Dictionary<string, object>;
+            if (json == null) return null;
+            var plan = new SurfacePlan();
+            var items = SurfaceRender.Field(json, "items") as List<object>;
+            if (items != null)
+                foreach (object each in items)
+                {
+                    var item = new PlanItem((Dictionary<string, object>)each);
+                    if (item.Get("rect") is List<object>) item["rect"] = IntsOf(item["rect"]);
+                    if (item.Get("target") is List<object>) item["target"] = TargetOf(item["target"]);
+                    plan.Items.Add(item);
+                }
+            foreach (string name in new[] { "targets", "rows" })
+            {
+                var pairs = SurfaceRender.Field(json, name) as List<object>;
+                if (pairs == null) continue;
+                var kept = new List<KeyValuePair<object, int[]>>();
+                foreach (object each in pairs)
+                {
+                    var pair = (List<object>)each;
+                    kept.Add(new KeyValuePair<object, int[]>(name == "targets" ? TargetOf(pair[0]) : pair[0], IntsOf(pair[1])));
+                }
+                if (name == "targets") plan.Targets = kept;
+                else plan.Rows = kept;
+            }
+            return plan;
+        }
+
+        /// accessible_items' children from their JSON (as this probe answered them, perhaps changed by the test).
+        private static List<Dictionary<string, object>> ChildrenOf(object value)
+        {
+            var children = new List<Dictionary<string, object>>();
+            foreach (object each in (List<object>)value)
+            {
+                var item = new Dictionary<string, object>((Dictionary<string, object>)each);
+                if (item["rect"] is List<object>) item["rect"] = IntsOf(item["rect"]);
+                item["target"] = TargetOf(item["target"]);
+                children.Add(item);
+            }
+            return children;
+        }
+
+        /// The children as JSON: each target a list, each rectangle a list of numbers, the states a list.
+        private static List<object> ChildrenJson(List<Dictionary<string, object>> items)
+        {
+            var plain = new List<object>();
+            foreach (Dictionary<string, object> item in items)
+            {
+                var copy = new Dictionary<string, object>(item);
+                var target = item["target"] as SurfaceTarget;
+                if (target != null) copy["target"] = target.ToList();
+                var states = item["states"] as List<string>;
+                if (states != null) copy["states"] = states.ConvertAll(state => (object)state);
+                plain.Add(Plain(copy));
+            }
+            return plain;
+        }
+
+        /// The popup's screen-reader rules (gui/SurfaceAccess.cs's pure half, tests/test_popup_access.py AccessibleItemsTests):
+        /// `items` (AccessibleItems of a vm, a plan, focus, hover, strings), `pick` (the child at a point), `changes` (the
+        /// events between two sets of children), `switch_name`, `focus_order` (PopupPlace's, the keyboard's order) and
+        /// `events` (the event numbers).
+        private static object PopupAccess(Dictionary<string, object> call)
+        {
+            string op = (string)call["op"];
+            if (op == "items")
+                return ChildrenJson(SurfaceAccess.AccessibleItems(SurfaceRender.Field(call, "vm") as Dictionary<string, object>,
+                                                                  PlanOf(SurfaceRender.Field(call, "plan")), TargetOf(SurfaceRender.Field(call, "focus")),
+                                                                  TargetOf(SurfaceRender.Field(call, "hover")),
+                                                                  SurfaceRender.Field(call, "strings") as Dictionary<string, object>));
+            if (op == "pick")
+                return (double)SurfaceAccess.Pick(ChildrenOf(call["items"]), (int)(double)call["x"], (int)(double)call["y"]);
+            if (op == "changes")
+            {
+                var events = new List<object>();
+                foreach (int[] change in SurfaceAccess.Changes(ChildrenOf(call["before"]), ChildrenOf(call["after"])))
+                    events.Add(new List<object> { (double)change[0], (double)change[1] });
+                return events;
+            }
+            if (op == "switch_name") return SurfaceAccess.SwitchName((Dictionary<string, object>)call["task"]);
+            if (op == "focus_order")
+            {
+                var order = new List<object>();
+                foreach (object target in PopupPlace.FocusOrder(PlanOf(call["plan"]).Targets))
+                    order.Add(target is SurfaceTarget ? ((SurfaceTarget)target).ToList() : target);
+                return order;
+            }
+            if (op == "events")
+                return new Dictionary<string, object>
+                {
+                    { "focus", (double)SurfaceAccess.EVENT_FOCUS }, { "reorder", (double)SurfaceAccess.EVENT_REORDER },
+                    { "statechange", (double)SurfaceAccess.EVENT_STATECHANGE }, { "namechange", (double)SurfaceAccess.EVENT_NAMECHANGE },
+                };
+            throw new ArgumentException("no popup_access op " + op);
+        }
+
+        /// The notification card's text size (CardPlan.Fitting, ui/card's Card.fitting), as CardWindow asks it: the screen's
+        /// dpi and work area (none where the screen says none) and the `text` the snapshot carries, whatever its JSON type.
+        private static object CardFitting(Dictionary<string, object> call)
+        {
+            object work = SurfaceRender.Field(call, "work");
+            return new Dictionary<string, object>
+            {
+                { "fit", CardPlan.Fitting((double)call["dpi"], work is List<object> ? IntsOf(work) : null, SurfaceRender.Field(call, "text")) },
+                { "room", new List<object> { CardPlan.Room[0], CardPlan.Room[1] } },
+            };
+        }
+
+        private static readonly System.Reflection.BindingFlags Hidden = System.Reflection.BindingFlags.Instance
+                                                                      | System.Reflection.BindingFlags.NonPublic;
+
+        /// The popup at Windows' text size (tests/test_popup_access.py PopupTextSizeTests): a PopupWindow whose window is a
+        /// message-only window of the probe's own (never shown), its renderer the host's own (SurfaceRenderer.Open), given the
+        /// core's popup, the text size (`text`), the screen (`work`, dpi 96), then steps: usual (its renderer's plan of the
+        /// view at 1 in "en": the size), rebuild (Rebuild: its scale and size), hide, read_look (ReadLook with Windows'
+        /// text size answering the step's value), asks (the method a new PopupWindow asks the text size through). After each: Fit, the text size it holds, and whether its renderer made its
+        /// fonts again since the last step (`fonts_made`, `fonts_scale`).
+        private static object PopupFit(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            IntPtr own = SurfaceNative.CreateWindowExW(0, "STATIC", "", 0, 0, 0, 0, 0, new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            if (own == IntPtr.Zero) throw new InvalidOperationException("CreateWindowExW");
+            var popup = new PopupWindow((Dictionary<string, object>)call["strings"]);
+            SurfaceRenderer renderer = SurfaceRenderer.Open();
+            try
+            {
+                popup.Hwnd = own;
+                typeof(PopupWindow).GetField("renderer", Hidden).SetValue(popup, renderer);
+                System.Reflection.FieldInfo text = typeof(PopupWindow).GetField("text", Hidden);
+                text.SetValue(popup, (double)call["text"]);
+                int[] work = IntsOf(call["work"]);
+                popup.Screen = new PopupWindow.PopupScreen { Work = work, Monitor = work, Icon = null, Cursor = new[] { 0, 0 }, Dpi = 96 };
+                popup.Dpi = 96;
+                popup.AskContrast = () => false;
+                popup.AskReduced = () => false;
+                popup.AskAppsLight = () => null;
+                popup.Snapshot((Dictionary<string, object>)call["core"]);
+                double now = (double)call["now"];
+                var after = new List<object>();
+                object fonts = renderer.Fonts;
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    var answer = new Dictionary<string, object>();
+                    if (what == "usual") answer["size"] = Plain(renderer.Layout(popup.View(), 1.0, "en").Size);
+                    else if (what == "rebuild")
+                    {
+                        SurfacePlan plan = popup.Rebuild(now);
+                        answer["scale"] = plan.Scale;
+                        answer["size"] = Plain(plan.Size);
+                    }
+                    else if (what == "hide") popup.Hide();
+                    else if (what == "read_look")
+                    {
+                        double asked = (double)step[1];
+                        popup.AskTextScale = () => asked;
+                        popup.ReadLook();
+                    }
+                    else if (what == "asks")
+                    {
+                        // where a PopupWindow asks Windows' text size, as it is made (the one place a test replaces)
+                        System.Reflection.MethodInfo asks = new PopupWindow().AskTextScale.Method;
+                        answer["asks"] = asks.DeclaringType.Name + "." + asks.Name;
+                    }
+                    else throw new ArgumentException("no popup_fit step " + what);
+                    answer["fit"] = popup.Fit.HasValue ? (object)popup.Fit.Value : null;
+                    answer["text"] = text.GetValue(popup);
+                    answer["fonts_made"] = !ReferenceEquals(fonts, renderer.Fonts);
+                    answer["fonts_scale"] = renderer.Fonts == null ? null : (object)renderer.Fonts.Scale;
+                    fonts = renderer.Fonts;
+                    after.Add(answer);
+                }
+                return new Dictionary<string, object> { { "steps", after }, { "spacing_m", (double)PopupWindow.SpacingM } };
+            }
+            finally
+            {
+                typeof(PopupWindow).GetField("renderer", Hidden).SetValue(popup, null);
+                renderer.Dispose();
+                popup.Hwnd = IntPtr.Zero;
+                SurfaceNative.DestroyWindow(own);
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("oleacc.dll")]
+        private static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, out IntPtr found);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool PeekMessageW(out SurfaceNative.MSG message, IntPtr hwnd, uint min, uint max, uint remove);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int ReaderOut(IntPtr self, IntPtr found);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int ReaderChild(IntPtr self, IntPtr child, IntPtr found);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int ReaderPress(IntPtr self, IntPtr child);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int ReaderHit(IntPtr self, int x, int y, IntPtr found);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int ReaderBox(IntPtr self, IntPtr left, IntPtr top, IntPtr width, IntPtr height, IntPtr child);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate uint ReaderCounted(IntPtr self);
+        private static int readerClasses;
+
+        /// `work` on a thread of its own in a single-threaded apartment, as the host's UI thread is (the probe's own main
+        /// thread is the runtime's multithreaded one, where SurfaceAccess leaves WM_GETOBJECT to Windows): its answer, or
+        /// what it threw.
+        private static object OnSta(Func<object> work)
+        {
+            object answer = null;
+            Exception thrown = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    answer = work();
+                }
+                catch (Exception exc)
+                {
+                    thrown = exc;
+                }
+            });
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (thrown != null) throw thrown;
+            return answer;
+        }
+
+        /// One call through slot `slot` of a COM object's table, as a native caller makes it: the delegate the table points
+        /// at (the object's own managed one where the object is SurfaceAccess's) invoked with the arguments.
+        private static int CallSlot(IntPtr pointer, int slot, Type kind, params object[] arguments)
+        {
+            var all = new object[arguments.Length + 1];
+            all[0] = pointer;
+            Array.Copy(arguments, 0, all, 1, arguments.Length);
+            return Convert.ToInt32(Slot(pointer, slot, kind).DynamicInvoke(all));
+        }
+
+        private static IntPtr ChildVariant(int child)
+        {
+            IntPtr variant = System.Runtime.InteropServices.Marshal.AllocHGlobal(24);
+            for (int at = 0; at < 24; at++) System.Runtime.InteropServices.Marshal.WriteByte(variant, at, 0);
+            System.Runtime.InteropServices.Marshal.WriteInt16(variant, 0, (short)SurfaceAccess.VT_I4);
+            System.Runtime.InteropServices.Marshal.WriteInt32(variant, 8, child);
+            return variant;
+        }
+
+        /// A BSTR-answering slot (10 accName, 20 accDefaultAction) for a child: [HRESULT, text or null].
+        private static List<object> ReadText(IntPtr pointer, int slot, int child)
+        {
+            IntPtr variant = ChildVariant(child), found = System.Runtime.InteropServices.Marshal.AllocHGlobal(8);
+            try
+            {
+                System.Runtime.InteropServices.Marshal.WriteIntPtr(found, IntPtr.Zero);
+                int result = CallSlot(pointer, slot, typeof(ReaderChild), variant, found);
+                IntPtr text = System.Runtime.InteropServices.Marshal.ReadIntPtr(found);
+                string value = text == IntPtr.Zero ? null : System.Runtime.InteropServices.Marshal.PtrToStringBSTR(text);
+                if (text != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeBSTR(text);
+                return new List<object> { (double)result, value };
+            }
+            finally
+            {
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(variant);
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(found);
+            }
+        }
+
+        /// A VARIANT-answering slot (13 accRole, 14 accState) for a child: [HRESULT, vt, lVal].
+        private static List<object> ReadNumber(IntPtr pointer, int slot, int child)
+        {
+            IntPtr variant = ChildVariant(child), found = ChildVariant(0);
+            try
+            {
+                System.Runtime.InteropServices.Marshal.WriteInt16(found, 0, 0);
+                int result = CallSlot(pointer, slot, typeof(ReaderChild), variant, found);
+                return new List<object> { (double)result, (double)System.Runtime.InteropServices.Marshal.ReadInt16(found),
+                                          (double)System.Runtime.InteropServices.Marshal.ReadInt32(found, 8) };
+            }
+            finally
+            {
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(variant);
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(found);
+            }
+        }
+
+        /// Messages for this thread, run until `until` holds or `seconds` pass (the reference's _pump).
+        private static void PumpUntil(Func<bool> until, double seconds)
+        {
+            DateTime deadline = DateTime.UtcNow.AddSeconds(seconds);
+            while (!until() && DateTime.UtcNow < deadline)
+            {
+                SurfaceNative.MSG message;
+                while (PeekMessageW(out message, IntPtr.Zero, 0, 0, 1))
+                {
+                    SurfaceNative.TranslateMessage(ref message);
+                    SurfaceNative.DispatchMessageW(ref message);
+                }
+                System.Threading.Thread.Sleep(20);
+            }
+        }
+
+        /// The popup read the way a screen reader reads it (tests/test_popup_access.py ScreenReaderTests): a PopupWindow given
+        /// the core's popup, whose window is a message-only window of the probe's own class (never shown; every message it
+        /// gets is the popup's Message, so WM_GETOBJECT is the host's answer), SurfaceAccess attached as the host attaches it,
+        /// shown for the keyboard and not activated at `origin` with every other call of Windows' recorded (SurfaceScreen.Probe).
+        /// Its client object is fetched as Narrator fetches it (AccessibleObjectFromWindow, OBJID_CLIENT) and asked through its
+        /// table: the count, every child's name, role, state, default action and box, a hit two pixels inside each child,
+        /// the focused child, one past the last; OBJID_WINDOW's role (Windows' own object). The children the popup itself
+        /// says are on screen (`items`), its client offset and its window's (0, 0) on screen. Then each step: tab (the Tab
+        /// key; the events told while it was handled, as SurfaceAccess's Speaking computes them), press (accDoDefaultAction
+        /// on a child; what was posted), reader (a script run by Windows PowerShell with no window, CAR_HWND the window,
+        /// while this thread answers its questions: exit code, out, err).
+        private static object PopupReader(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            Func<IntPtr, string> savedName = SurfaceScreen.Name;
+            SurfaceScreen.Probe = new List<string>();
+            var popup = new PopupWindow((Dictionary<string, object>)call["strings"]);
+            SurfaceNative.WndProc proc = (hwnd, message, wParam, lParam) => popup.Message((int)message, wParam.ToInt64(), lParam.ToInt64(), hwnd);
+            IntPtr instance = SurfaceNative.GetModuleHandleW(null);
+            string className = "CarProbeReader-" + System.Diagnostics.Process.GetCurrentProcess().Id + "-" + (++readerClasses);
+            var klass = new SurfaceNative.WNDCLASSW { LpfnWndProc = proc, HInstance = instance, LpszClassName = className };
+            if (SurfaceNative.RegisterClassW(ref klass) == 0) throw new InvalidOperationException("RegisterClassW");
+            IntPtr own;
+            using (new SurfaceNative.PerMonitorDpi())        // as PopupWindow.Create makes its window: Per-Monitor-v2 aware
+                own = SurfaceNative.CreateWindowExW(0, className, "", 0, 0, 0, 4000, 4000, new IntPtr(-3), IntPtr.Zero, instance, IntPtr.Zero);
+            if (own == IntPtr.Zero)
+            {
+                SurfaceNative.UnregisterClassW(className, instance);
+                throw new InvalidOperationException("CreateWindowExW");
+            }
+            IntPtr pointer = IntPtr.Zero;
+            try
+            {
+                var actions = new RecordingActions();
+                var logs = new List<object>();
+                SurfaceScreen.Name = hwnd => hwnd == own ? "popup" : savedName(hwnd);
+                popup.Hwnd = own;
+                typeof(PopupWindow).GetField("renderer", Hidden).SetValue(popup, SurfaceRenderer.Open());
+                popup.Actions = actions;
+                popup.Worker = work => work();
+                popup.Log = line => logs.Add(line);
+                popup.AskTextScale = () => 1.0;
+                popup.AskContrast = () => false;
+                popup.AskReduced = () => false;
+                popup.AskAppsLight = () => null;
+                int[] origin = IntsOf(call["origin"]);
+                popup.ScreenReader = window => new PopupWindow.PopupScreen
+                {
+                    Work = new[] { 0, 0, 1920, 1040 }, Monitor = new[] { 0, 0, 1920, 1080 }, Cursor = new[] { 0, 0 }, Dpi = 96,
+                };
+                SurfaceAccess.Attach(popup);
+                var told = new List<object>();
+                Action<PopupWindow> speaking = popup.Speaking;
+                popup.Speaking = window =>
+                {
+                    var before = new List<Dictionary<string, object>>();
+                    foreach (object item in window.Spoken) before.Add((Dictionary<string, object>)item);
+                    speaking(window);
+                    if (before.Count == 0) return;
+                    var after = new List<Dictionary<string, object>>();
+                    foreach (object item in window.Spoken) after.Add((Dictionary<string, object>)item);
+                    var events = new List<object>();
+                    foreach (int[] change in SurfaceAccess.Changes(before, after)) events.Add(new List<object> { (double)change[0], (double)change[1] });
+                    told.Add(events);
+                };
+                popup.Snapshot((Dictionary<string, object>)call["core"]);
+                popup.Show(true, false, origin);
+                Guid iid = SurfaceAccess.IidAccessible;
+                int got = AccessibleObjectFromWindow(own, unchecked((uint)SurfaceAccess.OBJID_CLIENT), ref iid, out pointer);
+                if (got != 0 || pointer == IntPtr.Zero) throw new InvalidOperationException("AccessibleObjectFromWindow " + got);
+                Func<List<Dictionary<string, object>>> expected = () =>
+                    SurfaceAccess.AccessibleItems(popup.Vm, popup.Plan, popup.Keyboard ? popup.Focus : null, popup.Hover, popup.Strings);
+                List<Dictionary<string, object>> items = expected();
+                IntPtr counted = System.Runtime.InteropServices.Marshal.AllocHGlobal(8);
+                var children = new List<object>();
+                object count, focus;
+                try
+                {
+                    System.Runtime.InteropServices.Marshal.WriteInt32(counted, -1);
+                    int result = CallSlot(pointer, 8, typeof(ReaderOut), counted);
+                    count = new List<object> { (double)result, (double)System.Runtime.InteropServices.Marshal.ReadInt32(counted) };
+                    for (int child = 0; child <= items.Count + 1; child++)
+                    {
+                        var row = new Dictionary<string, object>
+                        {
+                            { "name", ReadText(pointer, 10, child) }, { "role", ReadNumber(pointer, 13, child) },
+                            { "state", ReadNumber(pointer, 14, child) }, { "action", ReadText(pointer, 20, child) },
+                        };
+                        IntPtr box = System.Runtime.InteropServices.Marshal.AllocHGlobal(16), variant = ChildVariant(child);
+                        try
+                        {
+                            int located = CallSlot(pointer, 22, typeof(ReaderBox), box, box + 4, box + 8, box + 12, variant);
+                            var parts = new List<object> { (double)located };
+                            for (int at = 0; at < 16; at += 4) parts.Add((double)System.Runtime.InteropServices.Marshal.ReadInt32(box, at));
+                            row["box"] = parts;
+                            if (located == 0)
+                            {
+                                IntPtr hit = ChildVariant(0);
+                                try
+                                {
+                                    int hitResult = CallSlot(pointer, 24, typeof(ReaderHit), System.Runtime.InteropServices.Marshal.ReadInt32(box) + 2,
+                                                             System.Runtime.InteropServices.Marshal.ReadInt32(box, 4) + 2, hit);
+                                    row["hit"] = new List<object> { (double)hitResult, (double)System.Runtime.InteropServices.Marshal.ReadInt16(hit),
+                                                                    (double)System.Runtime.InteropServices.Marshal.ReadInt32(hit, 8) };
+                                }
+                                finally
+                                {
+                                    System.Runtime.InteropServices.Marshal.FreeHGlobal(hit);
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            System.Runtime.InteropServices.Marshal.FreeHGlobal(box);
+                            System.Runtime.InteropServices.Marshal.FreeHGlobal(variant);
+                        }
+                        children.Add(row);
+                    }
+                    IntPtr focused = ChildVariant(0);
+                    try
+                    {
+                        int focusResult = CallSlot(pointer, 18, typeof(ReaderOut), focused);
+                        focus = new List<object> { (double)focusResult, (double)System.Runtime.InteropServices.Marshal.ReadInt16(focused),
+                                                   (double)System.Runtime.InteropServices.Marshal.ReadInt32(focused, 8) };
+                    }
+                    finally
+                    {
+                        System.Runtime.InteropServices.Marshal.FreeHGlobal(focused);
+                    }
+                }
+                finally
+                {
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(counted);
+                }
+                object windowRole;
+                IntPtr std;
+                int stdResult = AccessibleObjectFromWindow(own, unchecked((uint)SurfaceAccess.OBJID_WINDOW), ref iid, out std);
+                if (stdResult == 0 && std != IntPtr.Zero)
+                {
+                    windowRole = ReadNumber(std, 13, 0);
+                    CallSlot(std, 2, typeof(ReaderCounted));
+                }
+                else windowRole = new List<object> { (double)stdResult };
+                var corner = new SurfaceNative.POINT { X = 0, Y = 0 };
+                using (new SurfaceNative.PerMonitorDpi()) SurfaceNative.ClientToScreen(own, ref corner);
+                var steps = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    var answer = new Dictionary<string, object>();
+                    if (what == "tab")
+                    {
+                        int before = told.Count;
+                        popup.Message(SurfaceNative.WM_KEYDOWN, SurfaceNative.VK_TAB, 0);
+                        answer["told"] = told.GetRange(before, told.Count - before);
+                    }
+                    else if (what == "press")
+                    {
+                        int before = actions.Posted.Count;
+                        IntPtr variant = ChildVariant((int)(double)step[1]);
+                        try
+                        {
+                            answer["result"] = (double)CallSlot(pointer, 25, typeof(ReaderPress), variant);
+                        }
+                        finally
+                        {
+                            System.Runtime.InteropServices.Marshal.FreeHGlobal(variant);
+                        }
+                        PumpUntil(() => false, 0.05);
+                        answer["posted"] = actions.Posted.GetRange(before, actions.Posted.Count - before);
+                    }
+                    else if (what == "reader")
+                    {
+                        var start = new System.Diagnostics.ProcessStartInfo((string)step[1],
+                            "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + (string)step[2] + "\"")
+                        {
+                            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+                            StandardOutputEncoding = new UTF8Encoding(false), StandardErrorEncoding = new UTF8Encoding(false),
+                        };
+                        start.EnvironmentVariables["CAR_HWND"] = own.ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        using (System.Diagnostics.Process child = System.Diagnostics.Process.Start(start))
+                        {
+                            System.Threading.Tasks.Task<string> output = child.StandardOutput.ReadToEndAsync();
+                            System.Threading.Tasks.Task<string> errors = child.StandardError.ReadToEndAsync();
+                            PumpUntil(() => child.HasExited, 120);
+                            if (!child.HasExited) child.Kill();
+                            child.WaitForExit();
+                            answer["code"] = (double)child.ExitCode;
+                            answer["out"] = output.Result;
+                            answer["err"] = errors.Result;
+                        }
+                    }
+                    else throw new ArgumentException("no popup_reader step " + what);
+                    steps.Add(answer);
+                }
+                return new Dictionary<string, object>
+                {
+                    { "items", ChildrenJson(items) }, { "count", count }, { "children", children }, { "focus", focus },
+                    { "window_role", windowRole }, { "offset", Plain(popup.ClientOffset()) },
+                    { "corner", new List<object> { (double)corner.X, (double)corner.Y } }, { "steps", steps },
+                    { "posted", actions.Posted }, { "logs", logs },
+                };
+            }
+            finally
+            {
+                if (pointer != IntPtr.Zero) CallSlot(pointer, 2, typeof(ReaderCounted));
+                popup.Dispose();
+                SurfaceNative.UnregisterClassW(className, instance);
+                GC.KeepAlive(proc);
+                SurfaceScreen.Probe = saved;
+                SurfaceScreen.Name = savedName;
+            }
         }
 
         /// The icon card's parts as the reference's dictionary holds them: title, edition, (text, counts) pieces, meter rows.
