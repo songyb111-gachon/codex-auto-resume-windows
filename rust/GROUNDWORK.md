@@ -4804,6 +4804,34 @@ python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26 (gui_lock.s
 ```
 No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are S6.3's and Integration 11's;
 `python -X utf8 rust/tools/check_groundwork.py`: OK.
+
+### S6.4c, second part (the coordinator's go-on, 2026-11-27): where it stopped
+
+The context ran low after one more row; this is where the next seat starts. `test_tray_shape` is host: `CompositionTests`' five are the Python
+Tray's mixin composition (which class defines what, the MRO, the file of `class Tray`), `no_twin` with their reasons, naming test_host_shape's
+OneDefinitionTests and HostListTests. `test_screenshots` stays pending with the reason "moves with the pictures (main session's pass)".
+Ledger: **host 29, pending 54** (ceiling 54), python-only 1. `test_status_newest_usage.py` waits for Integration 12's merge of the final.
+
+Left, in the coordinator's order (every count is UI tests not yet held):
+1. **Window, 244 tests, 22 rows** - the `test_host_icon_tick.py` pattern. Found while reading them:
+   * `test_surface_properties.TrayMenuTests` (9): the Python `_act(MENU_*)` calls the icon's callbacks; the host's `TrayMenu.Act` (private,
+     gui/TrayMenu.cs) posts `HostActions.Toggle/OpenDashboard/Stop` through `IHostActions` instead. A probe `icon_act` (a TrayIcon with a
+     recording IHostActions, Act by reflection) and a twin that maps each posted action to the callback the test wired (OpenDashboard page
+     None = on_open, page "pending" = on_pending, Toggle(paused) = on_toggle, Stop = on_stop); `test_the_window_is_only_ever_opened_on_a_page_it_has`
+     is the opener's (step 2).
+   * `test_failure_seen.IconTests` (6): `test_a_failure_turns_the_icon_red_and_says_so_when_hovered` is already routed by the shim (icon_state,
+     tooltip: add it to host_tests), `test_every_language_says_it` is l10n only (unaffected); the other four drive the Python icon's control
+     layer, which on the port is the core's (`failure_unseen` rides the snapshot, `TrayIcon.FailureUnseen`; the seen mark is a posted action,
+     gui/TrayIcon.cs near `Actions == null || !...failures`): a probe over those two and a twin per test.
+   * the rest as listed in "What is left" above, largest first: `test_tray_menu_drawn` 36, `test_popup_row_menu_drawn` 27, `test_tray_tipcard` 22,
+     `test_popup_access` 21, `test_tray_tip_messages` 17, `test_popup_card_still` 14, `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11,
+     `test_popup_opening_motion` 11, `test_tray_open_popup` 11, `test_popup_motion_held` 10, `test_menu_opening_motion` 6, `test_card_focus` 5,
+     `test_tray` 5, `test_tray_menu_no_glow` 5, `test_corners_by_design` 4 (Renderer pixels: the render mode's `pixels` surface),
+     `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3, `test_notice_stay` 2.
+2. **Pure, 24 tests** - the Dashboard opener: a car-harness case over car-platform's `handover.rs` with a scratch stand-in for the process
+   start, then its proxy beside perform's; `test_single_rules.PageTests` with it. Not started.
+3. **Drawn, 424 tests** - the plan proxy; `test_motion_tray_story` (4) by the drawn route. Not started.
+4. `test_screenshots` (34): pending, "moves with the pictures (main session's pass)" - done.
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
