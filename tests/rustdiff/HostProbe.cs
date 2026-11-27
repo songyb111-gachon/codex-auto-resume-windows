@@ -90,6 +90,8 @@ namespace CodexAutoResume
             }
             var list = value as List<object>;
             if (list != null) return list.ConvertAll(Plain);
+            var numbers = value as int[];
+            if (numbers != null) return new List<object>(Array.ConvertAll(numbers, number => (object)(double)number));
             return value;
         }
 
@@ -120,6 +122,8 @@ namespace CodexAutoResume
             if (name == "icon_overflowed") return IconOverflowed(call);
             if (name == "icon_demo") return IconDemo(call);
             if (name == "icon_steps") return IconSteps(call);
+            if (name == "menu_keys") return MenuKeys(call);
+            if (name == "menu_messages") return MenuMessages(call);
             if (name == "icon_menu_ids")
                 return new Dictionary<string, object>
                 {
@@ -210,6 +214,130 @@ namespace CodexAutoResume
                 items.Add(copy);
             }
             return items;
+        }
+
+        /// The drawn menu's keys as MenuPlan answers them (menuplan.menu_step, menu_end, menu_letter): one answer per question.
+        private static object MenuKeys(Dictionary<string, object> call)
+        {
+            var answers = new List<object>();
+            foreach (object each in (List<object>)call["asked"])
+            {
+                var asked = (List<object>)each;
+                string what = (string)asked[0];
+                List<object> entries = MenuEntries((List<object>)asked[1]);
+                int? current = asked[2] is double ? (int?)(int)(double)asked[2] : null;
+                if (what == "step")
+                {
+                    int? found = MenuPlan.Step(entries, current, (bool)asked[3]);
+                    answers.Add(found.HasValue ? (object)(double)found.Value : null);
+                }
+                else if (what == "end")
+                {
+                    int? found = MenuPlan.End(entries, (bool)asked[3]);
+                    answers.Add(found.HasValue ? (object)(double)found.Value : null);
+                }
+                else if (what == "letter")
+                {
+                    KeyValuePair<int?, bool> found = MenuPlan.Letter(entries, current, (string)asked[3]);
+                    answers.Add(new List<object> { found.Key.HasValue ? (object)(double)found.Key.Value : null, found.Value });
+                }
+                else throw new ArgumentException("no menu question " + what);
+            }
+            return answers;
+        }
+
+        /// The drawn menu's own handlers with nothing that draws it on a screen (tests/test_tray_menu_drawn.py
+        /// BehaviourTests): a MenuWindow with no window, its entries, words and chooser the test's, its plan its own renderer's
+        /// MenuLayout at `scale` (as Open lays it out, over a 1920-pixel work area), open (Visible); its push draws into its own canvas only (the
+        /// test's `_push` does nothing, the host's draws offscreen and blits to no window), what it tells a screen reader
+        /// recorded (its Telling; its Speaking as SurfaceAccess's, with the announcement recorded as the changes it would
+        /// make). Then each step: send a message to its window procedure, set Visible or Selected as the test does, take its
+        /// Spoken, or read its accessible items. After each step: what Handle returned, Visible, Selected, what was chosen,
+        /// what was told; and the plan's items and card.
+        private static object MenuMessages(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            var logged = new List<object>();
+            var menu = new MenuWindow(line => logged.Add(line));
+            try
+            {
+                var chosen = new List<object>();
+                var told = new List<object>();
+                menu.Entries = MenuEntries((List<object>)call["entries"]);
+                menu.Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]);
+                menu.OnChoose = id => chosen.Add(Plain(id));
+                SurfaceRenderer renderer = SurfaceRenderer.Open();
+                typeof(MenuWindow).GetField("renderer", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                  .SetValue(menu, renderer);
+                menu.Plan = renderer.MenuLayout(menu.Entries, (double)call["scale"], menu.Locale, 1920);
+                menu.Visible = true;
+                menu.Telling = (hwnd, winEvent) => told.Add(new List<object> { "tell", (double)winEvent });
+                menu.Speaking = window =>
+                {
+                    List<Dictionary<string, object>> items = window.AccessibleItems();
+                    List<Dictionary<string, object>> before = window.Spoken;
+                    window.Spoken = items;
+                    if (before.Count == 0) return;
+                    var changes = new List<object>();
+                    foreach (int[] change in SurfaceAccess.Changes(before, items))
+                        changes.Add(new List<object> { (double)change[0], (double)change[1] });
+                    told.Add(new List<object> { "announce", Items(before), Items(items), changes });
+                };
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    object returned = null;
+                    if (what == "send")
+                    {
+                        IntPtr answer = menu.Message((int)(double)step[1], (long)(double)step[2], (long)(double)step[3]);
+                        returned = (double)answer.ToInt64();
+                    }
+                    else if (what == "visible") menu.Visible = (bool)step[1];
+                    else if (what == "select") menu.Selected = step[1] is double ? (int?)(int)(double)step[1] : null;
+                    else if (what == "spoken") menu.Spoken = menu.AccessibleItems();
+                    else if (what == "accessible") returned = Items(menu.AccessibleItems());
+                    else throw new ArgumentException("no menu step " + what);
+                    after.Add(new Dictionary<string, object>
+                    {
+                        { "returned", returned }, { "visible", menu.Visible },
+                        { "selected", menu.Selected.HasValue ? (object)(double)menu.Selected.Value : null },
+                        { "chosen", new List<object>(chosen) }, { "told", new List<object>(told) },
+                    });
+                }
+                var planItems = new List<object>();
+                foreach (PlanItem item in menu.Plan.Items)
+                {
+                    int[] rect = item.Rect;
+                    planItems.Add(new Dictionary<string, object>
+                    {
+                        { "kind", item.Kind }, { "index", Plain(item.Get("index")) },
+                        { "rect", new List<object> { (double)rect[0], (double)rect[1], (double)rect[2], (double)rect[3] } },
+                    });
+                }
+                int[] card = menu.Plan.Card;
+                return new Dictionary<string, object>
+                {
+                    { "steps", after }, { "log", logged }, { "record", new List<object>(SurfaceScreen.Probe) }, { "plan", new Dictionary<string, object> { { "items", planItems },
+                      { "card", new List<object> { (double)card[0], (double)card[1], (double)card[2], (double)card[3] } } } },
+                };
+            }
+            finally
+            {
+                SurfaceRenderer renderer = menu.Renderer;
+                if (renderer != null) renderer.Dispose();
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        /// Accessible items as plain JSON.
+        private static List<object> Items(List<Dictionary<string, object>> items)
+        {
+            var plain = new List<object>();
+            foreach (Dictionary<string, object> item in items) plain.Add(Plain(item));
+            return plain;
         }
 
         /// The icon over a run of steps (tests/rustdiff/hosticon.py's HostTray, the twin of ui/tray's Tray as the tests drive

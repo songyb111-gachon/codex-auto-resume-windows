@@ -1898,8 +1898,8 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "9 of 37 UI tests run on the host or are held by a twin (1 routed, 8 twins); 28 are still on the Python UI: KeyTests 2, BehaviourTests 10, LiveWindowTests 3 (window), PlacementTests 6, RightToLeftTests 1, LookTests 6 (the drawing: seat S6.4f's plan route)",
-   "needs": "KeyTests and BehaviourTests: a probe over MenuPlan's Step/End/Letter and MenuWindow's message handlers with its push and announce recorded; LiveWindowTests: the host's MenuWindow made unshown and read through SurfaceAccess; PlacementTests, RightToLeftTests, LookTests: the render mode's menu plan and pixels (S6.4f)",
+   "why": "21 of 37 UI tests run on the host or are held by a twin (1 routed, 20 twins); 16 are still on the Python UI: LiveWindowTests 3 (window), PlacementTests 6, RightToLeftTests 1, LookTests 6 (the drawing: seat S6.4f's plan route)",
+   "needs": "LiveWindowTests: the host's MenuWindow made unshown and read through SurfaceAccess's MSAA object (its own window, never shown, as test_surface_windows makes one); PlacementTests, RightToLeftTests, LookTests: the render mode's menu plan and pixels (seat S6.4f)",
    "host_tests": [
     "ParityTests.test_the_items_are_the_menu_windows_has_always_shown"
    ],
@@ -1911,7 +1911,19 @@
     "FallbackTests.test_the_drawn_menu_is_shown_and_windows_is_not": "test_host_icon_menu.py::FallbackOnHostTests.test_the_drawn_menu_is_shown_and_windows_is_not",
     "FallbackTests.test_a_drawn_menu_that_breaks_gives_way_to_windows_for_good_and_says_so_once": "test_host_icon_menu.py::FallbackOnHostTests.test_a_drawn_menu_that_breaks_gives_way_to_windows_for_good_and_says_so_once",
     "FallbackTests.test_an_opening_refused_the_foreground_is_windows_menu_that_once": "test_host_icon_menu.py::FallbackOnHostTests.test_an_opening_refused_the_foreground_is_windows_menu_that_once",
-    "FallbackTests.test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon": "test_host_icon_menu.py::FallbackOnHostTests.test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon"
+    "FallbackTests.test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon": "test_host_icon_menu.py::FallbackOnHostTests.test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon",
+    "KeyTests.test_arrows_go_round_the_usable_items_and_never_land_on_the_status_or_a_line": "test_host_icon_menu.py::KeyOnHostTests.test_arrows_go_round_the_usable_items_and_never_land_on_the_status_or_a_line",
+    "KeyTests.test_a_letter_chooses_the_one_item_it_starts_and_steps_through_several": "test_host_icon_menu.py::KeyOnHostTests.test_a_letter_chooses_the_one_item_it_starts_and_steps_through_several",
+    "BehaviourTests.test_down_and_enter_choose_the_item_and_close_first": "test_host_icon_menu.py::BehaviourOnHostTests.test_down_and_enter_choose_the_item_and_close_first",
+    "BehaviourTests.test_home_end_and_up": "test_host_icon_menu.py::BehaviourOnHostTests.test_home_end_and_up",
+    "BehaviourTests.test_enter_with_nothing_in_hand_does_nothing": "test_host_icon_menu.py::BehaviourOnHostTests.test_enter_with_nothing_in_hand_does_nothing",
+    "BehaviourTests.test_esc_alt_and_f10_close_it_choosing_nothing": "test_host_icon_menu.py::BehaviourOnHostTests.test_esc_alt_and_f10_close_it_choosing_nothing",
+    "BehaviourTests.test_a_letter_chooses_or_moves": "test_host_icon_menu.py::BehaviourOnHostTests.test_a_letter_chooses_or_moves",
+    "BehaviourTests.test_the_pointer_puts_an_item_in_hand_and_either_button_s_release_chooses_it": "test_host_icon_menu.py::BehaviourOnHostTests.test_the_pointer_puts_an_item_in_hand_and_either_button_s_release_chooses_it",
+    "BehaviourTests.test_leaving_it_puts_nothing_in_hand": "test_host_icon_menu.py::BehaviourOnHostTests.test_leaving_it_puts_nothing_in_hand",
+    "BehaviourTests.test_a_click_elsewhere_and_losing_the_focus_close_it": "test_host_icon_menu.py::BehaviourOnHostTests.test_a_click_elsewhere_and_losing_the_focus_close_it",
+    "BehaviourTests.test_a_screen_reader_hears_the_item_in_hand_move": "test_host_icon_menu.py::BehaviourOnHostTests.test_a_screen_reader_hears_the_item_in_hand_move",
+    "BehaviourTests.test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state": "test_host_icon_menu.py::BehaviourOnHostTests.test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state"
    },
    "no_twin": {},
    "port": [

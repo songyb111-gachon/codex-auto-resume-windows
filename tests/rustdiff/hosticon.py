@@ -258,3 +258,123 @@ class HostTray:
         except Exception:
             return True
         return False
+
+
+# ---------------------------------------------------------------------------------------------------- the drawn menu
+def _entries(items):
+    return [dict(item) if item else None for item in items]
+
+
+class HostMenuKeys:
+    """menuplan's menu_step, menu_end and menu_letter, answered by the host's MenuPlan (HostProbe.cs `menu_keys`)."""
+
+    @staticmethod
+    def menu_step(entries, current, backwards=False):
+        return _int(surfacehost.SERVE.ask("menu_keys", asked=[["step", _entries(entries), current, bool(backwards)]])[0])
+
+    @staticmethod
+    def menu_end(entries, last=False):
+        return _int(surfacehost.SERVE.ask("menu_keys", asked=[["end", _entries(entries), None, bool(last)]])[0])
+
+    @staticmethod
+    def menu_letter(entries, current, character):
+        index, chooses = surfacehost.SERVE.ask("menu_keys", asked=[["letter", _entries(entries), current, character]])[0]
+        return _int(index), chooses
+
+
+def _int(value):
+    return None if value is None else int(value)
+
+
+class HostMenu:
+    """The drawn menu (ui/popup/menuwindow.py's Menu) as tests/test_tray_menu_drawn.py BehaviourTests drives it, answered by
+    the host's MenuWindow with no window (HostProbe.cs `menu_messages`).
+
+    The test sets `entries`, `strings`, `on_choose`, `visible`, `selected` and `_spoken` and sends messages to `_handle`;
+    each assignment and message is a step of one history, which is run from the start on a fresh MenuWindow for every
+    question (the probe keeps nothing between calls), so what the test reads - `selected`, `visible`, `_plan`, what
+    `accessible_items()` says, what `_handle` returned - is the host's state after its own handling of every step so far.
+    The plan is the host's own, its renderer's MenuLayout at scale 1 as its Open lays it out, read back through `_plan`, so
+    where the test points (its `at(index)`) is an item's rectangle in the host's plan; the test's own assignment of the
+    reference's plan is not taken (that the two plans are the same is the drawing's, seat S6.4f's). What the host chose goes to `on_choose`, what it told a screen reader to the test's `_tell`,
+    and each announcement to `access.announce(self, before, after)` with the host's own item lists - after checking that the
+    host's SurfaceAccess.Changes of them are the reference's `access.changes`.
+    """
+
+    hwnd = None
+
+    def __init__(self, entries=None, strings=None, on_choose=None, scale=1.0):
+        self.__dict__.update(entries=list(entries or []), strings=dict(strings or {}), on_choose=on_choose, scale=scale,
+                             history=[], delivered=0, chosen=0, last=None)
+
+    # attributes the test assigns are steps of the history
+    def __setattr__(self, name, value):
+        if name == "visible":
+            self.history.append(["visible", bool(value)])
+        elif name == "selected":
+            self.history.append(["select", value])
+        elif name == "_spoken":
+            self.history.append(["spoken"])
+        elif name == "_plan":
+            pass                     # the host lays its own plan out (see the class's head)
+        else:
+            self.__dict__[name] = value
+            return
+        self.__dict__["last"] = None
+
+    def _run(self, extra=()):
+        found = surfacehost.SERVE.ask("menu_messages", entries=_entries(self.entries), strings=self.strings,
+                                      scale=self.scale, steps=self.history + list(extra))
+        return found
+
+    def _state(self):
+        if self.last is None:
+            self.__dict__["last"] = self._run([["accessible"]])
+        return self.last
+
+    @property
+    def visible(self):
+        return self._state()["steps"][-1]["visible"]
+
+    @property
+    def selected(self):
+        return _int(self._state()["steps"][-1]["selected"])
+
+    @property
+    def _plan(self):
+        plan = self._state()["plan"]
+        return {"items": [dict(item, index=_int(item["index"]), rect=tuple(int(n) for n in item["rect"]))
+                          for item in plan["items"]], "card": tuple(int(n) for n in plan["card"])}
+
+    def accessible_items(self):
+        items = self._state()["steps"][-1]["returned"]
+        return [dict(item, target=_int(item["target"]), rect=tuple(int(n) for n in item["rect"])) for item in items]
+
+    def _push(self):
+        """The reference's own push; the host's draws offscreen in the probe."""
+
+    def _tell(self, event):
+        """The reference's own tell; the host's tellings are handed here."""
+
+    def _handle(self, message, wparam=0, lparam=0):
+        self.history.append(["send", message, wparam, lparam])
+        self.__dict__["last"] = None
+        found = self._state()
+        step = found["steps"][-2]
+        told = step["told"]
+        from codex_auto_resume.ui.popup import access
+        for kind, *rest in told[self.delivered:]:
+            if kind == "tell":
+                self._tell(int(rest[0]))
+            else:
+                before, after, changes = rest
+                expected = [list(change) for change in access.changes(before, after)]
+                if [[int(n) for n in change] for change in changes] != expected:
+                    raise AssertionError("the host's announcement %r is not the reference's %r" % (changes, expected))
+                access.announce(self, before, after)
+        self.__dict__["delivered"] = len(told)
+        for identifier in step["chosen"][self.chosen:]:
+            self.on_choose(int(identifier))
+        self.__dict__["chosen"] = len(step["chosen"])
+        returned = step["returned"]
+        return None if returned is None else int(returned)

@@ -89,5 +89,79 @@ class FallbackOnHostTests(original.FallbackTests):
         super().test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon()
 
 
+class PopupOnHost:
+    """The reference popup package with menu_step, menu_end and menu_letter the host's MenuPlan; the rest the reference's."""
+
+    def __init__(self, reference):
+        self._reference = reference
+        self.menu_step = hosticon.HostMenuKeys.menu_step
+        self.menu_end = hosticon.HostMenuKeys.menu_end
+        self.menu_letter = hosticon.HostMenuKeys.menu_letter
+
+    def __getattr__(self, name):
+        return getattr(self._reference, name)
+
+
+@ON_HOST
+class KeyOnHostTests(original.KeyTests):
+    def setUp(self):
+        patcher = unittest.mock.patch.object(original, "popup", PopupOnHost(original.popup))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_arrows_go_round_the_usable_items_and_never_land_on_the_status_or_a_line(self):
+        super().test_arrows_go_round_the_usable_items_and_never_land_on_the_status_or_a_line()
+
+    def test_a_letter_chooses_the_one_item_it_starts_and_steps_through_several(self):
+        super().test_a_letter_chooses_the_one_item_it_starts_and_steps_through_several()
+
+
+@ON_HOST
+class BehaviourOnHostTests(original.BehaviourTests):
+    """The drawn menu's handlers: the test's setUp, then its menu made the host's (hosticon.HostMenu), given what the
+    reference's was given - entries, words, chooser, open - with the same `_push` and `_tell` patched on it."""
+
+    def setUp(self):
+        super().setUp()
+        reference = self.menu
+        self.menu = hosticon.HostMenu(reference.entries, reference.strings, reference.on_choose)
+        self.menu.visible = True
+        self.menu._plan = reference._plan
+        for name, value in (("_push", lambda: None), ("_tell", self.told.append)):
+            patcher = unittest.mock.patch.object(self.menu, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_down_and_enter_choose_the_item_and_close_first(self):
+        super().test_down_and_enter_choose_the_item_and_close_first()
+
+    def test_home_end_and_up(self):
+        super().test_home_end_and_up()
+
+    def test_enter_with_nothing_in_hand_does_nothing(self):
+        super().test_enter_with_nothing_in_hand_does_nothing()
+
+    def test_esc_alt_and_f10_close_it_choosing_nothing(self):
+        super().test_esc_alt_and_f10_close_it_choosing_nothing()
+
+    def test_a_letter_chooses_or_moves(self):
+        super().test_a_letter_chooses_or_moves()
+
+    def test_the_pointer_puts_an_item_in_hand_and_either_button_s_release_chooses_it(self):
+        super().test_the_pointer_puts_an_item_in_hand_and_either_button_s_release_chooses_it()
+
+    def test_leaving_it_puts_nothing_in_hand(self):
+        super().test_leaving_it_puts_nothing_in_hand()
+
+    def test_a_click_elsewhere_and_losing_the_focus_close_it(self):
+        super().test_a_click_elsewhere_and_losing_the_focus_close_it()
+
+    def test_a_screen_reader_hears_the_item_in_hand_move(self):
+        super().test_a_screen_reader_hears_the_item_in_hand_move()
+
+    def test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state(self):
+        super().test_what_a_screen_reader_is_told_is_each_item_by_name_role_and_state()
+
+
 if __name__ == "__main__":
     unittest.main()
