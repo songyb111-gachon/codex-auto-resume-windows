@@ -164,7 +164,13 @@ impl CodexReads for AskCodex {
 struct AskIpc(Asker);
 
 impl AskIpc {
-    fn turn(&self, seam: &str, one: &Value, two: &Value, gate: &mut dyn Gate) -> Result<String, Raised> {
+    fn turn(
+        &self,
+        seam: &str,
+        one: &Value,
+        two: &Value,
+        gate: &mut dyn Gate,
+    ) -> Result<String, Raised> {
         with_gate(gate, |number| {
             let found = self
                 .0
@@ -175,10 +181,20 @@ impl AskIpc {
 }
 
 impl usagestop::Ipc for AskIpc {
-    fn stop_turn(&self, thread: &Value, turn_id: &Value, gate: &mut dyn Gate) -> Result<String, Raised> {
+    fn stop_turn(
+        &self,
+        thread: &Value,
+        turn_id: &Value,
+        gate: &mut dyn Gate,
+    ) -> Result<String, Raised> {
         self.turn("stop_turn", thread, turn_id, gate)
     }
-    fn start_turn(&self, thread: &Value, text_: &Value, gate: &mut dyn Gate) -> Result<String, Raised> {
+    fn start_turn(
+        &self,
+        thread: &Value,
+        text_: &Value,
+        gate: &mut dyn Gate,
+    ) -> Result<String, Raised> {
         self.turn("start_turn", thread, text_, gate)
     }
 }
@@ -192,7 +208,10 @@ struct AskObject {
 
 impl AskObject {
     fn asked(&self, method: &str, args: Vec<Value>) -> Result<Value, Raised> {
-        self.asker.ask("object", vec![int(self.object), text(method), Value::Array(args)])
+        self.asker.ask(
+            "object",
+            vec![int(self.object), text(method), Value::Array(args)],
+        )
     }
 }
 
@@ -240,7 +259,9 @@ fn session_answer(found: Result<Value, Raised>) -> Result<Value, SessionError> {
     };
     Err(match class {
         "SessionRefused" => SessionError::Refused,
-        "AdapterError" => SessionError::Adapter(leak(word(field(&found, "code")).unwrap_or("adapter"))),
+        "AdapterError" => {
+            SessionError::Adapter(leak(word(field(&found, "code")).unwrap_or("adapter")))
+        }
         "RefusedByCodex" => SessionError::ByCodex {
             method: word(field(&found, "method")).unwrap_or_default().to_owned(),
             code: number(field(&found, "number")).map(|each| each as i64),
@@ -254,10 +275,9 @@ impl Channel for AskObject {
         session_answer(self.asked("__enter__", Vec::new())).map(|_| ())
     }
     fn submit(&mut self, method: &str, params: Option<Value>) -> Result<i64, SessionError> {
-        let found = session_answer(self.asked(
-            "submit",
-            vec![text(method), params.unwrap_or(Value::Null)],
-        ))?;
+        let found = session_answer(
+            self.asked("submit", vec![text(method), params.unwrap_or(Value::Null)]),
+        )?;
         Ok(number(&found).map_or(0, |each| each as i64))
     }
     fn receive(
@@ -268,7 +288,11 @@ impl Channel for AskObject {
     ) -> Result<Value, SessionError> {
         session_answer(self.asked(
             "receive",
-            vec![text(method), int(sequence), params.cloned().unwrap_or(Value::Null)],
+            vec![
+                text(method),
+                int(sequence),
+                params.cloned().unwrap_or(Value::Null),
+            ],
         ))
     }
     fn drain_events(&mut self) -> Vec<Value> {
@@ -398,7 +422,12 @@ pub fn refusing() -> usage::World {
 
 /// A shipped capability's code with its world asked of the test, for the families this module serves; `None` for
 /// any other (car-adv's own `capabilities::make` makes it).
-pub fn make(definition: &CapabilityDef, paths: &Paths, session: i64, catalogs: &str) -> Option<Option<Box<dyn Code>>> {
+pub fn make(
+    definition: &CapabilityDef,
+    paths: &Paths,
+    session: i64,
+    catalogs: &str,
+) -> Option<Option<Box<dyn Code>>> {
     let world = || usage_world(session, &definition.id, catalogs);
     let made: Box<dyn Code> = match definition.id.as_str() {
         "usage_meter" => Box::new(usage::UsageMeter::new(paths.clone(), world())),
@@ -407,7 +436,11 @@ pub fn make(definition: &CapabilityDef, paths: &Paths, session: i64, catalogs: &
         "reset_message" => Box::new(resetmessage::ResetMessage::new(paths.clone(), world().open)),
         "reset_credit" => {
             let made = world();
-            Box::new(credits::ResetCredit::new(paths.clone(), made.open, made.keys))
+            Box::new(credits::ResetCredit::new(
+                paths.clone(),
+                made.open,
+                made.keys,
+            ))
         }
         _ => return None,
     };

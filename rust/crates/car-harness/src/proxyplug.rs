@@ -10,8 +10,8 @@ use std::cell::RefCell;
 use car_machine::json::{Map, Str, Value};
 use car_machine::pyval::Py;
 use car_policy::plug::{
-    Alternative, Answer, Channel, Edition, Errand, Guards, Hook, HookFailed, Plug, Point, ReadFailed, Route,
-    StartRoute, Surface, Unloaded, View,
+    Alternative, Answer, Channel, Edition, Errand, Guards, Hook, HookFailed, Plug, Point,
+    ReadFailed, Route, StartRoute, Surface, Unloaded, View,
 };
 
 use super::{answered, read_value, write_line};
@@ -53,7 +53,12 @@ fn view_call(method: &str, args: &[Value]) -> Py<Value> {
     };
     // SAFETY: see `with_view`.
     let view = unsafe { &*pointer };
-    let text_at = |index: usize| args.get(index).and_then(word).unwrap_or_default().to_owned();
+    let text_at = |index: usize| {
+        args.get(index)
+            .and_then(word)
+            .unwrap_or_default()
+            .to_owned()
+    };
     let number_at = |index: usize| match args.get(index) {
         Some(Value::Int(whole)) => whole.as_i64().map_or(0.0, |each| each as f64),
         Some(Value::Float(each)) => *each,
@@ -87,7 +92,9 @@ fn view_call(method: &str, args: &[Value]) -> Py<Value> {
             view.recent_claim_count(&text_at(0), number_at(1))
                 .map_err(read_failed)?,
         ),
-        "claimed_on_thread" => Value::Array(view.claimed_on_thread(&text_at(0)).map_err(read_failed)?),
+        "claimed_on_thread" => {
+            Value::Array(view.claimed_on_thread(&text_at(0)).map_err(read_failed)?)
+        }
         "last_usage" => view.last_usage(),
         _ => return Err("AttributeError"),
     })
@@ -272,7 +279,11 @@ impl Held {
     ) -> Py<Value> {
         ask_plug(
             "plug.object",
-            vec![Value::from(self.number), Value::from(method), Value::Array(args)],
+            vec![
+                Value::from(self.number),
+                Value::from(method),
+                Value::Array(args),
+            ],
             guards,
             still_unloaded,
         )
@@ -288,7 +299,9 @@ impl Held {
 impl Errand for Held {
     fn run(&self, view: &dyn View, guards: &mut Guards<'_>) -> Result<Value, HookFailed> {
         let found = with_view(view, || self.call("run", Vec::new(), Some(guards), None));
-        found.map(|found| Held::value(Ok(found))).map_err(|_| HookFailed)
+        found
+            .map(|found| Held::value(Ok(found)))
+            .map_err(|_| HookFailed)
     }
 }
 
@@ -346,7 +359,12 @@ impl Route for Held {
 
 impl StartRoute for Held {
     fn start(&self, command: &[String]) -> Value {
-        let args = vec![Value::Array(command.iter().map(|each| Value::from(each.as_str())).collect())];
+        let args = vec![Value::Array(
+            command
+                .iter()
+                .map(|each| Value::from(each.as_str()))
+                .collect(),
+        )];
         Held::value(self.call("start", args, None, None))
     }
 }
@@ -354,7 +372,9 @@ impl StartRoute for Held {
 fn held(found: Py<Value>, wants: &str) -> Hook<Box<Held>> {
     let found = found.map_err(|_| HookFailed)?;
     match object_of(&found) {
-        Some((number, has)) if has.iter().any(|each| each == wants) => Ok(Answer::Is(Box::new(Held { number, has }))),
+        Some((number, has)) if has.iter().any(|each| each == wants) => {
+            Ok(Answer::Is(Box::new(Held { number, has })))
+        }
         _ => Ok(Answer::Defer),
     }
 }
@@ -386,13 +406,18 @@ impl Plug for AskPlug {
         list(viewed("records", view, Vec::new()))
     }
     fn gate(&self, name: &str, record: &Value, facts: &Value) -> Hook<Alternative> {
-        alternative(hook("gate", vec![Value::from(name), record.clone(), facts.clone()]))
+        alternative(hook(
+            "gate",
+            vec![Value::from(name), record.clone(), facts.clone()],
+        ))
     }
     fn text(&self, record: &Value, text: &Str) -> Hook<Str> {
-        Ok(match plain(hook("text", vec![record.clone(), Value::Str(text.clone())]))? {
-            Answer::Is(Value::Str(words)) => Answer::Is(words),
-            _ => Answer::Defer,
-        })
+        Ok(
+            match plain(hook("text", vec![record.clone(), Value::Str(text.clone())]))? {
+                Answer::Is(Value::Str(words)) => Answer::Is(words),
+                _ => Answer::Defer,
+            },
+        )
     }
     fn sender(&self, record: &Value) -> Hook<Box<dyn Channel>> {
         Ok(match held(hook("sender", vec![record.clone()]), "send")? {
@@ -413,13 +438,18 @@ impl Plug for AskPlug {
         })
     }
     fn start_route(&self, request: &Value) -> Hook<Box<dyn StartRoute>> {
-        Ok(match held(hook("start_route", vec![request.clone()]), "start")? {
-            Answer::Is(made) => Answer::Is(made as Box<dyn StartRoute>),
-            Answer::Defer => Answer::Defer,
-        })
+        Ok(
+            match held(hook("start_route", vec![request.clone()]), "start")? {
+                Answer::Is(made) => Answer::Is(made as Box<dyn StartRoute>),
+                Answer::Defer => Answer::Defer,
+            },
+        )
     }
     fn surface(&self, name: Surface, facts: &Value) -> Hook<Value> {
-        plain(hook("surface", vec![Value::from(name.as_str()), facts.clone()]))
+        plain(hook(
+            "surface",
+            vec![Value::from(name.as_str()), facts.clone()],
+        ))
     }
     fn partition(&self, records: &[Value]) -> Hook<Value> {
         plain(hook("partition", vec![Value::Array(records.to_vec())]))
@@ -479,9 +509,12 @@ impl Plug for AskPlug {
             .map_err(|_| HookFailed)
     }
     fn codex(&self, codex_exe: &str, codex_home: &str) -> Result<(), HookFailed> {
-        hook("codex", vec![Value::from(codex_exe), Value::from(codex_home)])
-            .map(|_| ())
-            .map_err(|_| HookFailed)
+        hook(
+            "codex",
+            vec![Value::from(codex_exe), Value::from(codex_home)],
+        )
+        .map(|_| ())
+        .map_err(|_| HookFailed)
     }
     fn conversation_off(&self, thread_id: &str) -> Result<(), HookFailed> {
         hook("conversation_off", vec![Value::from(thread_id)])

@@ -286,7 +286,9 @@ impl AdvancedState {
                     version = sql::number(connection, "PRAGMA user_version", &[])?;
                 }
             }
-            if version != super::builds::version() || !schema::same(&tables, super::builds::tables()) {
+            if version != super::builds::version()
+                || !schema::same(&tables, super::builds::tables())
+            {
                 return Err(Error::state("unsupported or malformed advanced state"));
             }
             if schema::names_checked(connection)? {
@@ -294,7 +296,11 @@ impl AdvancedState {
                     sql::exec(connection, statement, &[])?;
                 }
             } else if schema::readable_from(connection, version)? != schema::READABLE_FROM {
-                sql::exec(connection, super::builds::statement("MARKED", schema::MARKED), &[])?;
+                sql::exec(
+                    connection,
+                    super::builds::statement("MARKED", schema::MARKED),
+                    &[],
+                )?;
             }
             if schema::wordings_checked(connection)? {
                 for statement in super::builds::statements("FREE_WORDINGS", schema::FREE_WORDINGS) {
