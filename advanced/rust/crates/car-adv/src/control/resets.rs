@@ -744,3 +744,28 @@ pub fn counts(runtime: &Runtime) -> Map {
     );
     map
 }
+
+/// car-codex's reader of the system (`PolicyOs`), as every reader of a Codex home here is made in the product.
+pub fn codex_os() -> crate::codex::turns::SharedOs {
+    Arc::new(car_codex::system::PolicyOs)
+}
+
+/// A raise's class as the static name the state's errors carry.
+pub fn class_of(class: &str) -> &'static str {
+    match class {
+        "OSError" => "OSError",
+        "TypeError" => "TypeError",
+        "ValueError" => "ValueError",
+        "KeyError" => "KeyError",
+        "AttributeError" => "AttributeError",
+        "AdapterError" => "AdapterError",
+        "TurnsUnavailable" => "TurnsUnavailable",
+        _ => "ConfigError",
+    }
+}
+
+/// `inuse.home(runtime.paths)`: the Codex home the watcher told, else CODEX_HOME's; the reference's raise where none.
+pub fn codex_home(runtime: &Runtime) -> Result<String> {
+    crate::engine::supervise::codex_home(&runtime.paths)
+        .map_err(|raised| Error::python(class_of(&raised.class), "no Codex home"))
+}
