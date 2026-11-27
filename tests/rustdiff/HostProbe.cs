@@ -857,6 +857,7 @@ namespace CodexAutoResume
                 if (SurfaceRender.Field(call, "hwnd") is bool && !Flag(call, "hwnd")) icon.Hwnd = IntPtr.Zero;
                 icon.MenuTheming = false;
                 icon.MenuBroken = Flag(call, "menu_broken");
+                icon.PopupFailed = Flag(call, "popup_failed");
                 if (Flag(call, "menu_present")) icon.MenuDrawn = menu;
                 icon.MakeMenu = () => { menusMade++; return menu; };
                 icon.NativeChoice = SurfaceRender.Field(call, "native_choice") is double ? (int)(double)call["native_choice"] : 0;

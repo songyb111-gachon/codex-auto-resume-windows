@@ -127,7 +127,7 @@ class HostTray:
                 "unconfirmed": self._unconfirmed, "last_tip": None if self._replaced("_refresh") else self._last_tip,
                 "actions": self._actions(), "pending": self.on_pending is not None, "now": time.time(),
                 "hwnd": bool(self._hwnd), "menu_present": self._menu_drawn not in (None, False),
-                "menu_broken": self._menu_drawn is False}
+                "menu_broken": self._menu_drawn is False, "popup_failed": self.__dict__.get("_popup_failed") is True}
 
     def _answer(self, marks):
         try:

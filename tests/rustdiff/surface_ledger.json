@@ -2064,16 +2064,24 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "2 of 13 UI tests run on the host (2 routed); 11 are still on the Python UI (11 window)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON The Dashboard opener these tests drive (ui/tray/dashboard.py: open_dashboard, open_chat, and the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions. Routing them needs a harness case over handover::hand_over and the process start (a Rust change, not tests/), then a proxy for the two functions beside perform's.",
+   "why": "7 of 13 UI tests run on the host (2 routed, 5 twins); 6 are still on the Python UI: OpensTests 6 (the popup the left click opens, made with the Dashboard opener: seat S6.4e's opener)",
+   "needs": "OpensTests: the Dashboard opener these tests hand the popup (ui/tray/dashboard.py: open_dashboard, open_chat, the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions - a harness case over handover::hand_over and the process start, then a proxy for the two functions beside perform's (seat S6.4e); then icon_steps' `act` MENU_POPUP and `select` with RecordingPopup answer the rest",
    "host_tests": [
     "ItemTests.test_it_is_right_after_open_dashboard",
     "ItemTests.test_without_a_popup_the_menu_is_what_it_was"
    ],
-   "twins": {},
+   "twins": {
+    "ItemTests.test_its_own_command_and_every_language_has_its_words": "test_host_tray_open_popup.py::ItemOnHostTests.test_its_own_command_and_every_language_has_its_words",
+    "ItemTests.test_the_drawn_menu_and_windows_menu_have_it_alike": "test_host_tray_open_popup.py::ItemOnHostTests.test_the_drawn_menu_and_windows_menu_have_it_alike",
+    "ItemTests.test_its_letter_reaches_it_in_every_language": "test_host_tray_open_popup.py::ItemOnHostTests.test_its_letter_reaches_it_in_every_language",
+    "OfferedTests.test_it_is_offered_where_a_left_click_opens_a_popup": "test_host_tray_open_popup.py::OfferedOnHostTests.test_it_is_offered_where_a_left_click_opens_a_popup",
+    "OfferedTests.test_not_without_a_control_layer_or_after_the_popup_broke": "test_host_tray_open_popup.py::OfferedOnHostTests.test_not_without_a_control_layer_or_after_the_popup_broke"
+   },
    "no_twin": {},
    "port": [
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_tray_open_popup.py",
+    "tests/rustdiff/hosticon.py"
    ]
   },
   "test_tray_overflow_open.py": {
