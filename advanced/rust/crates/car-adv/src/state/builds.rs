@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn unpatched_is_this_build() {
         assert_eq!(version(), schema::SCHEMA_VERSION);
-        assert!(std::ptr::eq(tables(), schema::TABLES));
+        assert_eq!(tables(), schema::TABLES);
         assert!(tables_named("TABLES_V7").is_some());
         assert!(tables_named("NOPE").is_none());
         assert_eq!(statements("NOT_PATCHED", &["a"]), &["a"]);

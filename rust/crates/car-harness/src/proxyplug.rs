@@ -1,6 +1,6 @@
 //! The test's plug, asked back (owner Q3 (c), the advanced proxy's completion part 1): the plug a test hands core's
 //! `Engine` (`Engine(..., plug=AdvancedPlug(...))`) is the reference's own Python object - an advanced plug whose
-//! runtime is car-adv's through the advanced proxy - and car-engine reaches it here, every hook by its name
+//! runtime is the advanced edition's own, through the advanced proxy - and car-engine reaches it here, every hook by its name
 //! (`{"ask": "plug.<hook>"}`), held by car-policy's own `Guarded` as core holds any plug. What a hook answers with that
 //! core runs later (an errand, a channel, a route, a start route) stays the test's object, asked by number; the view a
 //! hook is handed and core's errand guards are reached from the Python side by callbacks while the ask waits.
