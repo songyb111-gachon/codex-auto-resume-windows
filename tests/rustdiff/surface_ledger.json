@@ -1017,12 +1017,36 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 21 UI tests run on the host (none); 21 are still on the Python UI (21 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "19 of 21 UI tests are held by a twin (tests/test_host_popup_access.py); 2 are still on the Python UI: TextSizeTests.test_everything_sits_inside_the_card_at_every_text_size_in_every_language and test_the_notification_card_is_whole_at_every_text_size lay out plans (popup.layout, notice_card.layout): the drawing, seat S6.4f's plan proxy",
+   "needs": "the drawing's two: the plan proxy's layout.layout and notice_card.layout through the render mode (seat S6.4f, tests/rustdiff/planproxy.py), then both in host_tests",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "AccessibleItemsTests.test_every_child_is_named_in_every_language": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_every_child_is_named_in_every_language",
+    "AccessibleItemsTests.test_the_children_are_what_is_drawn_in_the_order_it_is_drawn": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_the_children_are_what_is_drawn_in_the_order_it_is_drawn",
+    "AccessibleItemsTests.test_each_switch_is_named_with_its_task_in_every_language": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_each_switch_is_named_with_its_task_in_every_language",
+    "AccessibleItemsTests.test_each_switch_and_button_is_where_it_is_drawn_and_in_the_keyboards_order": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_each_switch_and_button_is_where_it_is_drawn_and_in_the_keyboards_order",
+    "AccessibleItemsTests.test_a_childs_state_is_what_is_drawn": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_a_childs_state_is_what_is_drawn",
+    "AccessibleItemsTests.test_nothing_on_screen_is_no_child": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_nothing_on_screen_is_no_child",
+    "AccessibleItemsTests.test_a_hit_lands_on_the_switch_before_the_row_it_is_in": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_a_hit_lands_on_the_switch_before_the_row_it_is_in",
+    "AccessibleItemsTests.test_what_changes_on_screen_is_announced_and_a_ticking_countdown_is_not": "test_host_popup_access.py::AccessibleItemsOnHostTests.test_what_changes_on_screen_is_announced_and_a_ticking_countdown_is_not",
+    "TextSizeTests.test_the_popup_asks_windows_through_the_one_place_a_test_replaces": "test_host_popup_access.py::TextSizeOnHostTests.test_the_popup_asks_windows_through_the_one_place_a_test_replaces",
+    "TextSizeTests.test_the_card_is_fitted_to_half_the_work_area": "test_host_popup_access.py::TextSizeOnHostTests.test_the_card_is_fitted_to_half_the_work_area",
+    "ScreenReaderTests.test_every_row_and_button_is_there_by_name_role_and_state": "test_host_popup_access.py::ScreenReaderOnHostTests.test_every_row_and_button_is_there_by_name_role_and_state",
+    "ScreenReaderTests.test_each_child_is_where_it_is_drawn_and_a_hit_finds_it": "test_host_popup_access.py::ScreenReaderOnHostTests.test_each_child_is_where_it_is_drawn_and_a_hit_finds_it",
+    "ScreenReaderTests.test_the_keyboards_place_is_the_focused_child_and_a_move_is_announced": "test_host_popup_access.py::ScreenReaderOnHostTests.test_the_keyboards_place_is_the_focused_child_and_a_move_is_announced",
+    "ScreenReaderTests.test_pressing_a_switch_is_the_click_on_it": "test_host_popup_access.py::ScreenReaderOnHostTests.test_pressing_a_switch_is_the_click_on_it",
+    "ScreenReaderTests.test_anything_else_asked_of_the_window_is_windows_own_answer": "test_host_popup_access.py::ScreenReaderOnHostTests.test_anything_else_asked_of_the_window_is_windows_own_answer",
+    "ScreenReaderTests.test_another_process_reads_it_as_narrator_does": "test_host_popup_access.py::ScreenReaderOnHostTests.test_another_process_reads_it_as_narrator_does",
+    "PopupTextSizeTests.test_the_popup_is_drawn_that_much_larger_as_far_as_the_screen_holds_it": "test_host_popup_access.py::PopupTextSizeOnHostTests.test_the_popup_is_drawn_that_much_larger_as_far_as_the_screen_holds_it",
+    "PopupTextSizeTests.test_the_fit_is_worked_out_once_an_opening_and_not_at_every_tick": "test_host_popup_access.py::PopupTextSizeOnHostTests.test_the_fit_is_worked_out_once_an_opening_and_not_at_every_tick",
+    "PopupTextSizeTests.test_opening_asks_windows_for_its_text_size": "test_host_popup_access.py::PopupTextSizeOnHostTests.test_opening_asks_windows_for_its_text_size"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_popup_access.py",
+    "tests/rustdiff/HostProbe.cs",
+    "tests/rustdiff/hostpopup.py"
+   ]
   },
   "test_popup_card_still.py": {
    "holds": "v0.6.24 (O14 amended by the owner, 2026-11-15): the popup is its card - drawn alone, and its still.",
