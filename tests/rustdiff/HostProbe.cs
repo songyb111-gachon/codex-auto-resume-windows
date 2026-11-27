@@ -93,33 +93,71 @@ namespace CodexAutoResume
             return value;
         }
 
+        /// One question by its name. An if-chain, not a string switch: a switch of six or more strings compiles to a hash
+        /// table the build cannot make the same twice (S6.3d takes them out of the host; the probe is kept the same way).
         private static object Answer(string name, Dictionary<string, object> call)
         {
-            switch (name)
-            {
-                case "tray_words":
-                    return TrayWords_(call);
-                case "icon_state":
-                    // tray.icon_state: a failure reported is "failed"; else the popup's word for the snapshot, as the icon's state
-                    return call["failed"] is bool && (bool)call["failed"] ? "failed"
-                        : TrayMotion.ForLight(TipCard.SnapshotActivity(SurfaceRender.Field(call, "snapshot") as Dictionary<string, object>,
-                                                                        (double)call["now"], call["attention"] is bool && (bool)call["attention"]));
-                case "menu_items":
-                    return Plain(TrayIcon.MenuItems(SurfaceRender.Field(call, "snapshot") as Dictionary<string, object>,
-                                                    SurfaceRender.Field(call, "strings") as Dictionary<string, object>,
-                                                    (double)call["now"], call["pending"] is bool && (bool)call["pending"],
-                                                    call["armed"] as string, call["popup"] is bool && (bool)call["popup"]));
-                case "tray_joined":
-                    return TrayWords.Joined(PartsOf((Dictionary<string, object>)call["parts"]));
-                case "placement":
-                    return Placement(call);
-                case "overflow":
-                    return TrayPlace.OverflowOpen(new FakeWindows
-                    {
-                        Windows = (List<object>)call["windows"], Fail = call["fail"] is bool && (bool)call["fail"],
-                    });
-            }
+            if (name == "tray_words") return TrayWords_(call);
+            if (name == "icon_state")
+                // tray.icon_state: a failure reported is "failed"; else the popup's word for the snapshot, as the icon's state
+                return call["failed"] is bool && (bool)call["failed"] ? "failed"
+                    : TrayMotion.ForLight(TipCard.SnapshotActivity(SurfaceRender.Field(call, "snapshot") as Dictionary<string, object>,
+                                                                    (double)call["now"], call["attention"] is bool && (bool)call["attention"]));
+            if (name == "menu_items")
+                return Plain(TrayIcon.MenuItems(SurfaceRender.Field(call, "snapshot") as Dictionary<string, object>,
+                                                SurfaceRender.Field(call, "strings") as Dictionary<string, object>,
+                                                (double)call["now"], call["pending"] is bool && (bool)call["pending"],
+                                                call["armed"] as string, call["popup"] is bool && (bool)call["popup"]));
+            if (name == "tray_joined") return TrayWords.Joined(PartsOf((Dictionary<string, object>)call["parts"]));
+            if (name == "placement") return Placement(call);
+            if (name == "overflow")
+                return TrayPlace.OverflowOpen(new FakeWindows
+                {
+                    Windows = (List<object>)call["windows"], Fail = call["fail"] is bool && (bool)call["fail"],
+                });
+            if (name == "card_layers") return CardLayers(call);
             throw new ArgumentException("no call " + name);
+        }
+
+        /// A notification card made with no window (NoticeCard's `windows: false`, as the render mode's `cards` case makes
+        /// it), its layers settled - the body at full size, the shadow at the deepest level, through PaintLayers - and
+        /// dumped: the body's and the shadow's BGRA pixels, base64. `whole` is the shadow of a second card whose image says
+        /// nothing is wholly opaque, so CutUnderBody finds no pixel to clear: the shadow as it is stamped, before the cut
+        /// (tests/test_card_shadow_under_body.py's `cut=False`). The stamp reads only the card's size and corner, never the
+        /// image, so nothing else of it differs.
+        private static object CardLayers(Dictionary<string, object> call)
+        {
+            var work = new List<int>();
+            foreach (object each in (List<object>)call["work"]) work.Add((int)(double)each);
+            var answer = new Dictionary<string, object>();
+            for (int pass = 0; pass < 2; pass++)
+            {
+                using (var card = new NoticeCard(null, (Dictionary<string, object>)call["vm"], (string)call["title"],
+                                                 call["stays"] is bool && (bool)call["stays"], (double)call["hold"], 0,
+                                                 (double)call["dpi"], work.ToArray(), (Dictionary<string, object>)call["drawn"], false,
+                                                 SurfaceRender.Field(call, "letters") as string))
+                {
+                    if (pass == 1)
+                    {
+                        byte[] pixels = card.Image.Pixels;
+                        for (int at = 3; at < pixels.Length; at += 4)
+                            if (pixels[at] == 0xFF) pixels[at] = 0xFE;
+                    }
+                    card.PaintLayers(CardFrame.Settled);
+                    if (pass == 1)
+                    {
+                        answer["whole"] = Convert.ToBase64String(card.Shadow.Pixels());
+                        continue;
+                    }
+                    answer["size"] = new List<object> { (double)card.Size[0], (double)card.Size[1] };
+                    answer["margin"] = (double)card.Margin;
+                    answer["shadows"] = (double)card.Shadows.Count;
+                    answer["body"] = Convert.ToBase64String(card.Body.Pixels());
+                    answer["cut"] = Convert.ToBase64String(card.Shadow.Pixels());
+                    answer["shadow_size"] = new List<object> { (double)card.Shadow.Width, (double)card.Shadow.Height };
+                }
+            }
+            return answer;
         }
 
         /// HKEY_CURRENT_USER as IconPlacement reads it, as tests/test_tray_icon_motion.py's FakeRegistry is: {key path: {value

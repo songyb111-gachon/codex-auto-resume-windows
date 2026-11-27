@@ -81,13 +81,19 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 3 UI tests run on the host (none); 3 are still on the Python UI (3 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "ShadowUnderBodyTests.test_a_fading_card_shows_no_shadow_through_its_body": "test_host_card_layers.py::ShadowUnderBodyOnHostTests.test_a_fading_card_shows_no_shadow_through_its_body",
+    "ShadowUnderBodyTests.test_the_shadow_is_clear_wherever_the_body_is_opaque": "test_host_card_layers.py::ShadowUnderBodyOnHostTests.test_the_shadow_is_clear_wherever_the_body_is_opaque",
+    "ShadowUnderBodyTests.test_the_shadow_outside_the_body_is_what_it_was": "test_host_card_layers.py::ShadowUnderBodyOnHostTests.test_the_shadow_outside_the_body_is_what_it_was"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_card_layers.py"
+   ]
   },
   "test_compat_surfaces.py": {
    "holds": "Where the Compatibility Registry shows, and where it must not reach.",
