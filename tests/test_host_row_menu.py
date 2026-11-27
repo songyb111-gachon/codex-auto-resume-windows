@@ -1,6 +1,7 @@
-"""The popup's row menus' submenus, on the C# host (S6.4d, P6-DESIGN 3.4 "window").
+"""The popup's row menus and their submenus, on the C# host (S6.4d, P6-DESIGN 3.4 "window").
 
-Twins of tests/test_popup_row_menu_drawn.py SubmenuTests and RightToLeftSubmenuTests: their own bodies, through `super()`,
+Twins of tests/test_popup_row_menu_drawn.py ParityTests, PopupFocusTests, the scan of FallbackTests, WindowsTests (below),
+SubmenuTests and RightToLeftSubmenuTests. The submenu twins run their own bodies, through `super()`,
 with only the menu the test opens changed - tests/rustdiff/hosticon.py's HostMenu, a MenuWindow of the host's with its own
 window, made and never shown (HostProbe.cs `menu_messages` with `create`), given the row's numbered entries, the language's
 words, the chooser, the popup as its owner and the click-away callback the test gives. Its submenu is the host's own
@@ -8,12 +9,25 @@ words, the chooser, the popup as its owner and the click-away callback the test 
 test's patched user32. The plan the test points into is the host's (its renderer's MenuLayout); whether it is the
 reference's plan is the drawing's question (seat S6.4f).
 
+Parity and the popup's focus: the original bodies, through `super()`, with `popup.Popup` replaced by
+tests/rustdiff/hostpopup.py's HostPopup - the host's PopupWindow (HostProbe.cs `popup_steps`) handed the test's model as the
+core's popup, its row menu the test's FakeDrawn asked back, what it posts handed to the test's `_run`. The numbering is the
+host's MenuPlan.Numbered (`menu_numbered`). WindowsTests: the row menu made as the live host's icon makes it (MenuWindow),
+created as the test's opening creates it and never shown (`row_menu_class`), and the submenu arrow drawn offscreen by the
+host's own renderer (`menu_arrow`): the same assertions over the probe's answers.
+
+Not here, and why: ParityTests' choice compared with Windows' menu and FallbackTests' three openings of Windows' own menu -
+PopupWindow.ContextMenu shows that menu by calling user32 directly, not through SurfaceScreen, so the probe stops before it
+(it never runs unrecorded); they wait for that half to be probe-safe (gui/, seat S6.3d). The plan's placement and the
+mirrored arrow are the drawing's (seat S6.4f).
+
 Nothing is shown: every call that would show a window is recorded instead, and the windows are destroyed after each run.
 """
 from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import sys
 import unittest
 import unittest.mock
@@ -24,10 +38,88 @@ for _path in (str(ROOT / "tests"), str(ROOT / "tests" / "rustdiff")):
         sys.path.insert(0, _path)
 
 import hosticon  # noqa: E402
+import hostpopup  # noqa: E402
 import surfacehost  # noqa: E402
 import test_popup_row_menu_drawn as original  # noqa: E402  (a module name: its classes are not collected here)
 
 ON_HOST = unittest.skipUnless(os.name == "nt" and surfacehost.CSC.is_file(), "the host's surfaces need the in-box C# compiler")
+
+
+class PopupOnHost:
+    """`popup.Popup` is the host's popup for the test's length: the original's shown_popup makes a HostPopup."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = unittest.mock.patch.object(original.popup, "Popup", hostpopup.HostPopup)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+def host_numbered(entries):
+    """menu_numbered answered by the host's MenuPlan.Numbered: the numbered entries and {command: action}."""
+    found = surfacehost.SERVE.ask("menu_numbered", entries=entries)
+    actions = {int(number): (tuple(action) if isinstance(action, list) else action) for number, action in found["actions"]}
+    return hostpopup._ids(found["numbered"]), actions
+
+
+@ON_HOST
+class ParityOnHostTests(PopupOnHost, original.ParityTests):
+    def test_the_drawn_menu_is_handed_the_row_s_items_in_their_order_with_their_state(self):
+        super().test_the_drawn_menu_is_handed_the_row_s_items_in_their_order_with_their_state()
+
+    def test_every_leaf_is_numbered_depth_first_as_windows_menu_numbers_its_commands(self):
+        with unittest.mock.patch.object(original.popup, "menu_numbered", host_numbered):
+            super().test_every_leaf_is_numbered_depth_first_as_windows_menu_numbers_its_commands()
+
+    def test_the_keyboard_opens_it_at_the_focused_row(self):
+        super().test_the_keyboard_opens_it_at_the_focused_row()
+
+    # compared with Windows' own menu, which the host's popup shows unrecorded (see the module's head)
+    test_a_choice_in_the_drawn_menu_runs_the_action_windows_menu_runs = None
+
+
+@ON_HOST
+class FallbackOnHostTests(original.FallbackTests):
+    def test_the_icon_gives_its_popup_the_drawn_menu(self):
+        """The host's icon makes its popup with the drawn menu (gui/TrayIcon.cs), as ui/tray/clicks.py does."""
+        source = (ROOT / "gui" / "TrayIcon.cs").read_text(encoding="utf-8")
+        made = re.search(r"new PopupWindow\(.*?\};", source, re.S)
+        self.assertIsNotNone(made, "the icon makes its popup")
+        self.assertIn("MakeMenu = () => Accessible(new MenuWindow(Log))", made.group(0))
+
+    # Windows' own menu, which the host's popup shows unrecorded (see the module's head)
+    test_a_popup_with_nothing_to_draw_it_with_shows_windows_menu = None
+    test_an_opening_refused_the_foreground_is_windows_menu_that_once = None
+    test_a_drawn_menu_that_breaks_gives_way_to_windows_for_good_and_says_so_once = None
+
+
+@ON_HOST
+class PopupFocusOnHostTests(PopupOnHost, original.PopupFocusTests):
+    def test_the_popup_stays_open_while_its_own_menu_has_the_focus_and_closes_it_as_it_hides(self):
+        super().test_the_popup_stays_open_while_its_own_menu_has_the_focus_and_closes_it_as_it_hides()
+
+
+@ON_HOST
+class WindowsOnHostTests(original.WindowsTests):
+    """The original's assertions over the host's answers: no window is shown, nothing is captured."""
+
+    def test_the_row_menu_opens_in_the_drawn_menu_s_window(self):
+        with unittest.mock.patch.object(original.popup, "Popup", hostpopup.HostPopup):
+            shown = original.shown_popup()
+        found = surfacehost.SERVE.ask("row_menu_class", strings=original.EN, core=shown._core(), key=original.KEY,
+                                      lparam=(30 << 16) | 40)
+        self.assertFalse(found["windows"], "the drawn menu opened, not Windows' own")
+        self.assertEqual((found["made"], found["visible"]), (1, False), "made once, as an opening makes it, and not shown")
+        self.assertTrue(found["class"].startswith("CodexAutoResumeMenu"), found["class"])
+
+    def test_the_submenu_arrow_is_drawn_and_mirrored(self):
+        for locale in ("en", "he"):
+            with self.subTest(locale=locale):
+                found = surfacehost.SERVE.ask("menu_arrow", entries=original.menu_entries(), locale=locale)
+                left, top, right, bottom = (int(n) for n in found["arrow"])
+                self.assertTrue(right > left and bottom > top, "the first item has an arrow")
+                self.assertGreater(found["inks"], 1, "something is drawn in the arrow's place")
+                self.assertEqual(found["rtl"], locale == "he")
 
 
 class OpenOnHost:

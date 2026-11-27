@@ -1153,8 +1153,8 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "10 of 27 UI tests are held by a twin; 17 are still on the Python UI: ParityTests 4, FallbackTests 4, PopupFocusTests 1 (the popup window's context menu and focus), WindowsTests 2 (window), and RightToLeftSubmenuTests.test_the_layout_is_mirrored_with_the_arrow_at_the_left, PlacementTests 5 (the drawing: seat S6.4f's plan route)",
-   "needs": "a popup probe over PopupWindow's context menu (ContextMenu with the test's drawn menu asked back and its user32 handed the host's calls, as icon_steps does for the icon) and its WM_ACTIVATE; WindowsTests: the MenuWindow opened in its own never-shown window; the mirrored plan and placement: the render mode's menu plan (S6.4f)",
+   "why": "17 of 27 UI tests are held by a twin; 10 are still on the Python UI: ParityTests.test_a_choice_in_the_drawn_menu_runs_the_action_windows_menu_runs and FallbackTests' three openings of Windows' own menu (PopupWindow.ContextMenu shows it by calling user32 directly, not through SurfaceScreen: the probe stops before it and never runs it unrecorded), and RightToLeftSubmenuTests.test_the_layout_is_mirrored_with_the_arrow_at_the_left, PlacementTests 5 (the drawing: seat S6.4f's plan route)",
+   "needs": "gui/PopupWindow.cs's Windows menu half (CreatePopupMenu, AppendMenuW, TrackPopupMenu, DestroyMenu) through SurfaceScreen while probed, as TrayMenu.NativeMenu does (seat S6.3d's gui/); then popup_steps lets it run and HostPopup hands the recorded calls to the test's patched user32 (hosticon.HostTray._windows_menu is the model); the mirrored plan and placement: the render mode's menu plan (S6.4f)",
    "host_tests": [],
    "twins": {
     "SubmenuTests.test_the_arrow_towards_it_opens_the_submenu_its_first_item_in_hand_and_enter_chooses_in_it": "test_host_row_menu.py::SubmenuOnHostTests.test_the_arrow_towards_it_opens_the_submenu_its_first_item_in_hand_and_enter_chooses_in_it",
@@ -1166,12 +1166,20 @@
     "SubmenuTests.test_closing_the_menu_closes_its_submenu_and_a_click_away_tells_the_popup": "test_host_row_menu.py::SubmenuOnHostTests.test_closing_the_menu_closes_its_submenu_and_a_click_away_tells_the_popup",
     "SubmenuTests.test_a_submenu_of_an_item_that_cannot_be_used_does_not_open": "test_host_row_menu.py::SubmenuOnHostTests.test_a_submenu_of_an_item_that_cannot_be_used_does_not_open",
     "SubmenuTests.test_a_screen_reader_hears_an_item_that_opens_a_submenu": "test_host_row_menu.py::SubmenuOnHostTests.test_a_screen_reader_hears_an_item_that_opens_a_submenu",
-    "RightToLeftSubmenuTests.test_the_left_to_right_arrow_does_not_open_it": "test_host_row_menu.py::RightToLeftSubmenuOnHostTests.test_the_left_to_right_arrow_does_not_open_it"
+    "RightToLeftSubmenuTests.test_the_left_to_right_arrow_does_not_open_it": "test_host_row_menu.py::RightToLeftSubmenuOnHostTests.test_the_left_to_right_arrow_does_not_open_it",
+    "ParityTests.test_the_drawn_menu_is_handed_the_row_s_items_in_their_order_with_their_state": "test_host_row_menu.py::ParityOnHostTests.test_the_drawn_menu_is_handed_the_row_s_items_in_their_order_with_their_state",
+    "ParityTests.test_every_leaf_is_numbered_depth_first_as_windows_menu_numbers_its_commands": "test_host_row_menu.py::ParityOnHostTests.test_every_leaf_is_numbered_depth_first_as_windows_menu_numbers_its_commands",
+    "ParityTests.test_the_keyboard_opens_it_at_the_focused_row": "test_host_row_menu.py::ParityOnHostTests.test_the_keyboard_opens_it_at_the_focused_row",
+    "FallbackTests.test_the_icon_gives_its_popup_the_drawn_menu": "test_host_row_menu.py::FallbackOnHostTests.test_the_icon_gives_its_popup_the_drawn_menu",
+    "PopupFocusTests.test_the_popup_stays_open_while_its_own_menu_has_the_focus_and_closes_it_as_it_hides": "test_host_row_menu.py::PopupFocusOnHostTests.test_the_popup_stays_open_while_its_own_menu_has_the_focus_and_closes_it_as_it_hides",
+    "WindowsTests.test_the_row_menu_opens_in_the_drawn_menu_s_window": "test_host_row_menu.py::WindowsOnHostTests.test_the_row_menu_opens_in_the_drawn_menu_s_window",
+    "WindowsTests.test_the_submenu_arrow_is_drawn_and_mirrored": "test_host_row_menu.py::WindowsOnHostTests.test_the_submenu_arrow_is_drawn_and_mirrored"
    },
    "no_twin": {},
    "port": [
     "tests/test_host_row_menu.py",
-    "tests/rustdiff/hosticon.py"
+    "tests/rustdiff/hosticon.py",
+    "tests/rustdiff/hostpopup.py"
    ]
   },
   "test_popup_row_menu_parity.py": {
@@ -2462,8 +2470,8 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "11 of 33 UI tests run on the host (11 routed); 22 are still on the Python UI (9 drawn, 13 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "14 of 33 UI tests run on the host (11 routed, 3 twins); 19 are still on the Python UI: PlanTests 9, DrawTests 5 and PlaceTests 3 (the drawing: seat S6.4f's plan route), and CardStateTests' hide at once and the backstop's hide (they count the card's ShowWindow(SW_HIDE), which gui/TipCard.cs makes of user32 directly, unrecorded)",
+   "needs": "the drawing's: the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects), seat S6.4f; CardStateTests' two: gui/TipCard.cs's ShowWindow, SetTimer, KillTimer and NotifyWinEvent through SurfaceScreen while probed (seat S6.3d's gui/), then tip_steps reports the hides and HostTip hands them to the test's user32",
    "host_tests": [
     "DrawTests.test_a_bar_is_the_accent_as_far_as_left_and_the_well_beyond",
     "DrawTests.test_every_language_draws",
@@ -2477,10 +2485,16 @@
     "PartsTests.test_the_standard_edition_has_no_meter_rows",
     "PlanTests.test_the_warning_starts_where_little_is_left_the_used_90_mirrored"
    ],
-   "twins": {},
+   "twins": {
+    "AccessibleTests.test_it_is_a_read_only_tooltip_named_with_the_whole_text_and_no_children": "test_host_tipcard.py::AccessibleOnHostTests.test_it_is_a_read_only_tooltip_named_with_the_whole_text_and_no_children",
+    "CardStateTests.test_the_backstop_keeps_it_while_the_pointer_is_on_the_icon_near_it_or_on_the_card": "test_host_tipcard.py::CardStateOnHostTests.test_the_backstop_keeps_it_while_the_pointer_is_on_the_icon_near_it_or_on_the_card",
+    "CardStateTests.test_a_suspend_or_a_resume_hides_it": "test_host_tipcard.py::CardStateOnHostTests.test_a_suspend_or_a_resume_hides_it"
+   },
    "no_twin": {},
    "port": [
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_tipcard.py",
+    "tests/rustdiff/hosttip.py"
    ]
   },
   "test_typeface.py": {

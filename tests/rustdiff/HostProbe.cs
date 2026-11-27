@@ -124,6 +124,19 @@ namespace CodexAutoResume
             if (name == "icon_steps") return IconSteps(call);
             if (name == "menu_keys") return MenuKeys(call);
             if (name == "menu_messages") return MenuMessages(call);
+            if (name == "popup_steps") return PopupSteps(call);
+            if (name == "row_menu_class") return RowMenuClass(call);
+            if (name == "menu_arrow") return MenuArrow(call);
+            if (name == "tip_steps") return TipSteps(call);
+            if (name == "tip_access") return TipAccess(call);
+            if (name == "menu_numbered")
+            {
+                var actions = new Dictionary<int, object>();
+                List<object> numbered = MenuPlan.Numbered((List<object>)call["entries"], actions);
+                var pairs = new List<object>();
+                foreach (KeyValuePair<int, object> pair in actions) pairs.Add(new List<object> { (double)pair.Key, Plain(pair.Value) });
+                return new Dictionary<string, object> { { "numbered", Plain(numbered) }, { "actions", pairs } };
+            }
             if (name == "icon_menu_ids")
                 return new Dictionary<string, object>
                 {
@@ -195,6 +208,406 @@ namespace CodexAutoResume
             }
 
             public void Destroy() { Destroyed++; }
+        }
+
+        /// The popup's row menu as the popup opens it, standing in for the test's own (what its make_menu makes, or the
+        /// `_row_menu` it set): each opening recorded - its entries, point, owner and the click-away it was handed - and
+        /// answered in order (true: shown, false: refused the foreground, "raise": it broke); an opening past the answers
+        /// is reported unanswered and refused, so the test's object can be asked and the run made again. Its chooser and
+        /// click-away are kept for later steps; its Close and Destroy counted. Its window is the test's object's (`Handle`).
+        private sealed class RecordingRowMenu : IRowMenu
+        {
+            internal IntPtr Handle;
+            internal PopupWindow Popup;
+            internal Queue<object> Answers;
+            internal readonly List<object> Opens = new List<object>();
+            internal readonly List<Action<int>> Runs = new List<Action<int>>();
+            internal readonly List<Action> Leaves = new List<Action>();
+            internal bool Unanswered;
+            internal int Closed, Destroyed;
+            public IntPtr Hwnd { get { return Handle; } }
+
+            public bool Open(List<object> entries, Dictionary<string, object> strings, Action<int> run, int[] point, IntPtr owner,
+                             Action onLeave)
+            {
+                string leave = onLeave == null ? null
+                    : onLeave.Method.Name == "Hide" && ReferenceEquals(onLeave.Target, Popup) ? "hide" : "other";
+                Opens.Add(new Dictionary<string, object>
+                {
+                    { "entries", Plain(entries) }, { "strings", new Dictionary<string, object>(strings) },
+                    { "point", point == null ? null : new List<object> { (double)point[0], (double)point[1] } },
+                    { "owner", owner == Popup.Hwnd ? (object)"popup" : (double)owner.ToInt64() }, { "leave", leave },
+                });
+                Runs.Add(run);
+                Leaves.Add(onLeave);
+                if (Answers.Count == 0)
+                {
+                    Unanswered = true;
+                    return false;
+                }
+                object answer = Answers.Dequeue();
+                if (answer is string) throw new InvalidOperationException("UpdateLayeredWindow");
+                return (bool)answer;
+            }
+
+            public void Close() { Closed++; }
+            public void Destroy() { Destroyed++; }
+        }
+
+        /// Thrown where the popup reaches Windows' own row menu: PopupWindow.ContextMenu calls user32 for it directly, not
+        /// through SurfaceScreen, so the probe never lets it run (it stops at ThemeMenu, the first thing that half does).
+        private sealed class WindowsMenuReached : Exception
+        {
+        }
+
+        /// The popup's row menu and focus with nothing shown (tests/rustdiff/hostpopup.py's HostPopup, the twin of
+        /// ui/popup's Popup as tests/test_popup_row_menu_drawn.py drives it): a PopupWindow whose window is a message-only
+        /// window of the probe's own (never shown; named "popup" in the record), every other call it would make of Windows
+        /// recorded (SurfaceScreen.Probe), its actions posted to the core's stand-in on the calling thread, given the core's
+        /// popup (`core`: view, menus, read - the test's model's), what the test painted (`painted`: rows and rtl) and its
+        /// row menu (`make_menu`: a RecordingRowMenu is made on the popup's first opening; `menu_hwnd` its window). Then each
+        /// step: visible, focus, row_menu (the test set `_row_menu`), context (ContextMenu with an lparam), message (to the
+        /// window procedure), hide, destroy, choose (a command in an opening's chooser), leave (an opening's click-away).
+        /// After each step: how many actions were posted, the menu's closes and destroys, how often the popup hid (its
+        /// TimerTick killed), Visible and its row menu. Where Windows' own menu would open, the run stops (`windows`).
+        private static object PopupSteps(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            Func<IntPtr, string> savedName = SurfaceScreen.Name;
+            SurfaceScreen.Probe = new List<string>();
+            IntPtr own = SurfaceNative.CreateWindowExW(0, "STATIC", "", 0, 0, 0, 0, 0, new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            if (own == IntPtr.Zero) throw new InvalidOperationException("CreateWindowExW");
+            var popup = new PopupWindow((Dictionary<string, object>)call["strings"], SurfaceRender.Field(call, "locale") as string);
+            try
+            {
+                var logs = new List<object>();
+                bool windows = false;
+                var actions = new RecordingActions();
+                var menu = new RecordingRowMenu
+                {
+                    Popup = popup, Answers = new Queue<object>((List<object>)call["menu_answers"]),
+                    Handle = SurfaceRender.Field(call, "menu_hwnd") is double ? new IntPtr((long)(double)call["menu_hwnd"]) : IntPtr.Zero,
+                };
+                int made = 0;
+                SurfaceScreen.Name = hwnd => hwnd == own ? "popup" : savedName(hwnd);
+                popup.Hwnd = own;
+                popup.Actions = actions;
+                popup.Worker = work => work();
+                popup.Log = line =>
+                {
+                    if (windows) throw new WindowsMenuReached();
+                    logs.Add(line);
+                };
+                popup.ThemeMenu = () =>
+                {
+                    windows = true;
+                    throw new WindowsMenuReached();
+                };
+                if (Flag(call, "make_menu")) popup.MakeMenu = () => { made++; return menu; };
+                popup.Snapshot((Dictionary<string, object>)call["core"]);
+                popup.View();
+                var painted = SurfaceRender.Field(call, "painted") as Dictionary<string, object>;
+                if (painted != null)
+                {
+                    var plan = new SurfacePlan { Rows = new List<KeyValuePair<object, int[]>>() };
+                    foreach (object each in (List<object>)painted["rows"])
+                    {
+                        var row = (List<object>)each;
+                        var rect = (List<object>)row[1];
+                        plan.Rows.Add(new KeyValuePair<object, int[]>(row[0], new[] { (int)(double)rect[0], (int)(double)rect[1],
+                                                                                         (int)(double)rect[2], (int)(double)rect[3] }));
+                    }
+                    if (painted["rtl"] is bool) plan.Rtl = (bool)painted["rtl"];
+                    popup.PaintedPlan = plan;
+                }
+                System.Reflection.FieldInfo rowMenu = typeof(PopupWindow).GetField("rowMenu", System.Reflection.BindingFlags.Instance
+                                                                                    | System.Reflection.BindingFlags.NonPublic);
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    int recorded = SurfaceScreen.Probe.Count;
+                    try
+                    {
+                        if (what == "visible") popup.Visible = (bool)step[1];
+                        else if (what == "focus") popup.Focus = step[1] == null ? null : new SurfaceTarget((string)step[1], step[2]);
+                        else if (what == "row_menu") rowMenu.SetValue(popup, step[1] is bool ? (object)false : step[1] == null ? null : menu);
+                        else if (what == "context")
+                        {
+                            try
+                            {
+                                typeof(PopupWindow).GetMethod("ContextMenu", System.Reflection.BindingFlags.Instance
+                                                              | System.Reflection.BindingFlags.NonPublic)
+                                                   .Invoke(popup, new object[] { (long)(double)step[1] });
+                            }
+                            catch (System.Reflection.TargetInvocationException exc)
+                            {
+                                throw exc.InnerException;
+                            }
+                        }
+                        else if (what == "message") popup.Message((int)(double)step[1], (long)(double)step[2], (long)(double)step[3]);
+                        else if (what == "hide") popup.Hide();
+                        else if (what == "destroy") popup.Dispose();
+                        else if (what == "choose") menu.Runs[(int)(double)step[1]]((int)(double)step[2]);
+                        else if (what == "leave") menu.Leaves[(int)(double)step[1]]();
+                        else throw new ArgumentException("no popup step " + what);
+                    }
+                    catch (WindowsMenuReached)
+                    {
+                        windows = true;
+                    }
+                    int hid = 0;
+                    for (int at = recorded; at < SurfaceScreen.Probe.Count; at++)
+                        if (SurfaceScreen.Probe[at] == "KillTimer popup " + PopupWindow.TimerTick && what != "destroy") hid++;
+                    object state = rowMenu.GetValue(popup);
+                    after.Add(new Dictionary<string, object>
+                    {
+                        { "posted", (double)actions.Posted.Count }, { "closed", (double)menu.Closed }, { "destroyed", (double)menu.Destroyed },
+                        { "hid", (double)hid }, { "visible", popup.Visible }, { "opens", (double)menu.Opens.Count }, { "made", (double)made },
+                        { "logs", (double)logs.Count }, { "row_menu", state == null ? "none" : state is bool ? "broken" : "there" },
+                    });
+                    if (windows) break;
+                }
+                return new Dictionary<string, object>
+                {
+                    { "steps", after }, { "posted", actions.Posted }, { "logs", logs }, { "opens", menu.Opens },
+                    { "unanswered", menu.Unanswered }, { "windows", windows }, { "record", new List<object>(SurfaceScreen.Probe) },
+                };
+            }
+            finally
+            {
+                popup.Hwnd = IntPtr.Zero;
+                SurfaceNative.DestroyWindow(own);
+                SurfaceScreen.Probe = saved;
+                SurfaceScreen.Name = savedName;
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int GetClassNameW(IntPtr hwnd, StringBuilder name, int size);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hwnd);
+
+        /// The row menu's own window (tests/test_popup_row_menu_drawn.py WindowsTests' first): a popup with a row whose
+        /// menu is made as the live host's icon makes it (MenuWindow) and opened as the test opens it - made by Create, as
+        /// an opening makes it, and never shown; the class of the window the popup's menu is in.
+        private sealed class CreatingRowMenu : IRowMenu
+        {
+            internal MenuWindow Inner;
+            public IntPtr Hwnd { get { return Inner.Hwnd; } }
+
+            public bool Open(List<object> entries, Dictionary<string, object> strings, Action<int> run, int[] point, IntPtr owner,
+                             Action onLeave)
+            {
+                Inner.Create();
+                return true;
+            }
+
+            public void Close() { Inner.Close(); }
+            public void Destroy() { Inner.Destroy(); }
+        }
+
+        private static object RowMenuClass(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            IntPtr own = SurfaceNative.CreateWindowExW(0, "STATIC", "", 0, 0, 0, 0, 0, new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            if (own == IntPtr.Zero) throw new InvalidOperationException("CreateWindowExW");
+            var popup = new PopupWindow((Dictionary<string, object>)call["strings"]);
+            var made = new List<CreatingRowMenu>();
+            try
+            {
+                popup.Hwnd = own;
+                popup.Worker = work => work();
+                popup.ThemeMenu = () => { throw new WindowsMenuReached(); };
+                popup.Log = line => { throw new WindowsMenuReached(); };
+                popup.MakeMenu = () =>
+                {
+                    var menu = new CreatingRowMenu { Inner = new MenuWindow(unused => { }) };
+                    made.Add(menu);
+                    return menu;
+                };
+                popup.Snapshot((Dictionary<string, object>)call["core"]);
+                popup.View();
+                var plan = new SurfacePlan { Rows = new List<KeyValuePair<object, int[]>>() };
+                plan.Rows.Add(new KeyValuePair<object, int[]>(call["key"], new[] { 0, 0, 200, 60 }));
+                popup.PaintedPlan = plan;
+                try
+                {
+                    typeof(PopupWindow).GetMethod("ContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                       .Invoke(popup, new object[] { (long)(double)call["lparam"] });
+                }
+                catch (System.Reflection.TargetInvocationException exc)
+                {
+                    if (exc.InnerException is WindowsMenuReached) return new Dictionary<string, object> { { "windows", true } };
+                    throw exc.InnerException;
+                }
+                if (made.Count == 0) return new Dictionary<string, object> { { "windows", false }, { "class", null } };
+                var name = new StringBuilder(256);
+                GetClassNameW(made[0].Hwnd, name, 256);
+                bool visible = IsWindowVisible(made[0].Hwnd);
+                return new Dictionary<string, object> { { "windows", false }, { "class", name.ToString() }, { "visible", visible },
+                                                        { "made", (double)made.Count } };
+            }
+            finally
+            {
+                foreach (CreatingRowMenu menu in made) menu.Inner.Destroy();
+                popup.Hwnd = IntPtr.Zero;
+                SurfaceNative.DestroyWindow(own);
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        /// The submenu arrow (WindowsTests' second): the row's numbered entries laid out by the host's own renderer at scale 1
+        /// in `locale` (light, not High Contrast, the soft design) and drawn offscreen; the first item's arrow rectangle, the
+        /// plan's width and rtl, and how many distinct BGR inks the drawing has inside the arrow's rectangle.
+        private static object MenuArrow(Dictionary<string, object> call)
+        {
+            using (SurfaceRenderer renderer = SurfaceRenderer.Open())
+            {
+                renderer.Theme = "light";
+                renderer.Contrast = false;
+                renderer.Design = "soft";
+                SurfacePlan plan = renderer.MenuLayout(MenuEntries((List<object>)call["entries"]), 1.0, (string)call["locale"]);
+                byte[] pixels = renderer.DrawMenu(plan).Pixels();
+                int width = plan.Size[0];
+                double[] arrow = SurfaceRenderer.Box(plan.Items[0]["arrow"]);
+                var inks = new HashSet<int>();
+                for (int y = (int)arrow[1]; y < (int)arrow[3]; y++)
+                    for (int x = (int)arrow[0]; x < (int)arrow[2]; x++)
+                    {
+                        int at = (y * width + x) * 4;
+                        inks.Add(pixels[at] | (pixels[at + 1] << 8) | (pixels[at + 2] << 16));
+                    }
+                return new Dictionary<string, object>
+                {
+                    { "arrow", new List<object> { arrow[0], arrow[1], arrow[2], arrow[3] } }, { "width", (double)width },
+                    { "rtl", plan.Rtl == true }, { "inks", (double)inks.Count },
+                };
+            }
+        }
+
+        private static int[] IntsOf(object value)
+        {
+            return ((List<object>)value).ConvertAll(each => (int)(double)each).ToArray();
+        }
+
+        /// The icon's tooltip card's own decisions (tests/rustdiff/hosttip.py's HostTip, the twin of ui/tray/tipcard's
+        /// TipCard as tests/test_tray_tipcard.py CardStateTests drives it): a TipCard whose window is a message-only window
+        /// of the probe's own (never shown; OnScreen false), not in High Contrast, then each step: visible, fade (the test
+        /// set `_fade` to none), plan (its scale and size), screen (the icon's box), origin, hide (at once or not), message
+        /// (to its window procedure). A step that lets it fade or not says so (`moves`: Reduce motion off or on), and a
+        /// message carries the pointer and the clock the test's patched tip_pointer and time.monotonic answer then. After
+        /// each step: Visible and its fade.
+        private static object TipSteps(Dictionary<string, object> call)
+        {
+            IntPtr own = SurfaceNative.CreateWindowExW(0, "STATIC", "", 0, 0, 0, 0, 0, new IntPtr(-3), IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            if (own == IntPtr.Zero) throw new InvalidOperationException("CreateWindowExW");
+            var logs = new List<object>();
+            var tip = new TipCard(() => null, null, line => logs.Add(line)) { Hwnd = own, OnScreen = false, Contrast = false };
+            try
+            {
+                int[] pointer = { 0, 0 };
+                double clock = 0;
+                bool moves = true;
+                tip.AskReduced = () => !moves;
+                tip.AskContrast = () => false;
+                tip.Pointer = () => pointer;
+                tip.Monotonic = () => clock;
+                System.Reflection.MethodInfo proc = typeof(TipCard).GetMethod("WindowProc", System.Reflection.BindingFlags.Instance
+                                                                              | System.Reflection.BindingFlags.NonPublic);
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    if (what == "visible") tip.Visible = (bool)step[1];
+                    else if (what == "fade")
+                        typeof(TipCard).GetField("fadeWay", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                       .SetValue(tip, step[1] as string);
+                    else if (what == "plan") tip.Plan = new SurfacePlan { Scale = (double)step[1], Size = IntsOf(step[2]) };
+                    else if (what == "screen") tip.Screen = new TipCard.TipScreen { Box = IntsOf(step[1]) };
+                    else if (what == "origin") tip.Origin = IntsOf(step[1]);
+                    else if (what == "hide")
+                    {
+                        moves = (bool)step[2];
+                        tip.Hide((bool)step[1]);
+                    }
+                    else if (what == "message")
+                    {
+                        moves = (bool)step[4];
+                        if (step[5] is List<object>) pointer = IntsOf(step[5]);
+                        clock = (double)step[6];
+                        proc.Invoke(tip, new object[] { own, (uint)(double)step[1], new IntPtr((long)(double)step[2]),
+                                                        new IntPtr((long)(double)step[3]) });
+                    }
+                    else throw new ArgumentException("no tip step " + what);
+                    after.Add(new Dictionary<string, object> { { "visible", tip.Visible }, { "fade", tip.Fade } });
+                }
+                return new Dictionary<string, object> { { "steps", after }, { "logs", logs } };
+            }
+            finally
+            {
+                tip.Dispose();
+                SurfaceNative.DestroyWindow(own);
+            }
+        }
+
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int AccessOut(IntPtr self, IntPtr child, IntPtr found);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate int AccessCount(IntPtr self, IntPtr found);
+
+        private static Delegate Slot(IntPtr pointer, int slot, Type kind)
+        {
+            IntPtr table = System.Runtime.InteropServices.Marshal.ReadIntPtr(pointer);
+            return System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer(
+                System.Runtime.InteropServices.Marshal.ReadIntPtr(table, slot * IntPtr.Size), kind);
+        }
+
+        /// What a screen reader is handed when it asks the icon's card (tests/test_tray_tipcard.py AccessibleTests): the
+        /// object SurfaceAccess.Attach(TipCard) answers WM_GETOBJECT with (its TipSource in an AccessObject), for a card with
+        /// no window, shown, its text the test's; asked through the object's own table as the test asks the reference's
+        /// (slot 10 accName, 13 accRole, 14 accState of CHILDID_SELF, 8 accChildCount): each call's HRESULT and answer.
+        private static object TipAccess(Dictionary<string, object> call)
+        {
+            var tip = new TipCard(() => null) { Visible = true, Text = (string)call["text"] };
+            Type sourceType = typeof(SurfaceAccess).GetNestedType("TipSource", System.Reflection.BindingFlags.NonPublic);
+            object source = Activator.CreateInstance(sourceType, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                                                     null, new object[] { tip }, null);
+            var made = new SurfaceAccess.AccessObject((SurfaceAccess.IAccessSource)source);
+            IntPtr pointer = made.Pointer;
+            IntPtr variant = System.Runtime.InteropServices.Marshal.AllocHGlobal(16);
+            IntPtr answer = System.Runtime.InteropServices.Marshal.AllocHGlobal(16);
+            try
+            {
+                for (int at = 0; at < 16; at += 4) System.Runtime.InteropServices.Marshal.WriteInt32(variant, at, 0);
+                System.Runtime.InteropServices.Marshal.WriteInt16(variant, 0, 3);       // VT_I4, 0: CHILDID_SELF
+                var found = new Dictionary<string, object>();
+                System.Runtime.InteropServices.Marshal.WriteIntPtr(answer, IntPtr.Zero);
+                int named = ((AccessOut)Slot(pointer, 10, typeof(AccessOut)))(pointer, variant, answer);
+                IntPtr text = System.Runtime.InteropServices.Marshal.ReadIntPtr(answer);
+                found["name"] = new List<object> { (double)named, text == IntPtr.Zero ? null : System.Runtime.InteropServices.Marshal.PtrToStringBSTR(text) };
+                if (text != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeBSTR(text);
+                foreach (int slot in new[] { 13, 14 })
+                {
+                    for (int at = 0; at < 16; at += 4) System.Runtime.InteropServices.Marshal.WriteInt32(answer, at, 0);
+                    int result = ((AccessOut)Slot(pointer, slot, typeof(AccessOut)))(pointer, variant, answer);
+                    found[slot == 13 ? "role" : "state"] = new List<object> { (double)result,
+                                                                              (double)System.Runtime.InteropServices.Marshal.ReadInt32(answer, 8) };
+                }
+                System.Runtime.InteropServices.Marshal.WriteInt32(answer, -1);
+                int counted = ((AccessCount)Slot(pointer, 8, typeof(AccessCount)))(pointer, answer);
+                found["count"] = new List<object> { (double)counted, (double)System.Runtime.InteropServices.Marshal.ReadInt32(answer) };
+                found["constants"] = new List<object> { (double)SurfaceAccess.ROLE_SYSTEM_TOOLTIP, (double)SurfaceAccess.STATE_SYSTEM_READONLY };
+                return found;
+            }
+            finally
+            {
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(variant);
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(answer);
+            }
         }
 
         /// A menu item as MenuItems makes it, from its JSON: the id an int, as NativeMenu reads it.
