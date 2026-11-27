@@ -290,7 +290,9 @@ class WindowBuildScriptTests(unittest.TestCase):
 
     def test_the_overlay_is_read_only_for_the_advanced_window(self):
         self.assertEqual(self.script.count(r"Read-SourceList 'advanced\gui\window.sources'"), 1)
-        self.assertEqual(self.script.count("Read-SourceList '"), 2, "the window's list and the overlay")
+        # v0.6.27: and the host's own list (gui/host.sources), which only the standard run reads.
+        self.assertEqual(self.script.count("Read-SourceList '"), 3, "the window's list, the overlay and the host's")
+        self.assertEqual(self.script.count(r"Read-SourceList 'gui\host.sources'"), 1)
         branch = self.script[self.script.index("if ($Edition -eq 'advanced') {\n    $WindowSources"):]
         branch = branch[:branch.index("}")]
         self.assertIn(r"Read-SourceList 'advanced\gui\window.sources'", branch)
