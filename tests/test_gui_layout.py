@@ -175,6 +175,14 @@ class BufferedPaintTests(unittest.TestCase):
                               "%s paints itself without a back buffer" % name)
 
 
+# v0.6.27 (P6 S6.2a): the window starts the installation's core, `codex-auto-resume.exe bridge ...`, whose bridge role
+# is controlcli.main over the same words (car-bin `roles::bridge`, held to the reference by tests/rustdiff/diffs_cli.py).
+# So the words after `bridge` are run through the reference's controlcli here, on a scratch home.
+CONTROLCLI = ("import sys;sys.path.insert(0,sys.argv[1]);"
+              "from codex_auto_resume.controlcli import main;"
+              "sys.exit(main(sys.argv[2:]))")
+
+
 class PersistentBridgeTests(unittest.TestCase):
     """The long-lived bridge process actually starts.
 
@@ -189,19 +197,20 @@ class PersistentBridgeTests(unittest.TestCase):
         import json
         import subprocess
         import sys
+        import tempfile
         source = guiscan.dashboard()
         start = source.index("private void StartLocked()")
         method = source[start:source.index("internal void Stop()", start)]
-        # After remote debugging off (Bridge.NoRemoteDebug, v0.6.19-beta.3; tests/test_remote_debug_off.py).
-        self.assertIn('info.Arguments = Bridge.NoRemoteDebug + "-c " + Bridge.Quote(code)', method,
-                      "the persistent bridge must pass its code with -c, as the one-shot bridge does")
-        code = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', method[method.index("string code ="):
-                                                               method.index(";", method.index('"sys.exit(')) + 1]))
-        self.assertIn("controlcli import main", code)
+        self.assertIn("info.FileName = once.Core;", method, "the one-shot bridge's own core")
+        words = re.search(r'info\.Arguments = "([^"]*)";', method).group(1).split()
+        self.assertEqual(words, ["bridge", "serve"], "the core's bridge role, serving")
         request = json.dumps({"id": 1, "command": "strings"}) + "\n"
-        result = subprocess.run([sys.executable, "-X", "disable-remote-debug", "-c", code, str(ROOT / "src"), "serve"],
-                                input=request, capture_output=True, text=True, encoding="utf-8",
-                                timeout=60)
+        with tempfile.TemporaryDirectory() as home:
+            # --home keeps this off the real installation; the rest is the words the window hands the core's bridge.
+            result = subprocess.run([sys.executable, "-X", "disable-remote-debug", "-c", CONTROLCLI, str(ROOT / "src"),
+                                     "--home", home] + words[1:],
+                                    input=request, capture_output=True, text=True, encoding="utf-8",
+                                    timeout=60)
         replies = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
         self.assertEqual(len(replies), 1, result.stderr)
         self.assertEqual(replies[0]["id"], 1)
@@ -238,9 +247,10 @@ class OneShotBridgeTests(unittest.TestCase):
         import subprocess
         import sys
         import tempfile
-        code = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', self.method[self.method.index("string code ="):
-                                                               self.method.index(";", self.method.index('"sys.exit(')) + 1]))
-        self.assertIn("controlcli import main", code)
+        self.assertIn("info.FileName = core;", self.method)
+        self.assertIn('var arguments = new StringBuilder("bridge");', self.method)
+        self.assertIn("arguments.Append(' ').Append(command);", self.method)
+        code = CONTROLCLI
         message = "Keep going — 계속 \U0001f9e9\nwith a second line"
         with tempfile.TemporaryDirectory() as home:
             # --home keeps this off the real installation; the rest is the window's own argv.

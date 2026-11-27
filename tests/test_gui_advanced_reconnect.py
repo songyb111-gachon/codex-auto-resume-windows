@@ -9,7 +9,7 @@ the long-lived bridge failed on is answered with the reconnecting code and never
 have been carried out. The page says it in one note every page shares (note.reconnecting). The core's own calls, the
 only ones the standard edition makes, still fall back on the one-shot form as before.
 
-The built half compiles the real window and runs its bridge against a stand-in python.exe this test compiles. Its
+The built half compiles the real window and runs its bridge against a stand-in core this test compiles (app/bin/codex-auto-resume.exe, tests/corestandin.py). Its
 long-lived form answers every line (CAR_FAKE_MODE ok) or reads one line and ends without answering (drop: the call
 may have been carried out); every line it reads and every one-shot call is written down. Nothing of the real
 installation is read, nothing is shown.
@@ -23,6 +23,7 @@ import tempfile
 import unittest
 
 from codex_auto_resume import l10n
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, compile_window, run_probe
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -133,14 +134,11 @@ class ReconnectTests(unittest.TestCase):
         cls.folder = tempfile.TemporaryDirectory()
         work = Path(cls.folder.name).resolve()
         cls.home = work / "home"
-        (cls.home / "runtime").mkdir(parents=True)
         (cls.home / "app" / "src").mkdir(parents=True)
         exe = compile_window(work)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        for name in ("python.exe", "pythonw.exe"):
-            subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(cls.home / "runtime" / name), str(source)],
-                           check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE), encoding="utf-8")
+        corestandin.place(CSC, source, cls.home, extra=("python.exe", "pythonw.exe"))
         cls.failed = work / "probe.failed"
         try:
             cls.answer = run_probe(PROBE, work, 300, CAR_EXE=str(exe), CAR_HOME=str(cls.home),
@@ -150,7 +148,7 @@ class ReconnectTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        script = ("Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
+        script = ("Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
                   "$_.Path.StartsWith($env:CAR_HOME, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force")
         subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
                        timeout=120, creationflags=NO_WINDOW, env=dict(os.environ, CAR_HOME=str(cls.home)))

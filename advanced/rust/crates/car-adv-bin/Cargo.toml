@@ -17,6 +17,15 @@ path = "src/main.rs"
 name = "codex-auto-resume-setup"
 path = "src/bin/setup.rs"
 
+# The Stop hook launcher (gui/HookLauncher.cs of v0.6.26, Rust since P6 Q4), for app\hook\ where the hook's
+# declaration names it: it starts the core's `hook` role (S7.3d registers it) and relays its answer. Not packed yet,
+# as v0.6.26's advanced archive does not carry the C# one: the capability is hidden until its measurements pass.
+[[bin]]
+name = "codex-auto-resume-hook"
+path = "src/bin/hook.rs"
+
 [dependencies]
 car-adv = { path = "../car-adv" }
 car-bin = { path = "../../../../rust/crates/car-bin" }
+# The hook launcher starts the core through the one starter (CREATE_NO_WINDOW, PLAN 6.7).
+car-platform = { path = "../../../../rust/crates/car-platform" }

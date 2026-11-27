@@ -17,7 +17,7 @@ R4. KeepOnScreen measured the primary screen while CenterScreen put the window o
     screen it opens on (OpeningScreen).
 M1. Three failures gave the long-lived bridge up for the window's life; it is tried again after RetryMilliseconds.
 
-The built half compiles the real window and runs it against a stand-in python.exe this test compiles, whose behaviour
+The built half compiles the real window and runs it against a stand-in core this test compiles (app/bin/codex-auto-resume.exe, tests/corestandin.py), whose behaviour
 CAR_FAKE_MODE says; every process the stand-in starts is written down, and whatever of them still runs at the end is
 ended by its path, inside the test's own folder. Nothing of the real installation is read, nothing is shown.
 """
@@ -31,6 +31,7 @@ import tempfile
 import unittest
 
 import guiscan
+import corestandin  # noqa: E402
 from test_gui_v0611_access import CSC, NO_WINDOW, POWERSHELL, compile_window, run_probe
 
 
@@ -38,11 +39,15 @@ def body(type_name: str, member: str) -> str:
     return guiscan.member_body(type_name, member)
 
 
-# A stand-in for the installation's python.exe. `[-X OPTION ...] -c CODE APP_SRC serve` answers one request a line; `-c CODE APP_SRC
-# COMMAND [-]` answers once. CAR_FAKE_MODE: ok answers {"ok":true,"echo":COMMAND,"took":LENGTH-OF-ARGUMENT}; hang
+# A stand-in for the installation's core (v0.6.27: app/bin/codex-auto-resume.exe, tests/corestandin.py, which hands it
+# `bridge serve` and `bridge COMMAND [-]` in the shape it reads). `-c CODE APP_SRC serve` answers one request a line;
+# `-c CODE APP_SRC COMMAND [-]` answers once. CAR_FAKE_MODE: ok answers {"ok":true,"echo":COMMAND,"took":LENGTH-OF-ARGUMENT}; hang
 # does not answer for two minutes (CAR_FAKE_HANG_MS), every process it starts alike; flood writes 300 KB to stderr
-# before it reads its stdin, then answers; tree starts a python.exe that keeps its stdout and a pythonw.exe of its own, and ends without a word; slow answers strings in Korean after 3 s.
+# before it reads its stdin, then answers; tree starts a copy of itself that keeps its stdout, a pythonw.exe (car-legacy's) and a CodexAutoResume.exe (the host)
+# of its own, and ends without a word; slow answers strings in Korean after 3 s.
 # Every process writes "role pid" to CAR_FAKE_PIDS.
+# The core's words are taken after the stand-in's own start of itself (`--hang ROLE`), which never comes from the window.
+AFTER_HANG = '        if (args.Length > 0 && args[0] == "--hang") { Note(args[1]); Thread.Sleep(HangMs()); return 0; }'
 FAKE = r"""
 using System;
 using System.Diagnostics;
@@ -94,6 +99,7 @@ static class Fake {
                 string self = Process.GetCurrentProcess().MainModule.FileName;
                 Start(self, "grandchild", true);
                 Start(Path.Combine(Path.GetDirectoryName(self), "pythonw.exe"), "watcher", false);
+                Start(Path.Combine(Path.GetDirectoryName(self), "CodexAutoResume.exe"), "host", false);
                 Thread.Sleep(300);
                 return 0;
             }
@@ -301,9 +307,11 @@ class SourceTests(unittest.TestCase):
         self.assertIn("ChildTree.End(process);", call)
 
     def test_the_watcher_is_never_ended(self):
+        """v0.6.27: the watcher is the host, CodexAutoResume.exe, or car-legacy's pythonw.exe that hands `run` on to it."""
         tree = guiscan.type_body("ChildTree")
-        self.assertIn('internal const string Spared = "pythonw.exe";', tree)
-        self.assertIn("string.Equals(one.Image, Spared, StringComparison.OrdinalIgnoreCase)", body("ChildTree", "Under"))
+        self.assertIn('internal static readonly string[] Spared = { "CodexAutoResume.exe", "pythonw.exe" };', tree)
+        self.assertIn("string.Equals(image, each, StringComparison.OrdinalIgnoreCase)", body("ChildTree", "IsSpared"))
+        self.assertIn("if (IsSpared(one.Image)) continue;", body("ChildTree", "Under"))
 
     def test_the_window_s_close_ends_the_one_shot_children(self):
         self.assertIn("once.Stop();", body("PersistentBridge", "Stop"))
@@ -372,14 +380,11 @@ class BuiltTests(unittest.TestCase):
         # cleanup below - which ends what the stand-in started by its path inside this folder - matched nothing.
         work = Path(cls.folder.name).resolve()
         cls.home = work / "home"
-        (cls.home / "runtime").mkdir(parents=True)
         (cls.home / "app" / "src").mkdir(parents=True)
         exe = compile_window(work)
         source = work / "fake.cs"
-        source.write_text(FAKE, encoding="utf-8")
-        for name in ("python.exe", "pythonw.exe"):
-            subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(cls.home / "runtime" / name), str(source)],
-                           check=True, capture_output=True, timeout=300, creationflags=NO_WINDOW)
+        source.write_text(corestandin.shimmed(FAKE, AFTER_HANG), encoding="utf-8")
+        corestandin.place(CSC, source, cls.home, extra=("pythonw.exe", "CodexAutoResume.exe"))
         cls.pids = work / "pids.txt"
         try:
             cls.answer = run_probe(PROBE, work, 300, CAR_EXE=str(exe), CAR_HOME=str(cls.home), CAR_FAKE_PIDS=str(cls.pids))
@@ -389,7 +394,7 @@ class BuiltTests(unittest.TestCase):
     @classmethod
     def end_ours(cls):
         """Whatever the stand-in started and still runs, by its path inside this test's folder."""
-        script = ("Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
+        script = ("Get-Process -Name codex-auto-resume,python,pythonw,CodexAutoResume -ErrorAction SilentlyContinue | Where-Object { $_.Path -and "
                   "$_.Path.StartsWith($env:CAR_HOME, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force")
         subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
                        timeout=120, creationflags=NO_WINDOW, env=dict(os.environ, CAR_HOME=str(cls.home)))
@@ -420,8 +425,9 @@ class BuiltTests(unittest.TestCase):
         self.assertFalse(tree["ok"])
         self.assertEqual(tree["error"], "TimeoutException")
         self.assertLess(tree["ms"], 8000)
-        self.assertEqual(tree["alive"], {"child-tree": False, "grandchild": False, "watcher": True},
-                         "the grandchild that kept the stdout must end, a pythonw.exe (the watcher) never")
+        self.assertEqual(tree["alive"], {"child-tree": False, "grandchild": False, "watcher": True, "host": True},
+                         "the grandchild that kept the stdout must end, the watcher (the host, car-legacy's pythonw.exe) "
+                         "never")
 
     def test_the_limits(self):
         self.assertEqual(self.answer["limits"], [60000, 180000])

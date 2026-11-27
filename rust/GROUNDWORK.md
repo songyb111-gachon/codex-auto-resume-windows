@@ -3793,3 +3793,64 @@ run.py --build --reference v0.6.26 --reference-python bundled -v
 Python (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_python315_encoding
   test_rustdiff_script_command test_rustdiff_reference_python test_rust_release test_stack test_srcscan   Ran 95, OK (1 skip)
 ```
+## P6 S6.2a: the window's switch from Python to the Rust core (seat S6.2a, branch `car-v0627-s62a`, 2026-11-26)
+
+Cut from `car-v0627-cifix` `6a72bb487` (Integration 8 + P6 step 0 + the CI fixes). P6-DESIGN 1.7 (every row), 1.8, 4.1 row
+1b, the owner's Q4 (a Rust launcher at today's path) and Q6. The wire does not change (D12): `tests/test_consumer_fields.py`
+and `tests/golden/bridge` are untouched (`test_window_core` checks it against the base). Nothing pushed; no window shown
+outside the GUI lock; no picture made.
+
+### What is where
+
+| Today (v0.6.26) | Now |
+|---|---|
+| `RuntimeChoice.Python`/`BundledPython` (the bridges, the launchers) | `gui/CoreExe.cs`: `CoreExe.Path(root)` = `root\app\bin\codex-auto-resume.exe`, in `[installer]` (the setup programs are compiled with it too). `RuntimeChoice.cs` deleted, its `[settings]` line gone |
+| one-shot bridge `python -X disable-remote-debug -c CODE app\src <cmd> [-]` | `codex-auto-resume.exe bridge <cmd> [-]`: the argument on stdin as before, `UseShellExecute=false`, `CreateNoWindow=true`, the same limits; `Bridge.Available` = the core is there; `Bridge.Core` for the long-lived one |
+| long-lived `... serve`, and after three failures the move from a chosen Python to the bundled one (v0.6.23) | `codex-auto-resume.exe bridge serve` from `once.Core`; three failures give it up for `RetryMilliseconds`, as before v0.6.23 (no other program to move to; `UseBundled` gone) |
+| Repair `runtime\python.exe app\scripts\plugin_setup.py setup --keep-state` | `codex-auto-resume.exe setup --keep-state`; the install lock, `CODEX_AUTO_RESUME_PLUGIN_HOME`, the five outcomes unchanged; "incomplete" = no core |
+| the Desktop shortcut `python plugin_setup.py desktop-shortcut make|remove` | `codex-auto-resume.exe desktop-shortcut make|remove` (`DesktopShortcut.Change`); no core = `NotChanged` |
+| strings cache key `"2"`, plugin.json, five `.py`, the catalogs | `"3"`, plugin.json, `app\bin\codex-auto-resume.exe`, the catalogs at `app\src\codex_auto_resume\locales` (their shipped path) |
+| `ChildTree.Spared = "pythonw.exe"` | `Spared = { "CodexAutoResume.exe", "pythonw.exe" }`, `IsSpared(image)` (ordinal, case ignored) |
+| `gui/McpLauncher.cs` (+ `RuntimeChoice.cs`) built by `make_gui.ps1` | car-bin's `codex-auto-resume-mcp.exe` (D18, already Integration 8's); `McpLauncher.cs` deleted; `make_gui.ps1` builds the window alone; `gui_stamp.py` has the one kind `window`; `make_release.collect_gui` takes the launcher from `rust/target/release` (`RUST_BUILT`), as `rust_release.py` does |
+| `gui/HookLauncher.cs` (advanced, never packed) | car-adv-bin's `codex-auto-resume-hook.exe` (`src/bin/hook.rs` over `src/hook_launcher.rs`): `codex-auto-resume.exe hook --home <home>` through car-platform's one starter, three piped streams, input on its own thread, stderr dropped, the 8 s bound, only an exit 0 relayed, every way out 0 (a panic too). Built in the advanced workspace only and **not packed**, as v0.6.26's advanced archive does not carry the C# one; car-adv-bin gains the car-platform edge (check_groundwork) |
+
+No `.py` is named in a string the window's code holds but the advanced sentinel `__init__.py` (InstallerFlow's
+`EditionOfSource`/`EditionOfArchive`); comments still cite the Python a rule was ported from. `advanced/gui/AdvancedPythons.cs`
+is S7.3's (D8) and untouched.
+
+### The tests (each fails with the change reverted)
+
+* `tests/test_window_core.py` (new): the four starts read from the source (`bridge`, `bridge serve`, `setup --keep-state`,
+  `desktop-shortcut`), the key, the spared images, the `.py` scan, the compile lists, the wire untouched; a probe compiled
+  from CoreExe.cs, ChildTree.cs, WindowJson.cs and HostApp.cs runs the path, `Under` over a made-up process table (host and
+  car-legacy's pythonw spared with their subtrees, any case) and `StringsCache.Key` over a scratch installation (starts
+  `"3|"`, follows the core's and the catalogs' bytes, not a `.py` of the old package, a missing core is `-`).
+* `tests/corestandin.py` (new, not a test module): the window tests' stand-ins take only `bridge serve` / `bridge CMD [-]`
+  (anything else exits 64) at `app\bin\codex-auto-resume.exe`; the one-shot audit's tree also starts a `CodexAutoResume.exe`,
+  which must be spared (`test_gui_v0620_audit`).
+* `tests/test_hook_launcher.py` (rewritten): source rules of the Rust launcher, and the built `codex-auto-resume-hook.exe`
+  run against a C# stand-in core in the C# launcher's five cases (relayed whole with its input and the role's words, failed,
+  quiet, nothing installed, hung past the bound); skipped by name where cargo has not built it. car-adv-bin's own 10 unit
+  tests (cmd.exe children: relay, stderr, failure, bound, endless input, a pipe held past the exit, cannot start).
+* Retargeted: test_chosen_runtime, test_remote_debug_off, test_no_console_windows, test_structural_invariants,
+  test_convergence, test_guiscan, test_tooling_round2, test_edition_build, test_edition_window, test_reproducible,
+  test_gui_layout, test_gui_decisions, test_desktop_shortcut, busycase and six window modules' stand-ins.
+
+### The re-diff
+
+`python -X utf8 tests/rustdiff/rediff_window.py --reference v0.6.26`: the window's ported files and the bridge's wire changed
+since the final (`git diff --stat`), then test_window_core, test_hook_launcher, test_consumer_fields and `cargo test --locked
+-p car-adv-bin`.
+
+### For the next seats
+
+* **The integration / S6.2b**: `codex-auto-resume.exe` is still the stub core (`car_bin::core_main`, Integration 8), so an
+  installed window's bridges get `NOT_PORTED` until `main.rs` runs `main_with(&[])`; the window is ready for that switch and
+  needs nothing else. `bridge serve`'s set-aside sweep is the watcher's (S5.2's list).
+* **S7.3d**: register the `hook` role in car-adv-bin's `main` (`main_with(&[Role { word: "hook", run }])`, `run` over
+  `car_adv::hook::handler::main(argv, stdin, stdout, None, Some(live hands))`), and pack `codex-auto-resume-hook.exe` at
+  `payload/app/hook/` with the release's word when the capability is shown.
+* **S8 (the release)**: `.github/workflows/release.yml`'s Python archive steps now need car-bin's launcher in
+  `rust/target/release` (make_release says how to build it); the Rust release is `rust_release.py`.
+* car-bin's `launcher::install_home` answers a relative path with no USERPROFILE (AUDIT-v0628, S6.2a); the hook launcher asks
+  `home_dir` as the C# launchers did.

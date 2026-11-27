@@ -185,8 +185,7 @@ class StampedBuildTests(unittest.TestCase):
             "gui/window.sources": "# the window\n[window]\ngui/A.cs  # first\n\ngui/B.cs\n",
             "advanced/gui/window.sources": "advanced/gui/Overlay.cs\n",
             "gui/A.cs": "class A {}", "gui/B.cs": "class B {}", "advanced/gui/Overlay.cs": "class O {}",
-            "gui/app.manifest": "<manifest/>", "gui/McpLauncher.cs": "class L {}",
-            "gui/RuntimeChoice.cs": "class R {}", "assets/codex-auto-resume.ico": "icon",
+            "gui/app.manifest": "<manifest/>", "assets/codex-auto-resume.ico": "icon",
             "build/make_gui.ps1": "script", "build/normalize_pe.py": "normalize",
         }
         for name, text in files.items():
@@ -197,16 +196,18 @@ class StampedBuildTests(unittest.TestCase):
         self.release = _load_make_release()
         self.release.ROOT = self.tree
         self.release.BUILT = self.built
+        # v0.6.27: the MCP launcher is car-bin's, from the standard Rust workspace's build, unstamped (D18).
+        self.release.RUST_BUILT = Path(self._scratch.name) / "rust-release"
+        self.release.RUST_BUILT.mkdir()
         self.window = self.built / self.release.GUI_EXE
         self.advanced_window = self.built / "advanced" / self.release.GUI_EXE
-        self.launcher = self.built / self.release.MCP_EXE
+        self.launcher = self.release.RUST_BUILT / self.release.MCP_EXE
         for exe in (self.window, self.advanced_window, self.launcher):
             exe.write_bytes(b"MZ " + exe.name.encode("ascii"))
 
     def _stamp_all(self):
         gui_stamp.write(self.window, self.tree, "standard", "window")
         gui_stamp.write(self.advanced_window, self.tree, "advanced", "window")
-        gui_stamp.write(self.launcher, self.tree, "standard", "launcher")
 
     def _collect(self, edition: str):
         stage = Path(self._scratch.name) / ("stage-" + edition)
@@ -260,13 +261,19 @@ class StampedBuildTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self._collect("advanced")
 
-    def test_a_launcher_built_before_its_source_changed_is_refused(self):
+    def test_the_launcher_is_car_bin_s_and_a_missing_one_is_refused_by_name(self):
+        """v0.6.27: make_gui.ps1 builds no launcher; the archive takes car-bin's from the Rust build, and says how to
+        make it where it is not there."""
         self._stamp_all()
-        (self.tree / "gui" / "RuntimeChoice.cs").write_text("class R { int changed; }", encoding="utf-8")
+        self.assertFalse(gui_stamp.stamp_path(self.launcher).exists())
+        self._collect("standard")
+        self.launcher.unlink()
         with self.assertRaises(SystemExit) as refused:
-            self._collect("standard")
-        # The window reads neither launcher source, so it is the launcher that is named.
+            self._collect("advanced")          # a stage of its own; one launcher for both editions
         self.assertIn(str(self.launcher), str(refused.exception))
+        self.assertIn("cargo build --release --locked", str(refused.exception))
+        with self.assertRaises(ValueError):
+            gui_stamp.inputs(self.tree, "standard", "launcher")
 
     def test_a_stamp_that_is_not_readable_is_refused_not_trusted(self):
         self._stamp_all()
@@ -278,9 +285,8 @@ class StampedBuildTests(unittest.TestCase):
     def test_make_gui_stamps_each_executable_it_builds_after_normalising_it(self):
         script = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
         self.assertIn("gui_stamp.py", script)
-        self.assertEqual(script.count(" -Kind '"), 2)
+        self.assertEqual(script.count(" -Kind '"), 1)
         self.assertIn("-Kind 'window'", script)
-        self.assertIn("-Kind 'launcher'", script)
         build = script[script.index("function Build {"):script.index("$WindowSources = ")]
         self.assertLess(build.index("normalizer $exe"), build.index("$stamper"))
         self.assertLess(build.index("Remove-Item -LiteralPath ($exe + '.stamp')"), build.index("& $csc"))

@@ -574,9 +574,19 @@ class WindowStartTests(unittest.TestCase):
 
     def test_the_scan_finds_the_windows_starts(self):
         targets = {(name, target) for name, _, target, _ in self.starts()}
-        self.assertIn(("gui/McpLauncher.cs", "python"), targets)
-        self.assertIn(("gui/Dashboard.cs", "python"), targets)
+        # v0.6.27 (P6 S6.2a): the four starts of the installation's core (gui/CoreExe.cs), each a console program.
+        for start in (("gui/SettingsApp.cs", "core"), ("gui/Dashboard.cs", "once.Core"),
+                      ("gui/DashboardMaintenance.cs", "core"), ("gui/InstallerFlow.cs", "core")):
+            self.assertIn(start, targets)
         self.assertGreaterEqual(len(targets), 7)
+
+    def test_the_window_starts_no_interpreter_and_no_c_sharp_launcher_is_left(self):
+        """v0.6.27: the core is the one console program the window starts of the installation's; the MCP and Stop hook
+        launchers are Rust (car-bin, car-adv-bin). Fails with a python.exe start or a C# launcher put back."""
+        for name, variable, target, body in self.starts():
+            with self.subTest(name=name, target=target):
+                self.assertNotIn("python", (target or "").lower())
+        self.assertFalse(any(name.endswith(("McpLauncher.cs", "HookLauncher.cs")) for name in WINDOW_CS))
 
     def test_every_console_program_the_window_starts_gets_a_hidden_console(self):
         offenders, gui = [], set()
@@ -602,10 +612,20 @@ class WindowStartTests(unittest.TestCase):
     def test_the_window_is_a_gui_program_and_the_mcp_launcher_a_console_one(self):
         # The tray and WindowReopen start the window; a console build of it would open a console.
         # The MCP launcher is a console program on purpose - it speaks to Codex over stdio - and
-        # its python.exe child is held above; Codex starts it windowless (measured 2026-09-26).
+        # Codex starts it windowless (measured 2026-09-26). v0.6.27: it is car-bin's Rust one (D18),
+        # and the advanced Stop hook launcher car-adv-bin's, both console programs (no
+        # windows_subsystem attribute) whose child, the core, car-platform's starter starts with
+        # CREATE_NO_WINDOW.
         script = _read("build/make_gui.ps1")
         self.assertRegex(script, r"Build -Name 'CodexAutoResumeSettings\.exe' -Target 'winexe'")
-        self.assertRegex(script, r"Build -Name 'codex-auto-resume-mcp\.exe' -Target 'exe'")
+        self.assertNotIn("codex-auto-resume-mcp.exe", script)
+        for main in ("rust/crates/car-bin/src/bin/mcp.rs", "advanced/rust/crates/car-adv-bin/src/bin/hook.rs"):
+            with self.subTest(main):
+                self.assertNotIn("windows_subsystem", _read(main))
+        for relay in ("rust/crates/car-bin/src/launcher.rs", "advanced/rust/crates/car-adv-bin/src/hook_launcher.rs"):
+            with self.subTest(relay):
+                self.assertIn("SystemStarter.start(", _read(relay))
+                self.assertNotIn("Command::new", _read(relay))
 
 
 # What a program at the end of a chain asks of its console, written where the test can read it.

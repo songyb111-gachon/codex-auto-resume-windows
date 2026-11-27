@@ -201,9 +201,11 @@ class ServeTests(unittest.TestCase):
             soon.assert_not_called()
 
     def test_the_window_starts_its_bridge_through_main_with_serve(self):
+        """v0.6.27: through the core's bridge role, `codex-auto-resume.exe bridge serve` - controlcli.main(["serve"]) in
+        car-bin (`roles::bridge`), whose serve the sweep is the watcher's beside (S5.2)."""
         source = (Path(__file__).resolve().parents[1] / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
-        self.assertIn('"from codex_auto_resume.controlcli import main;"', source)
-        self.assertIn('Bridge.Quote(appSrc) + " serve"', source)
+        self.assertIn("info.FileName = once.Core;", source)
+        self.assertIn('info.Arguments = "bridge serve";', source)
 
 
 if __name__ == "__main__":

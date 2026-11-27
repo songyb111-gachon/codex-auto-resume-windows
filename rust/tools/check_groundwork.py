@@ -79,7 +79,8 @@ STANDARD = {
 LIBS = {name for name, deps in STANDARD.items()} - {"car-bin", "car-host", "car-legacy", "car-harness"}
 ADVANCED = {
     "car-adv": set(LIBS),
-    "car-adv-bin": {"car-adv", "car-bin"},
+    # S6.2a: the Stop hook launcher (codex-auto-resume-hook) starts the core through car-platform's one starter.
+    "car-adv-bin": {"car-adv", "car-bin", "car-platform"},
     "car-adv-host": {"car-adv", "car-host"},
 }
 

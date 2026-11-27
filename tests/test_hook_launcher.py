@@ -1,12 +1,17 @@
-"""The advanced edition's Stop hook launcher (gui/HookLauncher.cs, v0.6.20): the MCP launcher's twin for the one
-capability Codex itself starts, "Continue inside the turn" (plans/v0619-design/D-stop-hook.md).
+"""The advanced edition's Stop hook launcher (v0.6.20 gui/HookLauncher.cs; Rust since v0.6.27, P6 S6.2a / Q4): the MCP
+launcher's twin for the one capability Codex itself starts, "Continue inside the turn" (plans/v0619-design/D-stop-hook.md).
 
-Held here: it compiles to the same bytes every time (normalize_pe, as every executable here); every child it starts
-gets a hidden console; and, run for real against a stand-in interpreter, it relays the handler's one answer whole and
-only from a handler that exited 0, drops the handler's standard error, and passes (exit 0, nothing written) when nothing
-is installed, when the handler fails and when the handler hangs past its bound. It is not built into a release yet:
-the capability is hidden until MHK, M4 and M4B pass, and shipping it in the advanced archive (build/make_gui.ps1,
-build/make_release.py, the release workflow's count of executables) waits for that, with the owner's review.
+It is car-adv-bin's codex-auto-resume-hook.exe now, built in the advanced Rust workspace only, for app/hook/ where the
+hook's declaration names it (control/hookplugin.py `launcher()`), and it starts the installation's core as
+`codex-auto-resume.exe hook --home <home>`. Held here: the C# launcher is gone and the standard workspace has no such
+program; every child it starts gets no window and three redirected streams; and, run for real against a stand-in core,
+it relays the handler's one answer whole and only from a handler that exited 0, drops the handler's standard error, and
+passes (exit 0, nothing written) when nothing is installed, when the handler fails and when the handler hangs past its
+bound - what v0.6.26's C# launcher did against its stand-in interpreter. It is not in an archive yet: the capability is
+hidden until MHK, M4 and M4B pass, and shipping it waits for that, with the owner's review.
+
+The built half runs the launcher cargo built (advanced/rust/target/{release,debug}); it is skipped, by name, where neither
+is there (`cargo build -p car-adv-bin` in advanced/rust makes it).
 """
 from __future__ import annotations
 
@@ -15,22 +20,29 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "build"))
-
-import normalize_pe  # noqa: E402
-
-SOURCE = ROOT / "gui" / "HookLauncher.cs"
-READER = ROOT / "gui" / "RuntimeChoice.cs"
+CRATE = ROOT / "advanced" / "rust" / "crates" / "car-adv-bin"
+SOURCE = CRATE / "src" / "hook_launcher.rs"
+MAIN = CRATE / "src" / "bin" / "hook.rs"
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = 0x08000000
+EXE = "codex-auto-resume-hook.exe"
 
-# A stand-in for the bundled interpreter: what it does is chosen by a file beside it, so one build serves every case.
+
+def built() -> Path | None:
+    for profile in ("release", "debug"):
+        found = ROOT / "advanced" / "rust" / "target" / profile / EXE
+        if found.is_file():
+            return found
+    return None
+
+
+# A stand-in for the installation's core: what it does is chosen by a file beside it, so one build serves every case.
+# It records its arguments and its input, so the test sees the role and the home it was started with.
 STAND_IN = r"""
 using System;
 using System.IO;
@@ -39,6 +51,7 @@ static class Program {
     static int Main(string[] args) {
         string here = AppDomain.CurrentDomain.BaseDirectory;
         string mode = File.ReadAllText(Path.Combine(here, "mode.txt")).Trim();
+        File.WriteAllText(Path.Combine(here, "args.txt"), string.Join("\n", args));
         string input = Console.In.ReadToEnd();
         File.WriteAllText(Path.Combine(here, "seen.txt"), input);
         Console.Error.Write("a diagnostic of the handler's");
@@ -52,70 +65,73 @@ static class Program {
 """
 
 
-def _compile(source: Path, out: Path) -> Path:
-    subprocess.run([str(CSC), "/nologo", "/target:exe", "/platform:x64", "/optimize+", "/out:" + str(out),
-                    "/reference:System.dll", str(source)] + ([str(READER)] if source == SOURCE else []),
-                   check=True, capture_output=True, timeout=180, creationflags=NO_WINDOW)
-    return out
-
-
 class SourceTests(unittest.TestCase):
     def setUp(self):
-        self.text = SOURCE.read_text(encoding="utf-8")
+        self.text = SOURCE.read_text(encoding="utf-8").replace("\r\n", "\n")
+        self.code = self.text.split("#[cfg(test)]", 1)[0]
+        self.main = MAIN.read_text(encoding="utf-8").replace("\r\n", "\n")
 
-    def test_its_child_gets_a_hidden_console_and_redirected_streams(self):
-        for setting in ("UseShellExecute = false", "CreateNoWindow = true", "RedirectStandardInput = true",
-                        "RedirectStandardOutput = true", "RedirectStandardError = true"):
-            self.assertIn("info." + setting + ";", self.text)
+    def test_the_c_sharp_launcher_is_gone_and_the_standard_workspace_has_none(self):
+        self.assertFalse((ROOT / "gui" / "HookLauncher.cs").exists())
+        for path in (ROOT / "rust").rglob("*"):
+            if "target" in path.parts or not path.is_file() or path.suffix not in (".rs", ".toml"):
+                continue
+            with self.subTest(str(path.relative_to(ROOT))):
+                self.assertNotIn("codex-auto-resume-hook", path.read_text(encoding="utf-8", errors="replace"))
+
+    def test_it_is_a_bin_of_the_advanced_workspace(self):
+        manifest = (CRATE / "Cargo.toml").read_text(encoding="utf-8").replace("\r\n", "\n")
+        self.assertIn('name = "codex-auto-resume-hook"\npath = "src/bin/hook.rs"', manifest)
+
+    def test_its_child_is_the_core_s_hook_role_with_three_piped_streams_through_the_one_starter(self):
+        self.assertIn('pub const ROLE: &str = "hook";', self.code)
+        self.assertIn('"--home".to_owned()', self.code)
+        self.assertIn("car_bin::launcher::core_of(home)", self.code)
+        self.assertIn(".with_streams(Stream::Piped, Stream::Piped, Stream::Piped)", self.code)
+        self.assertIn("SystemStarter.start(spawn)", self.code)
+        self.assertNotIn("Command::new", self.code)
 
     def test_it_never_writes_to_standard_error_and_every_way_out_is_zero(self):
         """A hook's non-zero exit or its words on standard error may be read by Codex as something; the launcher's
         only failure is to pass."""
-        self.assertNotIn("Console.Error", self.text)
-        self.assertNotIn("OpenStandardError", self.text)
-        self.assertEqual(set(re.findall(r"\breturn\s+(-?\d+)\s*;", self.text)), {"0"})
-        self.assertNotIn("return process.ExitCode", self.text)
+        for text in (self.code, self.main):
+            self.assertNotIn("stderr()", text)
+            self.assertNotIn("eprint", text)
+        self.assertIn("std::process::exit(std::panic::catch_unwind(hook_launcher::run).unwrap_or(0));", self.main)
+        run = self.code[self.code.index("pub fn run() -> i32"):]
+        self.assertEqual(set(re.findall(r"\breturn\s+(-?\d+)\s*;", run)), {"0"})
+        self.assertTrue(run.rstrip().endswith("    0\n}"), run[-40:])
 
-    def test_it_starts_the_advanced_package_s_handler_with_the_installation_s_interpreter(self):
-        # v0.6.23: through the one reader of which Python this installation runs under; its bundled runtime unless one is chosen.
-        self.assertIn("RuntimeChoice.Python(home)", self.text)
-        self.assertIn('Path.Combine(Path.Combine(home, Bundled), name)', READER.read_text(encoding="utf-8"))
-        self.assertIn("from codex_auto_resume_advanced.hook import main;", self.text)
-        self.assertIn('"-I -X disable-remote-debug -c "', self.text)
+    def test_the_bound_is_the_c_sharp_launcher_s(self):
+        self.assertIn("pub const BOUND: Duration = Duration::from_millis(8000);", self.code)
+        self.assertIn("pub const JOIN: Duration = Duration::from_millis(2000);", self.code)
 
 
 @unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")
-class CompiledTests(unittest.TestCase):
+@unittest.skipUnless(built(), "codex-auto-resume-hook.exe is not built (cargo build -p car-adv-bin in advanced/rust)")
+class BuiltTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.folder = Path(tempfile.mkdtemp(prefix="car-hook-launcher-"))
-        (cls.folder / "a").mkdir()
-        cls.first = _compile(SOURCE, cls.folder / "a" / "codex-auto-resume-hook.exe")
-        time.sleep(1.2)                     # the compiler's timestamp has one-second resolution
-        (cls.folder / "b").mkdir()
-        cls.second = _compile(SOURCE, cls.folder / "b" / "codex-auto-resume-hook.exe")
+        cls.launcher = built()
         stand_in = cls.folder / "StandIn.cs"
         stand_in.write_text(STAND_IN, encoding="utf-8")
-        cls.interpreter = _compile(stand_in, cls.folder / "python.exe")
+        cls.core = cls.folder / "codex-auto-resume.exe"
+        subprocess.run([str(CSC), "/nologo", "/target:exe", "/platform:x64", "/optimize+", "/out:" + str(cls.core),
+                        "/reference:System.dll", str(stand_in)],
+                       check=True, capture_output=True, timeout=180, creationflags=NO_WINDOW)
 
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.folder, ignore_errors=True)
 
-    def test_two_builds_are_the_same_bytes_once_normalised(self):
-        """Fails without normalize_pe: the in-box compiler stamps the second and a random MVID."""
-        first = normalize_pe.normalise(self.first.read_bytes())
-        second = normalize_pe.normalise(self.second.read_bytes())
-        self.assertEqual(first, second)
-        self.assertNotEqual(self.first.read_bytes(), self.second.read_bytes())
-
     def home(self, mode=None) -> Path:
         home = Path(tempfile.mkdtemp(prefix="car-hook-home-", dir=self.folder))
         if mode is not None:
-            (home / "runtime").mkdir()
+            (home / "app" / "bin").mkdir(parents=True)
             (home / "app" / "src").mkdir(parents=True)
-            shutil.copyfile(self.interpreter, home / "runtime" / "python.exe")
-            (home / "runtime" / "mode.txt").write_text(mode, encoding="utf-8")
+            shutil.copyfile(self.core, home / "app" / "bin" / "codex-auto-resume.exe")
+            (home / "app" / "bin" / "mode.txt").write_text(mode, encoding="utf-8")
         return home
 
     def run_launcher(self, home, stdin=b'{"hook_event_name":"Stop"}', timeout=60):
@@ -123,7 +139,7 @@ class CompiledTests(unittest.TestCase):
                if key not in ("CODEX_AUTO_RESUME_PLUGIN_HOME", "CODEX_AUTO_RESUME_HOME")}
         env["CODEX_AUTO_RESUME_PLUGIN_HOME"] = str(home)
         started = time.monotonic()
-        done = subprocess.run([str(self.first)], input=stdin, capture_output=True, timeout=timeout, env=env,
+        done = subprocess.run([str(self.launcher)], input=stdin, capture_output=True, timeout=timeout, env=env,
                               creationflags=NO_WINDOW)
         return done, time.monotonic() - started
 
@@ -133,7 +149,9 @@ class CompiledTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0)
         self.assertEqual(done.stdout, b'{"decision":"block","reason":"go on"}')
         self.assertEqual(done.stderr, b"", "the handler's diagnostic never reaches Codex")
-        self.assertEqual((home / "runtime" / "seen.txt").read_bytes(), b'{"hook_event_name":"Stop"}')
+        self.assertEqual((home / "app" / "bin" / "seen.txt").read_bytes(), b'{"hook_event_name":"Stop"}')
+        self.assertEqual((home / "app" / "bin" / "args.txt").read_text(encoding="utf-8").split("\n"),
+                         ["hook", "--home", str(home)])
 
     def test_a_handler_that_failed_passes_with_nothing_written(self):
         done, _ = self.run_launcher(self.home("fail"))

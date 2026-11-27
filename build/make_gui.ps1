@@ -1,9 +1,9 @@
 <#
-    Compile the two small Windows executables the product ships.
+    Compile the settings window the product ships.
 
     .NET Framework 4.8 ships with every supported version of Windows, so the release
-    carries no extra runtime for either of them and there is nothing to install to build
-    them. csc.exe lives beside the framework itself.
+    carries no extra runtime for it and there is nothing to install to build it. csc.exe
+    lives beside the framework itself.
 
     Every compiler argument is built as a complete string before the call. In argument
     mode PowerShell does not evaluate a parenthesised expression that is glued to a
@@ -12,8 +12,10 @@
 
     -Edition advanced builds the advanced edition's settings window instead, into
     build\advanced\ beside the standard one: the same sources, then the ones
-    advanced\gui\window.sources lists. The standard build never reads that file. The MCP
-    launcher is one file, the same in both editions, so only the standard run builds it.
+    advanced\gui\window.sources lists. The standard build never reads that file.
+
+    v0.6.27: the C# MCP launcher this script also built is car-bin's Rust one now, built
+    by cargo with the core it starts (D18), so this script builds the window and nothing else.
 #>
 [CmdletBinding()]
 param(
@@ -55,7 +57,7 @@ $normalizer = Join-Path $Root 'build\normalize_pe.py'
 # (build/gui_stamp.py), and build/make_release.py refuses to pack one whose stamp is not this tree's.
 $stamper = Join-Path $Root 'build\gui_stamp.py'
 
-# A version resource, generated from the manifest. Without one both executables said
+# A version resource, generated from the manifest. Without one the executables said
 # 0.0.0.0 with no product or publisher in Explorer's Properties and in SmartScreen and
 # Smart App Control prompts - the places a person looks to decide whether to trust a file.
 # The in-box compiler builds the Win32 version resource from these attributes, and the
@@ -123,7 +125,7 @@ function Build {
                    ('/out:' + $exe))
     foreach ($reference in $References) { $arguments += ('/reference:' + $reference) }
     $arguments += ('/win32icon:' + $icon)
-    # Only the window declares per-monitor DPI awareness; the launcher draws nothing.
+    # Only the window declares per-monitor DPI awareness.
     if ($WithManifest) { $arguments += ('/win32manifest:' + $manifest) }
     $arguments += $Sources
     & $csc @arguments
@@ -189,15 +191,3 @@ Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -Kind 'window' -WithM
       -Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)') `
       -Sources $WindowSources `
       -References @('System.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll')
-
-# A console-subsystem executable on purpose: it inherits Codex's standard streams and
-# hands them straight to the MCP server, which is the whole reason it exists.
-#
-# One file in both editions, byte for byte, so it names neither and only the standard run
-# builds it: the advanced archive takes it from build/ like the standard one does.
-if ($Edition -eq 'standard') {
-    Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' -Kind 'launcher' `
-          -Description 'Codex Auto Resume MCP launcher' `
-          -Sources @((Join-Path $Root 'gui\McpLauncher.cs'), (Join-Path $Root 'gui\RuntimeChoice.cs')) `
-          -References @('System.dll')
-}

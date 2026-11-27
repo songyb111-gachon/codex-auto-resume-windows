@@ -138,24 +138,18 @@ namespace CodexAutoResume
 
     internal sealed class Bridge
     {
-        /// What every python.exe this window starts is given first (the bridges, the Dashboard's long-lived one, Repair's
-        /// setup): remote debugging off (PEP 768, Python 3.14), or any process of this user could make it run code of its
-        /// choosing. Hyphens: `-X disable_remote_debug` is an unknown option, kept without a word, and leaves it on
-        /// (src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
-        internal const string NoRemoteDebug = "-X disable-remote-debug ";
-        /// The longest one call may take (v0.6.18): twice the long-lived pipe's own reply limit, for the interpreter's
-        /// start on top of the answer. Past it the child is ended, with what it started (ChildTree.End), and the call
-        /// throws, as a pipe that does not answer does: a stuck controlcli - a locked state file, a stuck import, an
-        /// antivirus scan holding python.exe - could otherwise hold the call, and with it every later one queued behind
-        /// the long-lived bridge's lock, for good. Not readonly, so the tests can make it short.
+        /// The longest one call may take (v0.6.18): twice the long-lived pipe's own reply limit, for the core's start on
+        /// top of the answer. Past it the child is ended, with what it started (ChildTree.End), and the call throws, as a
+        /// pipe that does not answer does: a stuck bridge - a locked state file, an antivirus scan holding the core -
+        /// could otherwise hold the call, and with it every later one queued behind the long-lived bridge's lock, for
+        /// good. Not readonly, so the tests can make it short.
         internal static int CallMilliseconds = 60000;
         /// The same for CallOnce's commands: the compatibility refresh waits up to 150 s on the network
-        /// (compat.files.REFRESH_TIMEOUT_SECONDS), and the interpreter's start comes on top.
+        /// (compat.files.REFRESH_TIMEOUT_SECONDS), and the core's start comes on top.
         internal static int LongCallMilliseconds = 180000;
 
-        private string python;
-        private readonly string bundled;
-        private readonly string appSrc;
+        /// v0.6.27: the installation's core (CoreExe), which answers `bridge <command> [-]` as controlcli did.
+        private readonly string core;
         // Every one-shot child on its way, so the window's close can end them (Stop): the long-lived bridge's own
         // Stop could only end its own process.
         private readonly List<Process> running = new List<Process>();
@@ -163,15 +157,13 @@ namespace CodexAutoResume
 
         internal Bridge(string root)
         {
-            python = RuntimeChoice.Python(root);
-            bundled = RuntimeChoice.BundledPython(root);
-            appSrc = Path.Combine(root, "app", "src");
+            core = CoreExe.Path(root);
         }
 
-        /// The bundled runtime from now on, for the life of this window: the chosen one did not answer (PersistentBridge).
-        internal void UseBundled() { python = bundled; }
+        /// The program both bridges start (PersistentBridge starts its `bridge serve` from here too).
+        internal string Core { get { return core; } }
 
-        internal bool Available { get { return File.Exists(python) && Directory.Exists(appSrc); } }
+        internal bool Available { get { return File.Exists(core); } }
 
         internal Dictionary<string, object> Call(string command, string argument)
         {
@@ -190,15 +182,10 @@ namespace CodexAutoResume
         {
             if (stopped) throw new ObjectDisposedException("the window is closing");
             var info = new ProcessStartInfo();
-            info.FileName = python;
-            // The module path is passed as an argument, not embedded in the code: a
-            // Windows path inside a Python literal inside a quoted command line has to
-            // survive two different escaping rules, and getting either wrong is silent.
-            string code = "import sys;sys.path.insert(0,sys.argv[1]);" +
-                          "from codex_auto_resume.controlcli import main;" +
-                          "sys.exit(main(sys.argv[2:]))";
-            var arguments = new StringBuilder();
-            arguments.Append(NoRemoteDebug).Append("-c ").Append(Quote(code)).Append(' ').Append(Quote(appSrc));
+            info.FileName = core;
+            // `bridge <command>`: the core's bridge role, controlcli's words (v0.6.27). No path rides on the command
+            // line any more: the core finds its installation from where it is.
+            var arguments = new StringBuilder("bridge");
             arguments.Append(' ').Append(command);
             // The argument goes in on stdin, never on the command line: "-" tells the bridge to
             // read it there. This call answers whenever the long-lived process has failed, and

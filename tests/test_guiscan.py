@@ -49,13 +49,10 @@ class ManifestTests(unittest.TestCase):
         script = (guiscan.ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
         self.assertIn("window.sources", script)
         for name in guiscan.manifest():
-            # v0.6.23: built into the launcher as well, which has no list to read: the one reader of which Python runs.
-            if name == "gui/RuntimeChoice.cs":
-                continue
             with self.subTest(name):
                 self.assertNotIn(name.replace("gui/", "gui\\"), script)
-        # The launcher is the exception, and is named because it is its own executable.
-        self.assertIn("gui\\McpLauncher.cs", script)
+        # v0.6.27: the launcher that was the exception, its own executable from its own source, is car-bin's Rust one.
+        self.assertNotIn("McpLauncher", script)
 
     def test_nothing_else_repeats_the_list_either(self):
         """Sixteen Python sites spelled these four names to hand them to csc. One call now."""
@@ -112,8 +109,8 @@ class SliceTests(unittest.TestCase):
         # v0.6.16: SettingsRemove.cs, the uninstall's own start of the installer window, is no part of the form either.
         # v0.6.18: nor ChildTree.cs, the one-shot bridge's child ended with what it started.
         self.assertEqual(sorted(set(guiscan.window_sources()) - set(holders)),
-                         # v0.6.23: nor RuntimeChoice.cs, the reader the launchers share.
-                         ["gui/ChildTree.cs", "gui/RuntimeChoice.cs", "gui/SettingsRemove.cs", "gui/WindowJson.cs"],
+                         # (v0.6.23-v0.6.26: nor RuntimeChoice.cs, the reader the launchers shared; gone with the Python core.)
+                         ["gui/ChildTree.cs", "gui/SettingsRemove.cs", "gui/WindowJson.cs"],
                          "the window sources that are not the form")
         for part in parts:
             with self.subTest(part.splitlines()[0].strip()[:40]):
@@ -184,7 +181,8 @@ class SliceTests(unittest.TestCase):
         # layer draws, DayEgg, a special day's own egg at the sixth press, and PillHint, the pill's hint (gui/SoftEggs.cs).
         # 122 with DayGround (v0.6.24, W2): the window's ground on a special day, tinted, with the day's specks (gui/SoftDays.cs).
         # 123 with StartMarks (the v0.6.24 final, L3): the start's steps to the first frame, written only when CODEX_AR_START_MARKS
-        # names a file (gui/SettingsApp.cs).
+        # names a file (gui/SettingsApp.cs). Still 123 in v0.6.27: CoreExe, the core every start runs (gui/CoreExe.cs), in
+        # RuntimeChoice's place, which went with the Python core.
         self.assertEqual(len(set(declared)), 123, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
         # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth. v0.6.12:

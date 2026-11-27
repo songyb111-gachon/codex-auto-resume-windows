@@ -30,12 +30,12 @@ ROOT = Path(__file__).resolve().parents[1]
 GUI = ROOT / "gui"
 MANIFEST = GUI / "window.sources"
 
-# Built by the same script from its own single source, and not part of the window: the MCP launcher, and (v0.6.19)
-# the advanced edition's Stop hook launcher, its twin, built only into that edition (build/make_gui.ps1 -Edition advanced).
 # v0.6.27 (P6 step 0): the watcher host's contracts with car_core.dll, compiled alone by tests/test_host_contract.py
-# until the host's own list (gui/host.sources, S6.2b) builds them; never part of the window.
+# until the host's own list (gui/host.sources, S6.2b) builds them; never part of the window. (The MCP launcher and the
+# advanced Stop hook launcher that were built here from their own sources are Rust since v0.6.27: car-bin's
+# codex-auto-resume-mcp.exe and car-adv-bin's codex-auto-resume-hook.exe.)
 HOST = ("gui/HostCore.cs", "gui/ISurfaces.cs")
-SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs") + HOST
+SEPARATE = HOST
 
 # The groups `gui/window.sources` divides the compile list into, and what each one means:
 #

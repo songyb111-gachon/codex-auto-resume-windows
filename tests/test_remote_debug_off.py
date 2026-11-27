@@ -9,7 +9,8 @@ on the bundled 3.14.9). What Windows starts from a value an older version wrote 
 form released versions read, and an old notification-button value - reaches an entry point that starts itself once
 more with the option before it does anything (scripts/watcher_launcher.py, src/auto_resume.py, scripts/plugin_setup.py).
 
-* StaticTests - every place the product starts its interpreter, in Python, C# and PowerShell, carries the option.
+* StaticTests - every place the product starts its interpreter, in Python and PowerShell, carries the option; the
+  window starts none since v0.6.27 (the Rust core).
 * RuntimeTests (3.14 and later) - processes started the product's way report sys.is_remote_debug_enabled() False.
   Scratch homes with a stand-in engine only: nothing is installed or registered, no real home is read.
 
@@ -123,26 +124,24 @@ class StaticTests(unittest.TestCase):
                     text.index('"target": startup.python_launcher()')]
         self.assertIn("*startup.NO_REMOTE_DEBUG, str(target)", call)
 
-    def test_every_python_exe_the_window_and_the_mcp_launcher_start_is_given_the_option_first(self):
-        starts = {}
+    def test_the_window_starts_no_interpreter_since_the_rust_core(self):
+        """v0.6.27 (P6 S6.2a): every start of the window's is the installation's core (gui/CoreExe.cs), and the MCP and
+        Stop hook launchers are Rust, so no C# source starts a python.exe to give the option to. Fails with a start of an
+        interpreter, or the option the window put first, back in a window source."""
+        starts = []
         for path in WINDOW_CS:
             text = path.read_text(encoding="utf-8")
             for found in re.finditer(r"new ProcessStartInfo\(", text):
                 end = text.find("Process.Start(", found.end())
                 segment = text[found.start():end if end > 0 else len(text)]
-                if not re.search(r"FileName = python;|ProcessStartInfo\(python\b", segment):
-                    continue
-                starts["%s:%d" % (_relative(path), text.count("\n", 0, found.start()) + 1)] = segment
-        self.assertEqual(sorted(site.split(":")[0] for site in starts),
-                         ["gui/Dashboard.cs", "gui/DashboardMaintenance.cs", "gui/HookLauncher.cs", "gui/InstallerFlow.cs",
-                          "gui/McpLauncher.cs", "gui/SettingsApp.cs"], sorted(starts))
-        first = re.compile(r'Arguments = (Bridge\.)?NoRemoteDebug \+|ProcessStartInfo\(python, (Bridge\.)?NoRemoteDebug \+'
-                           r'|arguments\.Append\(NoRemoteDebug\)\.Append\("-c "\)|Arguments = "-I -X %s -c "' % OPTION)
-        for site, segment in starts.items():
-            with self.subTest(site=site):
-                self.assertRegex(segment, first)
-        window = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
-        self.assertIn('internal const string NoRemoteDebug = "-X %s ";' % OPTION, window)
+                if re.search(r"FileName = python|ProcessStartInfo\(python\b|python\.exe", segment):
+                    starts.append("%s:%d" % (_relative(path), text.count("\n", 0, found.start()) + 1))
+            with self.subTest(path.name):
+                self.assertNotIn("NoRemoteDebug", text)
+                self.assertNotIn(OPTION, text)
+        self.assertEqual(starts, [])
+        self.assertFalse((ROOT / "gui" / "McpLauncher.cs").exists())
+        self.assertFalse((ROOT / "gui" / "HookLauncher.cs").exists())
 
     def test_every_bundled_python_the_installer_and_the_bootstrap_run_is_given_the_option_first(self):
         seen = 0
