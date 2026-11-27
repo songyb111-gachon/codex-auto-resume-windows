@@ -5148,3 +5148,146 @@ other file names the seat or the reason it waits for (RUN_WAITS, or its imports)
 * M5 refused.rs: account_auto_switch's restart left as the live one (`None`) -> `cargo test --example advserve`
   `the_refused_hands_open_nothing` FAILED
 * restored: all four files OK again; `ledger.py --run` 26 of 33 then the seven taken back to their reasons: 30 GREEN.
+
+## Integration 12 (branch `car-v0627-rust`, 2026-11-27/28)
+
+S7.3a, proxy completion 2 and the v0.6.26 final's tree. Three branches merged with `git merge --no-ff`, both sides kept,
+in this order; then one commit per step.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `73288eef8` | car-v0627-s73a `f655a46a9` | S7.3a + S7.3a2: control's cards (powertasks, autoswitch, analytics, codexstart), surfaces whole, the cards' forwarders |
+| `50899420b` | car-v0627-proxy2 `ba268814a` | proxy completion 1 and 2: worlds.rs/worlds.py, refused.rs, NO_CODE, state::builds, proxyplug.rs, credits::make's world |
+| `db4fc8131` | origin/dev `7d17e69b0` | the v0.6.26 final (29115e6e6), its pin's tree (85f9095c0), the day-header probe fix: 49 commits, 131 files |
+
+Conflicts and how each was kept: `rust/GROUNDWORK.md` each time (S7.3a's branch carried its section twice with a
+duplicate run of S7.3b..Integration 10 between: the section is here once, the newer "For later seats" with the S7.3a2
+part; proxy2's two sections appended). `tests/rustdiff/advproxy/ledger.py`: every GREEN and RUN_WAITS row of both, and
+proxy2's NO_CODE; `test_advanced_word_keys.py` left out of RUN_WAITS as proxy2 left it (its imports say what it waits
+for). car-harness `proxy.rs`: Integration 11's `Arc<Guarded>` around proxy2's `plug::named(request)`. car-adv
+`engine/usagestop.rs`: both branches added `as_any`; once. `tests/test_privacy_claims.py`: the shipped list has
+v0.6.26-beta.2 (dev) and v0.6.26 (this branch). Merged without a conflict and read: gui/DashboardMaintenance.cs and
+gui/InstallerFlow.cs (this branch's CoreExe repair and shortcut, dev's handover answers), scripts/bootstrap.ps1,
+scripts/ko_branch.json, test_convergence, test_no_console_windows; the Korean documents as dev has them.
+
+**refused.rs after S7.3a**: S7.3a2 gave `start_with_codex` (car-platform's PowerShell running the WMI create) and
+`open_codex_button` (this user's and the machine's `codex:` handler keys) real codes, which proxy2 had listed as bare
+(their `make` was None then). Both are **refused** now: the route has no PowerShell (`no_powershell`, nothing run, no pid
+file) and the button's read refuses; `the_refused_hands_open_nothing` holds both. `send_now` stays bare (a pure P7 rule
+over the test's state); power_after_tasks, usage_analytics and idle_update_check stay withheld; account_auto_switch stays
+refused. `Empty` (refused.rs) learned finalport's `package_roots`.
+
+### The seam wired (c)
+
+* `3c91c839c`: **a plug's start route is told what core made of it.** car-policy `StartRoute::told(&self, word)` (default:
+  nothing, as the reference's optional `getattr(route, "told", None)`); car-control's start for Codex calls it through
+  `tell` (a panic caught, D15) after the note line with OUTCOMES' word, and with "ended" when the watcher it started is
+  gone; the route goes into `named` when the plug names it, so a refusal after that (paused, running, cannot be asked,
+  installing, not installed, failed) is told too, as the reference appends it at once. car-adv's `codexstart::Route`
+  answers it (`Route::told`: `running` sampled, every other word counted, `acted_when_told` run). The proxies carry it:
+  car-harness `proxyplug.rs` (Held, when the test's route has `told`), advserve (`ProxyThing`, `object_call`
+  Held::Start "told"), engineproxy.py's and advproxy/runtime.py's method lists, `_RustThing.told`.
+* The proof: ControlCallDiff.test_start_for_codex grew 17 starts through a plug's route (actworld.py `start_plug`,
+  car-harness bridge.rs `StartPlug`): started then gone, still there, refused, uncertain, no pid, an answer that is no
+  dict, paused after it was named, running, cannot be asked, installing, not installed, not in a job (core starts it), a
+  route with no told, a told that raises, no route with a held word and with one that is no word, the context raising.
+  Every told word is a line of told.log in the home, compared with the tag's: equal.
+* Mutation checks (scratchpad `car-v0627-rust-i12-mutate.py`, each alone, the release harness rebuilt, the diff run, the
+  file restored): no "ended" told (failures=3), a refusal after the route was named told nothing (failures=9), a told that
+  panics not caught (errors=6): **3 of 3 caught**.
+* Left named: `Edges::power_tasks_follow` -> `control::powertasks::follow`, the surfaces' `World` hands (Credential
+  Manager, courier, accounts, restart, languages), `opencodex::handler_registered(None)` into `OpenWorld`, the report's
+  `make_with`, `runtime::measurement::Live` and an installed `Measuring` for the surfaces' measure/measure-verdict: all
+  need the entry points' live world (S7.3d); no product `Edges` exists yet.
+
+### Named fixes (the coordinator's, after CI on ebd0414d9)
+
+* `ad790925a` test_reproducible, `31637d660` test_tooling_round2, `110ecc936` test_edition_build: make_gui.ps1 builds and
+  describes two executables since S6.2b (the window by edition; the watcher host, standard run only, from
+  gui/host.sources); the tests count both and name the host's. Both lanes and CODEX_AR_TREE=main: OK.
+* `2017a395d` test_consumer_fields: the host shell's receivers (gui/HostMain.cs `answer` = car_start's reply,
+  gui/HostPump.cs `found` = a car_next_event event) are car_core.dll's answers, placed in LOCAL; no gui/ file changed.
+  `a0ce3664b`: test_window_core's pin of that file moves to 2017a395d (tests/golden/bridge unchanged since 0622dbeb3).
+* Suspect 5 (test_advanced_python_retire InUseProbeTests, main-tree part 2, 1 of 7): not ours. Under an 8.3 TEMP
+  (`...\5F5EF4~1\DE5767~1\SCRATC~1\CAA5B4~1`) it passed 3 of 3 in both trees, the test really ran (0.3 s, not skipped),
+  and neither the test nor `control/pythons.py` nor `chosen_runtime.py` changed since v0.6.26 (`_in_use` opens files
+  for writing, so the path's form does not reach it). A race on the runner (the interpreter gone before the sweep); not
+  fixed.
+* `4bc01bb42` diffs_advsurface: the reference's `opencodex._read_registry` read this PC's `codex:` handler keys (and so
+  did car-adv's bare code before refused.rs); both sides now refuse the read, so scenario 5's tray offers no Open Codex
+  on either. The `open_codex: true` tray line is not diffed until the button's code gets an asked world.
+* `efa14b79a` the final's test_status_newest_usage imports ui.popup.model: its surface-ledger row is **host** -
+  car-harness answers `popup.newest_reading` with car-surface's `popup::model::newest_reading`, surfaceproxy forwards it
+  (`rust_core == "surface"`), both UI tests pass on Rust; the pending ceiling stays 63.
+* `a4ebba287` ledger.py rows from this tree's `--run` (below).
+
+### The final's tests (b2): Python product and Rust
+
+* The seven new files - test_status_newest_usage, test_history_not_yet, test_package_engine_bound,
+  test_engine_elsewhere_null_plug, test_setup_handover, test_installer_codex_discovery, test_installer_chosen_python_line
+  - with dev's changed test_convergence, test_edition_installer, test_no_console_windows, test_privacy_claims,
+  test_usage_surfaces: standard lane Ran 170 OK, advanced lane Ran 170 OK; test_setup_handover +
+  test_installer_chosen_python_line through gui_lock (nothing on the screen) both lanes OK; test_gui_v0624_day_header 15
+  OK; advanced/tests' three new files (meter_engine_elsewhere, meter_skip_wait, package_engine_kept) OK.
+* Under CODEX_AR_CORE=rust (test_parts worker, the seven files): 80 test ids pass on both lanes, 0 differ. The shim
+  forwards the entry points' `main` (controlcli, mcpserver, cli), `codex_auto_resume.engine` (engineproxy), the popup and
+  tray models (surfaceproxy) and the advanced package. So on Rust: test_status_newest_usage's two UI tests (car-surface)
+  and test_history_not_yet's WatcherTests (EngineCase: core's engine through car-harness, the HistoryNotYet join) pass;
+  history_not_yet's doctor/status/checkup/compat tests call Python functions directly (`cli.cmd_doctor`, not `main`),
+  test_package_engine_bound reads compat, pairing and probes, test_engine_elsewhere_null_plug domain.plug's guard - none
+  proxied, so they run on the Python product here, and their rules are held on Rust by finalport's diffs (CheckupDiff's
+  HistoryNotYet world, PackageEnginesDiff, StatusMeterDiff: equal in this run). The installer/setup files test the
+  bootstrap, the installer window and plugin_setup, which have no Rust side in this tree's tests yet. Waiting: the ledger
+  seats can route history_not_yet's checkup/status and package_engine_bound's views when a proxy carries those modules.
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `CAR_NO_REAL_ENGINE=1`, CODEX_AUTO_RESUME_CODEX_EXE missing; v0.6.26 on the bundled 3.14.10)
+
+```
+disk free before                                     79 GB
+## rust            fmt --check, clippy --locked --all-targets -D warnings, test --locked --no-fail-fast, cargo deny: rc=0
+## advanced/rust   fmt --check, clippy, test --locked --no-fail-fast (advserve's refused tests 4 ok), cargo deny: rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every standard binary the same; profile-path scan: none
+run.py --build --reference v0.6.26 --reference-python bundled -v
+                                                     Ran 469 in 9,008 s: 1 FAIL (AdvSurfaceDiff line 184, the tray's
+                                                     open_codex - fixed in 4bc01bb42); then -k advsurface -k finalport:
+                                                     Ran 3, OK
+the 15 frozen modules (test_parts --worker; CODEX_AR_CORE=rust)    456 pass on both, 0 differ
+advproxy/ledger.py --run (bundled 3.14.10)           GREEN 33 of 33 (30 + S7.3a's words_v019, account_card_findings,
+                                                     autoswitch_control); none went red
+ledger.py --run, S7.3a's waiting files + the two refused codes     0 of 16 green; rows updated (a4ebba287)
+test_rust_release, standard and advanced (detached)  Ran 25, OK each
+test_rust_install, standard and advanced (detached)  Ran 11, OK each
+Python guards, standard (wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit
+  test_srcscan test_stack test_layers test_structural_invariants test_rust_power_guard test_rustdiff_reference_python
+  test_review9_install test_host_contract test_python315_encoding test_rustdiff_script_command test_rustdiff_refguard
+  test_no_console_windows test_guiscan test_host_shape test_surface_ledger test_window_core test_listing_scan
+  test_convergence test_reproducible test_tooling_round2 test_edition_build test_consumer_fields
+                                                     Ran 393: 7 FAIL - test_surface_ledger and test_window_core (fixed in
+                                                     efa14b79a, a0ce3664b; again: OK) and test_reproducible's five
+                                                     VersionResourceTests (make_gui.ps1's host build: S6.3d's, below)
+advanced lane / CODEX_AR_TREE=main (the source-read guards)  the same five VersionResourceTests only
+make_gui.ps1 (scratch -Out)                          standard: window built, host REFUSED by normalize_pe (S6.3d);
+                                                     advanced: window built
+GUI modules that read the merged window files, one at a time through gui_lock.sh (33): all OK - test_add_remove
+  test_desktop_shortcut test_edition_change_accounts test_gui_pick_close/hidden/window test_gui_pill_first_paint
+  test_gui_theme test_gui_v0623_round_two test_gui_v0624_setup_600/setup_corner test_guiscan test_install_motion_clock
+  test_installer + its 9 window/page modules test_pick_saved_accounts test_prerelease_offer test_release_pages_many
+  test_release_size test_rule_copies test_uninstall_still_running test_upgrade_handover test_window_open_findings
+  test_host_shell test_surface_windows test_host_tray_place (screen_witness: test_gui_pick_close and
+  test_gui_v0623_round_two put a window up running without the lock and take it from now on; nothing ran beside them)
+```
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv73a.py --reference v0.6.26` (now lists core's
+control/codexstart.py and runs `test_start_for_codex` beside diffs_advsurface).
+
+### For the next seats
+
+* **S6.3d**: the host's reproducibility (Integration 11's section) - test_reproducible.VersionResourceTests,
+  test_edition_window and the rust package job fail on it; nothing of gui/ changed here.
+* **The proxy seats**: an asked world (worlds.rs + worlds.py) for start_with_codex (its `Runner`, `available`) and
+  open_codex_button (its `read`, `clock`) turns their two files' remaining tests (6 and 1) green without reaching this
+  PC; the queue's five files and rows now reach core's engine proxy - trace what differs (P11 or the queue's world).
+* **S7.3d**: the seams listed under "The seam wired" above.
+* test_screenshots / test_motion_fidelity / test_install_motion / test_advanced_shots: stale pictures, the main
+  session's.
