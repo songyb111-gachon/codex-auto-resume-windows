@@ -144,7 +144,56 @@ def _count(op: str, frame) -> None:
 
 def ask(op: str, **fields):
     _count(op, sys._getframe(2))
-    return PROBE.ask(op, **fields)
+    found = PROBE.ask(op, **fields)
+    return _mutated(op, fields, found) if os.environ.get("CAR_PLAN_MUTATE") else found
+
+
+def _plan_of(op, fields, found):
+    if op != "render" or fields["case"]["surface"] not in ("popup", "card"):
+        return None
+    return found["plan"] if fields["case"]["surface"] == "card" else found
+
+
+def _mutated(op, fields, found):
+    """CAR_PLAN_MUTATE=<rule>: one answer of the host broken on purpose, for the mutation checks (a test that still passes
+    with it held nothing of that answer). Never set outside them."""
+    rule = os.environ["CAR_PLAN_MUTATE"]
+    plan = _plan_of(op, fields, found)
+    texts = [item for item in (plan or {}).get("items", []) if item.get("kind") == "text"]
+    if rule == "drop" and plan and plan["items"]:
+        plan["items"].pop()
+    elif rule == "shift" and plan:
+        for item in plan["items"]:
+            if item.get("rect"):
+                item["rect"][0] += 1
+    elif rule == "colour" and texts:
+        texts[0]["colour"] = "muted" if texts[0].get("colour") != "muted" else "ink"
+    elif rule == "text" and texts:
+        texts[0]["text"] = texts[0]["text"] + "x"
+    elif rule == "frame" and op == "icon_frame":
+        found = [found[0], found[1] - 1 if found[1] > 0 else 1]
+    elif rule == "turn" and op == "icon_turn" and found is not None:
+        found = found + 1.0
+    elif rule == "halo" and op == "halo" and found is not None:
+        found["dim"] = found["dim"] + 0.01
+    elif rule == "place" and op == "place":
+        found = [found[0] + 1, found[1], found[2]]
+    elif rule == "edge" and op == "taskbar_edge":
+        found = "top" if found != "top" else "bottom"
+    elif rule == "glide" and op in ("glide_amount", "next_glides"):
+        found = [found[0] + 0.01, found[1]] if op == "glide_amount" else found[:-1]
+    elif rule == "mask" and op in ("lift_coverage", "well_coverage"):
+        found["coverage"] = [255 - level if index == len(found["coverage"]) // 2 else level
+                             for index, level in enumerate(found["coverage"])]
+    elif rule == "life" and op == "render" and fields["case"]["surface"] == "card_life":
+        found[-1][1] = {"enter": "hold", "hold": "exit", "exit": "gone", "gone": "hold"}.get(found[-1][1], found[-1][1])
+    elif rule == "stack" and op == "stack_positions" and found[0]:
+        found[0][0] = [found[0][0][0] + 1, found[0][0][1]]
+    elif rule == "shadow" and op in ("float_shadows", "recipe_shadows") and found:
+        found = found[:-1]
+    elif rule == "entrance" and op == "entrance":
+        found["alpha"] = found["alpha"] * 0.5
+    return found
 
 
 # ------------------------------------------------------------------------------------------- JSON in, objects out
@@ -637,3 +686,93 @@ def install(module) -> None:
         return
     MODULES[module.__name__](module)
     module._rust_plan = True
+
+
+class _Recording:
+    """A DLL as the reference's renderer calls it, with SelectObject's font and every DrawTextW(DT_CALCRECT) answer kept."""
+
+    def __init__(self, real, name, table, fonts):
+        self.real, self.name, self.table, self.fonts = real, name, table, fonts
+
+    def __getattr__(self, attribute):
+        return getattr(self.real, attribute)
+
+    def SelectObject(self, dc, handle):
+        self.fonts["current"] = handle
+        return self.real.SelectObject(dc, handle)
+
+    def DrawTextW(self, dc, text, count, rect_ref, flags):
+        rect = rect_ref._obj
+        width = rect.right - rect.left
+        found = self.real.DrawTextW(dc, text, count, rect_ref, flags)
+        role = self.fonts["roles"].get(self.fonts.get("current"))
+        if flags & DT_CALCRECT and role is not None:
+            self.table[(role, text, width, flags)] = (rect.right - rect.left, rect.bottom - rect.top)
+        return found
+
+
+def _renderer(module):
+    """Renderer.layout(vm, scale, locale), the popup's plan with Korean's breaks and the mirror of a language written right to
+    left (gui/PopupLayout.cs Plan), through the render mode's `popup` case: the reference's own call is made once with its
+    DLLs recorded (this machine's fonts answer it), the case is laid out in `locale` from that table alone."""
+    original = module.Renderer.layout
+
+    def layout(self, vm, scale, locale):
+        if _test_frame(2) is None:
+            return original(self, vm, scale, locale)
+        table, fonts = {}, {"roles": {}}
+        real = module._dll
+
+        def recording(name):
+            return _Recording(real(name), name, table, fonts)
+        self.use(locale, scale)
+        fonts["roles"] = {handle: role for role, handle in self.fonts.handles.items()}
+        module._dll = recording
+        try:
+            reference = original(self, vm, scale, locale)
+        finally:
+            module._dll = real
+        rows = [[role, text, at, flags, w, h] for (role, text, at, flags), (w, h) in table.items()]
+        found = ask("render", tables={"t": {"measure": rows, "metrics": {}, "ink": []}},
+                    case={"surface": "popup", "vm": wire(vm), "scale": float(scale), "locale": locale, "table": "t"})
+        return shaped(found, reference)
+
+    layout.rust_core, layout.__wrapped__, layout.__doc__ = "host", original, original.__doc__
+    module.Renderer.layout = layout
+
+
+MODULES["codex_auto_resume.ui.popup.renderer"] = _renderer
+
+
+def _premultiply(module):
+    """The card's pixels cut at its corners and premultiplied (gui/CardWindow.cs CardCorner.Premultiply)."""
+    def premultiply(original):
+        def premultiply(pixels, width, height, radius, top=0, smoothing=None):
+            return bytearray(ask("premultiply", pixels=list(pixels), width=int(width), height=int(height), radius=float(radius),
+                                 top=int(top), smoothing=None if smoothing is None else float(smoothing)))
+        return premultiply
+    _replace(module, "premultiply", premultiply)
+
+
+def _fonts(module):
+    """A role's size in a language (gui/SurfaceFonts.cs RoleSize)."""
+    def role_size(original):
+        def role_size(role, locale):
+            return ask("role_size", role=role, locale=locale)
+        return role_size
+    _replace(module, "role_size", role_size)
+
+
+def _theme(module):
+    """A token's High Contrast system colour (gui/SurfaceTheme.cs ContrastColour)."""
+    def contrast_colour(original):
+        def contrast_colour(token):
+            return ask("contrast_colour", token=token)
+        return contrast_colour
+    _replace(module, "contrast_colour", contrast_colour)
+
+
+_card = MODULES["codex_auto_resume.notice_card"]
+MODULES["codex_auto_resume.notice_card"] = lambda module: (_card(module), _premultiply(module))
+MODULES["codex_auto_resume.ui.popup.fonts"] = _fonts
+MODULES["codex_auto_resume.ui.popup.theme"] = _theme

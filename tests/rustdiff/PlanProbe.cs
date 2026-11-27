@@ -246,6 +246,19 @@ namespace CodexAutoResume
             if (op == "shadow_at") return FloatList(CardPlan.ShadowAt(FloatsOf(call["shadows"]), D(call, "depth")));
             if (op == "depth_level") return (double)CardPlan.DepthLevel(D(call, "depth"));
             if (op == "shadow_margin") return (double)CardPlan.ShadowMargin(FloatsOf(call["shadows"]), D(call, "scale"));
+            if (op == "premultiply")
+            {
+                var bytes = new List<byte>();
+                foreach (object level in (List<object>)call["pixels"]) bytes.Add((byte)(double)level);
+                byte[] made = CardCorner.Premultiply(bytes.ToArray(), I(call, "width"), I(call, "height"), D(call, "radius"), I(call, "top"),
+                                                     Maybe(F(call, "smoothing")));
+                var listed = new List<object>(made.Length);
+                foreach (byte level in made) listed.Add((double)level);
+                return listed;
+            }
+            // ------------------------------------------------------------- the type and the colours (SurfaceFonts, SurfaceTheme)
+            if (op == "role_size") return (double)SurfaceFonts.RoleSize((string)call["role"], (string)call["locale"]);
+            if (op == "contrast_colour") return SurfaceTheme.ContrastColour((string)call["token"]);
             throw new NotSupportedException("no op " + op);
         }
     }
