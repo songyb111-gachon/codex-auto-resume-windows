@@ -691,10 +691,9 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "2 of 4 UI tests run on the host (2 routed, 0 twinned, 0 no_twin; S6.4f's plan proxy added 2); 2 are still on the Python UI (2 drawn)",
+   "why": "1 of 4 UI tests run on the host (1 routed, 0 twinned, 0 no_twin; S6.4f's plan proxy added 1); 3 are still on the Python UI (3 drawn)",
    "needs": "S6.4f's plan proxy (tests/rustdiff/planproxy.py) routes what is left by adding an op: the icon's raster frames (build_icon_frames/IconFrames: IconMark.Samples/Pixel), the fonts' faces and candidates (font_faces, font_candidates, message_face: a `lacks` ask-back and Windows' own face), the card's corner_coverage (no C# counterpart found), the popup's and card's pixels as the host draws them (SurfaceRenderServe draw/pixels/card_still) where a test hands a plan to Python's draw; window parts by the probe (S6.4d's route). the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard)",
    "host_tests": [
-    "DrawnTests.test_the_card_rises_from_above_the_strip_as_the_product_moves_it_and_never_from_the_canvas_edge",
     "PlanTests.test_the_loop_is_whole_breaths_for_the_card_s_light_and_the_icon"
    ],
    "twins": {},
@@ -1005,17 +1004,12 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "2 of 6 UI tests run on the host (2 routed, 0 twinned, 0 no_twin; S6.4f's plan proxy added 2); 4 are still on the Python UI (4 drawn)",
+   "why": "0 of 6 UI tests run on the host (0 routed, 0 twinned, 0 no_twin; S6.4f's plan proxy added 0); 6 are still on the Python UI (6 drawn)",
    "needs": "S6.4f's plan proxy (tests/rustdiff/planproxy.py) routes what is left by adding an op: the icon's raster frames (build_icon_frames/IconFrames: IconMark.Samples/Pixel), the fonts' faces and candidates (font_faces, font_candidates, message_face: a `lacks` ask-back and Windows' own face), the card's corner_coverage (no C# counterpart found), the popup's and card's pixels as the host draws them (SurfaceRenderServe draw/pixels/card_still) where a test hands a plan to Python's draw; window parts by the probe (S6.4d's route). the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [
-    "PinnedPopupFaceTests.test_the_pin_stands_in_segoe_ui_and_each_language_takes_its_own_face",
-    "PinnedPopupFaceTests.test_the_product_still_takes_what_windows_answers"
-   ],
+   "host_tests": [],
    "twins": {},
    "no_twin": {},
-   "port": [
-    "tests/rustdiff/planproxy.py"
-   ]
+   "port": []
   },
   "test_plug_points.py": {
    "holds": "Where core asks the edition's plug, and what it does with each answer (v0.6.11, P2-P14).",
@@ -2795,7 +2789,7 @@
   "files": 84,
   "tests": 1976,
   "ui_tests": 985,
-  "on_host": 379,
+  "on_host": 376,
   "retired": 6,
   "by_status": {
    "host": 31,

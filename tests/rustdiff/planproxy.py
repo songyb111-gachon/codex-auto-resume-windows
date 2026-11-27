@@ -172,6 +172,12 @@ def _mutated(op, fields, found):
         texts[0]["text"] = texts[0]["text"] + "x"
     elif rule == "frame" and op == "icon_frame":
         found = [found[0], found[1] - 1 if found[1] > 0 else 1]
+    elif rule == "frame_at" and op == "icon_frame" and fields["elapsed"]:
+        found = [found[0], found[1] - 1 if found[1] > 0 else 1]
+    elif rule == "scene" and plan:
+        plan["items"].append({"kind": "scene", "rect": list(plan["card"]), "look": "birthday"})
+    elif rule == "step" and op == "shadow_step":
+        found = found + 1
     elif rule == "turn" and op == "icon_turn" and found is not None:
         found = found + 1.0
     elif rule == "halo" and op == "halo" and found is not None:
