@@ -214,6 +214,11 @@ _LOCAL = {
     "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)",
                             "selected", "menu", "Map(forms, answersOf)", "chrome", "dialog", "explain",
                             "renderStill"},
+    # v0.6.27 (S6.2b): the watcher host reads car_core.dll's own answers, never a bridge or MCP reply - car_start's
+    # reply (`answer`: its abi, ok and error) and a car_next_event event (`found`: the pump's kind and its fields);
+    # car-host's contract holds them (tests/test_host_contract.py).
+    "gui/HostMain.cs": {"answer"},
+    "gui/HostPump.cs": {"found"},
 }
 
 # The window was two files until v0.6.10-alpha, when each became several. The three tables above
