@@ -45,6 +45,9 @@ ADVANCED = "codex_auto_resume_advanced"
 # S6.4: the popup's pure half (words and view model), as car-surface (surfaceproxy.py).
 SURFACE = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model", "codex_auto_resume.ui.words",
            "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu", "codex_auto_resume.ui.tray.motion")
+# S6.4f: the drawing half's plans and motion, as the C# host's (planproxy.py, loaded by path); patched after SURFACE's.
+PLAN = ("codex_auto_resume.ui.tray.motion", "codex_auto_resume.ui.popup.motion", "codex_auto_resume.ui.popup.placement",
+        "codex_auto_resume.ui.popup.elevation", "codex_auto_resume.ui.popup.layout")
 STDIN_ARGUMENT = "-"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CRATE = Path(__file__).resolve().parents[2] / "rust" / "crates" / "car-harness"
@@ -144,6 +147,18 @@ def surface_proxy():
     return found
 
 
+def _by_path(name: str, file: str):
+    """A module beside this file, loaded by path once."""
+    found = sys.modules.get(name)
+    if found is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().with_name(file))
+        found = importlib.util.module_from_spec(spec)
+        sys.modules[name] = found
+        spec.loader.exec_module(found)
+    return found
+
+
 def advanced(name: str) -> bool:
     """A module of the advanced package, while the advanced proxy is wanted (CODEX_AR_ADVPROXY=0 leaves the advanced
     edition the reference's under CODEX_AR_CORE=rust: core's proxies alone, to tell which side a difference is on)."""
@@ -153,8 +168,12 @@ def advanced(name: str) -> bool:
 
 
 def patch(module) -> None:
+    if module.__name__ in PLAN:
+        _by_path("rustdiff_planproxy", "planproxy.py").install(module)
     if module.__name__ in SURFACE:
         surface_proxy().install(module)
+        return
+    if module.__name__ in PLAN:
         return
     if advanced(module.__name__):
         advanced_proxy().patch(module)
@@ -187,7 +206,7 @@ class _Loader(importlib.abc.Loader):
 
 class Finder(importlib.abc.MetaPathFinder):
     def find_spec(self, name, path, target=None):
-        if name not in ENTRY_POINTS and name != ENGINE and name not in SURFACE and not advanced(name):
+        if name not in ENTRY_POINTS and name != ENGINE and name not in SURFACE and name not in PLAN and not advanced(name):
             return None
         for finder in sys.meta_path:
             if finder is self or not hasattr(finder, "find_spec"):
@@ -206,7 +225,7 @@ def install() -> bool:
         return False
     if not any(isinstance(finder, Finder) for finder in sys.meta_path):
         sys.meta_path.insert(0, Finder())
-    for name in (*ENTRY_POINTS, ENGINE, *SURFACE):
+    for name in (*ENTRY_POINTS, ENGINE, *SURFACE, *PLAN):
         if name in sys.modules:
             patch(sys.modules[name])
     for name in [loaded for loaded in sys.modules if advanced(loaded)]:
