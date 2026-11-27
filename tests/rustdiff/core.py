@@ -56,7 +56,8 @@ def build_rest() -> None:
     workspace's release binaries (car-legacy's python.exe, car-bin's codex-auto-resume.exe, which diffs_review4 runs),
     and, where advanced/ is in the checkout, car-adv's `advprobe`, `advstore`, `advcodex`, `advfake`, `advreport` and
     `advhook` examples, S7.2a's `advtrace`, and the P7 seats' (Integration 10): S7.2a3's `advserve` (the advanced proxy),
-    S7.3b's `advcourier`, S7.2b's `advaccount`, S7.2d's `advusage`, S7.2e1's `advturns` and S7.2e2's `advtime`."""
+    S7.3b's `advcourier`, S7.2b's `advaccount`, S7.2d's `advusage`, S7.2e1's `advturns` and S7.2e2's `advtime`, and
+    S7.4's `advmeasure` (Integration 11)."""
     environment = dict(os.environ)
     environment.setdefault("CARGO_BUILD_JOBS", "4")
     subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path", str(CRATE.parents[1] / "Cargo.toml")],
@@ -67,6 +68,7 @@ def build_rest() -> None:
                         "--example", "advstore", "--example", "advcodex", "--example", "advfake", "--example", "advreport",
                         "--example", "advhook", "--example", "advtrace", "--example", "advserve", "--example", "advcourier",
                         "--example", "advaccount", "--example", "advusage", "--example", "advturns", "--example", "advtime",
+                        "--example", "advmeasure",
                         "--manifest-path", str(advanced)],
                        env=environment, check=True, creationflags=NO_WINDOW, timeout=3600)
 

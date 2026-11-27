@@ -99,6 +99,8 @@ class NoMoreSystemExecutable(unittest.TestCase):
              # Integration 10: every advanced family of the P7 seats, and the advanced proxy's two lanes (advproxy/ledger.py)
              "advdiff.py", "advplug.py", "advstore.py", "advcodex.py", "advcodexd.py", "advreport.py", "diffs_advhook_claim.py",
              "advcourier.py", "advaccount.py", "advusage.py", "advturns.py", "advturnsworld.py", "advtime.py",
+             # Integration 11: S7.4's measurement family
+             "advmeasure.py",
              "advproxy/ledger.py")
 
     def test_the_reference_is_never_started_by_sys_executable_in_these_files(self):
