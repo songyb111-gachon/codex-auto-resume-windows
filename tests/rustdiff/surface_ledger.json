@@ -532,12 +532,21 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 12 UI tests run on the host or are held by a twin or a no_twin reason; 12 are still on the Python UI (6 drawn, 6 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "6 of 12 UI tests are held by a twin; 6 are still on the Python UI: PopupSweepDrawnTests 4 and TaskbarTests 2 (the sweep drawn round the light and the taskbar's frames: the drawing, seat S6.4f's plan proxy)",
+   "needs": "PopupSweepDrawnTests: the render serve's layout, draw and draw_halo with the renderer's sweep_ms (seat S6.4f); TaskbarTests: the drawn taskbar frames by the same route",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "PopupPressTests.test_seven_presses_of_the_title_start_it_once": "test_host_popup_press.py::PopupPressOnHostTests.test_seven_presses_of_the_title_start_it_once",
+    "PopupPressTests.test_a_press_anywhere_else_is_not_counted": "test_host_popup_press.py::PopupPressOnHostTests.test_a_press_anywhere_else_is_not_counted",
+    "PopupPressTests.test_with_motion_reduced_no_sweep_and_the_sentence_at_once": "test_host_popup_press.py::PopupPressOnHostTests.test_with_motion_reduced_no_sweep_and_the_sentence_at_once",
+    "PopupPressTests.test_the_sentence_stands_for_its_moment_and_the_state_line_returns": "test_host_popup_press.py::PopupPressOnHostTests.test_the_sentence_stands_for_its_moment_and_the_state_line_returns",
+    "PopupPressTests.test_it_reaches_nothing_but_the_window": "test_host_popup_press.py::PopupPressOnHostTests.test_it_reaches_nothing_but_the_window",
+    "PopupPressTests.test_the_title_is_no_target_so_a_press_on_it_does_what_it_always_did": "test_host_popup_press.py::PopupPressOnHostTests.test_the_title_is_no_target_so_a_press_on_it_does_what_it_always_did"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_popup_press.py"
+   ]
   },
   "test_gui_v065_taskbar.py": {
    "holds": "The window's taskbar button wears the notification-area icon's motion while the window is open (v0.6.5).",
@@ -1070,12 +1079,18 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 14 UI tests run on the host (none); 14 are still on the Python UI (6 drawn, 8 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "3 of 14 UI tests are held by a twin; 11 are still on the Python UI: AloneTests 6 and StillTests 5 (the card drawn alone and its still: the render serve's draw, pixels and card_still - the drawing, seat S6.4f's plan proxy)",
+   "needs": "AloneTests and StillTests: the render serve (gui/SurfaceRenderServe.cs open_renderer, layout, draw, draw_halo, pixels, card_still) behind a proxy for popup.Renderer and layers.card_still, seat S6.4f",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "ShadowLayerTests.test_nothing_of_the_shadow_lies_under_the_card": "test_host_popup_card_still.py::ShadowLayerOnHostTests.test_nothing_of_the_shadow_lies_under_the_card",
+    "ShadowLayerTests.test_one_image_a_shadow_whatever_sizes_the_card_has_had": "test_host_popup_card_still.py::ShadowLayerOnHostTests.test_one_image_a_shadow_whatever_sizes_the_card_has_had",
+    "RecipeTests.test_the_popup_floats_the_notification_card_s_shadows": "test_host_popup_card_still.py::RecipeOnHostTests.test_the_popup_floats_the_notification_card_s_shadows"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_popup_card_still.py"
+   ]
   },
   "test_popup_card_window.py": {
    "holds": "v0.6.24 (O14 amended by the owner, 2026-11-15): the popup's window IS its card.",

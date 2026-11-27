@@ -118,6 +118,9 @@ namespace CodexAutoResume
                     Windows = (List<object>)call["windows"], Fail = call["fail"] is bool && (bool)call["fail"],
                 });
             if (name == "card_layers") return CardLayers(call);
+            if (name == "card_shade") return CardShade(call);
+            if (name == "float_recipe") return FloatRecipe(call);
+            if (name == "popup_press") return PopupPress(call);
             if (name == "icon_tick") return IconTick(call);
             if (name == "icon_overflowed") return IconOverflowed(call);
             if (name == "icon_demo") return IconDemo(call);
@@ -1019,6 +1022,174 @@ namespace CodexAutoResume
                 }
             }
             return answer;
+        }
+
+        /// The popup's card drawn alone and its shadow window's picture (gui/SurfaceLayers.cs CardLayers), with no window: one
+        /// renderer and one CardLayers over a history of steps - "draw" (the look set, the vm laid out and drawn with the light's
+        /// first frame, as PopupWindow draws it), "shade" (the same, then CardLayers.Shade) and "drop" (the layers let go, the
+        /// host's one release of its shadow images) - and what the last step left: the canvas, the card, the picture, its
+        /// margin, the images kept, and the GDI+ objects alive past the run's start.
+        private static object CardShade(Dictionary<string, object> call)
+        {
+            int start = SurfaceGdip.GdipObjects;
+            SurfaceRenderer renderer = SurfaceRenderer.Open();
+            var layer = new CardLayers(IntPtr.Zero);
+            var answer = new Dictionary<string, object>();
+            try
+            {
+                SurfacePlan plan = null;
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (Dictionary<string, object>)each;
+                    string what = (string)step["step"];
+                    if (what == "drop")
+                    {
+                        layer.Dispose();
+                        continue;
+                    }
+                    if (what != "draw" && what != "shade") throw new ArgumentException("no card_shade step " + what);
+                    renderer.Theme = (string)step["theme"];
+                    renderer.Design = (string)step["design"];
+                    renderer.Contrast = step["contrast"] is bool && (bool)step["contrast"];
+                    renderer.Lone = step["lone"] is bool && (bool)step["lone"];
+                    var vm = (Dictionary<string, object>)step["vm"];
+                    plan = renderer.Layout(vm, (double)step["scale"], (string)step["locale"]);
+                    renderer.Draw(plan, PopupMotion.Halo(PopupWords.Str(SurfaceRender.Field(vm, "light")), 0.0, false, renderer.Design));
+                    if (what == "shade") layer.Shade(renderer, plan);
+                }
+                SurfaceNative.GdiFlush();
+                if (plan != null)
+                {
+                    answer["card"] = Plain(plan.Card);
+                    answer["width"] = (double)renderer.Canvas.Width;
+                    if (SurfaceRender.Field(call, "canvas") is bool && (bool)call["canvas"])
+                        answer["canvas"] = Convert.ToBase64String(renderer.Canvas.Pixels());
+                }
+                answer["images"] = (double)layer.Images.Count;
+                answer["margin"] = (double)layer.Margin;
+                if (SurfaceRender.Field(call, "picture") is bool && (bool)call["picture"] && layer.Picture != null)
+                {
+                    answer["picture_width"] = (double)layer.Picture.Width;
+                    answer["picture"] = Convert.ToBase64String(layer.Picture.Pixels());
+                }
+                answer["gdip"] = (double)(SurfaceGdip.GdipObjects - start);
+                return answer;
+            }
+            finally
+            {
+                layer.Dispose();
+                renderer.Dispose();
+            }
+        }
+
+        /// The popup's shadow rule as gui/SurfaceLayers.cs holds it: FloatShadows(theme, design) as [dx, dy, blur, colour, alpha]
+        /// lists, or FloatReach of the shadows given at a scale.
+        private static object FloatRecipe(Dictionary<string, object> call)
+        {
+            if ((string)call["op"] == "shadows")
+            {
+                var found = new List<object>();
+                foreach (FloatShadow s in SurfaceLayers.FloatShadows((string)call["theme"], (string)call["design"]))
+                    found.Add(new List<object> { s.Dx, s.Dy, s.Blur, s.Colour, s.Alpha });
+                return found;
+            }
+            var shadows = new List<FloatShadow>();
+            foreach (object each in (List<object>)call["shadows"])
+            {
+                var s = (List<object>)each;
+                shadows.Add(new FloatShadow((double)s[0], (double)s[1], (double)s[2], (string)s[3], (double)s[4]));
+            }
+            return (double)SurfaceLayers.FloatReach(shadows, (double)call["scale"]);
+        }
+
+        /// The seventh press of the popup's title (gui/PopupWindow.cs "the seventh press"): op "steps" - a PopupWindow with no
+        /// window (Hwnd none: Update and SyncFrames reach nothing; every Windows call recorded besides), given reduced, contrast,
+        /// visible, the painted plan's items and the strings, runs press (the private TitlePressed), set_aside (AsideFrom) and
+        /// aside_words (the private AsideWords, its Monotonic the step's clock) and answers SweepSince, AsideFrom, the last
+        /// words and the Windows calls; op "layout" - the host renderer's plan of a vm (items' kind and rect, targets); op
+        /// "hit" - PopupPlace.HitTest over targets.
+        private static object PopupPress(Dictionary<string, object> call)
+        {
+            string op = (string)call["op"];
+            if (op == "layout")
+            {
+                SurfaceRenderer renderer = SurfaceRenderer.Open();
+                try
+                {
+                    SurfacePlan plan = renderer.Layout((Dictionary<string, object>)call["vm"], (double)call["scale"], (string)call["locale"]);
+                    var items = new List<object>();
+                    foreach (PlanItem item in plan.Items)
+                        if (item.Get("rect") != null)
+                            items.Add(new Dictionary<string, object>
+                            {
+                                { "kind", item.Kind }, { "rect", new List<object>(Array.ConvertAll(SurfaceRenderer.Box(item["rect"]), d => (object)d)) },
+                            });
+                    var targets = new List<object>();
+                    foreach (KeyValuePair<object, int[]> pair in plan.Targets)
+                        targets.Add(new List<object> { Plain(pair.Key is SurfaceTarget ? ((SurfaceTarget)pair.Key).ToList() : pair.Key), Plain(pair.Value) });
+                    return new Dictionary<string, object> { { "items", items }, { "targets", targets } };
+                }
+                finally
+                {
+                    renderer.Dispose();
+                }
+            }
+            if (op == "hit")
+            {
+                var targets = new List<KeyValuePair<object, int[]>>();
+                foreach (object each in (List<object>)call["targets"])
+                {
+                    var pair = (List<object>)each;
+                    targets.Add(new KeyValuePair<object, int[]>(TargetOf(pair[0]), IntsOf(pair[1])));
+                }
+                object hit = PopupPlace.HitTest(targets, (int)(double)call["x"], (int)(double)call["y"]);
+                return Plain(hit is SurfaceTarget ? ((SurfaceTarget)hit).ToList() : hit);
+            }
+            if (op != "steps") throw new ArgumentException("no popup_press op " + op);
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                var popup = new PopupWindow((Dictionary<string, object>)call["strings"]);
+                popup.Reduced = Flag(call, "reduced");
+                popup.Contrast = Flag(call, "contrast");
+                popup.Visible = Flag(call, "visible");
+                var painted = new SurfacePlan();
+                foreach (object each in (List<object>)call["items"])
+                {
+                    var item = new PlanItem((Dictionary<string, object>)each);
+                    item["rect"] = IntsOf(item["rect"]);
+                    painted.Items.Add(item);
+                }
+                popup.PaintedPlan = painted;
+                System.Reflection.MethodInfo pressed = typeof(PopupWindow).GetMethod("TitlePressed", Hidden);
+                System.Reflection.MethodInfo aside = typeof(PopupWindow).GetMethod("AsideWords", Hidden);
+                object words = null;
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    if (what == "press") pressed.Invoke(popup, new object[] { (long)(double)step[1], (double)step[2] });
+                    else if (what == "set_aside") popup.AsideFrom = step[1] == null ? (double?)null : (double)step[1];
+                    else if (what == "aside_words")
+                    {
+                        double clock = (double)step[2];
+                        popup.Monotonic = () => clock;
+                        words = aside.Invoke(popup, new object[] { step[1] });
+                    }
+                    else throw new ArgumentException("no popup_press step " + what);
+                }
+                return new Dictionary<string, object>
+                {
+                    { "sweep_since", popup.SweepSince.HasValue ? (object)popup.SweepSince.Value : null },
+                    { "aside_from", popup.AsideFrom.HasValue ? (object)popup.AsideFrom.Value : null },
+                    { "words", words }, { "windows", new List<object>(SurfaceScreen.Probe) },
+                };
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
+            }
         }
 
         /// HKEY_CURRENT_USER as IconPlacement reads it, as tests/test_tray_icon_motion.py's FakeRegistry is: {key path: {value
