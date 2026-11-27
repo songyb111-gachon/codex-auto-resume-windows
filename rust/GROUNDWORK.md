@@ -4881,6 +4881,9 @@ removed is equivalent here (Letter strips "\r" to nothing and leaves the item in
   child, SetForegroundWindow not handed to the test's user32: 7 fail. One survived: OpenChild without its `Select(index)` - in every path the
   tests take the item is in hand already (the keyboard's Down, the pointer's move) or put back by the child's move; the Python tests cannot see it
   either.
+* Re-diff after this part (11-28, `gui_lock.sh`, detached): 130 ledger tests on the shim and the ledger + every twin home (104 tests, with
+  test_host_row_menu) pass against v0.6.26; no row: test_status_newest_usage.py; exit 0. Nothing of this seat was cut off by the main
+  session's end on 11-27 (every detached log ends `exit 0`).
 
 ### What is left of the window rows (per row, the route), for the next seat
 
