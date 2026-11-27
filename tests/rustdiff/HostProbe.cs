@@ -160,6 +160,8 @@ namespace CodexAutoResume
             if (name == "menu_fade") return MenuFade(call);
             if (name == "popup_gate") return PopupGate(call);
             if (name == "icon_held") return IconHeld(call);
+            if (name == "menu_live") return MenuLive(call);
+            if (name == "icon_live") return IconLive(call);
             throw new ArgumentException("no call " + name);
         }
 
@@ -2845,6 +2847,318 @@ namespace CodexAutoResume
                 else throw new ArgumentException("no card_motion step " + what);
             }
             return answers;
+        }
+
+        // ------------------------------------------------------------------ the drawn menu's own real window, kept (S6.4d6)
+        /// A MenuWindow made by its own Create (a real top-level layered window), kept between questions on a thread of
+        /// its own in a single-threaded apartment, as the host's UI thread is. Only a twin of a test whose original makes the
+        /// same real window asks this (tests/test_menu_opening_motion.py WindowTests, tests/test_tray_menu_drawn.py
+        /// LiveWindowTests: the main session's word of 2026-11-28 - the original's far-off coordinates, never activated,
+        /// destroyed in the test's own teardown, inside gui_lock.sh, never a dialog). Its screen reader's hooks are filled
+        /// (SurfaceAccess.Attach), as the icon's menu has them. Where `running` (the screen reader's tests), the thread runs
+        /// Windows' messages between questions too, so the test's own AccessibleObjectFromWindow and the calls on the object
+        /// it gets reach it across processes (COM's calls into a single-threaded apartment come as messages); otherwise it
+        /// runs them only inside a `pump` step, as the reference's test thread runs them only when the test pumps, and only
+        /// peeks between questions. Each frame of its fade is read around the frame at the frame's own instant (the menu's
+        /// clock held there while it runs, as the reference reads one clock per step of a frame).
+        private sealed class LiveMenu
+        {
+            internal MenuWindow Menu;
+            internal bool Running, Reduced;
+            internal double? Frozen;
+            internal readonly List<object> Chosen = new List<object>();
+            internal readonly List<object> Logs = new List<object>();
+            /// Each frame of a fade: [way, elapsed ms, alpha, below, arrived].
+            internal readonly List<object> Fades = new List<object>();
+        }
+
+        private static readonly Dictionary<long, LiveMenu> liveMenus = new Dictionary<long, LiveMenu>();
+        private static readonly Queue<object[]> liveJobs = new Queue<object[]>();
+        private static System.Threading.Thread liveThread;
+        private static long liveMade;
+        private static volatile bool liveRunning;
+
+        private static object MenuLive(Dictionary<string, object> call)
+        {
+            if (liveThread == null)
+            {
+                liveThread = new System.Threading.Thread(LiveLoop) { IsBackground = true };
+                liveThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                liveThread.Start();
+            }
+            var done = new System.Threading.ManualResetEvent(false);
+            var job = new object[] { call, done, null, null };
+            lock (liveJobs)
+            {
+                liveJobs.Enqueue(job);
+                System.Threading.Monitor.Pulse(liveJobs);
+            }
+            done.WaitOne();
+            if (job[3] != null) throw (Exception)job[3];
+            return job[2];
+        }
+
+        private static void LiveLoop()
+        {
+            while (true)
+            {
+                object[] job = null;
+                lock (liveJobs)
+                {
+                    if (liveJobs.Count == 0) System.Threading.Monitor.Wait(liveJobs, liveRunning ? 2 : 20);
+                    if (liveJobs.Count > 0) job = liveJobs.Dequeue();
+                }
+                if (job != null)
+                {
+                    try
+                    {
+                        job[2] = LiveAnswer((Dictionary<string, object>)job[0]);
+                    }
+                    catch (Exception exc)
+                    {
+                        job[3] = exc is System.Reflection.TargetInvocationException && exc.InnerException != null ? exc.InnerException : exc;
+                    }
+                    ((System.Threading.ManualResetEvent)job[1]).Set();
+                }
+                if (liveRunning) LiveMessages();
+                else
+                {
+                    SurfaceNative.MSG message;
+                    PeekMessageW(out message, IntPtr.Zero, 0, 0, 0);      // PM_NOREMOVE: answered, nothing run
+                }
+            }
+        }
+
+        /// Every message waiting for this thread run, a menu's fade frame read around it.
+        private static void LiveMessages()
+        {
+            SurfaceNative.MSG message;
+            while (PeekMessageW(out message, IntPtr.Zero, 0, 0, 1))
+            {
+                SurfaceNative.MSG each = message;
+                LiveMenu fading = null;
+                if (each.Message == SurfaceNative.WM_TIMER && each.WParam.ToInt64() == MenuWindow.FadeTimer)
+                    foreach (LiveMenu live in liveMenus.Values)
+                        if (live.Menu.Hwnd != IntPtr.Zero && live.Menu.Hwnd == each.Hwnd) fading = live;
+                if (fading != null) LiveFrame(fading, () => SurfaceNative.DispatchMessageW(ref each));
+                else
+                {
+                    SurfaceNative.TranslateMessage(ref message);
+                    SurfaceNative.DispatchMessageW(ref message);
+                }
+            }
+        }
+
+        /// One frame of the menu's fade at its own instant, and that step as motion.opening or motion.closing answered it:
+        /// the elapsed time it was asked at (from the instant the fade's clock started, as FadeStep keeps it), the alpha and
+        /// the rise, and whether it said arrived. A fade out that arrived hides the window, which puts the alpha back to 255
+        /// (Hide), so that last step's alpha is closing's own answer at the same elapsed time and value.
+        private static void LiveFrame(LiveMenu live, Action deliver)
+        {
+            MenuWindow menu = live.Menu;
+            string way = menu.FadeWay;
+            double now = TrayPlace.Monotonic();
+            live.Frozen = now;
+            try
+            {
+                deliver();
+            }
+            finally
+            {
+                live.Frozen = null;
+            }
+            if (way == null) return;
+            double started = (double)typeof(MenuWindow).GetField("fadeStarted", Hidden).GetValue(menu);
+            int value = (int)typeof(MenuWindow).GetField("fadeValue", Hidden).GetValue(menu);
+            double elapsed = now * 1000.0 - started;
+            bool arrived = menu.FadeWay == null;
+            int alpha = way == "out" && arrived ? PopupMotion.Closing(elapsed, value)[0] : menu.Alpha;
+            live.Fades.Add(new List<object> { way, elapsed, (double)alpha, (double)menu.Below, arrived });
+        }
+
+        private static object LiveAnswer(Dictionary<string, object> call)
+        {
+            string op = (string)call["op"];
+            LiveMenu live;
+            long id;
+            if (op == "new")
+            {
+                live = new LiveMenu { Running = (bool)call["running"] };
+                id = ++liveMade;
+                var menu = new MenuWindow(line => live.Logs.Add(line));
+                live.Menu = menu;
+                menu.Monotonic = () => live.Frozen ?? TrayPlace.Monotonic();
+                menu.AskReduced = () => live.Reduced;
+                menu.OnChoose = chosen => live.Chosen.Add(Plain(chosen));
+                SurfaceAccess.Attach(menu);
+                liveMenus[id] = live;
+                LiveLook(live, call);
+                menu.Create();
+                LiveRunning();
+                return LiveState(live, id, new List<object>());
+            }
+            id = (long)(double)call["id"];
+            if (!liveMenus.TryGetValue(id, out live)) throw new ArgumentException("no menu " + id);
+            LiveLook(live, call);
+            if (op == "end")
+            {
+                liveMenus.Remove(id);
+                LiveRunning();
+                live.Menu.Destroy();
+                return LiveState(live, id, new List<object>());
+            }
+            if (op != "do") throw new ArgumentException("no menu_live op " + op);
+            var answers = new List<object>();
+            var steps = SurfaceRender.Field(call, "steps") as List<object>;
+            if (steps != null)
+                foreach (object each in steps) answers.Add(LiveStep(live, (List<object>)each));
+            return LiveState(live, id, answers);
+        }
+
+        private static void LiveRunning()
+        {
+            bool running = false;
+            foreach (LiveMenu each in liveMenus.Values) running |= each.Running;
+            liveRunning = running;
+        }
+
+        /// What the test's patched question answers now: Reduce motion (menuwindow.look.reduced_motion).
+        private static void LiveLook(LiveMenu live, Dictionary<string, object> call)
+        {
+            object reduced = SurfaceRender.Field(call, "reduced");
+            if (reduced is bool) live.Reduced = (bool)reduced;
+        }
+
+        private static object LiveStep(LiveMenu live, List<object> step)
+        {
+            MenuWindow menu = live.Menu;
+            string what = (string)step[0];
+            if (what == "entries") menu.Entries = MenuEntries((List<object>)step[1]);
+            else if (what == "strings") menu.Strings = new Dictionary<string, object>((Dictionary<string, object>)step[1]);
+            else if (what == "plan")
+                menu.Plan = menu.Renderer.MenuLayout(MenuEntries((List<object>)step[1]), (double)step[2], (string)step[3]);
+            else if (what == "origin") menu.Origin = IntsOf(step[1]);
+            else if (what == "theme") menu.Theme = (string)step[1];
+            else if (what == "contrast") menu.Contrast = (bool)step[1];
+            else if (what == "visible") menu.Visible = (bool)step[1];
+            else if (what == "appear") typeof(MenuWindow).GetMethod("Appear", Hidden).Invoke(menu, null);
+            else if (what == "push") typeof(MenuWindow).GetMethod("Push", Hidden).Invoke(menu, null);
+            else if (what == "close") menu.Close((bool)step[1]);
+            else if (what == "pump")
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                do
+                {
+                    LiveMessages();
+                    System.Threading.Thread.Sleep(2);
+                } while (clock.Elapsed.TotalSeconds < (double)step[1]);
+            }
+            else throw new ArgumentException("no menu_live step " + what);
+            return null;
+        }
+
+        private static object LiveState(LiveMenu live, long id, List<object> answers)
+        {
+            MenuWindow menu = live.Menu;
+            return new Dictionary<string, object>
+            {
+                { "id", (double)id }, { "hwnd", (double)menu.Hwnd.ToInt64() }, { "alpha", (double)menu.Alpha },
+                { "below", (double)menu.Below }, { "fade", menu.FadeWay }, { "visible", menu.Visible },
+                { "chosen", new List<object>(live.Chosen) }, { "logs", new List<object>(live.Logs) },
+                { "fades", new List<object>(live.Fades) }, { "answers", answers },
+            };
+        }
+
+        // ------------------------------------------------------------------ the icon started for real (S6.4d6)
+        /// The host's TrayIcon started for real (tests/test_tray.py LiveIconTests: the main session's word of 2026-11-28 -
+        /// the host's real notification-area icon, exactly as the original adds the reference's): on a thread of its own,
+        /// as the reference's Tray.start runs its window and loop on one - its hidden window made by its own Create, the icon
+        /// added from the test's .ico, the tick's timer - and the thread's message loop until the window's WM_DESTROY ends
+        /// it (`Ended`, where the reference's loop ended on PostQuitMessage). start waits for it as Tray.start does (5 s);
+        /// stop posts WM_CLOSE (TrayIcon.Stop) and joins the thread as Tray.stop does (5 s).
+        private sealed class LiveIcon
+        {
+            internal TrayIcon Tray;
+            internal System.Threading.Thread Thread;
+            internal readonly List<object> Logs = new List<object>();
+        }
+
+        private static readonly Dictionary<long, LiveIcon> liveIcons = new Dictionary<long, LiveIcon>();
+        private static long liveIconsMade;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern void PostQuitMessage(int exitCode);
+
+        private static object IconLive(Dictionary<string, object> call)
+        {
+            string op = (string)call["op"];
+            LiveIcon live;
+            long id;
+            if (op == "start")
+            {
+                live = new LiveIcon();
+                id = ++liveIconsMade;
+                var tray = new TrayIcon
+                {
+                    IconPath = (string)call["icon"],
+                    Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]),
+                };
+                List<object> logs = live.Logs;
+                tray.Log = line => { lock (logs) logs.Add(line); };
+                tray.Ended = () => PostQuitMessage(0);
+                live.Tray = tray;
+                var ready = new System.Threading.ManualResetEvent(false);
+                bool made = false;
+                live.Thread = new System.Threading.Thread(() =>
+                {
+                    try
+                    {
+                        tray.Create();
+                        made = true;
+                    }
+                    catch (Exception exc)
+                    {
+                        tray.Log("tray unavailable (" + TipCard.PythonName(exc) + ")");
+                        tray.Unregister();
+                        ready.Set();
+                        return;
+                    }
+                    ready.Set();
+                    SurfaceNative.MSG message;
+                    while (SurfaceNative.GetMessageW(out message, IntPtr.Zero, 0, 0) > 0)
+                    {
+                        SurfaceNative.TranslateMessage(ref message);
+                        SurfaceNative.DispatchMessageW(ref message);
+                    }
+                    tray.Unregister();
+                }) { IsBackground = true };
+                live.Thread.SetApartmentState(System.Threading.ApartmentState.STA);
+                live.Thread.Start();
+                liveIcons[id] = live;
+                bool started = ready.WaitOne(5000) && made && tray.Hwnd != IntPtr.Zero;
+                return IconLiveState(live, id, started);
+            }
+            id = (long)(double)call["id"];
+            if (!liveIcons.TryGetValue(id, out live)) throw new ArgumentException("no icon " + id);
+            if (op == "update") live.Tray.Update((Dictionary<string, object>)call["snapshot"]);
+            else if (op == "stop")
+            {
+                live.Tray.Stop();
+                live.Thread.Join(5000);
+            }
+            else if (op != "read") throw new ArgumentException("no icon_live op " + op);
+            return IconLiveState(live, id, null);
+        }
+
+        private static object IconLiveState(LiveIcon live, long id, bool? started)
+        {
+            List<object> logs;
+            lock (live.Logs) logs = new List<object>(live.Logs);
+            return new Dictionary<string, object>
+            {
+                { "id", (double)id }, { "started", started }, { "last_tip", live.Tray.LastTip }, { "alive", live.Thread.IsAlive },
+                { "logs", logs },
+            };
         }
     }
 }

@@ -15,7 +15,13 @@ only that:
 * `self.renders` counts the steps in which the host drew its picture again (it is drawn once before the first step and
   marked; a step that draws it again changes the mark).
 
-Not here: WindowTests (the real menu window: a MenuWindow made and shown far off every screen), left for the next seat.
+WindowOnHostTests (S6.4d6) twins WindowTests, the real menu window: `popup.Menu` makes tests/rustdiff/hostlive.py's
+HostLiveMenu - ONE host MenuWindow made by its own Create and kept on a thread of the probe's own (HostProbe.cs `menu_live`),
+shown by the test's own ShowWindow(SW_SHOWNOACTIVATE) at (-32000, -32000) and read by its own IsWindowVisible, exactly as
+the original shows and reads the reference's (the main session's word of 2026-11-28; inside gui_lock.sh, never a dialog,
+destroyed in the test's own cleanup). What changed, and only that: the test's `pump` runs the host's menu thread's messages
+for the same time; its `recorded("opening")` / `recorded("closing")` lists are filled with the host's fade frames, each
+read at the frame's own instant, in the reference's words.
 """
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ from pathlib import Path
 import re
 import sys
 import unittest
+import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 for _path in (str(ROOT / "tests"), str(ROOT / "tests" / "rustdiff")):
@@ -33,10 +40,12 @@ for _path in (str(ROOT / "tests"), str(ROOT / "tests" / "rustdiff")):
 import surfacehost  # noqa: E402
 
 if os.name == "nt":
+    import hostlive  # noqa: E402
     import test_menu_opening_motion as original  # noqa: E402  (a module name: its classes are not collected here)
     FADE, REDUCED, CONTRAST = original.FadeTests, original.ReducedFadeTests, original.ContrastFadeTests
+    WINDOW = original.WindowTests
 else:
-    FADE = REDUCED = CONTRAST = unittest.TestCase
+    FADE = REDUCED = CONTRAST = WINDOW = unittest.TestCase
 
 ON_HOST = unittest.skipUnless(os.name == "nt" and surfacehost.CSC.is_file(), "the host's surfaces need the in-box C# compiler")
 _ULW = re.compile(r"^UpdateLayeredWindow \S+ (-?\d+) (-?\d+) (\d+) (\d+) (\d+)$")
@@ -169,7 +178,46 @@ class ContrastFadeOnHostTests(HostFade, CONTRAST):  # noqa: F821
     pass
 
 
-del FADE, REDUCED, CONTRAST
+class PopupOnHost:
+    """The reference popup package with its Menu the host's live one; everything else is the reference's."""
+
+    def __init__(self, reference, make):
+        self._reference, self.Menu = reference, make
+
+    def __getattr__(self, name):
+        return getattr(self._reference, name)
+
+
+@ON_HOST
+class WindowOnHostTests(WINDOW):  # noqa: F821
+    def setUp(self):
+        super().setUp()
+        self._recorders, self._menus = {}, []
+
+        def make(**keywords):
+            menu = hostlive.HostLiveMenu(recorders=self._recorders, **keywords)
+            self._menus.append(menu)
+            return menu
+        patcher = unittest.mock.patch.object(original, "popup", PopupOnHost(original.popup, make))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def pump(self, seconds):
+        """The host's menu thread runs its messages for `seconds`, as the original's own thread runs the reference's."""
+        for menu in self._menus:
+            menu.pump(seconds)
+
+    def recorded(self, name):
+        """The host's fade frames as motion.opening / motion.closing answered them, in the reference's words."""
+        seen = []
+        self._recorders[name] = seen
+        return seen
+
+    def test_the_real_menu_fades_in_on_its_timer_and_fades_out_and_hides(self):
+        super().test_the_real_menu_fades_in_on_its_timer_and_fades_out_and_hides()
+
+
+del FADE, REDUCED, CONTRAST, WINDOW
 
 
 if __name__ == "__main__":

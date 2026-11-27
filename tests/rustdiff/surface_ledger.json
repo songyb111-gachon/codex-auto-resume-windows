@@ -682,9 +682,9 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "7 of 8 UI tests are held by a twin (FadeTests 4, ReducedFadeTests 3; ContrastFadeTests' inherited runs on the host too); 1 is still on the Python UI: WindowTests (the real menu window fading in on its own timer and out, far off every screen)",
-   "needs": "WindowTests: a MenuWindow made by its own Create and kept on a pumping thread, as popup_live keeps the popup (HostProbe.cs), shown without activation at (-32000, -32000), its fade's steps read around its own frames",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
    "twins": {
     "FadeTests.test_it_opens_faded_out_below_its_place_and_fades_and_rises_in_on_its_own_timer": "test_host_menu_opening_motion.py::FadeOnHostTests.test_it_opens_faded_out_below_its_place_and_fades_and_rises_in_on_its_own_timer",
@@ -693,11 +693,13 @@
     "FadeTests.test_a_refused_opening_is_hidden_at_once": "test_host_menu_opening_motion.py::FadeOnHostTests.test_a_refused_opening_is_hidden_at_once",
     "ReducedFadeTests.test_it_opens_faded_out_below_its_place_and_fades_and_rises_in_on_its_own_timer": "test_host_menu_opening_motion.py::ReducedFadeOnHostTests.test_it_opens_faded_out_below_its_place_and_fades_and_rises_in_on_its_own_timer",
     "ReducedFadeTests.test_closed_it_fades_out_in_the_press_time_untouchable_then_hides": "test_host_menu_opening_motion.py::ReducedFadeOnHostTests.test_closed_it_fades_out_in_the_press_time_untouchable_then_hides",
-    "ReducedFadeTests.test_opened_again_while_it_fades_out_it_fades_in_again": "test_host_menu_opening_motion.py::ReducedFadeOnHostTests.test_opened_again_while_it_fades_out_it_fades_in_again"
+    "ReducedFadeTests.test_opened_again_while_it_fades_out_it_fades_in_again": "test_host_menu_opening_motion.py::ReducedFadeOnHostTests.test_opened_again_while_it_fades_out_it_fades_in_again",
+    "WindowTests.test_the_real_menu_fades_in_on_its_timer_and_fades_out_and_hides": "test_host_menu_opening_motion.py::WindowOnHostTests.test_the_real_menu_fades_in_on_its_timer_and_fades_out_and_hides"
    },
    "no_twin": {},
    "port": [
-    "tests/test_host_menu_opening_motion.py"
+    "tests/test_host_menu_opening_motion.py",
+    "tests/rustdiff/hostlive.py"
    ]
   },
   "test_motion_card_strip.py": {
@@ -2820,8 +2822,8 @@
   "on_host": 195,
   "retired": 6,
   "by_status": {
-   "host": 35,
-   "pending": 48,
+   "host": 36,
+   "pending": 47,
    "python-only": 1
   },
   "by_kind": {
