@@ -681,7 +681,10 @@ pub fn sources_for(control: &Control) -> Result<Vec<(Value, LocalSource)>, Raise
 /// `_presence()` over the probes' answers: how a notice reaches the person now - card or toast, Do not disturb,
 /// this app's notifications, each None where Windows cannot say.
 pub fn presence(found: &Map) -> Value {
-    let mode = found.get("notification_mode").cloned().unwrap_or(Value::Null);
+    let mode = found
+        .get("notification_mode")
+        .cloned()
+        .unwrap_or(Value::Null);
     let allowed = found
         .get("app_notifications")
         .cloned()
@@ -976,8 +979,9 @@ pub fn run(control: &Control, asked: &Asked<'_>) -> Result<Value, Raised> {
     };
     let os = control.host.os();
     let path = control.settings_path();
-    let settings_failed =
-        |error: car_policy::settings::SettingsError| Raised::new(error.class(), lossy_text(&error.message()));
+    let settings_failed = |error: car_policy::settings::SettingsError| {
+        Raised::new(error.class(), lossy_text(&error.message()))
+    };
     let values = car_policy::settings::load(&*os, &path).map_err(settings_failed)?;
     let unread = match car_policy::settings::read(&*os, &path) {
         Ok(_) => None,

@@ -29,21 +29,30 @@ pub type Probe = Arc<dyn Fn() -> Result<Value, Failed> + Send + Sync>;
 
 /// `notifier.show_demo(notifier.build_demo(now), inbox=App._inbox, setting=...)`: whether the demo card went to the
 /// host. `values` are the settings in force.
-pub fn show(events: &Events, values: &Value, now: f64, probe: &dyn Fn() -> Result<Value, Failed>) -> Res<bool> {
+pub fn show(
+    events: &Events,
+    values: &Value,
+    now: f64,
+    probe: &dyn Fn() -> Result<Value, Failed>,
+) -> Res<bool> {
     let environ = |name: &str| std::env::var(name).ok();
     let locale = car_words::interface::language(&environ, &Vec::new);
     let clock = car_platform::localclock::Crt;
     let speech = car_surface::speech::Speech::new(locale, &clock);
     let notice = car_surface::notifier::build_demo(&speech, &Value::Float(now))
         .map_err(|class| Failed::new(class, ""))?;
-    if !matches!(crate::notices::card_setting(values), Value::Bool(true)) || !events.cards_attached() {
+    if !matches!(crate::notices::card_setting(values), Value::Bool(true))
+        || !events.cards_attached()
+    {
         return Ok(false);
     }
     let answers = match probe() {
         Ok(Value::Object(found)) => found,
         _ => Map::new(),
     };
-    if !car_surface::notice_presence::card_allowed(&car_surface::notice_presence::Answers::from_probes(&answers)) {
+    if !car_surface::notice_presence::card_allowed(
+        &car_surface::notice_presence::Answers::from_probes(&answers),
+    ) {
         return Ok(false);
     }
     Ok(events.post_demo(&notice))
@@ -136,19 +145,21 @@ fn demo(events: &Arc<Events>, settings: &Arc<std::sync::Mutex<Map>>, log: &Log, 
     let settings = Arc::clone(settings);
     let log = Arc::clone(log);
     let probe = Arc::clone(probe);
-    let _ = std::thread::Builder::new().name("demo".into()).spawn(move || {
-        let values = Value::Object(
-            settings
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone(),
-        );
-        if let Err(failed) =
-            crate::fail::guarded(|| show(&events, &values, crate::clock::wall(), &*probe))
-        {
-            log(&format!("demo card not shown ({})", failed.class));
-        }
-    });
+    let _ = std::thread::Builder::new()
+        .name("demo".into())
+        .spawn(move || {
+            let values = Value::Object(
+                settings
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone(),
+            );
+            if let Err(failed) =
+                crate::fail::guarded(|| show(&events, &values, crate::clock::wall(), &*probe))
+            {
+                log(&format!("demo card not shown ({})", failed.class));
+            }
+        });
 }
 
 #[cfg(test)]
@@ -187,8 +198,18 @@ mod tests {
         assert!(!show(&events, &values(Value::Bool(false)), 1.8e9, &card_answers).unwrap());
         assert!(!show(&events, &values(Value::from(1)), 1.8e9, &card_answers).unwrap());
         // Presence that cannot tell, or a probe that raised.
-        assert!(!show(&events, &values(Value::Bool(true)), 1.8e9, &|| Ok(Value::Null)).unwrap());
-        assert!(!show(&events, &values(Value::Bool(true)), 1.8e9, &|| Err(Failed::new("OSError", ""))).unwrap());
+        assert!(
+            !show(&events, &values(Value::Bool(true)), 1.8e9, &|| Ok(
+                Value::Null
+            ))
+            .unwrap()
+        );
+        assert!(
+            !show(&events, &values(Value::Bool(true)), 1.8e9, &|| Err(
+                Failed::new("OSError", "")
+            ))
+            .unwrap()
+        );
         assert!(events.next(Duration::ZERO).is_none());
         // Every answer the card's: one `demo` event with the made-up card, ended once by notice_complete.
         assert!(show(&events, &values(Value::Bool(true)), 1.8e9, &card_answers).unwrap());
