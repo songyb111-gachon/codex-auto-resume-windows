@@ -559,6 +559,8 @@ namespace CodexAutoResume
         [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
         private delegate int AccessCount(IntPtr self, IntPtr found);
 
+        /// The function at `slot` of the object's table: the object's own delegate where the table is managed (as
+        /// SurfaceAccess's is), invoked with the arguments the native caller passes.
         private static Delegate Slot(IntPtr pointer, int slot, Type kind)
         {
             IntPtr table = System.Runtime.InteropServices.Marshal.ReadIntPtr(pointer);
@@ -586,19 +588,19 @@ namespace CodexAutoResume
                 System.Runtime.InteropServices.Marshal.WriteInt16(variant, 0, 3);       // VT_I4, 0: CHILDID_SELF
                 var found = new Dictionary<string, object>();
                 System.Runtime.InteropServices.Marshal.WriteIntPtr(answer, IntPtr.Zero);
-                int named = ((AccessOut)Slot(pointer, 10, typeof(AccessOut)))(pointer, variant, answer);
+                int named = (int)Slot(pointer, 10, typeof(AccessOut)).DynamicInvoke(pointer, variant, answer);
                 IntPtr text = System.Runtime.InteropServices.Marshal.ReadIntPtr(answer);
                 found["name"] = new List<object> { (double)named, text == IntPtr.Zero ? null : System.Runtime.InteropServices.Marshal.PtrToStringBSTR(text) };
                 if (text != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeBSTR(text);
                 foreach (int slot in new[] { 13, 14 })
                 {
                     for (int at = 0; at < 16; at += 4) System.Runtime.InteropServices.Marshal.WriteInt32(answer, at, 0);
-                    int result = ((AccessOut)Slot(pointer, slot, typeof(AccessOut)))(pointer, variant, answer);
+                    int result = (int)Slot(pointer, slot, typeof(AccessOut)).DynamicInvoke(pointer, variant, answer);
                     found[slot == 13 ? "role" : "state"] = new List<object> { (double)result,
                                                                               (double)System.Runtime.InteropServices.Marshal.ReadInt32(answer, 8) };
                 }
                 System.Runtime.InteropServices.Marshal.WriteInt32(answer, -1);
-                int counted = ((AccessCount)Slot(pointer, 8, typeof(AccessCount)))(pointer, answer);
+                int counted = (int)Slot(pointer, 8, typeof(AccessCount)).DynamicInvoke(pointer, answer);
                 found["count"] = new List<object> { (double)counted, (double)System.Runtime.InteropServices.Marshal.ReadInt32(answer) };
                 found["constants"] = new List<object> { (double)SurfaceAccess.ROLE_SYSTEM_TOOLTIP, (double)SurfaceAccess.STATE_SYSTEM_READONLY };
                 return found;
