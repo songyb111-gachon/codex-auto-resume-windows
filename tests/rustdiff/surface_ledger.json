@@ -404,25 +404,37 @@
   "test_failure_seen.py": {
    "holds": "A certain failure stays red on the icon until somebody has seen it (v0.6.8).",
    "tests": 38,
-   "ui_tests": 6,
-   "unaffected": 32,
+   "ui_tests": 5,
+   "unaffected": 33,
    "kind": "window",
    "by_kind": {
-    "window": 6
+    "window": 5
    },
    "parts": {
     "window": {
-     "IconTests": 6
+     "IconTests": 5
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "0 of 6 UI tests run on the host or are held by a twin or a no_twin reason; 6 are still on the Python UI (6 window)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
-   "twins": {},
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "IconTests.test_a_failure_turns_the_icon_red_and_says_so_when_hovered"
+   ],
+   "twins": {
+    "IconTests.test_every_second_the_icon_asks_and_the_shell_is_told_what_it_found": "test_host_icon_act.py::IconOnHostTests.test_every_second_the_icon_asks_and_the_shell_is_told_what_it_found",
+    "IconTests.test_a_click_that_opens_the_popup_sees_the_failure": "test_host_icon_act.py::IconOnHostTests.test_a_click_that_opens_the_popup_sees_the_failure",
+    "IconTests.test_the_icon_asks_the_control_layer_and_nothing_else_decides": "test_host_icon_act.py::IconOnHostTests.test_the_icon_asks_the_control_layer_and_nothing_else_decides",
+    "IconTests.test_opening_the_popup_sees_it_and_only_when_it_is_shown": "test_host_icon_act.py::IconOnHostTests.test_opening_the_popup_sees_it_and_only_when_it_is_shown"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_icon_act.py",
+    "tests/rustdiff/hosticon.py",
+    "tests/rustdiff/surfaceproxy.py"
+   ],
+   "note": "IconTests.test_every_language_says_it reads only the language catalogs (l10n.catalog): unaffected"
   },
   "test_focus_rings.py": {
    "holds": "v0.6.11: every focus ring stands 3:1 off what it is drawn on, in every design and theme (J12).",
@@ -1649,10 +1661,19 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "4 of 13 UI tests run on the host or are held by a twin or a no_twin reason; 9 are still on the Python UI (9 window)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "12 of 13 UI tests are held by a twin or a no_twin reason; 1 is still on the Python UI (TrayMenuTests.test_the_window_is_only_ever_opened_on_a_page_it_has: the Dashboard opener's page refusal, ui/tray/dashboard.py open_dashboard)",
+   "needs": "the Dashboard opener on the host (seat S6.4e: a car-harness case over car-platform's handover.rs and its proxy), then a twin of test_the_window_is_only_ever_opened_on_a_page_it_has over it",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "TrayMenuTests.test_open_opens": "test_host_icon_act.py::TrayMenuOnHostTests.test_open_opens",
+    "TrayMenuTests.test_stop_stops": "test_host_icon_act.py::TrayMenuOnHostTests.test_stop_stops",
+    "TrayMenuTests.test_the_one_item_that_changes_its_mind_is_told_which_way": "test_host_icon_act.py::TrayMenuOnHostTests.test_the_one_item_that_changes_its_mind_is_told_which_way",
+    "TrayMenuTests.test_closing_the_menu_without_choosing_does_nothing": "test_host_icon_act.py::TrayMenuOnHostTests.test_closing_the_menu_without_choosing_does_nothing",
+    "TrayMenuTests.test_an_id_that_is_not_a_menu_item_does_nothing": "test_host_icon_act.py::TrayMenuOnHostTests.test_an_id_that_is_not_a_menu_item_does_nothing",
+    "TrayMenuTests.test_an_action_that_throws_is_logged_and_never_ends_the_watcher": "test_host_icon_act.py::TrayMenuOnHostTests.test_an_action_that_throws_is_logged_and_never_ends_the_watcher",
+    "TrayMenuTests.test_a_menu_with_nothing_wired_to_it_is_harmless": "test_host_icon_act.py::TrayMenuOnHostTests.test_a_menu_with_nothing_wired_to_it_is_harmless",
+    "TrayMenuTests.test_pending_opens_the_page_where_those_actions_live": "test_host_icon_act.py::TrayMenuOnHostTests.test_pending_opens_the_page_where_those_actions_live"
+   },
    "no_twin": {
     "JournalIsWriteOnlyTests.test_only_the_timeline_and_the_export_read_it": "reads every shipped Python file for `.events(`: which Python modules read the journal; the UI's modules are only part of the sample and nothing of the UI is called or computed",
     "JournalIsWriteOnlyTests.test_the_timeline_is_the_only_control_call_that_reads_it": "walks every Python module's tree (srcscan.package_asts) for the journal's readers; the UI's modules are only part of the sample and nothing of the UI is called or computed",
@@ -2607,8 +2628,8 @@
   "on_host": 195,
   "retired": 6,
   "by_status": {
-   "host": 20,
-   "pending": 63,
+   "host": 30,
+   "pending": 53,
    "python-only": 1
   },
   "by_kind": {

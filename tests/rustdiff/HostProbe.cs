@@ -119,7 +119,116 @@ namespace CodexAutoResume
             if (name == "icon_tick") return IconTick(call);
             if (name == "icon_overflowed") return IconOverflowed(call);
             if (name == "icon_demo") return IconDemo(call);
+            if (name == "icon_steps") return IconSteps(call);
+            if (name == "icon_menu_ids")
+                return new Dictionary<string, object>
+                {
+                    { "MENU_STATUS", (double)TrayIcon.MenuStatus }, { "MENU_OPEN", (double)TrayIcon.MenuOpen },
+                    { "MENU_TOGGLE", (double)TrayIcon.MenuToggle }, { "MENU_STOP", (double)TrayIcon.MenuStop },
+                    { "MENU_PENDING", (double)TrayIcon.MenuPending }, { "MENU_POWER_OFF", (double)TrayIcon.MenuPowerOff },
+                    { "MENU_POPUP", (double)TrayIcon.MenuPopup },
+                };
             throw new ArgumentException("no call " + name);
+        }
+
+        /// The core's side of IHostActions as a test sees it: every action posted, in order, with its fields; the ones whose
+        /// index is in `raises` throw, as a callback of the reference's that raised would (the icon logs it and goes on).
+        private sealed class RecordingActions : IHostActions
+        {
+            internal readonly List<object> Posted = new List<object>();
+            internal List<object> Raises = new List<object>();
+
+            public string Post(string action, IDictionary<string, object> fields)
+            {
+                int index = Posted.Count;
+                Posted.Add(new List<object> { action, Plain(new Dictionary<string, object>(fields)) });
+                if (Raises.Contains((double)index)) throw new InvalidOperationException("the callback raised");
+                return null;
+            }
+        }
+
+        /// The popup the icon makes for a click, standing in for the test's own (its `_popup_for_click`): each call recorded.
+        private sealed class RecordingPopup : ITrayPopup
+        {
+            internal readonly List<object> Calls = new List<object>();
+            public bool Visible { get { return false; } }
+            public bool Attention() { Calls.Add("attention"); return false; }
+            public void OnSelect(bool keyboard) { Calls.Add(keyboard ? "on_select keyboard" : "on_select"); }
+            public void OnDoubleClick() { Calls.Add("on_double_click"); }
+            public void Show() { Calls.Add("show"); }
+            public void Hide() { Calls.Add("hide"); }
+            public void Destroy() { Calls.Add("destroy"); }
+            public void SetStrings(Dictionary<string, object> strings, string locale, string letters) { Calls.Add("set_strings"); }
+            public void Snapshot(Dictionary<string, object> popup) { Calls.Add("snapshot"); }
+            public void FollowSettings(Dictionary<string, object> values) { Calls.Add("follow_settings"); }
+        }
+
+        /// The icon over a run of steps (tests/rustdiff/hosticon.py's HostTray, the twin of ui/tray's Tray as the tests drive
+        /// it): a TrayIcon with no window and no shell icon, everything it would ask of Windows recorded (SurfaceScreen.Probe),
+        /// its posts recorded by the core's stand-in on the calling thread, given the state the test set (`snapshot`,
+        /// `strings`, `failed`, `unconfirmed`, `last_tip`, whether a control layer is there and whether the menu offers what
+        /// is waiting), then each step: update, refresh, select, failure_seen, unseen (the icon's own question of the core,
+        /// whether the failure it would show is unseen), act (a menu command chosen). Whether a failure is unseen is the
+        /// core's answer: `answers` are given in order (true, false, or "raise"); a question past them is answered "no" and
+        /// reported `unanswered`, with the marks it was asked about, so the test's control layer can be asked and the run
+        /// made again (the ask-back of surfaceproxy.py's perform).
+        private static object IconSteps(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                var logs = new List<object>();
+                var answers = new Queue<object>((List<object>)call["answers"]);
+                bool unanswered = false;
+                object askedWith = null;
+                RecordingActions actions = Flag(call, "actions") ? new RecordingActions { Raises = (List<object>)call["raises"] } : null;
+                var popup = new RecordingPopup();
+                Func<Dictionary<string, object>, bool> core = shown =>
+                {
+                    if (answers.Count == 0)
+                    {
+                        unanswered = true;
+                        askedWith = Plain(SurfaceRender.Field(shown, "failures"));
+                        return false;
+                    }
+                    object answer = answers.Dequeue();
+                    if (answer is string) throw new IOException("unreadable");
+                    return (bool)answer;
+                };
+                var icon = new TrayIcon
+                {
+                    Hwnd = new IntPtr(12345), Actions = actions, Pending = Flag(call, "pending"), Log = line => logs.Add(line),
+                    Worker = work => work(), Now = () => (double)call["now"], FailureUnseen = core, MakePopup = () => popup,
+                    Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]),
+                    Failed = Flag(call, "failed"), Unconfirmed = Flag(call, "unconfirmed"), LastTip = SurfaceRender.Field(call, "last_tip") as string,
+                };
+                icon.Update((Dictionary<string, object>)call["snapshot"]);
+                var results = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    if (what == "update") icon.Update((Dictionary<string, object>)step[1]);
+                    else if (what == "refresh") icon.Refresh();
+                    else if (what == "select") Private(icon, "Select", step.Count > 1 && step[1] is bool && (bool)step[1]);
+                    else if (what == "failure_seen") Private(icon, "FailureSeen");
+                    else if (what == "unseen") results.Add(Private(icon, "Unseen", (Dictionary<string, object>)step[1], icon.FailureUnseen));
+                    else if (what == "act") Private(icon, "Act", (int)(double)step[1], (bool)step[2]);
+                    else throw new ArgumentException("no step " + what);
+                }
+                return new Dictionary<string, object>
+                {
+                    { "posted", actions != null ? actions.Posted : new List<object>() }, { "logs", logs },
+                    { "record", new List<object>(SurfaceScreen.Probe) }, { "failed", icon.Failed }, { "unconfirmed", icon.Unconfirmed },
+                    { "last_tip", icon.LastTip }, { "shown", Plain(icon.Shown()) }, { "results", results },
+                    { "unanswered", unanswered }, { "asked_with", askedWith }, { "popup", popup.Calls },
+                };
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
+            }
         }
 
         private static bool Flag(Dictionary<string, object> call, string name)
