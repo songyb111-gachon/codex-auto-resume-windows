@@ -94,13 +94,14 @@ measurement.mr measurement.ms measurement.mu os.name outcomechart.bar ownprocess
 pwsh.run refused.code reporter.windows righttoleft.no search.click self.code self.home self.id semibold.name
 softmenurenderer.fit started.id style.name system.io threads.name
 app.logger.info self.logger.info card.margin.top whole.fontfamily.name face.fontfamily.name
-control.accessibilityobject.name entry.psobject.properties system.appusermodel.id""".split())
+control.accessibilityobject.name entry.psobject.properties system.appusermodel.id
+codexautoresume.host""".split())
 # A bare IPv4 address (review R6), and the ones that are no host to reach: this PC's loopback and the address a server
 # binds to listen on every interface (the advanced loopback web view), and dotted numbers of the same shape that are not
 # addresses at all - an assembly's version in the manifests and SoftCombo.cs, X.509's commonName OID in authenticode.py.
 IPV4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
 NO_HOST_ADDRESSES = frozenset(("127.0.0.1", "0.0.0.0"))
-NOT_ADDRESSES = {"1.0.0.0": ("build/setup/setup.manifest", "gui/app.manifest"), "4.0.0.0": ("gui/SoftCombo.cs",),
+NOT_ADDRESSES = {"1.0.0.0": ("build/setup/setup.manifest", "gui/app.manifest", "gui/host.manifest"), "4.0.0.0": ("gui/SoftCombo.cs",),
                  "2.5.4.3": ("src/codex_auto_resume/win/authenticode.py",),
                  # the advanced page's example of the web view's address from another device (as in test_privacy_claims)
                  "192.168.0.2": ("advanced/gui/AdvancedExamples.cs",)}

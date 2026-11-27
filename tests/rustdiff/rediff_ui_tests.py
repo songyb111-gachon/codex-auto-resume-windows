@@ -32,6 +32,11 @@ def git(*arguments, **more):
     return subprocess.run(["git", *arguments], cwd=ROOT, capture_output=True, text=True, creationflags=NO_WINDOW, **more)
 
 
+# The tag's tests run on the reference's Python with the guard's boot (refguard: no lookup of this PC's processes, no
+# engine), as unittest's command line would run them.
+UNITTEST = "import sys, unittest; unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])"
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--reference", metavar="TAG", default="v0.6.26")
@@ -47,6 +52,7 @@ def main(argv=None) -> int:
     sys.path[:0] = [str(ROOT / "tests")]
     import released
     import test_surface_ledger as rule
+    from rustdiff import refpython
     with tempfile.TemporaryDirectory(prefix="car-ui-rediff-") as folder:
         archive = Path(folder, "tests.tar")
         done = subprocess.run(["git", "archive", "--format=tar", "-o", str(archive), tag, "tests"], cwd=ROOT,
@@ -66,13 +72,13 @@ def main(argv=None) -> int:
     ids.append("test_surface_askback")        # perform and PopupModel held to the tag's own, call for call
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]), CODEX_AR_CORE="rust")
     environment.pop("CODEX_AR_EDITION", None)
-    shim = subprocess.run([sys.executable, "-X", "utf8", "-m", "unittest", *ids], cwd=ROOT, env=environment,
+    shim = subprocess.run(refpython.command(UNITTEST, *ids, paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("%d ledger tests on the host through the shim against %s: %s" % (len(ids), tag, "pass" if shim == 0 else "FAIL"))
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)
-    twins = subprocess.run([sys.executable, "-X", "utf8", "-m", "unittest", "test_surface_ledger", "test_host_shape",
-                            "test_host_tray_place"], cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
+    twins = subprocess.run(refpython.command(UNITTEST, "test_surface_ledger", "test_host_shape", "test_host_tray_place",
+                                             paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
                            creationflags=NO_WINDOW).returncode
     print("the ledger and the host twins against %s: %s" % (tag, "pass" if twins == 0 else "FAIL"))
     return 0 if shim == 0 and twins == 0 else 1

@@ -168,7 +168,9 @@ class SourceTests(unittest.TestCase):
 
     def test_the_wire_the_window_reads_is_untouched(self):
         """D12: the replies are the bridge's, byte for byte; the consumer-fields test is the reference's and unchanged."""
-        done = subprocess.run(["git", "diff", "--quiet", "6a72bb487", "--", "tests/test_consumer_fields.py",
+        # From 0622dbeb3 (S6.3): the consumer-field scan leaves the host's surfaces out, which read the core's events
+        # (car-host's tables, test_host_contract), not a bridge answer; nothing of the wire changed with it.
+        done = subprocess.run(["git", "diff", "--quiet", "0622dbeb3", "--", "tests/test_consumer_fields.py",
                                "tests/golden/bridge"], cwd=ROOT, capture_output=True, timeout=60, creationflags=NO_WINDOW)
         if done.returncode not in (0, 1):
             self.skipTest("git could not compare with the seat's base: " + done.stderr.decode(errors="replace")[-200:])

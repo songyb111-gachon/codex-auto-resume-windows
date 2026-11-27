@@ -29,6 +29,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GUI = ROOT / "gui"
+# The Windows libraries the host's files may import by name, besides HostCore.cs's car_core.dll: each one of System32.
+SYSTEM_DLLS = frozenset('"%s.dll"' % name for name in (
+    "kernel32", "user32", "gdi32", "gdiplus", "dwmapi", "ole32", "oleaut32", "oleacc", "shell32", "shcore", "advapi32",
+    "ntdll", "wtsapi32"))
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -84,7 +88,13 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(found["host"], ["gui/HostCore.cs", "gui/HostMain.cs", "gui/HostPump.cs"])
         self.assertEqual(found["contract"], ["gui/ISurfaces.cs"])
         window = set(guiscan.manifest())
+        # Integration 11: the host's [generated] group is the window's own generated palette (gui/Brand.cs, written by
+        # build/make_brand.py), compiled into both; every other file of the host's list is in neither the window's list.
+        shared = found.get("generated", [])
+        self.assertEqual(list(shared), list(guiscan.group("generated")))
         for name in sources():
+            if name in shared:
+                continue
             with self.subTest(name):
                 self.assertTrue((ROOT / name).is_file())
                 self.assertNotIn(name, window)
@@ -102,11 +112,17 @@ class SourceTests(unittest.TestCase):
         for name in sources():
             text = (ROOT / name).read_text(encoding="utf-8")
             imports = re.findall(r'\[DllImport\(([^,\)]+)', text)
+            # A file's own `const string Dll` names what its bare `Dll` imports (SurfaceGdip.cs: gdiplus.dll).
+            own = re.search(r'const string Dll = ("[^"]+")', text)
+            if own and name != "gui/HostCore.cs":
+                imports = [own.group(1) if each == "Dll" else each for each in imports]
             with self.subTest(name):
                 if name == "gui/HostCore.cs":
                     self.assertEqual(set(imports), {"Dll"})
                 else:
-                    self.assertTrue(set(imports) <= {'"kernel32.dll"', '"user32.dll"'}, imports)
+                    # Integration 11: S6.3's surfaces draw with Windows' own libraries, each by its bare name (loaded
+                    # from System32 alone: SetDefaultDllDirectories below); none of them is the core.
+                    self.assertTrue(set(imports) <= SYSTEM_DLLS, sorted(set(imports) - SYSTEM_DLLS))
         main = (GUI / "HostMain.cs").read_text(encoding="utf-8")
         self.assertIn("SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32)", main)
         self.assertIn("Path.Combine(folder ?? \".\", HostCore.Dll)", main)
@@ -199,7 +215,7 @@ class Scratch:
                 "print('held' if h else 'none', flush=True); sys.stdin.read()")
         holder = self.keep(subprocess.Popen([sys.executable, "-c", code, str(self.home / "config")], env=self.env,
                                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
-                                            creationflags=NO_WINDOW))
+                                            encoding="utf-8", errors="replace", creationflags=NO_WINDOW))
         if holder.stdout.readline().strip() != "held":
             raise AssertionError("the watcher's mutex could not be opened")
         return holder

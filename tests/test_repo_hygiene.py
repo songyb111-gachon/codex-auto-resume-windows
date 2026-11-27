@@ -49,6 +49,7 @@ SYNTHETIC_UUID = re.compile(
 # powercfg names them, which MWAKE reads (advanced measure.py, v0.6.19).
 # Listed by file rather than by value, so a new GUID in one of these still gets a look.
 GUID_ALLOWLIST = {"gui/app.manifest",
+                  "gui/host.manifest",              # the watcher host's compatibility ids (v0.6.27)
                   "gui/HostApp.cs",
                   "build/setup/setup.manifest",
                   "src/codex_auto_resume/shortcut.py",

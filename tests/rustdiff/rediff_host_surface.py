@@ -38,6 +38,11 @@ INPUTS = ("ui/popup/model.py", "notifier.py", "notify.py", "locales")
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
+# The tag's tests run on the reference's Python with the guard's boot (refguard: no lookup of this PC's processes, no
+# engine), as unittest's command line would run them.
+UNITTEST = "import sys, unittest; unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])"
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--reference", metavar="TAG", default="v0.6.26")
@@ -45,7 +50,7 @@ def main(argv=None) -> int:
     tag = args.reference
     paths = ["src/codex_auto_resume/" + each for each in PORTED + INPUTS]
     changed = subprocess.run(["git", "diff", "--stat", tag, "HEAD", "--", *paths], cwd=ROOT, capture_output=True,
-                             text=True, creationflags=NO_WINDOW)
+                             text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if changed.returncode != 0:
         print(changed.stderr.strip())
         return 2
@@ -53,11 +58,12 @@ def main(argv=None) -> int:
     sys.stdout.flush()
     sys.path[:0] = [str(ROOT / "tests")]
     import released
+    from rustdiff import refpython
     source = released.package(tag)
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)
-    status = subprocess.run([sys.executable, "-X", "utf8", "-m", "unittest", "test_surface_parity",
-                             "test_surface_windows"], cwd=ROOT,
+    status = subprocess.run(refpython.command(UNITTEST, "test_surface_parity", "test_surface_windows",
+                                              paths=[source, ROOT / "tests"]), cwd=ROOT,
                             env=environment, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("rediff of the host's surfaces against %s: %s" % (tag, "exact" if status == 0 else "DIFFER"))
     return 0 if status == 0 else 1
