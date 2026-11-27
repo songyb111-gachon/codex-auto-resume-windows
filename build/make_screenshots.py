@@ -833,6 +833,25 @@ POPUP_NOW = 1_800_000_000.0
 WINDOW_CLOCK = POPUP_NOW
 
 
+_SURFACE_RENDER = []
+
+
+def surface_session():
+    """The host's render mode for the surface pictures (the popup, its still and light, the notification card) when
+    CODEX_AR_SURFACE_RENDER asks for it (build/surface_render.py; P6-DESIGN 3.3 B), else None: one session for the run,
+    closed as the run ends. The calls made of it are the ones made of the reference's renderers, with the same
+    arguments."""
+    import surface_render
+    if not surface_render.wanted():
+        return None
+    if not _SURFACE_RENDER:
+        import atexit
+        session = surface_render.session()
+        atexit.register(session.close)
+        _SURFACE_RENDER.append(session)
+    return _SURFACE_RENDER[0]
+
+
 def popup_status() -> dict:
     """What the popup is told about the watcher: running, ticking, and the word its heartbeat
     carries for the sample's Codex - the word the window's status card and the panel show."""
@@ -1158,7 +1177,8 @@ def render_popup(target: Path, locale: str, *, theme: str | None = None, design:
     from codex_auto_resume.ui import popup as tray_popup
     strings, view = popup_view(locale)
     theme, design = theme or THEME, design or brand.DEFAULT_DESIGN
-    renderer = tray_popup.Renderer()
+    render = surface_session()
+    renderer = render.renderer() if render is not None else tray_popup.Renderer()
     renderer.theme = theme                      # said, not left to the renderer's default
     renderer.design = design                    # and the design, likewise
     # v0.6.24: the popup is its card alone on the screen - no grey ground of its own, its shadow the desktop's
@@ -1206,6 +1226,8 @@ def popup_picture(renderer, plan, pad: int, theme: str | None = None, design: st
     motion pictures are both this; `theme` and `design` are what the renderer was drawn in, which the picture no
     longer lays a ground of."""
     from codex_auto_resume.ui import popup as tray_popup
+    if hasattr(renderer, "card_still"):          # the render mode's renderer (surface_session): its own card_still
+        return renderer.card_still(plan, pad)
     return tray_popup.card_still(renderer, plan, pad)
 
 
@@ -1707,9 +1729,14 @@ class _SettledCard:
         tray_popup._gdiplus_acquire()
         self.card = None
         try:
+            render = surface_session()
             with pinned_face():                                       # its words in Segoe UI's stack (F1)
-                self.card = card = notice_window.Card(_NoStack(), card_notice(locale), now_ms=0, where=where,
-                                                      drawn=drawn, windows=False)
+                if render is not None:                                # the render mode's card, the same calls
+                    self.card = card = render.card(card_notice(locale), now_ms=0, where=where, drawn=drawn,
+                                                   hold=_NoStack().hold())
+                else:
+                    self.card = card = notice_window.Card(_NoStack(), card_notice(locale), now_ms=0, where=where,
+                                                          drawn=drawn, windows=False)
                 frame = card.paint(notice_card.ENTRANCE_MS)["frame"]     # at rest: whole, full depth
             if frame != notice_card.SETTLED:
                 raise RuntimeError("the card is not at rest: %r" % (frame,))
@@ -1742,11 +1769,14 @@ class _SettledCard:
         if not moment:
             return self._first
         card = self.card
-        with pinned_face():
-            card._draw_light(card.born + moment)
-        top, bottom = card.renderer.halo_rows
         row = self.card_width * 4
-        band = bytes(card.image._pixels[top * row:bottom * row])
+        if hasattr(card, "light_band"):                 # the render mode's card: its breath and the band it drew
+            top, bottom, band = card.light_band(card.born + moment)
+        else:
+            with pinned_face():
+                card._draw_light(card.born + moment)
+            top, bottom = card.renderer.halo_rows
+            band = bytes(card.image._pixels[top * row:bottom * row])
         whole = bytearray(self._first)
         start, stop = (self.pad + top) * self.width * 4, (self.pad + bottom) * self.width * 4
         rows = bytearray(self._ground[start:stop])

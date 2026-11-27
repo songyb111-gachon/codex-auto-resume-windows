@@ -3854,3 +3854,410 @@ since the final (`git diff --stat`), then test_window_core, test_hook_launcher, 
   `rust/target/release` (make_release says how to build it); the Rust release is `rust_release.py`.
 * car-bin's `launcher::install_home` answers a relative path with no USERPROFILE (AUDIT-v0628, S6.2a); the hook launcher asks
   `home_dir` as the C# launchers did.
+## P6 seat S6.3: the surfaces the C# host draws, their plans (branch `car-v0627-s63`, 2026-11-26)
+
+### S6.3 done (seat S6.3f, 2026-11-27): what is proved, by which test, and what B and C need
+
+Every surface P6-DESIGN 2.3 names is C# on `gui/host.sources` `[surface]` (38 files), `HostSurfaces` implements
+`ISurfaces`, and the host's render mode and probe mode are in (`SurfaceRender.Run()`, `SurfaceRender.Probe(args)`).
+Nothing was shown, captured or drawn on a screen; no picture was made; nothing was pushed.
+
+| What is proved | By |
+|---|---|
+| Comparison A, the plans: popup, menu, tip, card (+ shadows, stack, lives), placement, popup motion, icon frames, paint, shape, GDI+ painter, elevation, days, bidi at Unicode 16.0.0, and every surface's pixels drawn offscreen by the reference's renderer and by the C#'s, byte for byte, 0 GDI+ objects left | `tests/test_surface_parity.py` (21 tests, exact) |
+| The windows' halves over windows never shown, the reference driven with its window calls stood in: the icon's words, where Windows keeps the icon, the tip card, the popup, the drawn menu, the card stack, the icon (shell, session, tooltip fallback, menu, MSAA), the surfaces' class | `tests/test_surface_windows.py` (8 tests, exact) |
+| The live-path proof (P6-DESIGN 3.3's last paragraph) for every window: its own paint offscreen == the render mode's drawing of the same input == the reference's paint, byte for byte, the plans equal, 0 GDI+ objects left - the tip (`tipwindow/`), the popup (`popupwindow/`), the drawn menu and its submenu (`menuwindow/`, six proofs a run, five runs) and the notification cards (`cardstack/`, ten proofs a run over every card on screen, four runs; each proof also holds in the reference itself) | `test_surface_windows` |
+| The retargeted picture makers: over the committed popup-en and hover-card plans' frames the popup's and the hover card's makers call the render mode with the same calls and arguments as the reference's renderer; the card's maker says the reference's motion, marks, breaths and paints; a real render-mode session lays the popup out as the reference does, answers every call and leaves 0 GDI+ objects | `tests/test_surface_render_retarget.py` (4 tests) |
+| The re-diff against the final | `python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26` (exact) |
+| The shipped window unchanged | `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions: every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`) |
+
+**What comparisons B and C need from the main session** (on the picture machine; agents never run them):
+
+* **B (stills)**: `CODEX_AR_SURFACE_RENDER=1 python build/make_screenshots.py` - `render_popup`, `popup_picture` and
+  `_SettledCard` (so `render_card`/`card_pixels`) then draw through the render mode (`build/surface_render.py`; the
+  surfaces compiled once into `%TEMP%\car-surface-render\<digest>`, or `CODEX_AR_SURFACE_EXE` naming a built host). Each
+  committed `tray-popup*.png`, `notification-card*.png`, `design-{classic,plain}-{popup,card}.png` must come out byte for
+  byte; any frame that differs is a finding for the owner (Q9), never a tolerance. `status-light.png` and `icon.png` are
+  drawn from brand's own arithmetic and the icon's frames, not by a renderer: they are unchanged by the switch (the icon's
+  frames are held by comparison A's `icon` cases). Then move each picture's staleness digest (`POPUP_CODE`, `CARD_CODE`,
+  `popup_drawing`, `card_drawing`) from the `.py` files to the `[surface]` C# sources - not done here (it is the pictures').
+* **C (motion)**: `CODEX_AR_SURFACE_RENDER=1 python build/make_motion.py <plan>` for `popup-*`, `card-*` and `readme-*`:
+  `PopupFrames`, `TipFrames` and `CardFrames` get one session (their `render=`), the plans unchanged; the APNG bytes must
+  equal the committed ones. A card frame whose motion the render mode answers otherwise than the reference's arithmetic
+  stops the run (`surface_render.Card.paint`).
+* **Expected stale until then**: this part edited `build/make_screenshots.py` (an input of every window still) and
+  `build/make_motion.py`, `motion_card.py`, `motion_popup.py`, `motion_tip.py` (inputs of the motion pictures), so
+  `test_motion_fidelity`'s made-picture digests (readme, card, popup x en/ko) and `test_screenshots`' recorded inputs read
+  stale until the main session makes the pictures again; no picture was regenerated here (rule 4).
+* **Left for later seats**: the ledger rows (`tests/rustdiff/surface_ledger.json`) are S6.4's; the host's `Main` (S6.2b)
+  asks `SurfaceRender.Run()` and `SurfaceRender.Probe(args)` before any DLL loads.
+
+Cut from `car-v0627-p6abi` `b1761926b` (Integration 7 + P6 step 0). `outputs/plans/v0627-rust/P6-DESIGN.md` 2.3 (the module map),
+3 (the proofs) and 4.1 row 1c, under the owner's Q1 (C# owns layout, motion, stack, shadow and corner), Q8 (the same flat GDI+/GDI
+calls) and Q9 (pictures byte for byte). No Rust changed. No window was shown, nothing was drawn on the screen or captured, no picture
+was made; `gui/window.sources`, every file it lists and `build/make_gui.ps1` are byte-identical to `b1761926b`, so the window both
+editions build is the one the base built. Nothing was pushed.
+
+### What is here: every pure half of the surfaces, ported call for call and held exact
+
+| C# (`gui/host.sources` `[surface]`) | Python ported | State |
+|---|---|---|
+| `SurfaceJson.cs` | `gui/WindowJson.cs`'s `Json`, byte for byte (the window's file needs Windows Forms) | held equal by test |
+| `SurfaceNative.cs` | `ui/popup/win32.py` (+ the tray's and the card's few calls): the declarations, the structures, the scoped Per-Monitor-v2 context, `screen_at`, `gui_resources`, `icon_rect`, `_icon_from_pixels` | compiled |
+| `PopupWords.cs` | `ui/popup/words.py`'s drawing half: `say`, `one_line`, `unbroken`, by code point and on Python's spaces | via the plans |
+| `SurfaceFonts.cs` | `ui/popup/fonts.py`, `win/typeface.py`'s `ui_face`/`lacks`/`face_for`/`letters`, `Renderer.lines`/`measure`, `TipRenderer.metrics`/`ink`; `ITextCalc` (GDI or a job's table) | via the plans |
+| `SurfaceTheme.cs` | `ui/popup/theme.py`, `win/textsize.py`, `brand/colour.py`'s `mix`/`luminance`, `palette(theme, design)[token]` | via the paint |
+| `PopupLayout.cs` | `ui/popup/layout.py` (`layout`, `mirror`, `share_columns`), `brand.day_band`, `glow_extent`; `SurfacePlan`/`PlanItem`/`SurfaceTarget`; `SurfaceMath` (floored `//`, round half even, the C runtime's `cos sin pow atan2 sqrt`) | exact |
+| `PopupPlace.cs`, `PopupMotion.cs` | `ui/popup/placement.py`; `ui/popup/motion.py` (+ `brand.glow`/`glow_phase`) | exact |
+| `MenuPlan.cs`, `TipPlan.cs`, `CardPlan.cs` | `ui/popup/menuplan.py`; `ui/tray/tipplan.py` + `TipRenderer.tip_layout`; `notice_card.py`'s drawing half (Q1: layout, motion, `CardMotion`, stack, float shadows) + `Card.fitting` | exact |
+| `TrayMotion.cs` | `ui/tray/motion.py` + `brand/mark.py`'s rasteriser (`math.hypot` as CPython computes it) | exact, pixels by digest |
+| `SurfaceRenderer.cs` | `Renderer`'s look half: `_theme _design _depth smoothing _radii _corner _control_radius _rgb _argb _colorref face_colours _lifted` | exact (paint) |
+| `SurfaceRender.cs` | P6-DESIGN 3.2's render mode: `CODEX_AR_RENDER_PLAN` names a job, `CODEX_AR_RENDER_OUT` the answer; cases `popup menu tip card card_room card_life place popup_motion icon paint` | the harness |
+
+### Comparison A (`tests/test_surface_parity.py`, standard lane, in-box csc; 12 tests, ~5 s)
+
+The reference lays out every case through a stand-in for `DrawTextW(DT_CALCRECT)` (and the tip's `GetTextMetricsW`/`GetGlyphOutlineW`)
+that answers by arithmetic; every question and answer goes into the job's table, and the C# answers from that table only (a question
+it has no answer for is an error). So fonts drop out and CI can run it. The C# is compiled with a two-line driver and run once as a
+console program with `CREATE_NO_WINDOW`. Cases: popup 4 scales x en/ko/ja/de/ar x 6 views (120); menu 3 lists (60, with places,
+submenu places, steps, Home/End, letters, MSAA children); tip 6 snapshots (120, two special days, chip and meter); card 6 views (120)
++ shadows/stack/text size + 5 lives replayed; placement 720 places, hits, focus; popup motion 16 moments x 9 states x 3 designs;
+icon 6 states x 2 fines x reduce x 17 moments, colours, frames at 16/20/24/32 px; paint: the popup, card, tip and menu plans at 150 %
+and 200 % in en/ko/ar in light/dark x Soft/Classic/Plain x High Contrast off/on (a fixed system-colour table). **All exact.**
+
+* **Found on the way**: .NET Framework's `Math.Cos`/`Math.Pow` are not the C runtime's, which Python's `math` calls: a light frame came
+  out one place off (attention at 2200 ms). `SurfaceMath` calls `ucrtbase.dll`'s. `gui/Brand.cs`'s generated `Glow` and `Mark` (the
+  window's light and taskbar button) use .NET's and are left as they are (AUDIT line).
+* **Mutation checks** (each alone, restored): `SwitchGap` 10->11 (popup), `MenuCheck` 24->25 (menu), `TipPadY` 13->14 (tip), `SwapMs`
+  130->131 (card life), `GlideFrameMs` 31->30 (icon), hover's edge `accent_hover`->`accent` (paint), the nearest-edge tie `<`->`<=`
+  (placement), floored `//` -> truncated (placement; the first run missed it, so the cases gained an anchor left of the primary
+  monitor), `round(x, 4)` away from zero (shadows), a single letter match not chosen (menu keys): each fails its test.
+* **Re-diff**: `python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26` (the ported files that differ from the tag -
+  only `ui/popup/model.py`, the view model's input - then comparison A with the tag's own package as the reference): exact.
+
+### What S6.3 has not done yet (the rest of 2.3)
+
+* **The drawing**: `SurfaceGdip.cs` (`ui/popup/gdiplus.py`), `SurfaceElevation.cs`, `SurfaceLight.cs`, and `SurfaceRenderer.cs`'s
+  drawing half (`_ground`, lifts, wells, switches, meter, buttons, scene, text, halo). Until then the render mode writes plans and their
+  paint, no pixels, and `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions are **not** retargeted
+  (there is no pixel to retarget them to); comparisons B and C wait for it.
+* **The windows and `ISurfaces`**: `PopupWindow.cs`/`PopupMessages.cs` (`layers window messages hidden`), `MenuWindow.cs`, `TrayIcon.cs`
+  (`icon win32 clicks cards __init__`), `TrayMenu.cs`, `TipCard.cs`, `TrayWords.cs`, `TrayPlace.cs`, `CardWindow.cs`/`CardStack.cs`
+  (with the card's corner: `corner_coverage`/`premultiply`, which need `brand/shape.py`), `SurfaceAccess.cs` (MSAA), the probe mode
+  (`--probe <job>`), and the class that implements `ISurfaces` over them. No `ISurfaces` is implemented: a `Start` that posted
+  `tray_started` with no icon would tell the core a lie.
+* **A special day's motif on the icon's badge** (`brand.mark_colour`, `IconFrames(look=...)`): `IconFrames` refuses a look.
+* **The ledger rows** (`tests/rustdiff/surface_ledger.json`, P6-DESIGN 3.4) are S6.4's file (Q5 a); every *drawn* row whose plan
+  half is here is now held by comparison A, the pixel half by nothing yet.
+
+### Seams for the next seats
+
+* **S6.2b (the host shell)**: the host's `Main` asks `SurfaceRender.Run()` first (`int?`: null when no job is named, else the exit
+  code) and loads no DLL when it answers. `gui/host.sources` exists with `[surface]` and `[generated]`; `[host]` goes above
+  `[surface]`. `[shape]` is not in it: `gui/SoftShape.cs` reads the window's `Palette` and `Design` (`Shape.Smoothing`) and does not
+  compile without the window - a decision for the main session (split `Smoothing` out, or the host's own port of `brand/shape.py`).
+  The host's JSON is `gui/SurfaceJson.cs` (`Json`, the window's byte for byte); `HostCore`'s replies can use it.
+* **The core (S6.1/S6.2b)**: the surfaces draw from the reference's view models (`popup_view`, `notice_card.view`,
+  `tooltip_parts`, `menu_items`/`row_menu`) as `Json.Parse` gives them. The event table carries a `snapshot`, not the popup's view: the
+  core must hand the host the popup's view model (car-surface's `PopupModel.view`) and the strings' locale (the host has no
+  `locale_of`), and English for `say`'s fallback (`PopupWords.English`). Named here, not decided: the tables are the main session's.
+* **S6.4 (the UI tests)**: comparison A's job format (`car-surface-job/1`) and `TableTextCalc` are how a *drawn* row is rewritten
+  against the render mode; `test_surface_parity.StandIn` records any reference measure into a table.
+
+### Checks
+
+```
+test_surface_parity (12) + the guards (wait_quiet.sh, one run): see the seat's return
+python -X utf8 tests/rustdiff/rediff_host_surface.py --reference v0.6.26     exact
+```
+
+### S6.3 second part (the main session's go-on, 2026-11-26): the drawing, begun
+
+Three more `[surface]` files, each held to the reference by comparison A (now 16 tests, all exact, ~6 s):
+
+| C# | Python | Held by |
+|---|---|---|
+| `SurfaceShape.cs` | `brand/shape.py` whole (corner, outline, flatten, profile, edge_at, inside, distance) - the host's own, since `SoftShape.cs` needs the window | 9 boxes: every segment, flattened points, distance and inside at 10 points |
+| `SurfaceGdip.cs` | `ui/popup/gdiplus.py` whole: startup by users, the leak counter (`GdipObjects`), `_Canvas`, `_Painter`, `_ShadowImage` + stamp | 16 painter calls into an offscreen 160x120 canvas on the reference's own `_Painter` and on the C#'s: pixels by SHA-256 equal for both smoothings x both formats x kept brushes, and 0 objects left per paint (pixel offset mode 0 instead of 4 fails it) |
+| `SurfaceElevation.cs` | `ui/popup/elevation.py` whole, the masks' one memory and turned-twin reuse kept; the C runtime's `erfc` | 14 masks in one order, by SHA-256; recipes in every theme and design; `shadow_step` |
+
+**Exactly what is left of the go-on (in this order; nothing of it is started):**
+
+1. `SurfaceLight.cs` (`ui/popup/light.py`, the status light: `StatusLight`, `draw_halo`, the halo band) and `SurfaceRenderer.cs`'s
+   drawing half (`renderer.py` 145-693: `draw`, `_seal`, `draw_scene`, `_ground`, `_scene`/`_scene_shape` with brand's
+   `scene_frame`/`speck_frame`/`element_at` from `brand/days.py`, `_ground_item`, `_accent_bar`, `_use_scale`, `_image`, `_lift`,
+   `_inner`, `_well`, `_switch`, `_meter`, `_button`, `_text` with DrawTextW). Then the render mode writes pixels per plan (a
+   `pixels` case beside `paint`), and a test draws each plan of the matrix on the reference's `Renderer` (offscreen, its own
+   fonts, as `make_screenshots` does) and on the C#'s, byte for byte, with `GdipObjects` back at 0 after each draw.
+2. The windows: `PopupWindow.cs`/`PopupMessages.cs` (`layers window messages hidden`), `MenuWindow.cs` (+ `MenuRenderer.draw_menu`),
+   `TipCard.cs` (+ `TipRenderer.draw_tip`), `TrayWords.cs`, `CardWindow.cs`/`CardStack.cs` (`ui/card/*`, `notice_window.py`,
+   `notice_card.corner_coverage`/`premultiply`, which `SurfaceShape` now makes possible), `TrayIcon.cs` (`ui/tray/icon win32 clicks
+   cards __init__ animation`), `TrayMenu.cs`, `TrayPlace.cs`, `SurfaceAccess.cs` (MSAA); the probe mode (`--probe <job>`, windows
+   unshown, no dialog); the class implementing `ISurfaces`; the icon's day motif (`brand.mark_colour`, `IconFrames(look)`).
+3. The live-path proof (P6-DESIGN 3.3's last paragraph): each window's own paint into its buffer offscreen against the render
+   mode's, byte-equal, over the matrix.
+4. Retarget `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions to the render mode (not run).
+5. `make_gui.ps1` once at the end: both editions' windows byte-identical to the base (the window's inputs are still 0 diff lines).
+
+### S6.3 third part (seat S6.3b, 2026-11-26): the drawing, done for the popup
+
+Item 1 of the list above is **done**; comparison A is now 20 tests (+ the table guard), ~40 s, all exact:
+
+| C# | Python | Held by |
+|---|---|---|
+| `SurfaceDays.cs` | `brand/days.py`'s drawing half: `path_points`, the elements (read from `Brand.DayScene`/`DaySpecks`, whose numbers days.py rounded to three places, so the text is exact), `element_at` (`_wave _drift _centre _placed`), `scene_frame`, `speck_frame` with `within` (`_reach speck_reach _height`), `MARKS`/`mark_colour` (computed, its turned points are not rounded) | `days/<look>`: 9 moments x 6 `within`s, the reach, the mark on a 43x43 grid, 5 paths |
+| `SurfaceBidi.cs` (generated by `tests/surfacebidi.py`) | `l10n.first_strong` (unicodedata's L / R+AL runs; .NET Framework has no bidi class) | `bidi/all` over a code point of every 173; the file equals what the script writes under the bundled Python 3.14.10 (Unicode 16.0.0; S6.3c: it runs itself under `refpython`'s bundled runtime and `--check` refuses any other stamp), and the expected answers are that Python's |
+| `SurfaceLight.cs` (partial `SurfaceRenderer`) | `ui/popup/light.py` whole + `brand.sweep_at`, `glow_stops`, `glow_radius`, `status_fill`/`status_system` | the pixels below |
+| `SurfaceRenderer.cs` drawing half | `renderer.py` 96-693: `Open`/`Dispose` (`__init__`/`close`), `use`, `layout`, `draw`, `_seal`, `draw_scene`, `_ground` (kept pixels, same key), `_scene`, `_scene_shape`, `_ground_item`, `_accent_bar`, images, `_lift`, `_inner`, `_well`, `_switch`, `_meter`, `_button`, `_text` | the pixels below |
+| `SurfaceLayers.cs` | `ui/popup/layers.py`: `float_reach`, `card_shadows`, `card_radius`, `stamp_shadows`, `cut_card`, `_over`, `still_pad`, `card_still`, `update` (UpdateLayeredWindowIndirect), `CardLayers` | the still and the shadow picture below |
+
+`pixels/<view>/<locale>/<scale>/<look>-<lone>` (192 cases): the reference's own `Renderer` and fonts (UI face pinned as
+`make_screenshots.pinned_face`, the system colours a fixed table) and the C#'s draw the popup offscreen, en/ko/ar, six
+views + the four other special days, 1.25/1.5/2.0, all twelve looks for the picture view: a whole frame, the light alone
+(`draw_halo`), the day alone, a frame with a hover, a focus, a glide and a face part way, a press, the seventh press's sweep,
+and (lone) `card_still` and `CardLayers.shade`'s picture - each step's pixels by SHA-256 and `halo_rows`; the plan the
+real fonts laid out; 0 GDI+ objects left after `Dispose`. **All equal.** Mutations (each alone, restored, each fails):
+the glow's near stop alpha, `DT_RTLREADING` for a left-to-right name, the sweep's arc width, `_seal`'s last pixel, the
+mirrored knob, the shadow cut's `== 0xFF`; days: `_drift`'s 24; bidi: the run search's `<=`. (`originY` for seollal
+from the top is an equivalent mutation: `bottom - 66 * unit` is `top`.)
+
+**Then (the same seat, the same day)** - every surface's drawing is now in C#, each held byte for byte offscreen:
+
+| C# | Python | Held by |
+|---|---|---|
+| `SurfaceDrawn.cs` (partial `SurfaceRenderer`) | `MenuRenderer` (`menu_layout`, `draw_menu`, `_menu_words`) and `TipRenderer`'s drawing (`tip_layout`, `draw_tip`, `draw_tip_light`, `_opaque_words`, `tip_day`) | `drawn/menu/...` and `drawn/tip/...` (216 cases): the comparison-A menus and tips at 1.25/2.0 in en/ko/ar x 4 looks, the menu at four selections, the tip whole and two frames of its light; 0 objects left |
+| `CardWindow.cs` | `ui/card/card.py`'s `Card` (`NoticeCard`: `_draw_card`, `_draw_light`, `redraw`, `breathe`, `_paint_body` scaled, `_paint_shadow`, `_cut_under_body`, `paint`, `present`, `hit`, `close`; its windows made through `ICardHost`, the stack's class), `ui/card/surfaces.py` (`CardLayer`, `CardSurface`, `CardImage`; `_CardRenderer._halo` is the popup's own rule), `notice_card.corner_coverage`/`_round_corner`/`_squircle_corner`/`premultiply` (`CardCorner`) | `cards/...` (37 cases): `make_screenshots`' settled card offscreen (`windows=False`) at 144/192 dpi, a text size, a special day, en/ko/ar x 4 looks - the entrance part way (scaled body, shallower shadow), settled, a breath, a hover redrawn, a breath by the stack's rule, each layer by digest, the frame keys; the corner at 15 radius/smoothing pairs |
+| `TrayMotion.cs` | `IconFrames(look)`: the day's body, `_mark_cover`/`_marked` from `MOTIF_LEAST` | `icon/<look>` x 5 at 16/24/32/48 px |
+
+`SurfaceShadowImage.StampOn(graphics, ...)` is the stamp for any GDI+ graphics (the card's layers stamp through
+`CardSurface`). Mutations added (each fails): the menu's raised pill without its lift, `premultiply`'s `+127`, the
+squircle corner's `- 0.125`, the head-over-mark test. `tests/rustdiff/rediff_host_surface.py --reference v0.6.26` now
+also watches `ui/popup/light.py gdiplus.py elevation.py layers.py ui/card/surfaces.py`: exact (21 tests). `make_gui.ps1` on
+`git archive` trees of `b1761926b` and of this head, both editions: every `.exe` byte-identical (`ec1ae342...`,
+`101f257d...`, `382bbb9c...`, as in S6.0's record).
+
+**Left, in this order (nothing of it started):** the windows with a message loop - `PopupWindow.cs`/`PopupMessages.cs`
+(`window.py`, `messages.py`, `hidden.py`, layers' `PopupCard` half; `SurfaceLayers`' `CardLayers` and `Update` are ready),
+`MenuWindow.cs` (`menuwindow.Menu`; its drawing is `DrawMenu`), `TipCard.cs` (`tipcard.TipCard`, `tip_place`/`tip_screen`/
+`tip_away`; its drawing is `DrawTip`), `TrayWords.cs`, `CardStack.cs` (`ui/card/stack.py`, implementing `ICardHost`),
+`TrayIcon.cs`, `TrayMenu.cs`, `TrayPlace.cs`, `SurfaceAccess.cs` (MSAA); the probe mode (`--probe <job>`); the class
+implementing `ISurfaces`; then items 3-4 (the live-path proof, each window's own paint against the render mode's bytes;
+the retargets of `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions, which need the render
+mode to write each frame's BGRA, not only its digest - not started, not run). Item 5 is done (above).
+
+### S6.3 fourth part (seat S6.3c, 2026-11-26): the bidi table at Unicode 16.0.0, and the first windows
+
+**Step 0, done.** `tests/surfacebidi.py` now runs itself under the bundled CPython 3.14.10 (`refpython.command(...,
+which="bundled")`, always bundled whatever `--reference-python` says, as the other Unicode generators are), refuses a
+runtime whose `unicodedata` is not `UNICODE = "16.0.0"` (exit 2), and `--check` refuses a file that names another stamp or
+differs (exit 1). `gui/SurfaceBidi.cs` is regenerated at 16.0.0. comparison A's `bidi/all` takes its expected answers from
+the same runtime (`surfacebidi.first_strong`), not from the test's interpreter: 27 of its sampled code points read
+differently at 15.1.0, so the case now proves the 16.0.0 table. `SurfaceSourceTests` runs `--check` (no skip any more).
+AUDIT-v0628's S6.3b bidi line says what is true now.
+
+**Step 1, begun** - three of the windows' files, each held exact by a new module, `tests/test_surface_windows.py` (standard
+lane, in-box csc, one compile, ~30 s; 3 tests, all exact):
+
+| C# (`[surface]`) | Python ported | Held by |
+|---|---|---|
+| `TrayWords.cs` | `ui/tray/words.py` whole (`tooltip_parts`, `tooltip` with the v0.6.26 N1 cut, `tooltip_joined`, `meter_rows`, `meter_line`) + `ui/words.py`'s `countdown`, `share`, `left`, `window_name`; lengths and cuts by code point | `traywords/`: 22 catalogs + 4 odd ones x 20 snapshots x 4 editions, and 14 countdowns (2,094 cases) |
+| `TrayPlace.cs` | `tray_place.py` whole: `IconPlacement` over `ICurrentUserKeys` (the real one is `Registry.CurrentUser`, read only, REG_DWORD unsigned and REG_EXPAND_SZ unexpanded as winreg gives them), `overflow_open` over `IOverflowWindows`, `battery_saver`, `known_folder`, `process_image`, `_same_path` (ntpath `splitroot`/`normpath` and `normcase` through `LCMapStringEx`, as CPython calls it) | `trayplace/` (16 cases): 15 runs of registry states and clock readings, 22 paths, 12 flyout window sets |
+| `TipCard.cs` | `ui/tray/tipcard.py`'s window half: `tip_light` (+ `model.snapshot_activity`), `tip_place`, `tip_away`, `tip_pointer`, `tip_screen`, `TipCard` (create, destroy, show, hide at once or fading, tick, the backstop's watch, `_lay` with the text-size fit, frame, render, the light's band, fade in/out, gone, the window procedure); `brand.day_look_at` | `tipwindow/` (17 runs): the reference's own `TipCard` driven by a script (its user32 window calls stood in, nothing shown) and the C#'s over a window made and **never shown** (`OnScreen = false`), messages sent to its procedure: after each of 70 steps shown/alpha/fade/frame timer/place/size/text/picture digest and the answers to WM_MOUSEACTIVATE and WM_NCHITTEST; and the **live-path proof** (step 3) for the card: its own `Render()` == the render mode's `DrawTip` for the same parts and frame == the reference's, byte for byte, 0 GDI+ objects left |
+
+`SurfaceRender` is now `partial`: the windows' cases are in `gui/SurfaceRenderWindows.cs` (`tray_words`, `tray_place`,
+`tip_window`; a case it does not know falls through to "no surface"). Mutations (each alone, restored, each fails):
+`TipChars` 127, the meter's `<= LOW_LEFT` as `<`, the cut's row-first order, the strip's U+202F; `LOOK_AGAIN_S` 29, the
+promoted entries' `or`, the flyout's 16-window bound, normpath's `..` at the root, a bool UID; `TIP_AWAY_S` 0.9,
+`MA_NOACTIVATE`, the fade-out from the alpha it left at, the zero-alpha hide, the light held by `reduced` alone, the fit's
+`> 1.0`. `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions: every `.exe` byte-identical
+(`ec1ae342...`, `101f257d...`, `382bbb9c...`). `rediff_host_surface.py` now also watches `ui/tray/words.py`,
+`ui/words.py`, `tray_place.py` and runs `test_surface_windows`.
+
+Seams this part leaves (the main session's, not decided here): the tip card's content carries the catalog's `Locale` and
+`Letters` (the host has no `locale_of` and no catalogs - AUDIT line); the icon's words read the snapshot's numbers as
+doubles (the window's `Json`), so a whole float reads as an int (AUDIT line). `TipCard.Accessible` and
+`SurfaceAccessHooks.Disconnecting` are the hooks `SurfaceAccess.cs` fills (null until then: Windows answers WM_GETOBJECT).
+
+**Left, in this order (nothing of it started):** the rest of step 1 - `PopupWindow.cs`/`PopupMessages.cs` (`window.py`,
+`messages.py`, `hidden.py`, layers' `PopupCard` half; it needs the popup's model as the host gets it - `PopupModel.view`,
+rows/status, `perform` posting `popup` actions - a seam to settle first), `MenuWindow.cs` (`menuwindow.Menu`),
+`CardStack.cs` (`ui/card/stack.py` + `ui/card/win32.py`, implementing `ICardHost`), `TrayIcon.cs`, `TrayMenu.cs`,
+`SurfaceAccess.cs` (MSAA, then TipCard's hooks); each the way `TipCard` is held: the reference driven with its window
+calls stood in, the C# over a window never shown, the same script, state and digests after each step. Then step 2 (the
+probe mode as the host's own entry - today the probe is the render mode's `*_window` cases - and the class implementing
+`ISurfaces`), step 3 for the popup, menu and card windows, step 4 (BGRA frames; the retargets, not run). Step 5 is done
+for this head (above).
+
+### S6.3 fifth part (seat S6.3d, 2026-11-26): the decided seam, and the popup, menu and card windows
+
+**The contract change (the main session's decision, DECISIONS.md "The popup's model at the host boundary"), done.**
+car-host `abi.rs`: `EventKind::fields` gives `snapshot` `[snapshot, popup]` and `strings` `[strings, locale, letters]`;
+`Event::Snapshot`/`Event::Strings` carry and write them in that order (an abi unit test writes both). `gui/ISurfaces.cs`:
+`ISurfaces.Snapshot(SnapshotEvent)` and `Strings(StringsEvent)`, whose properties `test_host_contract` holds to abi.rs's
+fields (13 tests). Nothing else in the tables moved. `gui/ISurfaces.cs` is now the `[contract]` group of `gui/host.sources`
+(the surfaces post through `IHostActions` and will implement `ISurfaces`); the comparisons compile `[contract]` first.
+
+**The popup field's shape** (what the core must put in `snapshot.popup`; the host draws from it and computes nothing):
+`{"view": PopupModel.view(now), "menus": [[interruption id, PopupModel.menu_for(id)], ...], "read": <the first read is
+done>, "attention": PopupModel.attention()}`. `read` false makes a first opening wait up to 300 ms (FIRST_READ_WAIT_MS) for
+a snapshot whose `read` is true, as `show` waited for its first read. A click posts `popup {call, args}` with `args` the
+action's own fields after its kind (`["recovery", id, thread, enabled]` -> `set_interruption_recovery` with
+`[id, thread, enabled]`; postpone/unpostpone/release/tier/project/unsay alike; the core rebuilds `(kind, *args)` and runs
+`perform` with the popup's own pending source); the Dashboard's two post `open_dashboard {page: "pending", row: null |
+[dialog, id, thread]}`. Until the first snapshot after the core's answer the window shows the action as under way itself
+(begin's busy: a task's `busy`, `toggle_busy`), as the reference's model does from the click to its outcome; the core's
+own `begin` refuses a second one. The `strings` event's locale/letters are the popup's and the menu's; `Start` has the
+catalog but no locale: until the first `strings` event the surfaces use "en" and no letters (a seam: the core sends
+`strings` right after `surfaces`, or the main session adds the two to `surfaces`).
+
+**The notice event's shape** (CardStack.Show): `{"id", "key", "title", "stays", "view": notice_card.view(notice),
+"letters"}`; a button or the card's face posts `notice_action {uri}`, an ended notice `notice_complete {id, shown}`, each on
+a worker thread.
+
+| C# (`[surface]`) | Python ported | Held by |
+|---|---|---|
+| `SurfaceScreen.cs` | every call by which a window reaches the screen (show, place, fade, `UpdateLayeredWindow(Indirect)`, focus, foreground, timers, posts, DWM, region, class style, TrackMouseEvent, GetKeyState): Windows' on a live host; in the probe a record in the reference's words, not made, and the posts queued for the script. `SurfaceLayers.Update`, `CardLayers.Show/Hide` and `CardLayer.Push` go through it | the records below |
+| `PopupWindow.cs` + `PopupMessages.cs` | `ui/popup/window.py` (`Popup`), `messages.py` (`PopupMessages`), `hidden.py`, `layers.py`'s `PopupCard`; model.py's `select_action`, `busy_key`, `action_for`/`menu_for`/`begin` over the drawn view | `popupwindow/` (7 runs) |
+| `MenuWindow.cs` | `ui/popup/menuwindow.py`'s `Menu` (its drawing was `DrawMenu`): open/close/dismiss, fade in/out, keys, letters, pointer, rest timer, submenus; implements the popup's `IRowMenu` | `menuwindow/` (5 runs) |
+| `CardStack.cs` | `ui/card/stack.py` (`CardStack`, implements `ICardHost`) + `ui/card/win32.py`'s `screen`, `look`, `focus_snapshot`, `taskbar_corner`, `focus_line`, `hold` (SPI_GETMESSAGEDURATION) | `cardstack/` (4 runs) |
+
+How they are held (`tests/test_surface_windows.py`, now 6 tests, ~40 s, all exact): the reference's `Popup` and `Menu` are
+driven by a script with every user32 call that would make, show, place, fade, upload or time a window answered by a
+stand-in that records it in the same words `SurfaceScreen` records (`layers.update` too), their clocks, threads and the
+look questions fixed; the C# runs the same script over windows made and never shown. The popup's core half is the
+reference's own `PopupModel`: its view after each answer the reference took is handed to the C# as that snapshot (a
+read's result one snapshot, an action's its answer then a snapshot), and the action the reference performed is compared
+with what the C# posted (`popup {call, args}`, `open_dashboard`). After every step: shown, opening alpha and rise, home,
+frame timer, waiting, hover/press/focus, size, painted plan, the picture's digest and the calls in order; the menu's and
+its submenu's likewise, what was chosen and who was told it closed. `popupwindow/` 7 runs x 125 steps, `menuwindow/` 5 runs
+x 63 steps, `cardstack/` 4 runs x 44 steps (six notices: a replacement about the same
+conversation, a fourth pushing out, one that stays, hover, a press, a button, the face, a right click, the focus asked
+again and its log line, the end; each card's phase, place, edge and marks, the posts); the popup's live-path proof (step 3) three times a run: its own `Render()` == a fresh renderer's `Draw` of
+the same view, plan and frame == the reference's `render()`; 0 GDI+ objects left. Mutations (each alone, restored, each
+fails): click-away 0.5 -> 0.1 s, the opening's rise xs + 1, the begun action's busy not drawn, WM_POPUP_PAINT pushing when
+nothing is owed, the menu telling its owner it left when the focus went back to it, the menu's fade frame 16 -> 17 ms,
+the stack not seeing a notice about the same conversation, FOCUS_AFTER 0.6 s. Not caught: the fourth card kept past
+MAX_CARDS - in these runs the work area has room for three cards only, so the room rule retires it the same way.
+Found on the way: the snapshot must bring an open popup up to date whatever changed (the reference's read result always
+does), and the posted strings message must not draw the old view in the new words (AUDIT lines).
+
+**Left, in this order:** `TrayIcon.cs` (`ui/tray/icon.py`, `win32.py`, `clicks.py`, `cards.py`, `__init__.py`, `animation.py`) and `TrayMenu.cs`
+(`ui/tray/menu.py`: `menu_items`, the drawn menu through `MenuWindow`, Windows' own as the fallback, `_act` posting
+`toggle`/`stop`/`open_dashboard`/`disarm_power`); `SurfaceAccess.cs` (`ui/popup/access.py`: MSAA, then the hooks already
+in place - `TipCard.Accessible`, `PopupWindow.Accessible`/`Speaking`/`Spoken`, `MenuWindow.Accessible`/`Speaking`/
+`Telling`, `SurfaceAccessHooks.Disconnecting`); step 2 (the probe mode as the host's own entry; the class implementing
+`ISurfaces` over TrayIcon, PopupWindow, MenuWindow, TipCard and CardStack); step 3's live-path proof for the menu and card
+windows (the popup's is in `popupwindow/`: its own `Render()` against a fresh renderer's `Draw` of the same view and plan);
+step 4 (BGRA frames; the retargets, not run); step 5 (one `make_gui.ps1` at the end).
+
+### S6.3 sixth part (seat S6.3e, 2026-11-26): the surfaces event's locale, the icon, its menu and MSAA
+
+**The addendum (DECISIONS.md, "The popup's model at the host boundary", ~22:30), done.** car-host `abi.rs`:
+`EventKind::fields` gives `surfaces` `[icon, strings, settings, edition, demo, locale, letters]` and `Surfaces` carries and
+writes the two (the abi unit test writes them); `gui/ISurfaces.cs`'s `SurfacesEvent` has `Locale` and `Letters` before the
+pump's `Actions`; `test_host_contract` holds both, and names the seven fields. So the first frame is drawn in the catalog's
+language: nothing falls back to "en" before the first `strings` event once the class that implements `ISurfaces` reads
+`SurfacesEvent.Locale`/`Letters` (step 2 below).
+
+| C# (`[surface]`) | Python ported | Held by |
+|---|---|---|
+| `TrayIcon.cs` | `ui/tray/icon.py` (`Tray`: the hidden top-level window, `Shell_NotifyIconW` add/modify/version/delete, the tooltip card's rules - `_tip_shows`, the shell's silence timed by `TIMER_TIP`, the fallback to Windows' tooltip and back -, `TaskbarCreated`, `WM_WTSSESSION_CHANGE`, `WM_CLOSE`/`WM_DESTROY`), `win32.py`, `clicks.py`, `cards.py`, `animation.py` (the frame table built off the thread and its budget, `_observe`, `_frame_for`, `_sync_motion`, the day's look), the demo event | `trayicon/` (3 runs) |
+| `TrayMenu.cs` | `ui/tray/menu.py` whole: `menu_items`, `menu_app_mode`, `prefer_app_mode` (uxtheme by ordinal, the build read with `RtlGetVersion`), the drawn menu first, Windows' own as the fallback, `_act`, `_power_armed`, `_theme_menu` | `trayicon/` |
+| `SurfaceRenderTray.cs` | the probe's `tray_icon` case | |
+| `SurfaceAccess.cs` | `ui/popup/access.py` whole: `accessible_items`, `switch_name`, `pick`, `changes`; `PopupAccessible` as a vtable built by hand (the reference's three interfaces only, never freed while its window lives, E_FAIL for an exception), `MenuAccessible`, tipcard.py's `TipAccessible`; `answer`, `disconnect`, `tell`, `announce`; `Attach(...)` fills the windows' hooks | `popupwindow/` (each step's `a11y`: the children, the child each centre picks, the events since the step before, and the object's name/value/description/default action/role/state/navigation for every child and one past them, through the vtable's own slots), exact |
+
+**How the icon is held** (`tests/test_surface_windows.py`, 7 tests): the reference's `Tray` is driven by a script - made,
+ticked, its frames built (the building thread queued and run by the script, its budget clock fixed), a frame timer, three
+pointer visits with no word from the shell (the fallback to Windows' tooltip), the word (`NIN_POPUPOPEN`) and the card,
+a failure unseen (red, turning), a click (the popup made, `failure_seen` posted), the popup open with its attention, the
+menu drawn and a choice (`toggle`), the drawn menu refused (Windows' menu, `disarm_power`; then Open the popup), a
+double click, mouse downs, a broken popup, the session locked/unlocked/away/back, High Contrast, Reduce motion, battery
+saver, the overflow flyout, no icon rectangle, the demo signalled, a new language, `TaskbarCreated`, the end; a second
+script under a shell that refuses version 4 (the old messages) with no icon file and a menu that cannot be made - with
+every user32/shell32/wtsapi32 call recorded by a stand-in in the words `SurfaceScreen` records and not made, and the
+popup, tip, drawn menu and cards stood in by recorders; the C# runs the same script over a window made and **never
+shown**, no icon ever added to the notification area. After every step: version 4, unseen failure/sending, the icon's
+state, motion allowed, the frame timer, the frame key, the icon shown, the tooltip held, the tip's word/visits/fallback,
+the session, the menu's mode, the calls in order, what the stand-ins were asked, what was posted to the core, the log.
+3 runs (two scripts), exact. Mutations (each alone, restored): `TipSilentVisits` 3, the failure seen without its
+refresh (caught once the script waited 0.3 s before the click), `TaskbarCreated` without the version asked again, the
+lock ignoring a disconnected session: each fails; `PopupCanOpen` ignoring a broken popup was not caught by the first
+script, which then gained a right click after the popup broke. The MSAA object's answers are read in the probe through
+the same slots a screen reader calls (`AccessObject.Walk`); in the reference the harness's core model takes a new
+catalog at once, so its walk reads the catalog the window last drew with, as the reference's own `_rebuild` hands it.
+
+**The host boundary, as the icon meets it** (seams for S6.1/S6.2b; not decided here, the main session's):
+
+* What the reference asked its control layer the core answers: `TrayIcon.FailureUnseen`/`UnconfirmedUnseen` read the
+  snapshot's `failure_unseen`/`unconfirmed_unseen` (`control.failure_unseen(marks) is True`, which the reference asked
+  every second; the core would compute it on the tick it sends the snapshot), `PowerArmed` reads `power_armed` (the
+  `armed` of `control.power_view()`). Three keys in the snapshot's value, no new field in the table.
+* A failure seen posts `failure_seen`; the reference refreshed at once with a fresh answer, the host refreshes with the
+  snapshot it has until the core's next one (the next snapshot after the post brings the change).
+* The stored settings the icon read for itself on each opening and each motion tick (`StoredMixin`): the core's
+  `settings`/`strings` events; `AdoptSettings`/`AdoptReduceMotion` do nothing on the live host.
+* The demo event: `DemoName` must be the event's object name (car-platform's `watcher_names(state_dir).demo`); the
+  table has no action for a signalled demo (`OnDemo` is null, so no event is made, as the reference makes none without
+  `on_demo`). Either the core watches the event itself and sends `demo`, or a `demo` action is added.
+* Where the reference's own loop ended (`PostQuitMessage` in `WM_DESTROY`) the icon calls `Ended`; the surfaces' class
+  posts `closed` there. The cards' attach/detach are posted as `cards_attached`/`cards_detached` where the reference's
+  CardStack attached to and left the inbox.
+
+**Step 2, done.** `gui/HostSurfaces.cs` implements `ISurfaces`: `Start` builds the `TrayIcon` from the `surfaces` event (its
+catalog, `Locale` and `Letters` - the first frame in that language -, the adopted look, the edition, the demo's name),
+posts `tray_started` once it is up (nothing when it cannot be made, see the seams); `Snapshot` hands the icon its
+snapshot and the popup its view, `Strings` the catalog with its locale and letters, `Settings` the look (the popup's
+`FollowSettings`), `Notice`/`Demo` a card to the stack the icon hosts, `Close` the icon's `WM_CLOSE`; the icon's end posts
+`closed`, once. The icon makes its popup, drawn menu, tip and cards as the reference makes them and fills their MSAA
+hooks (`SurfaceAccess.Attach`). The probe is the host's own entry: `SurfaceRender.Probe(args)` answers
+`--probe <job> [<answer>]` (null otherwise; S6.2b's `Main` asks it beside `Run()` before any DLL loads). Held by
+`hostsurfaces/` in `test_surface_windows` (8 tests, exact): started in Korean, a snapshot, a tick, English, a tick, close -
+the shell told the reference's `tooltip` words in each language, `cards_attached`, `tray_started`, `cards_detached`,
+`closed` (mutation: a `Start` that drops the event's catalog fails it).
+
+**Step 5, done for this head.** `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions:
+every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`); `gui/window.sources`, the files it lists and
+`build/make_gui.ps1` have no diff from the base.
+
+**Checks:** the GUI set (24 modules, one at a time through `gui_lock.sh`): OK, but `test_gui_v065_controls` - its GUID
+rule found `SurfaceAccess.cs`' interface ids spelled as text (now built from their parts, as access.py builds them) and
+its UI Automation focus test failed beside the set; alone under `quiet.sh` all 26 pass. Gates in `rust/` and
+`advanced/rust/` (fmt, clippy -D warnings, test, deny), `check_groundwork.py`, `check_rebuild.sh`: all pass.
+
+**Left, in this order (nothing of it started):** step 3's live-path proof for the menu and card windows (each window's
+own paint into its buffer against the render mode's bytes, as `popupwindow/` and `tipwindow/` hold theirs); step 4 (the
+render mode writes BGRA frames; retarget `build/motion_{popup,tip,card}.py` and `make_screenshots.py`'s surface functions
+to it, not run); then step 5 once more at the end.
+
+### S6.3 seventh part (seat S6.3f, 2026-11-27): the live-path proofs, the render mode's pictures, the retargets
+
+**Step 3, done.** `menuwindow/` and `cardstack/` in `test_surface_windows` gained `["proof"]` steps: the drawn menu (and
+its submenu) by its own `Render()` against a fresh renderer's `MenuLayout` + `DrawMenu` of the same entries, scale,
+language, work area and item in hand; each notification card's two windows as its own `Paint(now)` draws them against a
+card made offscreen (`windows=false`) from the same notice, born when it was, with its hover, press and last breath
+(`NoticeCard.Breathed`), painted for the live card's frame (`NoticeCard.PaintLayers`, which `Paint` now calls - the same
+calls in the same order). Both answer `[window digest, render digest, plans equal]`, against the reference's own
+`menu.render()` and its card driven the same way (where each card proof must hold in the reference itself). Mutations
+(each alone, restored, each fails): `DrawMenu` without the item in hand, the card's hover not carried, its last breath not
+carried.
+
+**Step 4, done (not run).** `gui/SurfaceRenderServe.cs`: a render-mode job with `"serve": true` answers one call per line
+on standard input/output (the reference renderers' own calls; see its header) and writes every picture to the job's
+`frames` folder as raw premultiplied BGRA with its digest. `NoticeCard.Born`/`Motion` are settable, as motion_card sets
+a card's. `build/surface_render.py` runs it (a built host named by `CODEX_AR_SURFACE_EXE`, or the `[contract]`,
+`[surface]` and `[generated]` files compiled once behind `SurfaceRender.Run() ?? 2`) and hands the makers stand-ins:
+`Renderer` (popup and tip: `layout`, `tip_layout`, `draw`, `draw_halo`, `draw_tip`, `draw_tip_light`, `face_colours`,
+`canvas.pixels()`, `card_still`, the look as attributes) and `Card` (`paint`, `body`/`shadow.pixels()`, `redraw`,
+`_draw_light`, `light_band`, `edge`, `follow` for the motion, every frame checked against the reference's motion). The
+retargets: `motion_popup.PopupFrames`, `motion_tip.TipFrames`, `motion_card.CardFrames` take `render=`; `make_motion.make`
+hands them one session when `CODEX_AR_SURFACE_RENDER` is set; `make_screenshots.render_popup`, `popup_picture` and
+`_SettledCard` draw through `surface_session()` likewise. Without the variable nothing changes. Held by
+`tests/test_surface_render_retarget.py` (4 tests; mutation: `draw`'s hover dropped fails it). Found on the way:
+`tests/test_surface_windows.py` spelled two known-folder ids as text, which `test_repo_hygiene`'s UUID rule refused
+(S6.3c); they are built from their parts now.
+
+**Step 5, done for this head**: `make_gui.ps1` on `git archive` trees of `b1761926b` and of this head, both editions:
+every `.exe` byte-identical (`ec1ae342...`, `101f257d...`, `382bbb9c...`); `gui/window.sources`, its files and
+`build/make_gui.ps1` have no diff from the base. `rediff_host_surface.py` now also watches `ui/tray/icon.py`, `menu.py`,
+`animation.py`, `clicks.py`, `cards.py`, `win32.py`, `__init__.py` and `ui/popup/access.py`: exact against v0.6.26 (29
+tests; only `ui/popup/model.py` differs from the tag, as before).

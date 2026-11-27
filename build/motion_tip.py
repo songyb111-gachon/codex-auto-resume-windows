@@ -31,11 +31,12 @@ class TipFrames:
     """One hover card, for one picture: `drawn(frame)` is the card at the frame's moment, or None while it is not on screen.
 
     `work` and `monitor` are the canvas's work area and whole screen, (left, top, right, bottom) in its pixels, and `box`
-    the icon's rectangle the card stands beside; `scale` its size (2.0 beside a popup pictured at 200 %). Close it when
-    done: the renderer holds GDI+ objects."""
+    the icon's rectangle the card stands beside; `scale` its size (2.0 beside a popup pictured at 200 %). `render`, a
+    build/surface_render.py session, draws it through the host's render mode instead of the reference's renderer, with
+    the same calls. Close it when done: the renderer holds GDI+ objects."""
 
     def __init__(self, locale: str, *, scale: float, work, monitor, box, theme: str = "light",
-                 design: str | None = None):
+                 design: str | None = None, render=None):
         import make_screenshots as shots
         from codex_auto_resume import brand, interface
         from codex_auto_resume.ui import popup as tray_popup
@@ -46,7 +47,7 @@ class TipFrames:
         self.scale = scale
         self.design = design or brand.DEFAULT_DESIGN
         self.work, self.monitor, self.box = tuple(work), tuple(monitor), tuple(box)
-        self.renderer = tipcard.TipRenderer()
+        self.renderer = render.renderer() if render is not None else tipcard.TipRenderer()
         self.renderer.theme, self.renderer.design, self.renderer.contrast = theme, self.design, False
         self._plans = {}
         self._held = None                     # the reading whose ground the renderer's canvas holds, or None

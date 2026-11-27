@@ -178,6 +178,24 @@ class SurfaceTests(unittest.TestCase):
         fields = rust_fields(read(ABI), "EventKind", "Surfaces")
         # Every field of the wire, in order, and the pump's own Actions after them.
         self.assertEqual(properties, [field.capitalize() for field in fields] + ["Actions"])
+        # DECISIONS.md's addendum: the surfaces event carries the catalog's locale and letters, so the first frame is
+        # drawn in that language (no "en" before the first strings event).
+        self.assertEqual(fields, ["icon", "strings", "settings", "edition", "demo", "locale", "letters"])
+
+    def test_the_snapshot_and_strings_events_carry_abi_rs_fields(self):
+        # DECISIONS.md, "The popup's model at the host boundary": the snapshot carries the popup's ready view, the
+        # strings their locale and letters; ISurfaces takes each event's class, its properties the wire's fields.
+        surfaces = read(SURFACES)
+        for owner, variant, method in (("SnapshotEvent", "Snapshot", "Snapshot"),
+                                       ("StringsEvent", "Strings", "Strings")):
+            with self.subTest(owner):
+                body = re.search(r"internal sealed class %s\s*\{(.*?)\n    \}" % owner, surfaces, re.S).group(1)
+                properties = re.findall(r"internal [\w<>, ]+ (\w+) \{ get; set; \}", body)
+                fields = rust_fields(read(ABI), "EventKind", variant)
+                self.assertEqual(properties, [field.capitalize() for field in fields])
+                self.assertIn("void %s(%s %s);" % (method, owner, variant.lower()), surfaces)
+        self.assertEqual(rust_fields(read(ABI), "EventKind", "Snapshot"), ["snapshot", "popup"])
+        self.assertEqual(rust_fields(read(ABI), "EventKind", "Strings"), ["strings", "locale", "letters"])
 
 
 class BuildTests(unittest.TestCase):
