@@ -3644,3 +3644,102 @@ after the clippy fix, its paths re-diffed            wake, anchor pure, anchor c
 privacy_scan.py on every file added                  clean
 Python (standard lane, wait_quiet.sh)                 test_repo_hygiene test_privacy_bare_hosts test_privacy_claims test_no_console_windows: Ran 50, OK
 ```
+
+## Integration 10 (branch `car-v0627-rust`, 2026-11-27)
+
+Six branches merged with `git merge --no-ff`, both sides kept, in this order; then one commit per step.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `46c8fdb20` | car-v0627-s72a `694216d34` | S7.2a's skeleton, the plug's two halves, P2's records, P12's pool, P11 inside the claim, the launch guards, the advanced proxy (advserve, `tests/rustdiff/advproxy/`) |
+| `becc889b9` | car-v0627-s73b `c610f41c1` | S7.3b: the courier and the remote reach (WinHTTP, Schannel, the hand-written server) |
+| `cb09e44e8` | car-v0627-s72b `55cfaef03` | S7.2b: the saved accounts, the account switch, its Windows acts |
+| `1f3aa982c` | car-v0627-s72d `b3fb850db` | S7.2d: the usage meter, the wrap-up, the forced stop |
+| `402b6a221` | car-v0627-s72e1 `a8469f3b1` | S7.2e1/e1b: the engine's capabilities for sends and turns |
+| `33614be47` | car-v0627-s72e2 `25c353ad3` | S7.2e2: time, fleet, the weekly look |
+
+Conflicts: `rust/GROUNDWORK.md` alone, in every merge (each seat's sections appended in merge order; where two copies of one
+section differed, the newer one - Integration 9's Integration 8 section, s72a's finished S7.2a section - was kept). No P7
+seat builds a car-control `Control`, so nothing needed Integration 9's `Arc<Guarded>`.
+
+### The bundled 3.14.10 for every advanced family (`a779234d3`)
+
+The P7 families (`advaccount`, `advusage`, `advturns`, `advtime`, `advcourier`, `advplug`, `advreport`, `advhook`, `advcodex`)
+start the reference through `advref.run` / `refpython.command`, which Integration 9 routed; `test_rustdiff_script_command`
+now holds each of their files. The advanced proxy's two lanes (`advproxy/ledger.py --run`) run scripts/test_parts.py's worker
+through `refpython.script_command` on the reference's Python (bundled by default, `--reference-python`); a bare `--run` runs
+every GREEN and ready file and prints the GREEN count. `core.build_rest` builds `advserve`, `advcourier`, `advaccount`,
+`advusage`, `advturns` and `advtime` with the other examples.
+
+### No reference run reaches this PC's Codex (`fdb1aadba`, `c68c34f4a`; `tests/rustdiff/refguard.py`)
+
+Every process `refpython.command` / `script_command` starts (so `reference.run`, `advref.run`, `popen`), on any runtime, and
+tests/released.py's `run`, runs refguard's program before the script: `win.kernel.processes_named`, `process_identity`,
+`package_roots` and `win.inventory.resource_users` - and every module's binding of them - and the advanced
+`codex.inuse.backend` refuse with the tag's AdapterError; `CODEX_AUTO_RESUME_CODEX_EXE` points where no codex.exe is
+(`reference.scratch_environment` sets it for both sides over whatever the runner inherited); no codex program starts from
+outside the temporary folder (`subprocess.Popen` refuses it). A stand-in a script sets wins. Two named ways out:
+`live-processes` (platform_live_diffs alone: the lookups are the tag's, the rest stays) and `discovery` (the files of
+`refguard.DISCOVERY_SUBJECTS` alone - `tests/rustdiff/advcodex.py` - through `refguard.discovery_environment`: every home and
+program-files root inside the scratch tree, PATH Windows' own folders, checked before the script (exit 97); the real
+`inuse.backend`, no engine path, the lookups still the script's stand-ins; whatever `config.discover_codex_exe` finds and
+whatever codex starts must lie inside the tree). The proxy's lanes are test lanes with tests/no_real_codex.py (`guard=False`).
+`tests/test_rustdiff_refguard.py` (16 tests) holds all of it on the system and bundled Pythons, a planted real-looking engine
+outside the tree included. Mutation checks: 7 of 7 (resource_users not refused, inuse left alone, the runner's engine path
+inherited, an early stand-in refused, an installed interpreter without the boot, released.run without it, the live variable
+lifting inuse) and 4 of 4 (an engine outside the tree handed back, the Popen door open, a home off the tree unchecked,
+package_roots not refused). The first full run went red on `diffs_advcodex_inuse` (inuse.backend is its subject): the
+discovery opt-in above is the fix (InuseDiff 4 OK); no other family needed it.
+
+### The seams between the P7 seats (`09fc4ab32`)
+
+engine/continued and engine/resetmessage hold their bodies (moved out of `seam_p7`); the runtime's P2, emptyreply,
+keepgoing and subagent call them; the runtime reads each S7.2e1 module's `CAPABILITY`, `chat::watched`,
+`promptqueue::handed`, `foropen::watching`. engine/account counts a rule by `resetwatch::count` (the `ResetWatch` trait,
+`TagCount` and `Counter` are gone); engine/retries reads `codex::account::parse`; anchor's `ON` is `wrapwords::ON`; chat
+reads `usage::PAUSE`, emptyreply `usage::EVERY_CONVERSATION`. car-codex `pairing::own_pids()` (with a unit test) is
+`swap::Live`'s `own`. `engine::account::forget_real(state)` is what `Edges::account_forget` calls (the host's Edges, S7.3d).
+`seam_p7` keeps `OpenCodex` (S7.3a) and names the S7.4 rows. Mutation checks, 5 of 5 (debug examples, each diff run):
+own_pids empty (car-codex unit test), a reset message handed as a continuation (MessageDiff), a held rule counted from
+nothing (AccountWatchDiff), retries seeing no account kind (AdvTurnsRunsDiff), a continuation in flight sent at its claim
+first (ContinuedDiff); all green restored.
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`; reference v0.6.26 on the bundled 3.14.10; rustc 1.100.0)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+run.py --build --reference v0.6.26 --reference-python bundled -v
+                                                     Ran 448 in 8,659 s: 2 FAIL, 1 expected failure (diffs_review6's
+                                                     fresh home), no `released:` rebuild. FAIL: the two HistoryNotYet cases
+                                                     (compat_io ProbesDiff.test_source_and_api_checks, codex_homes
+                                                     HomeDiff.test_schema_variants), the final-port seat's (Integration 11).
+                                                     No red from the guard.
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0: every standard binary the same with and without advanced/,
+                                                     profile-path scan none in any .exe, .dll or .pdb
+the 15 frozen modules (test_parts --worker; CODEX_AR_CORE=rust)    456 pass on both, 0 differ (Python 239 s, Rust 236 s)
+advproxy/ledger.py --run (bare: GREEN + ready, bundled 3.14.10)    GREEN 9 of 32: the 7 GREEN files again, and two ready
+                                                     ones newly green (test_advanced_agent_thread_trigger,
+                                                     test_advanced_package: into GREEN). The 23 others are ready by their
+                                                     imports but reach S7.2b/d/e1/e2 code no table.py row forwards yet (16
+                                                     differ) or no forwarded code at all (7, calls {}): their seats' proxy
+                                                     rows are still to write.
+InuseDiff after the discovery opt-in                 Ran 4, OK
+Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit
+  test_srcscan test_stack test_layers test_structural_invariants test_rust_release test_rust_power_guard test_rust_install
+  test_rustdiff_reference_python test_review9_install test_host_contract test_python315_encoding test_rustdiff_script_command
+  test_rustdiff_refguard test_no_console_windows        Ran 233: 1 FAIL (test_python315_encoding: advledger_s72a.py's
+                                                     git ls-tree named no encoding; fixed), then test_python315_encoding
+                                                     test_repo_hygiene OK
+```
+
+### For the next seats
+
+* **Integration 11** (S6.2b3, S6.4b, the final-port, S7.4): the two HistoryNotYet reds are the final-port's. A diff whose
+  subject is core's discovery goes into `refguard.DISCOVERY_SUBJECTS` and builds its environment with
+  `refguard.discovery_environment` - nowhere else; every other reference run refuses the lookups and the engine.
+* **S7.2b/d/e1/e2's proxy rows** (Q3 (c)): `ledger.py --run` lists 23 ready files not green; each needs its module's
+  forwarders in `advproxy/table.py` (S7.2a3's how-to). `ledger.py --seat <seat>` lists what waits.
+* **S7.3a**: `seam_p7::OpenCodex` is the one edge left; **S7.3d**: the host's `Edges` calls
+  `engine::account::forget_real`, `control::hookplugin::follow_real`, and hands the runtime its state.

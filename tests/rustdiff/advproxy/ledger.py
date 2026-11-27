@@ -63,6 +63,9 @@ GREEN = {
     "test_advanced_window_switches.py": "S7.2a3 (state)",
     "test_advanced_requires.py": "S7.2a3 (runtime, arming)",
     "test_advanced_registry.py": "S7.2a3 (runtime; the registry's own rules wait for their forwarder)",
+    # Integration 10's bare --run on the bundled 3.14.10: two of the "ready" files, green through S7.2a3's rows
+    "test_advanced_agent_thread_trigger.py": "Integration 10 (runtime, state, arming)",
+    "test_advanced_package.py": "Integration 10 (runtime, state, arming)",
 }
 
 # What a run found that the imports cannot say (`--run`): the seat or the reason a file still waits for, each with

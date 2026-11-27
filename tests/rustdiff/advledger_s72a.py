@@ -100,7 +100,8 @@ def real(module: str, known: set) -> str:
 
 def ledger(tag: str) -> list:
     source = subprocess.run(["git", "ls-tree", "-r", "--name-only", tag, "advanced/src/" + PACKAGE],
-                            capture_output=True, creationflags=NO_WINDOW, check=True, text=True).stdout.split()
+                            capture_output=True, creationflags=NO_WINDOW, check=True, text=True,
+                            encoding="utf-8").stdout.split()
     known = {""}
     for path in source:
         if path.endswith(".py"):
