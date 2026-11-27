@@ -4886,3 +4886,76 @@ failed).
   `HostSourceRuleTests` with the file and line; write an if chain, `new int[n]`, `SurfaceMath.Three`/`Four`, or build a
   table once from a compact string as `gui/SurfaceBidi.cs` does. A generated source changes through its generator.
 * The window's sources are not touched; `HostSourceRuleTests` also holds them to the array rule.
+
+## Seat S6.3e: the host's seams the UI tests wait for (branch `car-v0627-s63e`, from S6.3d `cec10a859`, 2026-11-28)
+
+The S6.4 seats found host code that called Windows directly where every other surface goes through `SurfaceScreen`, so
+these Python tests could not be held on the host: `test_popup_row_menu_drawn` ParityTests' choice-versus-Windows and
+FallbackTests' three, `test_tray_tipcard` CardStateTests' hide at once and the backstop's hide count,
+`test_tray_tip_messages` ShowTests' first rest and its two LiveCardTests. Each call is now a seam; on a live host every
+one is the same Windows call it was (same arguments, same order, same DPI context).
+
+### The seams, and how a probe answers each
+
+| Seam | Live host | With `SurfaceScreen.Probe` set (the record's words) | The probe answers with |
+|---|---|---|---|
+| `SurfaceScreen.CreatePopupMenu()` | `user32.CreatePopupMenu` | `CreatePopupMenu 0x3e0` - a handle numbered from `SurfaceScreen.NextMenu` (0x3E0 up; reset it per run), never made | - |
+| `SurfaceScreen.AppendMenu(menu, flags, id, text)` | `AppendMenuW(menu, flags, id, text)` | `AppendMenuW 0x3e0 <flags> <id> <text>` (text `None` for a line, a newline as `\n`) | - |
+| `SurfaceScreen.AppendSubmenu(menu, flags, sub, text)` | `AppendMenuW(menu, flags \| MF_POPUP, sub, text)` | `AppendMenuW 0x3e0 <flags> 0x3e1 <text>`: the submenu by its handle's name, its own lines before it (the reference builds it first) | - |
+| `SurfaceScreen.TrackPopupMenu(menu, flags, x, y, hwnd)` | `TrackPopupMenu(menu, flags, x, y, 0, hwnd, NULL)` | `TrackPopupMenu 0x3e0 <flags> <x> <y> <hwnd's name>`; nothing is shown | `SurfaceScreen.MenuChoice(menu)`: the command chosen (null: 0, a click away) |
+| `SurfaceScreen.DestroyMenu(menu)` | `DestroyMenu` (its submenus go with it) | `DestroyMenu 0x3e0` | - |
+| `SurfaceScreen.Tell(hwnd, event)` | `SurfaceAccess.Tell` (= access.tell: NotifyWinEvent(event, hwnd, OBJID_CLIENT, CHILDID_SELF), nothing where it cannot be said) | `NotifyWinEvent <hwnd's name> <event>` (the words the menu probe's `Telling` writes) | - |
+| TipCard's `ShowWindow`, `SetWindowPos` (Place), `UpdateLayeredWindow` (Blit), `SetTimer`/`KillTimer` (its own and Dispose's) | `SurfaceScreen.ShowWindow`/`SetWindowPos`/`UpdateLayered`/`SetTimer`/`KillTimer`, the existing seams: the same calls | `ShowWindow tip 0`, `SetTimer tip 3 16`, `KillTimer tip 1`, ... | - |
+| `TrayIcon.MakeTipCard(content, held, log, days)` | `MakeLiveTip`: `new TipCard(content, held, log, days)`, `SurfaceAccess.Attach(card)`, as `TipSurface` | ShowTip calls it once, on the first rest, with the icon's `TipContent`, `PopupHeld`, `Log` and `Days` (icon.py: `TipCard(content=self._tip_content, held=self._popup_held, log=self.log, days=self.days)`) | the probe's own `ITrayTip`; `content.Method.Name`/`Target` tell which method it was handed |
+
+Notes for the twins:
+* `PopupWindow.ContextMenu` (private; HostProbe's popup_steps reaches it by reflection) now runs whole under the probe:
+  `ThemeMenu` (the icon's `TrayMenu.ThemeMenu` records `SetPreferredAppMode` itself), the menus, `TrackPopupMenu`,
+  `PostMessageW <hwnd> 0 0 0`, `DestroyMenu`, then the chosen action through `Begin`/`Run`. HostProbe's
+  `WindowsMenuReached` stop can go; HostPopup hands the record to the test's patched user32 as hosticon's `_windows_menu`
+  does - but the popup's lines carry the menu handle (the icon's `TrayMenu.NativeMenu` keeps its older words without one,
+  untouched, since S6.4d's hosticon parses them).
+* `TipCard.OnScreen` keeps its meaning (false: no ShowWindow on show, no Place, no Blit); with Probe set and OnScreen left
+  true every screen call is a record and none is made. `Gone`'s `ShowWindow(SW_HIDE)` and the timers are seams whatever
+  OnScreen says (they were Windows' own even with OnScreen false before). On a live host SurfaceScreen's `Name` is unused.
+* `TrayIcon.MakeTip` (no arguments) still wins where a probe sets it (SurfaceRenderTray, S6.4d3's tip_icon); a probe that
+  wants to see what the card is made with sets `MakeTipCard` and leaves `MakeTip` null.
+
+### How they are held
+
+`tests/test_host_seams.py` (new, 7 tests, a driver compiled with the host's [contract]+[surface]+[generated], run with
+CREATE_NO_WINDOW; no window shown, no menu tracked, nothing captured):
+* the row menu probed, compared call for call with the reference's `Popup._context_menu` over a recording user32
+  (test_popup_row_menu_drawn's popup): six shapes - pointer and keyboard, left to right, right to left (TPM_LAYOUTRTL |
+  TPM_RIGHTALIGN), a choice, a click away (0), a command no item has - each record and the action posted
+  (`popup {call, args}` for the action the reference ran);
+* the row menu's live calls: a real menu made, filled (commands, a line, a submenu, grayed, checked, a newline) and read
+  back by GetMenuItemCount/GetMenuItemID/GetMenuState/GetMenuStringW/GetSubMenu, destroyed with its submenu (IsMenu);
+  TrackPopupMenu's live line is pinned from the source (a tracked menu would be on the screen);
+* the tip card probed against the reference TipCard as CardStateTests drives it (hide at once, a fade out to its end, a
+  hide ending a fade on its way, no motion, the backstop hiding and keeping, a suspend, a display change): every
+  ShowWindow/SetTimer/KillTimer/NotifyWinEvent line and visible/fade after each step;
+* the tip card live over a message-only window of the driver's own: the fade's timer is Windows' after a fading hide and
+  gone at its end, ShowWindow(SW_HIDE) clears WS_VISIBLE, a WinEvent hook of its own hears EVENT_OBJECT_HIDE for
+  OBJID_CLIENT once per hide (Windows' own show/hide of the window arrive as OBJID_WINDOW and are not ours);
+* the icon makes its card once, with TipContent/PopupHeld/Log/Days, for days true and false; the live maker's TipCard
+  holds exactly those, is attached (Accessible set) and has no window yet.
+
+### Comparison A gap closed (S6.3d's survivor)
+
+`test_surface_parity`'s drawn tip cases now include the first tip case drawn with the light `idle`, `unknown` and `""`
+in every PIXEL_LOOK (High Contrast included): `SurfaceLight.StatusFill`'s default (`idle`) and `StatusSystem`'s
+(`GrayText`) are painted and compared byte for byte. `TrayMotion.BrandState`/`ForLight` were held already (the icon's
+`unknown` state and the words `""`, `None`, `"x"`); `TrayMotion.StatusFill`'s default is reached through `idle`'s head
+colour (mutation below).
+
+### notice_card.corner_coverage (item 3): resolved by S6.4f2, nothing ported
+
+Its C# counterpart is `CardCorner.Coverage` (gui/CardWindow.cs; a naming miss in S6.4f's note), held by
+test_surface_parity's `cards/corners` (5 radii x 3 smoothings, by digest) and routed by the plan proxy on
+car-v0627-s64f. Not changed here. Found on the way, for whoever owns that row next (not fixed, the coordinator's
+word): at radii no card has, the C# differs from the reference - a radius at or below -1 (size `Ceiling` < 0) throws
+OverflowException where the Python gives no rows; NaN throws OverflowException where the Python raises ValueError;
+infinity is OverflowException as the Python's OverflowError. `(int)Math.Ceiling` of a negative or NaN radius is where
+it starts; a `Size()` that mirrors `int(math.ceil())` (NaN -> ArgumentException, infinity -> OverflowException, below
+zero -> 0) made all 18 edge pairs equal in a scratch probe.
