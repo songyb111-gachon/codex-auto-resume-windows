@@ -4813,3 +4813,76 @@ The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_s74.py --refere
 * S7.3d: implement `runtime::measurement::Live` (the real session over car-codex's backend, MW's WMI chain, the hands).
 * The next S7.4 seat: port the probes above in that order, each a case family in `diffs_advmeasure.py`, and move it
   into `measure::ported()` and `advledger_s74.PORTED`.
+
+## Seat S6.3d: the C# host builds reproducibly (branch `car-v0627-s63d`, from Integration 11 `8cbcd6ac3`, 2026-11-27)
+
+Integration 11 found that `build/make_gui.ps1` compiled `CodexAutoResume.exe` and `build/normalize_pe.py` refused it: the
+in-box C# 5 compiler names a class `<PrivateImplementationDetails>{GUID}` with a fresh random GUID for (a) a string switch
+of **six or more** labels (it builds a Dictionary) and (b) a constant primitive array initializer of **three or more**
+elements (`RuntimeHelpers.InitializeArray`). Measured on this compiler (14.8.10001.0) with one-file programs: string
+switches of 5 labels build none, 6 do (stacked `case "a": case "b":` labels each count); arrays of 1 and 2 constants
+none, 3 and more do, for every primitive type tried (int, uint, long, double, float, byte, char, bool, ushort). The
+host's own `Starts` table had 1,820 of them (7,280 bytes). The window's sources had none (that is why only the host
+failed).
+
+### What was done (nothing about behaviour changes)
+
+| Commit | What |
+|---|---|
+| `3b54120c9` | Every constant array: `new int[4]` / `new int[3]` where the elements are zero (`SurfaceLayers.Nothing`, `MenuWindow.Work`, `TrayMotion`'s two), `" :  ".ToCharArray()` (TrayWords), and `SurfaceMath.Three(a, b, c)` / `Four(a, b, c, d)` (in `gui/PopupLayout.cs`, filled one element at a time) for the others: the timer lists of TipCard, PopupWindow (x2) and CardStack, the opening's `{255, 0, 1}`, MSAA's tables, the icon's rectangle in the render mode (x2). The 1,820-entry `Starts` of `gui/SurfaceBidi.cs`: the generator (`tests/surfacebidi.py`, regenerated on the bundled 3.14.10, `--check` exact) now writes the runs' first code points as a packed string (the distance from the one before, 5 bits to a base 64 character, the sixth bit set while more follow, 2,137 characters) and the C# `Unpack` builds the `int[]` once when `SurfaceBidi` is first used. `KindOf` and `FirstStrong` are the same lines. |
+| `815d30970` | Every string switch of six labels or more became an if chain by a mechanical rewrite (`==` on a string is the ordinal compare a switch does; a null falls through to the default as before; the chains that had `break` are `else if` chains): SurfaceFonts x2 (RoleBase, RoleWeight), SurfaceTheme x3 (SystemIndex, ContrastColour, Token), SurfaceDays (the motion kinds), SurfaceLight x2 (StatusFill, StatusSystem), PopupLayout.StateInk, TrayMotion x2 (ForLight, StatusFill), SurfaceRender x3 (the surface, the card-life verbs, the painter's calls), SurfaceRenderWindows, SurfaceRenderServe (the serve calls). A `string word = state as string;` is read once where the switch expression was not a name. |
+| `0c4eab0b5`, `4590ef199`, `e045d52b0` | The guards, the re-diff's build proof and the widened MSAA walk, below. |
+
+### The guards
+
+* `tests/test_reproducible.py`: `HostSourceRuleTests` reads gui/host.sources' files (`guiscan.SEPARATE` plus its
+  `[generated]`) and fails on a string switch of six labels or more and on a constant primitive array of three elements
+  or more (constants = the numbers and chars written out and the names of `const` primitives), and on the same array in
+  the window's sources; its own test shows the two readers a switch/array to refuse and ones to let through (comments,
+  an int switch, strings, a variable). `HostBuildTests` compiles the host with the real compiler twice and asserts no
+  random class, the normaliser accepts it and two builds are equal after it. `VersionResourceTests` also checks that
+  `make_gui.ps1` leaves `CodexAutoResume.exe` normalised and stamped (`gui_stamp.check(.., "standard", "host")`).
+  Run against `8cbcd6ac3`'s sources the readers find all 16 switches and 17 arrays (the base's compile showed 12 dictionaries and 13 data blocks, equal constants sharing one).
+* Three tests were stale since the host joined `make_gui.ps1` and are corrected, not weakened: `test_reproducible`'s
+  `-Description` count (2, the window and the host), `test_tooling_round2`'s `-Kind` count (2: window, host) and
+  `test_edition_build`'s `Read-SourceList` count (3: window, overlay, host).
+* `tests/rustdiff/rediff_host_surface.py --reference v0.6.26` (the re-diff) now ends with the build proof: it reruns
+  `test_surface_parity` and `test_surface_windows` against the tag's package, then `HostSourceRuleTests`,
+  `HostBuildTests` and `test_host_shape` on this checkout.
+* One probe widened: `SurfaceAccess.Walk` (the MSAA probe) and `test_surface_windows` navigate in all eight directions
+  (1 to 8), not 1, 2, 7 and 8. Elements 3 to 6 of `NavigateNext` / `NavigatePrevious` were not compared at all: a mutation
+  of `NavigateNext`'s last element passed (hollow); with the walk widened it fails the test.
+
+### The proof
+
+* `make_gui.ps1` and `make_gui.ps1 -Edition advanced`, each built twice into fresh folders: every `.exe` byte-identical
+  and normalised: standard `CodexAutoResume.exe` `a805c4152be2...bd4d4bbf6d3cdfe8` (532,992 bytes; the base's source
+  built raw 532,480), `CodexAutoResumeSettings.exe` `c7b4879a551f...` (unchanged: the window's sources are untouched),
+  the advanced window `80fb42457bf7...` (unchanged).
+* Comparison A exact: `test_surface_parity` (21), `test_surface_windows` (8), `rediff_host_surface.py --reference v0.6.26`
+  (29 + 22 tests: exact, builds reproducibly), `test_host_shape` (14), `test_host_shell` (8, 3 skipped for want of a built
+  `car_core.dll`), `test_host_app` (46), `test_host_contract` (12), `test_guiscan` (12), `test_reproducible` (28).
+* Start time (the render mode, `CODEX_AR_RENDER_PLAN`, no DLL and no window: the host's process start, its first JIT
+  and one job), the base's raw build against this head's, interleaved, 30 starts each, median of the wall time:
+  empty job 124.0 ms -> 123.3 ms (-0.6 %), one bidi case 131.8 -> 130.6 ms (-0.9 %), the popup-motion case 162.6 ->
+  160.1 ms (-1.6 %); the answers are byte-identical. The packed table's decode is about 1,820 small steps, below the
+  noise. Integration 11's whole-start figure (about 1.0 s, DLL included) is not what this moves.
+* Mutation checks (each alone, the file restored by `git checkout`, the test named run under `gui_lock.sh`): an
+  attention/recovering swap in `TrayMotion.ForLight` (the icon's frames), `StatusFill`'s stacked `recovering` label
+  dropped (the menu and icon card, byte for byte), `Token`'s `muted` answering `Line` (every plan painted), one
+  character of the packed direction table shifted (the first-strong comparison over the whole code space),
+  `Three(255, 0, 1)` -> `(255, 1, 0)` (the popup's motion), the drift chain's x and y swapped (the special days), the
+  card-life chain's `pause` and `retire` swapped (a card's life step for step), `NavigateNext`'s last element 5 -> 4
+  (the popup window's MSAA walk, after the widening), and the two guards (a six-label switch and a constant array of
+  four put back: `HostSourceRuleTests`). 9 of 10 failed their test at once; the 10th, `StatusFill`'s unknown-state
+  default `idle` -> `active`, passes `test_surface_parity` whole: no plan the matrix paints carries an unknown state
+  there. That is a gap in comparison A that this seat did not close (a case with a state the Python does not know, for
+  `SurfaceLight.StatusFill`, `StatusSystem` and `TrayMotion.BrandState`/`ForLight`/`StatusFill`).
+
+### Seams and what later seats need
+
+* Nothing in `rust/` or in the advanced workspace changed; no new dependency. No picture was made.
+* A source that adds a string switch of six labels or a constant array of three elements to gui/host.sources fails
+  `HostSourceRuleTests` with the file and line; write an if chain, `new int[n]`, `SurfaceMath.Three`/`Four`, or build a
+  table once from a compact string as `gui/SurfaceBidi.cs` does. A generated source changes through its generator.
+* The window's sources are not touched; `HostSourceRuleTests` also holds them to the array rule.
