@@ -690,6 +690,43 @@ fn runtime_call(
             shared.enter(|runtime| runtime.conversation_off(&c.opt(Some(0), "thread_id")))?;
             Ok(Value::Null)
         }
+        // S7.3a: `surfaces.<part>(runtime, ...)` - `answer` (name, facts), `bridge` (command, argument), `mcp`
+        // (facts), and each view of a runtime alone. An answer is {"value"} or {"defer"} (DEFER).
+        "surface" => {
+            use car_adv::surfaces;
+            let part = c.need(Some(0), "part")?;
+            let answer = |found: Result<Option<Value>, car_adv::state::Error>| -> Result<Value, Fault> {
+                Ok(match found? {
+                    Some(found) => object([("value", found)]),
+                    None => object([("defer", Value::Bool(true))]),
+                })
+            };
+            let map = |found: Map| Ok(object([("value", Value::Object(found))]));
+            shared.enter(|runtime| match word(&part).unwrap_or_default() {
+                "answer" => {
+                    let name = c.need(Some(1), "name")?;
+                    let Some(name) = word(&name).and_then(car_policy::plug::Surface::parse) else {
+                        return Ok(object([("defer", Value::Bool(true))]));
+                    };
+                    answer(surfaces::answer(runtime, name, &c.opt(Some(2), "facts")))
+                }
+                "bridge" => answer(surfaces::bridge(runtime, &c.opt(Some(1), "command"), &c.opt(Some(2), "argument"))),
+                "mcp" => answer(surfaces::mcp(runtime, &c.opt(Some(1), "facts"))),
+                "badge" => map(surfaces::badge(runtime)),
+                "status" => map(surfaces::status(runtime)?),
+                "meter_view" => map(surfaces::meter_view(runtime)?),
+                "notice_view" => map(surfaces::notice_view(runtime)),
+                "update_view" => map(surfaces::update_view(runtime)),
+                "account_view" => map(surfaces::account_view(runtime)),
+                "autoswitch_view" => map(surfaces::autoswitch_view(runtime)),
+                "diagnostics" => map(surfaces::diagnostics(runtime)),
+                "feed_view" => map(surfaces::feed_view(runtime)),
+                "fleet_view" => map(surfaces::fleet_view(runtime)),
+                "rows" => map(surfaces::rows(runtime)),
+                "runs" => Ok(object([("value", Value::Array(surfaces::runs(runtime)))])),
+                other => Err(Fault::new("AttributeError", &format!("surfaces has no {other}"))),
+            })
+        }
         "fault" => {
             let method = c.need(Some(0), "method")?;
             let raises = car_machine::pyval::truthy(&c.or(Some(1), "raises", Value::Bool(true)));

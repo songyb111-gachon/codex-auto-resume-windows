@@ -1016,6 +1016,11 @@ impl StopInner {
 }
 
 impl Code for UsageStop {
+    /// The surfaces (S7.3a) read the code's own view through this downcast.
+    fn as_any(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
+    }
+
     fn bind(&mut self, binding: Binding) -> Option<Result<(), Raised>> {
         self.lock().core.bound = Some(Bound::of(binding));
         Some(Ok(()))
