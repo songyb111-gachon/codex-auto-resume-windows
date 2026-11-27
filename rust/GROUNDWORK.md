@@ -5131,6 +5131,10 @@ test_host_icon_act, test_host_icon_menu, test_host_tray_tip_messages (gui_lock.s
 test_surface_ledger (wait_quiet.sh)                                 Ran 7, OK
 privacy_scan.py on the new and changed files                        clean
 ```
+Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad copy of car-v0627-rust's release car-harness.exe):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` - the shim installed: 130 ledger tests + test_surface_askback
+(Ran 134, OK); the ledger and every twin home (Ran 166, OK: 148 before, + 3 + 6 + 5 + 4); no row: test_status_newest_usage.py; exit 0.
+No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
 
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
