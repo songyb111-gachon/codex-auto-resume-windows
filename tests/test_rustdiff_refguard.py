@@ -51,6 +51,8 @@ def refused(name, call):
         out["refused"][name] = None
 refused("kernel.processes_named", lambda: kernel.processes_named(["codex.exe"]))
 refused("kernel.process_identity", lambda: kernel.process_identity(os.getpid()))
+refused("kernel.package_roots", lambda: kernel.package_roots("OpenAI.Codex_2p2nqsd0c76g0"))
+refused("pairing.package_roots", lambda: pairing.package_roots("OpenAI.Codex_2p2nqsd0c76g0"))
 refused("inventory.resource_users", lambda: inventory.resource_users(sys.executable))
 refused("pairing.processes_named", lambda: pairing.processes_named(["codex.exe"]))
 refused("pairing.process_identity", lambda: pairing.process_identity(os.getpid()))
@@ -95,7 +97,8 @@ if "advanced" in sys.argv[1:]:
 print(json.dumps(out))
 '''
 
-LOOKED_UP = ("kernel.processes_named", "kernel.process_identity", "inventory.resource_users", "pairing.processes_named",
+LOOKED_UP = ("kernel.processes_named", "kernel.process_identity", "kernel.package_roots", "pairing.package_roots",
+             "inventory.resource_users", "pairing.processes_named",
              "pairing.process_identity", "pairing.resource_users", "pairing.app_engines", "transport.resource_users",
              "windows.resource_users")
 
@@ -211,6 +214,124 @@ class ReleasedRuns(unittest.TestCase):
         Guarded.check_probe(self, answer, advanced=False)
 
 
+# A discovery run (refguard.DISCOVERY): what the tag's own discovery finds and what it may start. argv[1] is the folder
+# outside the scratch tree where a real-looking engine is planted.
+DISCOVER = r'''
+import json, os, subprocess, sys
+from pathlib import Path
+from codex_auto_resume import config
+from codex_auto_resume.win import kernel
+from codex_auto_resume_advanced.codex import inuse
+out = {"engine": os.environ.get("CODEX_AUTO_RESUME_CODEX_EXE"),
+       "inuse": getattr(inuse.backend, "__car_refguard__", None),
+       "lookup": getattr(kernel.processes_named, "__car_refguard__", None)}
+asked = []
+found = config.discover_codex_exe(None, lambda path: asked.append(str(path)))
+out["found"], out["asked"] = str(found), asked
+def start(path):
+    try:
+        subprocess.run([path, "--version"], capture_output=True, timeout=30, creationflags=0x08000000)
+    except PermissionError as exc:
+        return "refused" if "refguard" in str(exc) else "PermissionError"
+    except OSError as exc:
+        return type(exc).__name__
+    return "ran"
+out["start_inside"] = start(str(found))
+outside = str(Path(sys.argv[1]) / "OpenAI" / "Codex" / "bin" / ("%040x" % 7) / "codex.exe")
+out["start_outside"] = start(outside)
+config.candidate_codex_exes = lambda: [Path(outside)]
+try:
+    config.discover_codex_exe(None, lambda path: None)
+    out["planted"] = "found"
+except RuntimeError as exc:
+    out["planted"] = "refused" if "outside the scratch tree" in str(exc) else str(exc)
+print(json.dumps(out))
+'''
+
+ORDINARY_START = (
+    "import subprocess, sys\n"
+    "try:\n"
+    "    subprocess.run([sys.argv[1], '--version'], capture_output=True, creationflags=0x08000000)\n"
+    "    print('ran')\n"
+    "except PermissionError as exc:\n"
+    "    print('refused' if 'refguard' in str(exc) else 'other')\n"
+    "except OSError:\n"
+    "    print('other')\n")
+
+
+def plant(folder: Path) -> Path:
+    """A real-looking engine: LOCALAPPDATA's official folder with one build in it (a file named codex.exe, no program)."""
+    exe = folder / "OpenAI" / "Codex" / "bin" / ("%040x" % 7) / "codex.exe"
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    exe.write_bytes(b"not a program")
+    return exe
+
+
+@unittest.skipUnless(have_tag(), "%s is not in this checkout" % TAG)
+class DiscoveryRuns(unittest.TestCase):
+    """refguard.DISCOVERY: core's discovery runs, on the scratch tree alone; a planted engine outside it is refused."""
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for name in (refpython.VARIABLE, refpython.RESOLVED_VARIABLE):
+            os.environ.pop(name, None)
+        refpython._CACHE.clear()
+        self.addCleanup(refpython._CACHE.clear)
+        refpython.select("system")
+        scratch = tempfile.TemporaryDirectory(prefix="refguard-discovery-")
+        outside = tempfile.TemporaryDirectory(prefix="refguard-planted-")
+        self.addCleanup(scratch.cleanup)
+        self.addCleanup(outside.cleanup)
+        self.root, self.outside = Path(scratch.name).resolve(), Path(outside.name).resolve()
+        self.profile = self.root / "profile"
+        self.profile.mkdir()
+
+    def environment(self):
+        return refguard.discovery_environment(advref.environment(self.profile, TAG), self.root)
+
+    def run_discovery(self, environment):
+        command = reference.command(DISCOVER, str(self.outside), paths=advref.trees(TAG))
+        return subprocess.run(command, capture_output=True, env=environment, cwd=str(self.profile),
+                              creationflags=NO_WINDOW, timeout=300)
+
+    def test_discovery_finds_and_starts_only_inside_the_scratch_tree(self):
+        inside = plant(self.profile).resolve()
+        plant(self.outside)
+        done = self.run_discovery(self.environment())
+        self.assertEqual(done.returncode, 0, done.stderr[-3000:])
+        answer = json.loads(done.stdout.decode("utf-8").strip().splitlines()[-1])
+        self.assertIsNone(answer["engine"])
+        self.assertIsNone(answer["inuse"])                       # the real inuse.backend, in a discovery run only
+        self.assertEqual(answer["lookup"], "processes_named")     # the lookups still refuse
+        self.assertEqual(Path(answer["found"]).resolve(), inside)
+        self.assertTrue(Path(answer["found"]).resolve().is_relative_to(self.root))
+        self.assertEqual([Path(each).resolve() for each in answer["asked"]], [inside])
+        self.assertNotEqual(answer["start_inside"], "refused")    # inside the tree it may start (no program: OSError)
+        self.assertEqual(answer["start_outside"], "refused")      # the planted real-looking engine never starts
+        self.assertEqual(answer["planted"], "refused")            # and discovery may not hand it back
+
+    def test_a_home_or_path_off_the_tree_stops_the_run_before_the_script(self):
+        cases = (("LOCALAPPDATA", str(self.outside)), ("ProgramW6432", r"C:\Program Files"),
+                 ("PATH", str(plant(self.outside).parent) + os.pathsep + refguard.system_path()))
+        for name, value in cases:
+            with self.subTest(variable=name):
+                environment = self.environment()
+                environment[name] = value
+                done = self.run_discovery(environment)
+                self.assertEqual(done.returncode, 97, done.stderr[-2000:])
+                self.assertIn(b"off its scratch tree", done.stderr)
+
+    def test_an_ordinary_reference_never_starts_a_codex_outside_the_temporary_folder(self):
+        windows_apps = r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__2p2nqsd0c76g0\app\resources\codex.exe"
+        done = reference.run(ORDINARY_START, windows_apps, tag=TAG)
+        self.assertEqual(done.stdout.decode().strip(), "refused", done.stderr[-2000:])
+        inside = plant(self.root)  # under the temporary folder: an ordinary scratch engine may start
+        done = reference.run(ORDINARY_START, str(inside), tag=TAG)
+        self.assertEqual(done.stdout.decode().strip(), "other", done.stderr[-2000:])
+
+
 class TheSource(unittest.TestCase):
     """Every start of a tag's package goes through the guarded harness."""
 
@@ -253,6 +374,13 @@ class TheSource(unittest.TestCase):
                        and re.search(r"(?s)\b(script_command|command|boot)\((?:[^()]|\([^()]*\))*\bguard\s*=\s*False",
                                      path.read_text(encoding="utf-8")))
         self.assertEqual(users, ["tests/rustdiff/advproxy/ledger.py"])
+
+    def test_only_the_listed_discovery_subjects_run_discovery_or_leave_the_engine_path_unset(self):
+        pattern = (r"discovery_environment\(|__car_refguard_original__|refguard\.DISCOVERY\b"
+                   r"|CODEX_AUTO_RESUME_CODEX_EXE\s*=\s*None|ENGINE_VARIABLE\s*:\s*None")
+        users = sorted(path.relative_to(ROOT).as_posix() for path in list(RUSTDIFF.rglob("*.py")) + [ROOT / "tests" / "released.py"]
+                       if path.name != "refguard.py" and re.search(pattern, path.read_text(encoding="utf-8")))
+        self.assertEqual(users, sorted(refguard.DISCOVERY_SUBJECTS))
 
     def test_only_the_live_process_diff_lifts_the_lookups(self):
         users = sorted(path.relative_to(ROOT).as_posix() for path in list(RUSTDIFF.rglob("*.py")) + list((ROOT / "tests").glob("*.py"))

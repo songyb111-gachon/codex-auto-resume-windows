@@ -30,7 +30,7 @@ import subprocess
 import tempfile
 import unittest
 
-from rustdiff import advdiff, advref, diffs
+from rustdiff import advdiff, advref, diffs, refguard
 
 TAG = os.environ.get("CODEX_AR_REFERENCE") or "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -329,11 +329,34 @@ def ensure() -> None:
         build()
 
 
+# The scratch tree of the running AdvCodexDiff class (its setUpClass sets it): core's discovery is this family's subject
+# (inuse.backend, the official folder under a scratch LOCALAPPDATA), so a profile inside it runs both sides as a
+# refguard DISCOVERY run on that tree (refguard.DISCOVERY_SUBJECTS names this file): the real inuse.backend, no engine
+# path, every home and program-files root and PATH checked, the lookups still the script's stand-ins, and nothing found
+# or started outside the tree. Any other profile (advcodexd's) runs as every reference does.
+DISCOVERY_TREES: list = []
+
+
+def environment(profile: Path) -> dict:
+    made = advref.environment(Path(profile), TAG)
+    for root in DISCOVERY_TREES[-1:]:
+        if Path(profile).resolve().is_relative_to(Path(root).resolve()):
+            return refguard.discovery_environment(made, root)
+    return made
+
+
 def ask_reference(request: dict, profile: Path) -> list:
     path = Path(tempfile.mkdtemp(prefix="advcodex-req-")) / "request.json"
     try:
         path.write_text(json.dumps(request, ensure_ascii=False), encoding="utf-8")
-        done = advref.run(REFERENCE, str(path), profile=profile, tag=TAG, timeout=1800)
+        if len(REFERENCE) > 8000:  # as advref.run: a long script goes in a file of the scratch folder
+            script = path.parent / "advcodex-reference.py"
+            script.write_text(REFERENCE, encoding="utf-8")
+            command = advref.reference.script_command(script, str(path), paths=advref.trees(TAG))
+        else:
+            command = advref.reference.command(REFERENCE, str(path), paths=advref.trees(TAG))
+        done = subprocess.run(command, capture_output=True, env=environment(profile), cwd=str(profile),
+                              creationflags=NO_WINDOW, timeout=1800)
     finally:
         shutil.rmtree(path.parent, ignore_errors=True)
     if done.returncode != 0:
@@ -344,7 +367,7 @@ def ask_reference(request: dict, profile: Path) -> list:
 def ask_rust(request: dict, profile: Path) -> list:
     body = dict(request, product_version=PRODUCT_VERSION)
     done = subprocess.run([str(example("advcodex"))], input=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-                          capture_output=True, env=advref.environment(profile, TAG), cwd=str(profile),
+                          capture_output=True, env=environment(profile), cwd=str(profile),
                           creationflags=NO_WINDOW, timeout=1800)
     if done.returncode != 0:
         raise AssertionError("advcodex failed (%d): %s" % (done.returncode, done.stderr[-3000:].decode("utf-8", "replace")))
@@ -410,6 +433,8 @@ class AdvCodexDiff(unittest.TestCase):
         advref.package(TAG)
         cls.root = Path(tempfile.mkdtemp(prefix="advcodex-"))
         cls.addClassCleanup(shutil.rmtree, cls.root, True)
+        DISCOVERY_TREES.append(cls.root)
+        cls.addClassCleanup(DISCOVERY_TREES.remove, cls.root)
 
     def fresh(self, label: str) -> Path:
         short = re.sub(r"[^A-Za-z0-9]+", "-", label)[:40]

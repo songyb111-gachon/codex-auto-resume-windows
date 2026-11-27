@@ -34,7 +34,8 @@ DROPPED = ("CODEX_AR_CORE", "CODEX_AR_CORE_EXE", "CODEX_AR_HARNESS_EXE", "CODEX_
 
 def scratch_environment(profile: Path, **extra) -> dict:
     """os.environ with every home pointed at `profile`, the shim's variables gone, and the engine's path pointing where no
-    codex.exe is (refguard.py) unless `extra` hands one (a path) or asks for none (`CODEX_AUTO_RESUME_CODEX_EXE=None`).
+    codex.exe is (refguard.py) unless `extra` hands one (a path); leaving it unset is a discovery run's alone
+    (refguard.discovery_environment, DISCOVERY_SUBJECTS).
     Both sides of a diff build their environment here, so both see the same engine path."""
     environment = {name: value for name, value in os.environ.items() if name not in DROPPED}
     environment.update({name: str(profile) for name in HOME_VARIABLES})
