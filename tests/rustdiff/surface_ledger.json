@@ -2231,35 +2231,42 @@
   "test_tray_shape.py": {
    "holds": "The icon is one module and one class, however many files they are written in.",
    "tests": 10,
-   "ui_tests": 9,
-   "unaffected": 1,
+   "ui_tests": 10,
+   "unaffected": 0,
    "kind": "window",
    "by_kind": {
     "scan": 5,
-    "window": 4
+    "window": 5
    },
    "parts": {
     "scan": {
      "ShapeTests": 5
     },
     "window": {
-     "CompositionTests": 4
+     "CompositionTests": 5
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "5 of 9 UI tests run on the host or are held by a twin or a no_twin reason; 4 are still on the Python UI (4 window)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
    "twins": {},
    "no_twin": {
+    "CompositionTests.test_each_mixin_holds_the_methods_its_file_is_named_for": "which Python mixin holds the menu's, the cards' and the stored settings' methods: Python packaging with no C# counterpart (one partial class; the files are gui/host.sources' [surface] list)",
+    "CompositionTests.test_every_method_belongs_to_exactly_one_mixin": "which of the Python Tray's mixin classes defines each method: Python class composition with no C# counterpart (the host's TrayIcon is one partial class over TrayIcon.cs, TrayMenu.cs and the icon's other files, whose one-definition rule is test_host_shape.OneDefinitionTests)",
+    "CompositionTests.test_the_class_has_the_methods_it_had": "the Python Tray's own method list (inspect over ui/tray): Python packaging; the host's icon is C#, and what it is asked is held by the probe twins (test_host_icon_tick, test_host_icon_demo) and test_surface_windows",
+    "CompositionTests.test_the_composition_is_in_icon_not_in_the_front": "which Python file defines the class Tray (srcscan over ui/tray): Python packaging; the host's surfaces' file list is test_host_shape.HostListTests",
+    "CompositionTests.test_the_mixins_are_named_in_the_order_the_front_lists_them": "the Python Tray's bases in MRO order: Python inheritance, which a C# partial class does not have",
     "ShapeTests.test_each_file_uses_only_what_is_above_it": "the import order of the Python tray package's own files: Python packaging with no C# counterpart (one assembly has no import order); the host's one-definition rule is test_host_shape.OneDefinitionTests",
     "ShapeTests.test_only_the_four_call_windows": "which of the Python tray package's modules import ctypes/win: Python packaging; the host's layout half that asks Windows nothing is test_host_shape.AskWindowsNothingTests",
     "ShapeTests.test_the_eleven_are_all_there_and_nothing_else_is": "the Python tray package's own file list (ui/tray's eleven modules): Python packaging; the host's icon is C# under gui/host.sources, whose list is held by test_host_shape.HostListTests",
     "ShapeTests.test_the_order_in_the_file_is_the_order_here": "the order ui/tray/__init__.py loads its modules in: Python packaging with no C# counterpart",
     "ShapeTests.test_the_process_is_started_in_one_file": "which Python tray module imports subprocess; the host starts no process at all (no Process.Start in any surface: test_host_shape.ReachTests), the opener being car-platform's"
    },
-   "port": []
+   "port": [
+    "tests/test_surface_ledger.py"
+   ]
   },
   "test_tray_tip_header_ink.py": {
    "holds": "The icon's card's first row reads as one line, measured by its ink (v0.6.24 final).",
