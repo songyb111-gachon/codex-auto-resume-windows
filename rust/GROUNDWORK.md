@@ -5067,6 +5067,71 @@ Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad
 (Ran 134, OK); the ledger and every twin home (Ran 148, OK: 114 before, + 20 + 14); no row: test_status_newest_usage.py; exit 0.
 No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
 
+### S6.4d4 (continuation, 2026-11-28): the popup's shadow window and seventh press, the icon's popup item and power item
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown (no probe here makes
+a window at all: CardLayers is given none, the popup's Hwnd is none), nothing captured, nothing pushed. Every run kept
+`CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`.
+
+| What | Where | State |
+|---|---|---|
+| **`card_shade`**: one host renderer (SurfaceRenderer.Open) and one CardLayers with no shadow window over a history of steps - `draw` (the look set, the vm laid out and drawn with PopupMotion.Halo's first frame), `shade` (the same, then CardLayers.Shade), `drop` (CardLayers.Dispose: the host's one release of its shadow images, where the reference has `_drop_images`) - answering the canvas, the card, the picture and its margin, the images kept and the GDI+ objects alive past the run's start | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`float_recipe`**: SurfaceLayers.FloatShadows(theme, design) and FloatReach(shadows, scale) | `HostProbe.cs` | - |
+| **`popup_press`**: a PopupWindow with no window (Update and SyncFrames reach nothing, every Windows call recorded besides) given reduced, contrast, visible, the painted plan's items and the strings; steps press (the private TitlePressed), set_aside (AsideFrom), aside_words (the private AsideWords with the step's clock as Monotonic); ops `layout` (the host renderer's items and targets) and `hit` (PopupPlace.HitTest) | `HostProbe.cs` | - |
+| `icon_steps` gains the `popup_failed` state (TrayIcon.PopupFailed) and a `power_armed` step (TrayMenu.Armed); `HostTray` hands `_popup_failed` on, gains `_power_armed`, and hands the disarm post to `disarm_power_action(actor="tray")` as the reference calls it | `HostProbe.cs`, `tests/rustdiff/hosticon.py` | the icon twins rerun: icon_act 13, icon_menu 20, tray_tip_messages 14 OK |
+| Twins: ShadowLayerOnHostTests 2 + RecipeOnHostTests 1 (the popup's float shadows the host's, held equal to the reference card's) | `tests/test_host_popup_card_still.py` (HOST_SIDE) | Ran 3, OK through `gui_lock.sh` |
+| PopupPressOnHostTests 6 (the hidden.py rule over PopupWindow's "seventh press" members, read from gui/host.sources' [surface] files) | `tests/test_host_popup_press.py` (HOST_SIDE) | Ran 6, OK |
+| ItemOnHostTests 3 + OfferedOnHostTests 2 (the reference's icon with no control layer is the host's with no IHostActions: on the host every callback is a post through it) | `tests/test_host_tray_open_popup.py` | Ran 5, OK |
+| PowerMenuOnHostTests 4 (the strings the core would send - its "surfaces"/"strings" events - stand in from the test's stored language) | `tests/test_host_tray_power.py` (HOST_SIDE) | Ran 4, OK |
+
+Ledger: `test_popup_card_still` 3 of 14 twinned (AloneTests 6, StillTests 5: the render serve's draw/pixels/card_still, S6.4f),
+`test_gui_v0623_surfaces` 6 of 12 (PopupSweepDrawnTests 4, TaskbarTests 2: S6.4f), `test_tray_open_popup` 7 of 13 (OpensTests 6:
+S6.4e's opener), `test_tray` 9 of 10 (LiveIconTests 1: the live-window route). All four still pending; host 30, pending 53, ceiling
+left at 54; `summary.on_host` not recounted (the integration's).
+
+**Mutation checks** (29, each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut12.json`, `-mut13.json`,
+`-mut13b.json`, `-mut14.json`): on gui/ - Shade not cutting the card out, FloatReach a pixel further, the layers' end keeping its images,
+the popup floating one shadow fewer, six presses starting it, a 0.8 s gap, reduced motion still sweeping, the sentence a second longer,
+a press right of the title counted, the seventh press logging, the title a target in the layout, a broken popup still offered, the popup's
+command 7, the letter staying on the item in hand, Windows' menu leaving the popup out, the power item before Pause, the power item
+always saying sleep, choosing it posting nothing, the power command 8; on the twin's side - the broken popup not handed on, the strings
+not the stored language's: 26 fail their test. **Survivors** (equivalent here): StampShadows keeping images it no longer uses (one theme
+and scale in the test: the mask key never changes, so nothing goes unused - the reference test cannot see it either); the popup item
+inserted before Open Dashboard in MenuItems (the twins hand the reference's items to NativeMenu; MenuItems' order is held by the routed
+ItemTests over the host's `menu_items`); PowerWord believing an unknown action (MenuItems checks PowerOffWords again).
+
+A note for the main session: the first run of test_host_popup_card_still asked the probe once a pixel (the test reads
+`layer.picture.width` inside its comprehension) and held the GUI lock for about 8 minutes before it was stopped (its python, started
+by this seat, was ended; two queued agents then ran). HostLayer now keeps one answer per history.
+
+### What is left of the window rows after S6.4d4 (per row, the route)
+
+`test_popup_card_window` 11 (CardWindowTests: real top-level layered windows - the card owned by its shadow, styles, owner, rects,
+regions, IsWindowVisible, the opening's alphas, the refusal's plain window. The originals make real popups far off every screen; a
+twin needs PopupWindow.Create's two windows, i.e. windows made, which this seat's no-window rule does not allow - the recorded half
+(the dirty rows of a light frame, a whole frame's source and size, the opening's alphas only rising, the refusal falling back to the
+plain window) can run on `popup_steps`-style message-only windows with CardLayers given one more message-only window and every
+SurfaceScreen.Update recorded; the window-geometry half needs the owner's word or the live-window route), `test_popup_opening_motion` 11,
+`test_popup_motion_held` 10, `test_menu_opening_motion` 6 (MenuWindow's fade: `menu_messages` with its clock), `test_card_focus` 5,
+`test_notice_click` 3 and `test_notice_stay` 2 (CardStack on message-only windows), `test_tray_menu_drawn.LiveWindowTests` 3 and
+`test_tray.LiveIconTests` 1 (the live icon), `test_tray_open_popup.OpensTests` 6 and `test_surface_properties`' opener test (S6.4e),
+the first rest and live card of `test_tray_tip_messages` and the tip card's two hides (gui/ seams, S6.3e). Read as the drawing's, for
+S6.4f: `test_tray_menu_no_glow` 5 (the menu's pixels round and inside its card, and a source rule of the renderer),
+`test_tray_tip_header_ink` 4 (where the tip card's light, pill and name stand: its plan), `test_motion_popup` 3 (the motion
+generator's plan), `test_corners_by_design` 4.
+
+### Checks (S6.4d4)
+
+```
+test_host_popup_card_still (gui_lock.sh)                            Ran 3, OK
+test_host_popup_press (gui_lock.sh)                                 Ran 6, OK
+test_host_tray_open_popup (gui_lock.sh)                             Ran 5, OK
+test_host_tray_power (gui_lock.sh)                                  Ran 4, OK
+test_host_icon_act, test_host_icon_menu, test_host_tray_tip_messages (gui_lock.sh, one at a time, after hosticon changed)   13, 20, 14 OK
+test_surface_ledger (wait_quiet.sh)                                 Ran 7, OK
+privacy_scan.py on the new and changed files                        clean
+```
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
