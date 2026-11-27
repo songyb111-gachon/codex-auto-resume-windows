@@ -153,6 +153,7 @@ namespace CodexAutoResume
                     { "MENU_PENDING", (double)TrayIcon.MenuPending }, { "MENU_POWER_OFF", (double)TrayIcon.MenuPowerOff },
                     { "MENU_POPUP", (double)TrayIcon.MenuPopup },
                 };
+            if (name == "popup_live") return PopupLive(call);
             throw new ArgumentException("no call " + name);
         }
 
@@ -1970,6 +1971,335 @@ namespace CodexAutoResume
             }
             foreach (object each in (List<object>)json["meter"]) parts.Meter.Add((Dictionary<string, object>)each);
             return parts;
+        }
+
+        // ------------------------------------------------------------------ the popup's own windows, kept (S6.4d5)
+        /// A PopupWindow made with its real windows (PopupWindow.Create: the card and its shadow, real top-level layered
+        /// windows), kept between questions on a thread of its own in a single-threaded apartment, as the host's UI thread
+        /// is. Only a twin of a test whose original makes the same real windows asks this (tests/test_popup_card_window.py
+        /// CardWindowTests and the motion tests' WindowTests: the main session's word of 2026-11-28 - the same far-off
+        /// coordinates, never activated, destroyed in the test's own teardown, inside gui_lock.sh, never a dialog). The
+        /// thread runs Windows' messages only inside a step (show, pump, ...), as the reference's test thread runs them
+        /// only when the test pumps; between questions it only peeks, so Windows never takes it for hung.
+        private sealed class HeldPopup
+        {
+            internal PopupWindow Popup;
+            internal readonly List<object> Logs = new List<object>();
+            internal List<string> Record;
+            internal IntPtr Body, Shadow;
+            internal double NextFrame, NextTick;
+            internal bool Contrast, Reduced, Still, StillRaises;
+            internal double Text = 1.0;
+            internal object Answer;
+        }
+
+        private static readonly Dictionary<long, HeldPopup> heldPopups = new Dictionary<long, HeldPopup>();
+        private static readonly Queue<object[]> heldJobs = new Queue<object[]>();
+        private static System.Threading.Thread heldThread;
+        private static long heldMade;
+
+        private static object PopupLive(Dictionary<string, object> call)
+        {
+            if (heldThread == null)
+            {
+                heldThread = new System.Threading.Thread(HeldLoop) { IsBackground = true };
+                heldThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                heldThread.Start();
+            }
+            var done = new System.Threading.ManualResetEvent(false);
+            var job = new object[] { call, done, null, null };
+            lock (heldJobs)
+            {
+                heldJobs.Enqueue(job);
+                System.Threading.Monitor.Pulse(heldJobs);
+            }
+            done.WaitOne();
+            if (job[3] != null) throw (Exception)job[3];
+            return job[2];
+        }
+
+        private static void HeldLoop()
+        {
+            while (true)
+            {
+                object[] job = null;
+                lock (heldJobs)
+                {
+                    if (heldJobs.Count == 0) System.Threading.Monitor.Wait(heldJobs, 20);
+                    if (heldJobs.Count > 0) job = heldJobs.Dequeue();
+                }
+                if (job != null)
+                {
+                    try
+                    {
+                        job[2] = HeldAnswer((Dictionary<string, object>)job[0]);
+                    }
+                    catch (Exception exc)
+                    {
+                        job[3] = exc is System.Reflection.TargetInvocationException && exc.InnerException != null ? exc.InnerException : exc;
+                    }
+                    ((System.Threading.ManualResetEvent)job[1]).Set();
+                }
+                SurfaceNative.MSG message;
+                PeekMessageW(out message, IntPtr.Zero, 0, 0, 0);          // PM_NOREMOVE: answered, nothing run
+            }
+        }
+
+        private static object HeldAnswer(Dictionary<string, object> call)
+        {
+            string op = (string)call["op"];
+            HeldPopup held;
+            if (op == "new")
+            {
+                held = new HeldPopup();
+                long id = ++heldMade;
+                var popup = new PopupWindow((Dictionary<string, object>)call["strings"]);
+                held.Popup = popup;
+                popup.Log = line => held.Logs.Add(line);
+                popup.AskContrast = () => held.Contrast;
+                popup.AskReduced = () => held.Reduced;
+                popup.AskAppsLight = () => null;
+                popup.AskTextScale = () => held.Text;
+                popup.Held = () =>
+                {
+                    if (held.StillRaises) throw new InvalidOperationException("held");
+                    return held.Still;
+                };
+                if (SurfaceRender.Field(call, "record") is bool && (bool)call["record"]) held.Record = new List<string>();
+                heldPopups[id] = held;
+                return HeldRun(held, id, call, () =>
+                {
+                    SurfaceAccess.Attach(popup);
+                    popup.Create();
+                    held.Body = popup.Hwnd;
+                    held.Shadow = popup.Layers != null ? popup.Layers.ShadowHwnd : IntPtr.Zero;
+                    popup.Snapshot((Dictionary<string, object>)call["core"]);
+                });
+            }
+            long which = (long)(double)call["id"];
+            if (!heldPopups.TryGetValue(which, out held)) throw new ArgumentException("no popup " + which);
+            if (op == "end")
+            {
+                heldPopups.Remove(which);
+                return HeldRun(held, which, call, () => held.Popup.Dispose());
+            }
+            if (op == "do") return HeldRun(held, which, call, null);
+            throw new ArgumentException("no popup_live op " + op);
+        }
+
+        /// The look the test's patched questions answer now (`look`), then `first` and each step with this popup's calls
+        /// recorded where the test records them (`record`), then the popup's state as the twin reads it.
+        private static object HeldRun(HeldPopup held, long id, Dictionary<string, object> call, Action first)
+        {
+            var look = SurfaceRender.Field(call, "look") as Dictionary<string, object>;
+            if (look != null)
+            {
+                held.Contrast = (bool)look["contrast"];
+                held.Reduced = (bool)look["reduced"];
+                held.Text = (double)look["text"];
+                held.Still = look["still"] is bool && (bool)look["still"];
+                held.StillRaises = look["still"] as string == "raise";
+                SurfaceTheme.SetTheme(look["theme"]);
+                SurfaceTheme.SetDesign(look["design"]);
+            }
+            Func<IntPtr, string> savedName = SurfaceScreen.Name;
+            List<string> savedProbe = SurfaceScreen.Probe;
+            SurfaceScreen.Name = hwnd => hwnd == held.Body && hwnd != IntPtr.Zero ? "card"
+                                       : hwnd == held.Shadow && hwnd != IntPtr.Zero ? "shadow" : savedName(hwnd);
+            var answers = new List<object>();
+            try
+            {
+                SurfaceScreen.Probe = held.Record;
+                if (first != null) first();
+                var steps = SurfaceRender.Field(call, "steps") as List<object>;
+                if (steps != null)
+                    foreach (object each in steps)
+                    {
+                        held.Answer = null;
+                        HeldStep(held, (List<object>)each);
+                        answers.Add(held.Answer);
+                    }
+            }
+            finally
+            {
+                SurfaceScreen.Probe = savedProbe;
+                SurfaceScreen.Name = savedName;
+            }
+            return HeldState(held, id, answers);
+        }
+
+        private static void HeldStep(HeldPopup held, List<object> step)
+        {
+            PopupWindow popup = held.Popup;
+            string what = (string)step[0];
+            if (what == "show")
+                popup.Show((bool)step[1], (bool)step[2], step[3] == null ? null : IntsOf(step[3]));
+            else if (what == "hide") popup.Hide();
+            else if (what == "destroy") popup.Dispose();
+            else if (what == "read_look") popup.ReadLook();
+            else if (what == "invalidate") typeof(PopupWindow).GetMethod("Invalidate", Hidden).Invoke(popup, null);
+            else if (what == "push") typeof(PopupWindow).GetMethod("Push", Hidden).Invoke(popup, null);
+            else if (what == "update") popup.Update();
+            else if (what == "static_dirty") popup.StaticDirty = (bool)step[1];
+            else if (what == "hover_index") popup.Hover = popup.Plan.Targets[(int)(double)step[1]].Key;
+            else if (what == "pressed_index") popup.Pressed = step[1] == null ? null : popup.Plan.Targets[(int)(double)step[1]].Key;
+            else if (what == "message")
+                held.Answer = (double)popup.Message((int)(double)step[1], (long)(double)step[2], (long)(double)step[3]).ToInt64();
+            else if (what == "record")
+            {
+                held.Record = (bool)step[1] ? (held.Record ?? new List<string>()) : null;
+                SurfaceScreen.Probe = held.Record;
+            }
+            else if (what == "pump") HeldPump(held, (double)step[1]);
+            else if (what == "screen")
+            {
+                var screen = (Dictionary<string, object>)step[1];
+                var fixedScreen = new PopupWindow.PopupScreen
+                {
+                    Icon = screen["icon"] == null ? null : IntsOf(screen["icon"]), Cursor = IntsOf(screen["cursor"]),
+                    Work = IntsOf(screen["work"]), Monitor = IntsOf(screen["monitor"]), Dpi = (double)screen["dpi"],
+                };
+                popup.ScreenReader = unused => fixedScreen;
+            }
+            else if (what == "refuse")
+            {
+                // Windows refusing the card: its shadow window is no layered window any more, so UpdateLayeredWindowIndirect
+                // fails for it (the reference's patched layers.update fails every upload; the host's first push fails here)
+                int style = SurfaceNative.GetWindowLongW(held.Shadow, SurfaceNative.GWL_EXSTYLE);
+                SurfaceNative.SetWindowLongW(held.Shadow, SurfaceNative.GWL_EXSTYLE, style & ~(int)SurfaceNative.WS_EX_LAYERED);
+            }
+            else if (what == "hit")
+            {
+                object target = typeof(PopupWindow).GetMethod("Hit", Hidden).Invoke(popup, new object[] { (long)(double)step[1] });
+                var named = target as SurfaceTarget;
+                held.Answer = named != null ? named.ToList() : Plain(target);
+            }
+            else if (what == "client_offset") held.Answer = Plain(popup.ClientOffset());
+            else if (what == "render")
+            {
+                SurfaceCanvas canvas = popup.Render();
+                var bytes = new List<object>();
+                for (int at = 0; at < 4; at++) bytes.Add((double)System.Runtime.InteropServices.Marshal.ReadByte(canvas.Bits, at));
+                held.Answer = bytes;
+            }
+            else if (what == "access") held.Answer = HeldAccess(popup, (int)(double)step[1]);
+            else throw new ArgumentException("no popup_live step " + what);
+        }
+
+        /// Windows' messages for this thread for `seconds` (at least one round), as the reference's test pumps them; where
+        /// the popup's calls are recorded (not made), what it posted itself is delivered and its frame and tick timers,
+        /// which were recorded and not set, come when they are due.
+        private static void HeldPump(HeldPopup held, double seconds)
+        {
+            PopupWindow popup = held.Popup;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            System.Reflection.FieldInfo frameField = typeof(PopupWindow).GetField("frameMs", Hidden);
+            do
+            {
+                SurfaceNative.MSG message;
+                while (PeekMessageW(out message, IntPtr.Zero, 0, 0, 1))
+                {
+                    SurfaceNative.TranslateMessage(ref message);
+                    SurfaceNative.DispatchMessageW(ref message);
+                }
+                if (SurfaceScreen.Probing && popup.Hwnd != IntPtr.Zero)
+                {
+                    var posted = new List<long[]>(SurfaceScreen.Posted);
+                    SurfaceScreen.Posted.Clear();
+                    foreach (long[] each in posted) popup.Message((int)each[1], each[2], each[3], new IntPtr(each[0]));
+                    double now = popup.Monotonic();
+                    if (popup.FrameRunning && popup.Hwnd != IntPtr.Zero && now >= held.NextFrame)
+                    {
+                        object every = frameField.GetValue(popup);
+                        held.NextFrame = now + (every == null ? PopupWindow.FrameMs : Convert.ToDouble(every)) / 1000.0;
+                        popup.Message(SurfaceNative.WM_TIMER, PopupWindow.TimerFrame, 0);
+                    }
+                    if (popup.Visible && popup.Hwnd != IntPtr.Zero)
+                    {
+                        if (held.NextTick == 0) held.NextTick = now + 1.0;
+                        else if (now >= held.NextTick)
+                        {
+                            held.NextTick = now + 1.0;
+                            popup.Message(SurfaceNative.WM_TIMER, PopupWindow.TimerTick, 0);
+                        }
+                    }
+                }
+                System.Threading.Thread.Sleep(2);
+            } while (clock.Elapsed.TotalSeconds < seconds);
+        }
+
+        /// The screen reader's children (SurfaceAccess.AccessibleItems) and the box of child `child` as accLocation answers
+        /// it, through the client object Windows hands a reader (AccessibleObjectFromWindow, OBJID_CLIENT): [HRESULT, left,
+        /// top, width, height].
+        private static object HeldAccess(PopupWindow popup, int child)
+        {
+            List<Dictionary<string, object>> items = SurfaceAccess.AccessibleItems(popup.Vm, popup.Plan, popup.Keyboard ? popup.Focus : null,
+                                                                                   popup.Hover, popup.Strings);
+            var answer = new Dictionary<string, object> { { "items", ChildrenJson(items) } };
+            if (child <= 0) return answer;
+            Guid iid = SurfaceAccess.IidAccessible;
+            IntPtr pointer;
+            int got = AccessibleObjectFromWindow(popup.Hwnd, unchecked((uint)SurfaceAccess.OBJID_CLIENT), ref iid, out pointer);
+            if (got != 0 || pointer == IntPtr.Zero) throw new InvalidOperationException("AccessibleObjectFromWindow " + got);
+            IntPtr box = System.Runtime.InteropServices.Marshal.AllocHGlobal(16), variant = ChildVariant(child);
+            try
+            {
+                int located = CallSlot(pointer, 22, typeof(ReaderBox), box, box + 4, box + 8, box + 12, variant);
+                var parts = new List<object> { (double)located };
+                for (int at = 0; at < 16; at += 4) parts.Add((double)System.Runtime.InteropServices.Marshal.ReadInt32(box, at));
+                answer["location"] = parts;
+            }
+            finally
+            {
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(box);
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(variant);
+                System.Runtime.InteropServices.Marshal.Release(pointer);
+            }
+            return answer;
+        }
+
+        private static object HeldState(HeldPopup held, long id, List<object> answers)
+        {
+            PopupWindow popup = held.Popup;
+            SurfaceRenderer renderer = popup.Renderer;
+            CardLayers layers = popup.Layers;
+            SurfacePlan plan = popup.Plan;
+            object planJson = null;
+            if (plan != null)
+            {
+                var targets = new List<object>();
+                foreach (KeyValuePair<object, int[]> pair in plan.Targets)
+                {
+                    var named = pair.Key as SurfaceTarget;
+                    targets.Add(new List<object> { named != null ? named.ToList() : Plain(pair.Key), Plain(pair.Value) });
+                }
+                planJson = new Dictionary<string, object>
+                {
+                    { "card", Plain(plan.Card) }, { "size", Plain(plan.Size) }, { "scale", plan.Scale }, { "targets", targets },
+                };
+            }
+            var shadows = new List<object>();
+            if (layers != null)
+                foreach (FloatShadow shadow in layers.Shadows)
+                    shadows.Add(new List<object> { shadow.Dx, shadow.Dy, shadow.Blur, shadow.Colour, shadow.Alpha });
+            var records = new List<object>();
+            if (held.Record != null) foreach (string line in held.Record) records.Add(line);
+            object rounded = typeof(PopupWindow).GetField("rounded", Hidden).GetValue(popup);
+            object opening = null;
+            if (popup.Opening != null)
+                opening = new List<object>(Array.ConvertAll(popup.Opening, number => double.IsNaN(number) ? null : (object)number));
+            return new Dictionary<string, object>
+            {
+                { "id", (double)id }, { "hwnd", (double)held.Body.ToInt64() }, { "shadow", (double)held.Shadow.ToInt64() },
+                { "live", popup.Hwnd != IntPtr.Zero }, { "card", popup.Card }, { "lone", renderer != null && renderer.Lone },
+                { "rounded", rounded }, { "visible", popup.Visible }, { "alpha", (double)popup.Alpha }, { "below", (double)popup.Below },
+                { "opening", opening }, { "owed", popup.Owed }, { "static_dirty", popup.StaticDirty }, { "frames", popup.FrameRunning },
+                { "margin", layers == null ? null : (object)(double)layers.Margin }, { "layers", layers != null },
+                { "shadows", shadows }, { "plan", planJson },
+                { "halo_rows", renderer == null || renderer.HaloRows == null ? null : Plain(renderer.HaloRows) },
+                { "logs", new List<object>(held.Logs) }, { "records", records }, { "recording", held.Record != null },
+                { "answers", answers },
+            };
         }
     }
 }
