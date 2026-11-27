@@ -666,8 +666,11 @@ fn is_int(value: Option<&Value>) -> bool {
     matches!(value, Some(Value::Int(_)))
 }
 
+/// What `_token_events` reads: (counts with totals, every one keyed, never decreased, the last total).
+type TokenRead = (i64, bool, bool, Option<Value>);
+
 /// `_token_events(path)`: (counts with totals, every one keyed, the totals never decreased, the last total).
-fn token_events(path: &str) -> Res<(i64, bool, bool, Option<Value>)> {
+fn token_events(path: &str) -> Res<TokenRead> {
     let opened = car_machine::pyfile::open(path).map_err(|_| Raised::Other("OSError".into()))?;
     let mut data = Vec::new();
     opened
@@ -754,7 +757,7 @@ pub(super) fn mtok(ctx: &mut Context<'_>) -> Res<Found> {
         home: home.clone(),
         os: ctx.os(),
     };
-    let read = (|| -> Res<(Option<String>, (i64, bool, bool, Option<Value>))> {
+    let read = (|| -> Res<(Option<String>, TokenRead)> {
         let path = origins.rollout(&thread_text(ctx))?;
         let found = match &path {
             Some(path) => token_events(path)?,

@@ -281,13 +281,15 @@ fn queue_add(thread: &str, client_id: &str) -> Value {
 pub(super) fn turn_started_after(ctx: &mut Context<'_>, taken: bool) -> bool {
     let mut started = false;
     let deadline = ctx.world.monotonic() + ctx.timing.mc1_start;
-    while taken {
-        started = matches!(latest_kinds(ctx), Ok((Some(status), _, _)) if status == "inProgress" || status == "completed");
-        if started || ctx.world.monotonic() >= deadline {
-            break;
+    if taken {
+        loop {
+            started = matches!(latest_kinds(ctx), Ok((Some(status), _, _)) if status == "inProgress" || status == "completed");
+            if started || ctx.world.monotonic() >= deadline {
+                break;
+            }
+            let poll = ctx.timing.m2b_poll;
+            ctx.world.sleep(poll);
         }
-        let poll = ctx.timing.m2b_poll;
-        ctx.world.sleep(poll);
     }
     started
 }
@@ -367,13 +369,15 @@ pub(super) fn mqo(ctx: &mut Context<'_>) -> Res<Found> {
     let waited = ctx.world.monotonic() - began;
     let mut found = false;
     let deadline = ctx.world.monotonic() + ctx.timing.mqo_find;
-    while taken {
-        found = client_recorded(ctx, SAMPLE_MQO_CLIENT_ID);
-        if found || ctx.world.monotonic() >= deadline {
-            break;
+    if taken {
+        loop {
+            found = client_recorded(ctx, SAMPLE_MQO_CLIENT_ID);
+            if found || ctx.world.monotonic() >= deadline {
+                break;
+            }
+            let poll = ctx.timing.m2b_poll;
+            ctx.world.sleep(poll);
         }
-        let poll = ctx.timing.m2b_poll;
-        ctx.world.sleep(poll);
     }
     blocked(
         "open the throwaway conversation in the Desktop within five minutes of starting this; confirm the message ran there once, as your own, with no marker, then set the verdict",
@@ -511,21 +515,23 @@ pub(super) fn mqp(ctx: &mut Context<'_>) -> Res<Found> {
     })?;
     let mut found: Vec<usize> = Vec::new();
     let deadline = ctx.world.monotonic() + ctx.timing.mqo_find;
-    while taken != 0 {
-        let fresh: Vec<usize> = threads
-            .iter()
-            .enumerate()
-            .filter(|(index, thread)| {
-                !found.contains(index) && recorded_in(ctx, thread, &ids[*index])
-            })
-            .map(|(index, _)| index)
-            .collect();
-        found.extend(fresh);
-        if found.len() == threads.len() || ctx.world.monotonic() >= deadline {
-            break;
+    if taken != 0 {
+        loop {
+            let fresh: Vec<usize> = threads
+                .iter()
+                .enumerate()
+                .filter(|(index, thread)| {
+                    !found.contains(index) && recorded_in(ctx, thread, &ids[*index])
+                })
+                .map(|(index, _)| index)
+                .collect();
+            found.extend(fresh);
+            if found.len() == threads.len() || ctx.world.monotonic() >= deadline {
+                break;
+            }
+            let poll = ctx.timing.m2b_poll;
+            ctx.world.sleep(poll);
         }
-        let poll = ctx.timing.m2b_poll;
-        ctx.world.sleep(poll);
     }
     let found_elsewhere = if taken != 0 {
         let mut count = 0i64;
@@ -610,13 +616,15 @@ pub(super) fn mqg(ctx: &mut Context<'_>) -> Res<Found> {
         let taken = waiting && await_taken_on(ctx, session, &thread, SAMPLE_MQG_CLIENT_ID, bound)?;
         let mut ran = 0i64;
         let deadline = ctx.world.monotonic() + ctx.timing.mqg_settle;
-        while taken {
-            ran = turns_after(ctx, home.as_deref(), &thread, first.as_ref());
-            if ctx.world.monotonic() >= deadline {
-                break;
+        if taken {
+            loop {
+                ran = turns_after(ctx, home.as_deref(), &thread, first.as_ref());
+                if ctx.world.monotonic() >= deadline {
+                    break;
+                }
+                let poll = ctx.timing.m2b_poll;
+                ctx.world.sleep(poll);
             }
-            let poll = ctx.timing.m2b_poll;
-            ctx.world.sleep(poll);
         }
         let after = goal_status(&session.call("thread/goal/get", goal(&thread))?);
         Ok(Some((set_active, added, waiting, taken, ran, after)))
@@ -682,21 +690,23 @@ pub(super) fn mopen(ctx: &mut Context<'_>) -> Res<Found> {
         Some(Value::Bool(true))
     );
     let (mut loaded, mut holders, mut read) = (None, 0usize, false);
-    while opened {
-        let count = lock_users(ctx, &thread);
-        if let Some(count) = count {
-            read = true;
-            holders = count;
+    if opened {
+        loop {
+            let count = lock_users(ctx, &thread);
+            if let Some(count) = count {
+                read = true;
+                holders = count;
+            }
+            if count.is_some_and(|count| count > 0) {
+                loaded = Some(ctx.world.monotonic() - began);
+                break;
+            }
+            if ctx.world.monotonic() - began >= ctx.timing.mopen {
+                break;
+            }
+            let poll = ctx.timing.mopen_poll;
+            ctx.world.sleep(poll);
         }
-        if count.is_some_and(|count| count > 0) {
-            loaded = Some(ctx.world.monotonic() - began);
-            break;
-        }
-        if ctx.world.monotonic() - began >= ctx.timing.mopen {
-            break;
-        }
-        let poll = ctx.timing.mopen_poll;
-        ctx.world.sleep(poll);
     }
     let by_app = loaded.is_some() && look(ctx, &thread).0;
     let seen = observed(vec![
@@ -1143,10 +1153,7 @@ pub(super) fn msteer(ctx: &mut Context<'_>) -> Res<Found> {
         ))
     });
     // `steer_calls` is set to one inside the session, before the call: a session that did not open leaves it at 0.
-    let answered = match answered {
-        Ok(found) => found,
-        Err(raised) => return Err(raised),
-    };
+    let answered = answered?;
     seen_map.insert(key("steer_calls"), Value::from(1i64));
     let answered = match answered {
         Ok(found) => found,
