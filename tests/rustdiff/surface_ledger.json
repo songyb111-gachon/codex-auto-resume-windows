@@ -1898,14 +1898,25 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "1 of 37 UI tests run on the host (1 routed); 36 are still on the Python UI (36 window)",
-   "needs": "a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "9 of 37 UI tests run on the host or are held by a twin (1 routed, 8 twins); 28 are still on the Python UI: KeyTests 2, BehaviourTests 10, LiveWindowTests 3 (window), PlacementTests 6, RightToLeftTests 1, LookTests 6 (the drawing: seat S6.4f's plan route)",
+   "needs": "KeyTests and BehaviourTests: a probe over MenuPlan's Step/End/Letter and MenuWindow's message handlers with its push and announce recorded; LiveWindowTests: the host's MenuWindow made unshown and read through SurfaceAccess; PlacementTests, RightToLeftTests, LookTests: the render mode's menu plan and pixels (S6.4f)",
    "host_tests": [
     "ParityTests.test_the_items_are_the_menu_windows_has_always_shown"
    ],
-   "twins": {},
+   "twins": {
+    "ParityTests.test_the_drawn_menu_has_every_item_of_windows_menu_in_its_order_with_its_state": "test_host_icon_menu.py::ParityOnHostTests.test_the_drawn_menu_has_every_item_of_windows_menu_in_its_order_with_its_state",
+    "ParityTests.test_the_icon_hands_the_drawn_menu_exactly_what_windows_menu_would_get": "test_host_icon_menu.py::ParityOnHostTests.test_the_icon_hands_the_drawn_menu_exactly_what_windows_menu_would_get",
+    "ParityTests.test_a_choice_in_the_drawn_menu_reaches_the_action_windows_menu_reaches": "test_host_icon_menu.py::ParityOnHostTests.test_a_choice_in_the_drawn_menu_reaches_the_action_windows_menu_reaches",
+    "FallbackTests.test_an_icon_without_its_own_window_shows_windows_menu": "test_host_icon_menu.py::FallbackOnHostTests.test_an_icon_without_its_own_window_shows_windows_menu",
+    "FallbackTests.test_the_drawn_menu_is_shown_and_windows_is_not": "test_host_icon_menu.py::FallbackOnHostTests.test_the_drawn_menu_is_shown_and_windows_is_not",
+    "FallbackTests.test_a_drawn_menu_that_breaks_gives_way_to_windows_for_good_and_says_so_once": "test_host_icon_menu.py::FallbackOnHostTests.test_a_drawn_menu_that_breaks_gives_way_to_windows_for_good_and_says_so_once",
+    "FallbackTests.test_an_opening_refused_the_foreground_is_windows_menu_that_once": "test_host_icon_menu.py::FallbackOnHostTests.test_an_opening_refused_the_foreground_is_windows_menu_that_once",
+    "FallbackTests.test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon": "test_host_icon_menu.py::FallbackOnHostTests.test_the_drawn_menu_is_made_on_the_first_right_click_and_goes_with_the_icon"
+   },
    "no_twin": {},
    "port": [
+    "tests/test_host_icon_menu.py",
+    "tests/rustdiff/hosticon.py",
     "tests/rustdiff/surfaceproxy.py"
    ]
   },

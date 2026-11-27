@@ -163,6 +163,55 @@ namespace CodexAutoResume
             public void FollowSettings(Dictionary<string, object> values) { Calls.Add("follow_settings"); }
         }
 
+        /// The drawn menu as the icon opens it, standing in for the test's own (its `_menu_drawn`, or what popup.Menu makes):
+        /// each opening recorded with the items and words it was handed, answered in order (true: shown, false: Windows
+        /// refused it the foreground, "raise": it broke); an opening past the answers is reported unanswered and refused, so
+        /// the test's object can be asked and the run made again. The chooser of the last opening is kept for `choose`.
+        private sealed class RecordingMenu : ITrayMenu
+        {
+            internal Queue<object> Answers;
+            internal readonly List<object> Opens = new List<object>();
+            internal bool Unanswered;
+            internal int Destroyed;
+            internal Action<object> Chosen;
+            public bool Visible { get { return false; } }
+
+            public bool Open(List<object> items, Dictionary<string, object> strings, string locale, string letters, Action<object> chosen)
+            {
+                Opens.Add(new List<object> { Plain(items), new Dictionary<string, object>(strings) });
+                Chosen = chosen;
+                if (Answers.Count == 0)
+                {
+                    Unanswered = true;
+                    return false;
+                }
+                object answer = Answers.Dequeue();
+                if (answer is string) throw new InvalidOperationException("UpdateLayeredWindow");
+                return (bool)answer;
+            }
+
+            public void Destroy() { Destroyed++; }
+        }
+
+        /// A menu item as MenuItems makes it, from its JSON: the id an int, as NativeMenu reads it.
+        private static List<object> MenuEntries(List<object> json)
+        {
+            var items = new List<object>();
+            foreach (object each in json)
+            {
+                var item = each as Dictionary<string, object>;
+                if (item == null)
+                {
+                    items.Add(null);
+                    continue;
+                }
+                var copy = new Dictionary<string, object>(item);
+                copy["id"] = (int)(double)item["id"];
+                items.Add(copy);
+            }
+            return items;
+        }
+
         /// The icon over a run of steps (tests/rustdiff/hosticon.py's HostTray, the twin of ui/tray's Tray as the tests drive
         /// it): a TrayIcon with no window and no shell icon, everything it would ask of Windows recorded (SurfaceScreen.Probe),
         /// its posts recorded by the core's stand-in on the calling thread, given the state the test set (`snapshot`,
@@ -184,6 +233,8 @@ namespace CodexAutoResume
                 object askedWith = null;
                 RecordingActions actions = Flag(call, "actions") ? new RecordingActions { Raises = (List<object>)call["raises"] } : null;
                 var popup = new RecordingPopup();
+                var menu = new RecordingMenu { Answers = new Queue<object>((List<object>)SurfaceRender.Field(call, "menu_answers") ?? new List<object>()) };
+                int menusMade = 0;
                 Func<Dictionary<string, object>, bool> core = shown =>
                 {
                     if (answers.Count == 0)
@@ -203,6 +254,14 @@ namespace CodexAutoResume
                     Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]),
                     Failed = Flag(call, "failed"), Unconfirmed = Flag(call, "unconfirmed"), LastTip = SurfaceRender.Field(call, "last_tip") as string,
                 };
+                // the menu's state the test set: its own window or none, a drawn menu there already, or one that broke before
+                if (SurfaceRender.Field(call, "hwnd") is bool && !Flag(call, "hwnd")) icon.Hwnd = IntPtr.Zero;
+                icon.MenuTheming = false;
+                icon.MenuBroken = Flag(call, "menu_broken");
+                if (Flag(call, "menu_present")) icon.MenuDrawn = menu;
+                icon.MakeMenu = () => { menusMade++; return menu; };
+                icon.NativeChoice = SurfaceRender.Field(call, "native_choice") is double ? (int)(double)call["native_choice"] : 0;
+                icon.Cursor = () => new int[2];
                 icon.Update((Dictionary<string, object>)call["snapshot"]);
                 var results = new List<object>();
                 foreach (object each in (List<object>)call["steps"])
@@ -215,6 +274,11 @@ namespace CodexAutoResume
                     else if (what == "failure_seen") Private(icon, "FailureSeen");
                     else if (what == "unseen") results.Add(Private(icon, "Unseen", (Dictionary<string, object>)step[1], icon.FailureUnseen));
                     else if (what == "act") Private(icon, "Act", (int)(double)step[1], (bool)step[2]);
+                    else if (what == "menu") icon.Menu();
+                    else if (what == "choose") menu.Chosen(step[1]);
+                    else if (what == "native") results.Add((double)(int)Private(icon, "NativeMenu", MenuEntries((List<object>)step[1])));
+                    else if (what == "drop_menu") Private(icon, "DropMenu");
+                    else if (what == "popup_can_open") results.Add(icon.PopupCanOpen());
                     else throw new ArgumentException("no step " + what);
                 }
                 return new Dictionary<string, object>
@@ -223,6 +287,8 @@ namespace CodexAutoResume
                     { "record", new List<object>(SurfaceScreen.Probe) }, { "failed", icon.Failed }, { "unconfirmed", icon.Unconfirmed },
                     { "last_tip", icon.LastTip }, { "shown", Plain(icon.Shown()) }, { "results", results },
                     { "unanswered", unanswered }, { "asked_with", askedWith }, { "popup", popup.Calls },
+                    { "menu_opens", menu.Opens }, { "menu_unanswered", menu.Unanswered }, { "menu_made", (double)menusMade },
+                    { "menu_destroyed", (double)menu.Destroyed }, { "menu_broken", icon.MenuBroken }, { "menu_there", icon.MenuDrawn != null },
                 };
             }
             finally
