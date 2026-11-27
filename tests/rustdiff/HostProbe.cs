@@ -154,6 +154,8 @@ namespace CodexAutoResume
                     { "MENU_POPUP", (double)TrayIcon.MenuPopup },
                 };
             if (name == "popup_live") return PopupLive(call);
+            if (name == "popup_gate") return PopupGate(call);
+            if (name == "icon_held") return IconHeld(call);
             throw new ArgumentException("no call " + name);
         }
 
@@ -2411,6 +2413,139 @@ namespace CodexAutoResume
                                            state => (object)state) },
                 { "openings", held.Openings == null ? null : new List<object>(held.Openings) },
             };
+        }
+
+        // ------------------------------------------------------------------ the popup's gates, held (S6.4d5)
+        /// The popup's motion gates (tests/test_popup_motion_held.py GateTests) over a history of steps, run again from the
+        /// start on a PopupWindow with no window (Hwnd none: every call it makes of Windows recorded, never made): `set`
+        /// what the test's stand-in holds (visible, reduced, still, contrast, the vm's light and scene - the host keeps the
+        /// light it last drew, `state`, beside the vm -, the glides emptied, frame_running, the state's age in seconds, the
+        /// switches, the painted plan none, held: true / false / raise / none, the presses: the next is the seventh, as the
+        /// reference's stand-in press answers yes), then `sync` (SyncFrames: the SetTimer and KillTimer calls it made of the
+        /// frame timer), `frame` (Frame, as the reference's halo dict), `follow` (FollowSwitches over a plan of switches),
+        /// `title_press` (the private TitlePress at the step's ms), `ask_still` (the private AskStill). After each: the
+        /// answer, frame_running, the glides' targets, the sweep.
+        private static object PopupGate(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                var popup = new PopupWindow(new Dictionary<string, object>());
+                popup.Vm = new Dictionary<string, object> { { "light", null }, { "scene", null } };
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    int from = SurfaceScreen.Probe.Count;
+                    object answer = null;
+                    if (what == "set") GateSet(popup, (string)step[1], step[2]);
+                    else if (what == "sync") popup.SyncFrames();
+                    else if (what == "frame")
+                    {
+                        LightFrame frame = popup.Frame();
+                        answer = frame == null ? null : frame.ToMap();
+                    }
+                    else if (what == "follow")
+                    {
+                        var plan = new SurfacePlan();
+                        foreach (object row in (List<object>)step[1])
+                        {
+                            var item = new PlanItem((Dictionary<string, object>)row);
+                            item["target"] = TargetOf(item["target"]);
+                            plan.Items.Add(item);
+                        }
+                        typeof(PopupWindow).GetMethod("FollowSwitches", Hidden).Invoke(popup, new object[] { plan });
+                    }
+                    else if (what == "title_press")
+                        typeof(PopupWindow).GetMethod("TitlePress", Hidden).Invoke(popup, new object[] { (double)step[1] });
+                    else if (what == "ask_still") answer = typeof(PopupWindow).GetMethod("AskStill", Hidden).Invoke(popup, null);
+                    else throw new ArgumentException("no popup_gate step " + what);
+                    int set = 0, killed = 0;
+                    for (int at = from; at < SurfaceScreen.Probe.Count; at++)
+                    {
+                        string line = SurfaceScreen.Probe[at];
+                        if (line.StartsWith("SetTimer ") && line.Contains(" " + PopupWindow.TimerFrame + " ")) set++;
+                        if (line.StartsWith("KillTimer ") && line.EndsWith(" " + PopupWindow.TimerFrame)) killed++;
+                    }
+                    var glides = new List<object>();
+                    foreach (object target in popup.Glides.Keys)
+                    {
+                        var named = target as SurfaceTarget;
+                        glides.Add(named != null ? named.ToList() : Plain(target));
+                    }
+                    after.Add(new Dictionary<string, object>
+                    {
+                        { "answer", answer }, { "set", (double)set }, { "killed", (double)killed },
+                        { "frame_running", popup.FrameRunning }, { "glides", glides },
+                        { "sweep_since", popup.SweepSince.HasValue ? (object)popup.SweepSince.Value : null },
+                    });
+                }
+                return after;
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        private static void GateSet(PopupWindow popup, string name, object value)
+        {
+            if (name == "visible") popup.Visible = (bool)value;
+            else if (name == "reduced") popup.Reduced = (bool)value;
+            else if (name == "still") popup.Still = (bool)value;
+            else if (name == "contrast") popup.Contrast = (bool)value;
+            else if (name == "frame_running") popup.FrameRunning = (bool)value;
+            else if (name == "glides") popup.Glides = new Dictionary<object, Glide>();
+            else if (name == "painted_plan") popup.PaintedPlan = null;
+            else if (name == "light")
+            {
+                popup.Vm["light"] = value;
+                typeof(PopupWindow).GetField("state", Hidden).SetValue(popup, value as string);
+            }
+            else if (name == "scene") popup.Vm["scene"] = value;
+            else if (name == "state_age")
+                typeof(PopupWindow).GetField("stateSince", Hidden).SetValue(popup, TrayPlace.Monotonic() - (double)value);
+            else if (name == "switches")
+            {
+                var switches = new Dictionary<object, bool>();
+                foreach (object pair in (List<object>)value) switches[TargetOf(((List<object>)pair)[0])] = (bool)((List<object>)pair)[1];
+                typeof(PopupWindow).GetField("switches", Hidden).SetValue(popup, switches);
+            }
+            else if (name == "held")
+            {
+                string kind = (string)value;
+                popup.Held = kind == "none" ? null
+                    : kind == "raise" ? (Func<bool>)(() => { throw new InvalidOperationException("held"); })
+                    : kind == "true" ? (Func<bool>)(() => true) : () => false;
+            }
+            else if (name == "presses")
+            {
+                // the next press is the seventh: six counted, the last a moment before the step's
+                typeof(PopupWindow).GetField("presses", Hidden).SetValue(popup, 6);
+                typeof(PopupWindow).GetField("lastPress", Hidden).SetValue(popup, (double?)(double)value);
+            }
+            else throw new ArgumentException("no popup_gate field " + name);
+        }
+
+        /// The icon's reading for the popup (tests/test_popup_motion_held.py IconReadingTests): TrayIcon.PopupHeld with the
+        /// session's lock and disconnection as the test set them and battery saver answering as the test's patched one.
+        private static object IconHeld(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            try
+            {
+                bool saver = (bool)call["saver"];
+                var icon = new TrayIcon { AskBatterySaver = () => saver, SessionLocked = (bool)call["locked"],
+                                                       SessionAway = (bool)call["away"] };
+                return icon.PopupHeld();
+            }
+            finally
+            {
+                SurfaceScreen.Probe = saved;
+            }
         }
     }
 }
