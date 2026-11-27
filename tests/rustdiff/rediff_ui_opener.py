@@ -24,7 +24,11 @@ PORTED = ["src/codex_auto_resume/ui/tray/dashboard.py", "src/codex_auto_resume/w
           "src/codex_auto_resume/domain/ids.py", "src/codex_auto_resume/machine.py"]
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-UNITTEST = "import sys, unittest; unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])"
+# The bundled embeddable runtime is isolated (its ._pth): it never imports tests/sitecustomize.py, which installs the shim, so
+# the script imports it itself (a no-op where site already did) and fails where the shim did not install.
+UNITTEST = ("import sys, sitecustomize, unittest\n"
+            "assert 'rustdiff_shim' in sys.modules, 'the CODEX_AR_CORE=rust shim is not installed'\n"
+            "unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])")
 FAMILIES = ("OpenerDiff", "PiecesDiff")
 # The rows whose opener tests S6.4e routed (their `host_tests` in surface_ledger.json are run on the shim).
 ROWS = ("test_notice_click_chat.py", "test_tray_reuses_window.py", "test_popup_row_menu_parity.py", "test_single_rules.py",

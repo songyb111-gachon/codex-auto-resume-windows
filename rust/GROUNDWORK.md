@@ -4855,11 +4855,23 @@ menu and popup): it waits on the window route and its `needs` says so. `test_pos
 
 **Mutation checks** (each alone, restored with the file's bytes): the proxy's hand-over always given the row (3 errors in test_tray_reuses_window),
 `close_fds` dropped, the test's hand-over answer ignored, the exe handed back as text, the start's cwd dropped (each fails test_surface_opener);
-api.rs's toggle inverted, TrayMenu's toggle posting Stop, api.rs dropping the row (each fails its twin); in the copied product, see Checks.
+api.rs's toggle inverted, TrayMenu's toggle posting Stop, api.rs dropping the row (each fails its twin); in the product files the harness
+copies (rebuilt each time): handover.rs reading any answer as TAKEN (OpenerDiff), dashboard.rs leaving `--dialog=` off (OpenerDiff), handover.rs
+asking an owned window (OpenerDiff and PiecesDiff), a re-pointed line moved (`build.rs` refuses to build). All restored; the restored build's diff
+is OK (3 expected failures).
+
+Checks (code at `9ae93bbf0`): rust/ fmt --check, clippy --locked --all-targets -D warnings, test --locked, deny: rc 0 each; advanced/rust the
+same four rc 0; `check_rebuild.sh` rc 0; `check_groundwork.py` OK after it learned `FN_TYPES` (opener.rs names the copied hand-over's
+`unsafe extern "system" fn(HWND, LPARAM) -> BOOL` callback type: a fn type, held to that file, as car-host's fn types are).
 
 The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_opener.py --reference v0.6.26` (`--no-build` with binaries built): the opener's Python files
 changed since the final, `run.py -k OpenerDiff -k PiecesDiff`, then `test_surface_opener` and every `host_tests` entry of the five rows on
 `CODEX_AR_CORE=rust` with the tag's package first. `rediff_ui_tests.py` picks the new host_tests up as well.
+**Found on the resumed run (11-28):** the bundled embeddable runtime the re-diffs use is isolated (its `._pth`) and never imports
+`tests/sitecustomize.py`, so neither re-diff's "on the shim" run had the shim: `test_surface_askback` (and `test_surface_opener`) were
+skipped and the ledger tests ran on the tag's Python. Both scripts now import `sitecustomize` themselves and stop if `rustdiff_shim` is
+not loaded; with the shim really installed, `rediff_ui_tests.py --reference v0.6.26` runs 151 tests with no skip and passes (147 ledger
+tests + the askback's, the ledger and twins 55), and `rediff_ui_opener.py` 29 with no skip.
 
 Seams and what later seats need:
 * dashboard.rs and handover.rs have no seam of their own (the start and the Windows calls are direct), which is why the harness compiles copies. A
