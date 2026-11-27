@@ -216,10 +216,12 @@ class BuildScriptTests(unittest.TestCase):
                           "AssemblyInformationalVersion", "AssemblyCopyright"):
             self.assertIn(attribute, script)
         self.assertIn(r".codex-plugin\plugin.json", script)
-        # The one executable is described, by edition, since each edition has its own (v0.6.27: the MCP launcher
-        # that was the second is car-bin's, built by cargo).
-        self.assertEqual(script.count("-Description "), 1, "the window is described")
+        # Both executables are described: the window by edition, since each edition has its own, and the watcher
+        # host (S6.2b), one file for both editions (v0.6.27: the MCP launcher that was the second is car-bin's, built
+        # by cargo).
+        self.assertEqual(script.count("-Description "), 2, "the window and the host are described")
         self.assertIn("-Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)')", script)
+        self.assertIn("-Description 'Codex Auto Resume watcher host'", script)
 
     def test_the_release_build_proves_it_twice(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
