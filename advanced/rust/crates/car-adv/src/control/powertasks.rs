@@ -240,17 +240,21 @@ fn disarm(layer: &Control) -> Result<()> {
     }
 }
 
+/// A turn history that could not be read (the reference's raise inside `arm`'s `try`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unreadable;
+
 /// The history `arm` reads each picked conversation's latest turn from (`turns=`).
 pub trait Latest {
     /// `(turn_id, status)` of the newest turn, None for none; an `Err` is the reader's raise.
-    fn latest(&mut self, thread: &Value) -> std::result::Result<Option<(String, String)>, ()>;
+    fn latest(&mut self, thread: &Value) -> std::result::Result<Option<(String, String)>, Unreadable>;
 }
 
 impl Latest for Turns {
-    fn latest(&mut self, thread: &Value) -> std::result::Result<Option<(String, String)>, ()> {
+    fn latest(&mut self, thread: &Value) -> std::result::Result<Option<(String, String)>, Unreadable> {
         Turns::latest(self, thread)
             .map(|found| found.map(|turn| (turn.turn_id, turn.status)))
-            .map_err(|_| ())
+            .map_err(|_| Unreadable)
     }
 }
 
@@ -312,7 +316,7 @@ pub fn arm(
                 _ => String::new(),
             };
             let latest = if offered.contains(&thread_text) {
-                reader.latest(thread)?
+                reader.latest(thread).map_err(|_| ())?
             } else {
                 None
             };
