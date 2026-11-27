@@ -4959,3 +4959,74 @@ OverflowException where the Python gives no rows; NaN throws OverflowException w
 infinity is OverflowException as the Python's OverflowError. `(int)Math.Ceiling` of a negative or NaN radius is where
 it starts; a `Size()` that mirrors `int(math.ceil())` (NaN -> ArgumentException, infinity -> OverflowException, below
 zero -> 0) made all 18 edge pairs equal in a scratch probe.
+
+### Two more seams (the coordinator's go-on, from S6.4f3), and two names
+
+| Seam | What it answers | The reference's counterpart | Held by |
+|---|---|---|---|
+| `SurfaceRenderer.TextFlags(PlanItem item, bool? rtl)` (static) | the DrawTextW flags a text item is drawn with: DT_NOPREFIX; wrapped DT_WORDBREAK \| DT_EDITCONTROL, else DT_SINGLELINE \| DT_VCENTER \| DT_END_ELLIPSIS; DT_CENTER / DT_RIGHT by `align`; DT_RTLREADING in a right-to-left plan unless a `name` whose first strong letter is L. `DrawText` now calls it (same flags, same order of calls) | the flags `_text` hands `user32.DrawTextW`, which test_right_to_left reads by standing in for DrawTextW | test_host_seams: item by item against the reference's recorded flags (ar, en, he; a left-to-right name in an Arabic popup) |
+| `SurfaceRenderer.TextDrawn` (`Action<string, uint>`, null on a live host) | told each line as it goes to DrawTextW with its flags (the wrapped value, as DrawTextW gets it) | what a stood-in DrawTextW records | test_host_seams: every text item drawn once, its flags TextFlags', no GDI+ object left |
+| `SurfaceRenderer.ScenePieces` (int), `SceneBrushes` (`List<uint>`) | what the last drawing of the day's scene used: the pieces it filled (one per `SceneShape` call, both loops: the specks band by band and the scene's own) and the ARGB of each solid brush the painter made outside a rounded fill. Reset at the start of `Scene` | test_day_frame_cost's stand-ins for `Renderer._scene_shape` (pieces) and `_Painter._brush` outside `fill_round` (brushes) | test_host_seams: every look at 100 % and 150 %, three moments, pieces and brushes equal to the reference's |
+| `SurfacePainter.Brushes` (`List<uint>`, null: not counted) | the colours `Brush()` made outside `FillRound` (a depth counter `rounding` around FillRound's body) | `_Painter._brush` outside `fill_round` | through SceneBrushes |
+
+Nothing drawn changes: the counts are kept beside the drawing and read by nobody on the product's path (comparison A and
+test_surface_windows rerun exact). For test_day_frame_cost's twin: `a frame fills no speck out of sight` = ScenePieces
+minus the look's scene elements; `brush once` = SceneBrushes has no repeat; `the specks in sight are all drawn` needs a
+whole-band SpeckFrame (no `within`) - the C# has `SurfaceDays.SpeckFrame(look, ms, within)`, with `within` null for the
+whole band, so a twin can compare DrawScene's pixels with a frame drawn with `within` null (not a seam added here).
+
+**test_corners_by_design's two names:** the reference's `renderer._corner(item, scale)` is `SurfaceRenderer.Corner(PlanItem
+item, double scale)` (gui/SurfaceRenderer.cs: `corner` role -> the design's radius x scale rounded, else the item's
+`radius`); `canvas.smoothing` is `SurfaceCanvas.Smoothing` (double?, gui/SurfaceGdip.cs), set by the renderer from
+`SurfaceRenderer.Smoothing()` (`Brand.DesignSmoothing` of the design, Soft's in High Contrast) whenever the look is set
+(`_corners_follow_the_look`), and read by each `SurfacePainter` it makes. Both exist; nothing added.
+
+### Mutation checks (S6.3e; each alone, the file put back byte for byte, the module run through gui_lock.sh)
+
+21 of 21 failed their test (`scratchpad/car-v0627-s63e-mut2.out.json`, `-mut3.out.json`). Seams, probe path: TrackPopupMenu
+answering 0 instead of MenuChoice; a submenu's handle written as a number; SurfaceScreen.Tell not recorded; Gone hiding
+through SurfaceNative again (unrecorded). Live path: AppendMenu dropping the text; DestroyMenu doing nothing;
+TrackPopupMenu owned by no window (the source pin); Tell telling no one (the WinEvent hook); TipCard's timers never
+reaching Windows. Behaviour through the seams: the row menu's RTL direction dropped. The icon: the card made with the days
+negated; the live maker not attaching SurfaceAccess. Comparison A: SurfaceLight.StatusFill's unknown default idle ->
+active and StatusSystem's GrayText -> WindowText (the new drawn light cases), TrayMotion.StatusFill's default idle ->
+active (icon/). The renderer: TextFlags reading a left-to-right name right to left; a centred line not centred;
+TextDrawn telling nobody; ScenePieces missing the scene's own pieces; a rounded fill's brush counted; keep_solids dropped
+(each colour's brush made again). A first mutation run was hollow (Windows' WSL `bash` started gui_lock.sh and failed to
+find it; every "caught" was that error): the runner now names Git's bash and counts a mutation caught only on a FAIL/ERROR
+line with no compile error.
+
+### Checks (S6.3e)
+
+```
+make_gui.ps1 / -Edition advanced, each twice into fresh folders    byte-identical, normalize_pe leaves them unchanged:
+  CodexAutoResume.exe 534,016 2fb0a7b1c1bf6767..., Settings c7b4879a551f... (unchanged), advanced 80fb42457bf7... (unchanged)
+rediff_host_surface.py --reference v0.6.26 (gui_lock.sh)            exact (39 on the tag's Python: parity, windows, seams),
+                                                                   builds reproducibly (22)
+host-compiling modules, both lanes, one at a time (gui_lock.sh)     17 x 2 OK after the last C# change: test_surface_parity,
+  test_surface_windows, test_host_seams, test_reproducible, test_host_shape, test_host_app, test_host_contract,
+  test_host_shell, test_host_tray_place, test_surface_properties, test_surface_render_retarget, test_motion_window_icon,
+  test_guiscan, test_no_console_windows, test_edition_build, test_tooling_round2, test_build_tooling_audit
+36 modules that read host sources or build files, both lanes (before the renderer seams): 33 + 34 OK; failing on the base
+  too, none reading what changed: test_install_motion 2 and test_screenshots 1 (stale picture inputs: window sources,
+  make_gui.ps1, make_screenshots.py - the main session's pictures), test_gui_v065_controls 6 in the standard lane only
+  (the settings window under load; quiet.sh alone: Ran 26, OK)
+test_consumer_fields (window set, standard)                       FAIL on the base too: 4 HostMain.cs `answer` receivers
+  unplaced (neither file changed here)
+the other ~180 window-set modules                                  not rerun: they read gui/window.sources only, and no
+  window source changed (the window exe's digest is the base's)
+cargo fmt --check, clippy -D warnings, test, deny (rust/, advanced/rust/)   OK (241 and 29 tests); check_groundwork OK;
+  check_rebuild OK (same digests)
+privacy_scan.py on every added or changed file                     clean
+```
+
+### What later seats need
+
+* S6.4 (window rows): twin test_popup_row_menu_drawn's choice-versus-Windows and FallbackTests with popup_steps over
+  SurfaceScreen.Probe + MenuChoice (drop WindowsMenuReached); CardStateTests' hide at once and the backstop's hide count,
+  and test_tray_tip_messages' LiveCardTests, with TipCard under Probe (OnScreen true: every screen call is a record);
+  ShowTests' first rest with TrayIcon.MakeTipCard; test_right_to_left's flags test with TextFlags/TextDrawn;
+  test_day_frame_cost with ScenePieces/SceneBrushes; test_corners_by_design with Corner and SurfaceCanvas.Smoothing.
+* tests/test_host_seams.py is the model for a probe that compares the host's record with the reference over a recording
+  user32; its driver compiles with [contract]+[surface]+[generated].
+* The notice card's corner at radii no card has (above) is not this seat's; AUDIT-v0628.md has the line.
