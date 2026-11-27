@@ -642,10 +642,10 @@ fn reader_failed(failed: crate::fail::Failed) -> Raised {
 }
 
 /// `except HistoryNotYet:` (v0.6.26 final): a fresh home whose history Codex has not made yet - read, and holding
-/// nothing - is passed by, not unreadable. car-codex says so by the exception's class; the final-port seat's
-/// `Error::is_history_not_yet()` answers the same, and Integration 11 joins the two.
+/// nothing - is passed by, not unreadable. car-codex's `Error::is_history_not_yet()` (the final port's HistoryNotYet,
+/// a SourceError that says so; joined by Integration 11).
 pub fn history_not_yet(error: &car_codex::errors::Error) -> bool {
-    error.class() == "HistoryNotYet"
+    error.is_history_not_yet()
 }
 
 /// `sources_for(control)`: (label, reader) for each Codex home the watcher knows - the default (label None) first,

@@ -11,7 +11,8 @@ says of a notice's route (`checkup._presence`, the world's `presence`) and, for 
 * CheckupDiff      - detection-check over the golden home and its edges: paused, an administrator's pause, a
                      conversation switched off, unreadable and damaged settings, a missing or unreadable Codex home, a
                      second home, every route answer and a raising probe, the registry's view of every shape, another
-                     Interface language, an empty and a fresh home; replies, files, the state and the Host calls.
+                     Interface language, an empty and a fresh home, a Codex home whose history is not made yet
+                     (HistoryNotYet); replies, files, the state and the Host calls.
 * RescanDiff       - rescan over the golden home and its edges: a person's later turn (retired), a record of a home
                      Settings do not know, a missing Codex home, a second home, a record whose turn is gone.
 
@@ -113,6 +114,23 @@ def refused_homes(workspace: Path):
 def history_gone(workspace: Path):
     for path in (workspace / "codex").glob("thread_history*.sqlite*"):
         path.unlink()
+
+
+def history_not_made(workspace: Path):
+    """A fresh Codex home (v0.6.26 final, HistoryNotYet): no history database yet, and a state that holds no
+    conversation - passed by, not unreadable."""
+    import os
+    history_gone(workspace)
+    state = workspace / "codex" / "state_5.sqlite"
+    connection = sqlite3.connect(state)
+    try:
+        with connection:
+            connection.execute("DELETE FROM threads")
+    finally:
+        connection.close()
+    # Written at one time on both sides (each side's copy is made apart; the check reports the state's time).
+    for path in (workspace / "codex").glob("state_5.sqlite*"):
+        os.utime(path, (now() - 600, now() - 600))
 
 
 def history_damaged(workspace: Path):
@@ -218,6 +236,7 @@ class CheckupDiff(ChecksBase):
             ("the Interface language unknown", {}, chained(check_pinned, settings_edit(interface_language=17))),
             ("the Codex home missing", lambda ws: {"codex_home": str(ws / "nowhere")}, check_pinned),
             ("the history gone", {}, chained(check_pinned, history_gone)),
+            ("a fresh Codex home: no history yet, no conversation", {}, chained(check_pinned, history_not_made)),
             ("the history damaged", {}, chained(check_pinned, history_damaged)),
             ("a second home and a missing one", {}, chained(check_pinned, second_home)),
             ("a list of homes Settings refuse", {}, chained(check_pinned, refused_homes)),
