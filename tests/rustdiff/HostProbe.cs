@@ -154,6 +154,8 @@ namespace CodexAutoResume
                     { "MENU_POPUP", (double)TrayIcon.MenuPopup },
                 };
             if (name == "popup_live") return PopupLive(call);
+            if (name == "card_stack") return CardStackSteps(call);
+            if (name == "card_motion") return CardMotionSteps(call);
             if (name == "card_focus") return CardFocus(call);
             if (name == "menu_fade") return MenuFade(call);
             if (name == "popup_gate") return PopupGate(call);
@@ -2729,6 +2731,120 @@ namespace CodexAutoResume
                 SurfaceScreen.Posted.Clear();
                 SurfaceScreen.Probe = saved;
             }
+        }
+
+        // ------------------------------------------------------------------ the cards clicked and held (S6.4d5)
+        /// The card stack as tests/test_notice_click.py's and test_notice_stay.py's CardTests drive it: a history run again
+        /// from the start on a CardStack made by its own Create (its window message-only) in SurfaceScreen's probe mode - every
+        /// card window made and never shown - its place and look the test's, its actions posted to RecordingActions and its
+        /// worker running each at once (the test's `worker`), its clock each step's. Steps: show (a notice event: the card's
+        /// number, or null), message (a card's body window's procedure: a press, a release), tick (Tick), hold (Hold). After
+        /// each: what it returned, every card shown so far (still on the stack, its view's click and actions, its size, its
+        /// plan's targets, its motion's phase), what was posted.
+        private static object CardStackSteps(Dictionary<string, object> call)
+        {
+            List<string> saved = SurfaceScreen.Probe;
+            SurfaceScreen.Probe = new List<string>();
+            var actions = new RecordingActions();
+            double clock = 0;
+            var host = new CardStack { Log = line => { }, Actions = actions, Worker = work => work(), Clock = () => clock };
+            var where = (Dictionary<string, object>)call["where"];
+            host.Locate = () => new CardStack.CardScreen
+            {
+                Anchor = where["anchor"] == null ? null : IntsOf(where["anchor"]), Work = IntsOf(where["work"]),
+                Monitor = IntsOf(where["monitor"]), Dpi = (double)where["dpi"],
+            };
+            var look = (Dictionary<string, object>)call["appearance"];
+            host.Appearance = () => new Dictionary<string, object>(look);
+            var shown = new List<NoticeCard>();
+            try
+            {
+                host.Create();
+                var after = new List<object>();
+                foreach (object each in (List<object>)call["steps"])
+                {
+                    var step = (List<object>)each;
+                    string what = (string)step[0];
+                    clock = (double)step[1];
+                    object returned = null;
+                    if (what == "show")
+                    {
+                        NoticeCard card = host.Show((Dictionary<string, object>)step[2]);
+                        if (card != null)
+                        {
+                            shown.Add(card);
+                            returned = (double)(shown.Count - 1);
+                        }
+                    }
+                    else if (what == "message")
+                    {
+                        NoticeCard card = shown[(int)(double)step[2]];
+                        returned = (double)host.Message(card.Body.Hwnd, (int)(double)step[3], (long)(double)step[4], (long)(double)step[5]).ToInt64();
+                    }
+                    else if (what == "tick") host.Tick();
+                    else if (what == "hold") returned = host.Hold();
+                    else throw new ArgumentException("no card_stack step " + what);
+                    var cards = new List<object>();
+                    foreach (NoticeCard card in shown)
+                    {
+                        var targets = new List<object>();
+                        if (card.Plan != null)
+                            foreach (KeyValuePair<object, int[]> pair in card.Plan.Targets)
+                            {
+                                var named = pair.Key as SurfaceTarget;
+                                targets.Add(new List<object> { named != null ? named.ToList() : Plain(pair.Key), Plain(pair.Value) });
+                            }
+                        cards.Add(new Dictionary<string, object>
+                        {
+                            { "living", host.Cards.Contains(card) }, { "click", SurfaceRender.Field(card.Vm, "click") },
+                            { "actions", Plain(SurfaceRender.Field(card.Vm, "actions")) },
+                            { "size", card.Plan == null ? null : Plain(card.Size) }, { "targets", targets }, { "phase", card.Motion.Phase },
+                        });
+                    }
+                    after.Add(new Dictionary<string, object> { { "returned", returned }, { "cards", cards },
+                                                               { "posted", new List<object>(actions.Posted) } });
+                }
+                return after;
+            }
+            finally
+            {
+                host.Dispose();
+                SurfaceScreen.Posted.Clear();
+                SurfaceScreen.Probe = saved;
+            }
+        }
+
+        /// notice_card.CardMotion as tests/test_notice_stay.py drives it: a CardMotion made at `now` with `hold`, then steps
+        /// frame (its alpha), gone, wait (WaitMs), pause, retire - each answered.
+        private static object CardMotionSteps(Dictionary<string, object> call)
+        {
+            object hold = call["hold"];
+            var motion = new CardMotion((double)call["now"], hold as string == "inf" ? double.PositiveInfinity : (double)hold);
+            var answers = new List<object>();
+            foreach (object each in (List<object>)call["steps"])
+            {
+                var step = (List<object>)each;
+                string what = (string)step[0];
+                if (what == "frame") answers.Add(motion.Frame((double)step[1]).Alpha);
+                else if (what == "gone") answers.Add(motion.Gone);
+                else if (what == "wait")
+                {
+                    double? wait = motion.WaitMs((double)step[1]);
+                    answers.Add(wait.HasValue ? (object)wait.Value : null);
+                }
+                else if (what == "pause")
+                {
+                    motion.Pause((double)step[1], (bool)step[2]);
+                    answers.Add(null);
+                }
+                else if (what == "retire")
+                {
+                    motion.Retire((double)step[1]);
+                    answers.Add(null);
+                }
+                else throw new ArgumentException("no card_motion step " + what);
+            }
+            return answers;
         }
     }
 }

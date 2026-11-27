@@ -59,6 +59,8 @@ def notice_event(notice):
     """The core's `notice` event for a reference Notice (gui/CardStack.cs's shape): its view as notice_card.view makes it,
     its title, whether it stays, and every character its words draw."""
     from codex_auto_resume import notice_card
+    if notice is None:
+        return None                                  # what build gives an event with no notice: the card host refuses it
     view = _plain(notice_card.view(notice))
     return {"id": 1, "key": notice.key, "title": notice.title, "stays": notice.stays is True, "view": view,
             "letters": "".join(sorted(_letters(view, set())))}
