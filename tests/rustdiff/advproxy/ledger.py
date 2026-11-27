@@ -66,6 +66,14 @@ GREEN = {
     # Integration 10's bare --run on the bundled 3.14.10: two of the "ready" files, green through S7.2a3's rows
     "test_advanced_agent_thread_trigger.py": "Integration 10 (runtime, state, arming)",
     "test_advanced_package.py": "Integration 10 (runtime, state, arming)",
+    # proxy2 (completion part 1): "a build of version N" - the patched SCHEMA_VERSION, TABLES and the opening's
+    # statements reach car-adv's `state::builds` for the call they are patched in (test-only, empty in the product)
+    "test_advanced_state_v5.py": "proxy2 (state; state::builds for the patched SCHEMA_VERSION; NaN across the pipe)",
+    "test_advanced_state_v6.py": "proxy2 (state; state::builds)",
+    "test_advanced_state_v7.py": "proxy2 (state; state::builds)",
+    "test_advanced_schema_v8.py": "proxy2 (state; state::builds: SCHEMA_VERSION, TABLES, UPGRADE_TO_V019, FREE_WORDINGS, "
+                                  "MARKED)",
+    "test_advanced_state_options.py": "proxy2 (state; state::builds; a get-only registry handed what it answers)",
 }
 
 # What a run found that the imports cannot say (`--run`): the seat or the reason a file still waits for, each with
@@ -81,13 +89,6 @@ RUN_WAITS = {
     "test_advanced_admission.py": ("S4.2 proxy", "EngineCase (6) fails on the core proxy alone too "
                                    "(CODEX_AR_ADVPROXY=0): core's engine through car-harness with an advanced plug "
                                    "(P11 and P2 through AskStore); the other 21 tests are green through the proxy"),
-    "test_advanced_state_v5.py": ("reference only", "\"a build of version N\" patches the reference's "
-                                  "session.SCHEMA_VERSION: car-adv's is compiled in (its migrations: diffs_advstore)"),
-    "test_advanced_state_v6.py": ("reference only", "patches session.SCHEMA_VERSION (as test_advanced_state_v5)"),
-    "test_advanced_state_v7.py": ("reference only", "patches session.SCHEMA_VERSION (as test_advanced_state_v5)"),
-    "test_advanced_schema_v8.py": ("reference only", "patches session.SCHEMA_VERSION (as test_advanced_state_v5)"),
-    "test_advanced_state_options.py": ("reference only", "an older reader (a patched SCHEMA_VERSION) and a "
-                                       "registry that is a SimpleNamespace with no definitions to hand car-adv"),
     "test_advanced_examples.py": ("S7.1b", "reaches no forwarded code: statement's and registry's own functions"),
     "test_advanced_measure_m4b.py": ("S7.4", "reaches no forwarded code: the measurement table's words"),
     "test_advanced_word_keys.py": ("S7.1", "reaches no forwarded code: statement and images' own functions"),

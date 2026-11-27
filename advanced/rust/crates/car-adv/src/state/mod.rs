@@ -22,6 +22,7 @@
 pub mod analytics;
 pub mod arming;
 pub mod ask;
+pub mod builds;
 pub mod calls;
 pub mod chat;
 pub mod choices;

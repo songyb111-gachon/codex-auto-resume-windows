@@ -65,6 +65,25 @@ def plain(value):
     return repr(value)
 
 
+def _floats_out(value):
+    """JSON has no NaN or infinity: one crosses as `{"__float__": "nan" | "inf" | "-inf"}` (advserve's wire.rs)."""
+    if isinstance(value, float) and value != value:
+        return {"__float__": "nan"}
+    if isinstance(value, float) and value in (float("inf"), float("-inf")):
+        return {"__float__": "inf" if value > 0 else "-inf"}
+    if isinstance(value, dict):
+        return {key: _floats_out(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_floats_out(item) for item in value]
+    return value
+
+
+def _float_in(found):
+    if len(found) == 1 and found.get("__float__") in ("nan", "inf", "-inf"):
+        return float(found["__float__"])
+    return found
+
+
 class Exited(RuntimeError):
     """advserve ended while a call was waiting for it."""
 
@@ -100,14 +119,14 @@ class Pipe:
 
     def write(self, message):
         process = self.start()
-        process.stdin.write((json.dumps(message, ensure_ascii=True, allow_nan=True) + "\n").encode("utf-8"))
+        process.stdin.write((json.dumps(_floats_out(message), ensure_ascii=True) + "\n").encode("utf-8"))
         process.stdin.flush()
 
     def read(self):
         line = self.process.stdout.readline()
         if not line:
             raise Exited("advserve ended (exit %s)" % self.process.poll())
-        return json.loads(line)
+        return json.loads(line, object_hook=_float_in)
 
     def request(self, session: int, call: str, **fields):
         """`call` for `session`: its value, or the reference's own raise."""
@@ -121,6 +140,9 @@ class Pipe:
                     self.pump()
                 self.next_id += 1
                 self.counts[call] = self.counts.get(call, 0) + 1
+                patched = build()
+                if patched is not None:
+                    fields = dict(fields, build=patched)
                 self.write(dict(fields, id=self.next_id, call=call, session=session))
                 reply = self.pump()
             finally:
@@ -144,6 +166,29 @@ class Pipe:
             except BaseException as error:     # noqa: BLE001 - every raise is the test's answer, said by class
                 answer = raised_answer(error)
             self.write(answer)
+
+
+# The opening's statements a test may patch in `state.session` to cut a run short (car-adv `state::builds`).
+BUILD_STATEMENTS = ("UPGRADE_TO_V019", "FREE_OPTIONS", "FREE_WORDINGS", "MARKED")
+
+
+def build():
+    """"A build of version N": while a test has the reference's `session.SCHEMA_VERSION`, `session.TABLES` or one of
+    the opening's statements patched, what car-adv's `state::builds` holds the file to for the call - else None."""
+    import sys
+    session = sys.modules.get("codex_auto_resume_advanced.state.session")
+    schema = sys.modules.get("codex_auto_resume_advanced.state.schema")
+    if session is None or schema is None:
+        return None
+    version, tables = getattr(session, "SCHEMA_VERSION", None), getattr(session, "TABLES", None)
+    statements = {name: getattr(session, name) for name in BUILD_STATEMENTS
+                  if getattr(session, name, None) is not getattr(schema, name, None)}
+    if version == schema.SCHEMA_VERSION and tables is schema.TABLES and not statements:
+        return None
+    named = next((name for name in sorted(vars(schema)) if name.startswith("TABLES") and getattr(schema, name) is tables),
+                 None)
+    return {"version": version, "tables": named or "TABLES",
+            "statements": {name: [each] if isinstance(each, str) else list(each) for name, each in statements.items()}}
 
 
 def raised_answer(error) -> dict:

@@ -120,6 +120,9 @@ class StateProxy(_Session):
         return self._owner.raised(reply)
 
     def _call(self, name, *arguments, **keywords):
+        opening = getattr(self._owner, "_opened_for", None)
+        if opening is not None:
+            opening(arguments)
         found = PIPE.request(self._session, "state", method=name, args=plain(list(arguments)),
                              kwargs=plain(keywords))
         return _shaped(name, found)
@@ -296,7 +299,27 @@ class AdvancedState(_Session, metaclass=_ReferenceClass):
             registry = REGISTRY
         self._proxy = StateProxy(self, paths, registry, clock)
         self._session = PIPE.session(self)
-        PIPE.request(self._session, "open", kind="state", home=str(paths.home), definitions=definitions(registry))
+        self._waiting = None
+        if hasattr(registry, "__iter__"):
+            PIPE.request(self._session, "open", kind="state", home=str(paths.home), definitions=definitions(registry))
+        else:
+            # A registry that only answers `get` (a test's SimpleNamespace): car-adv is handed what it answers for the
+            # capability the first call names, its options the vocabulary holds (a name it does not hold cannot be
+            # written into car-adv's closed words: car-adv refuses that name, OPTION_INVALID, as the code does).
+            self._waiting = (paths, registry)
+
+    def _opened_for(self, arguments):
+        if self._waiting is None:
+            return
+        (paths, registry), self._waiting = self._waiting, None
+        from codex_auto_resume_advanced.vocabulary import OptionKey
+        held = {each.value for each in OptionKey}
+        found = registry.get(arguments[0]) if arguments and isinstance(arguments[0], str) else None
+        made = []
+        if found is not None:
+            made = [dict(dump_def(found, _shipped(found.make)),
+                         options=[each for each in dump_def(found, False)["options"] if each["key"] in held])]
+        PIPE.request(self._session, "open", kind="state", home=str(paths.home), definitions=made)
 
     def answer(self, line):
         if line.get("ask") == "source" and line.get("name") == "clock":
@@ -571,12 +594,21 @@ class Runtime(_Session):
                 if made is not None:
                     raise made
                 raise
+            self._rust_code(definition)
         return self._code[definition.id]
 
     def action(self, definition):
         if definition.id not in self._code:
             self._call("action", definition.id)
+            self._rust_code(definition)
         return self._code[definition.id]
+
+    def _rust_code(self, definition):
+        """A shipped capability's code is car-adv's own (its `make` is car-adv's table): the test holds a `RustCode`
+        whose settings its world's seams read (worlds.py)."""
+        if definition.id not in self._code and _shipped(definition.make):
+            from .worlds import RustCode
+            self._code[definition.id] = RustCode(self, definition.id)
 
     def claim(self, connection, record, now, carried):
         raise NotImplementedError("advproxy: P11 runs on core's own connection, in core's process (table.py)")
@@ -602,6 +634,9 @@ class Runtime(_Session):
             return self._object(line["object"], line["method"], line.get("args") or [])
         if kind == "view":
             return self._view(line["view"], line["method"], line.get("args") or [])
+        if kind == "world":
+            from . import worlds
+            return worlds.answer(self, line)
         if kind == "edge":
             return {"value": plain(EDGES[line["name"]](self, *(line.get("args") or [])))}
         if kind == "log":

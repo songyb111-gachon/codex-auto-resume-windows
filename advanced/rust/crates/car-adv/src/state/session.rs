@@ -242,15 +242,15 @@ impl AdvancedState {
                 sql::exec(connection, statement, &[])?;
             }
             tables = Self::tables(connection)?;
-            version = schema::SCHEMA_VERSION;
+            version = super::builds::version();
         }
-        if version > schema::SCHEMA_VERSION {
-            if schema::readable_from(connection, version)? > schema::SCHEMA_VERSION {
+        if version > super::builds::version() {
+            if schema::readable_from(connection, version)? > super::builds::version() {
                 return Err(Error::state(
                     "the advanced state was written by a newer version",
                 ));
             }
-            if !schema::holds(&tables, schema::TABLES) {
+            if !schema::holds(&tables, super::builds::tables()) {
                 return Err(Error::state("unsupported or malformed advanced state"));
             }
         } else {
@@ -269,7 +269,7 @@ impl AdvancedState {
                 (
                     schema::STAGE4_VERSION,
                     schema::TABLES_V7,
-                    schema::UPGRADE_TO_V019,
+                    super::builds::statements("UPGRADE_TO_V019", schema::UPGRADE_TO_V019),
                 ),
                 (
                     schema::V019_VERSION,
@@ -286,18 +286,18 @@ impl AdvancedState {
                     version = sql::number(connection, "PRAGMA user_version", &[])?;
                 }
             }
-            if version != schema::SCHEMA_VERSION || !schema::same(&tables, schema::TABLES) {
+            if version != super::builds::version() || !schema::same(&tables, super::builds::tables()) {
                 return Err(Error::state("unsupported or malformed advanced state"));
             }
             if schema::names_checked(connection)? {
-                for statement in schema::FREE_OPTIONS {
+                for statement in super::builds::statements("FREE_OPTIONS", schema::FREE_OPTIONS) {
                     sql::exec(connection, statement, &[])?;
                 }
             } else if schema::readable_from(connection, version)? != schema::READABLE_FROM {
-                sql::exec(connection, schema::MARKED, &[])?;
+                sql::exec(connection, super::builds::statement("MARKED", schema::MARKED), &[])?;
             }
             if schema::wordings_checked(connection)? {
-                for statement in schema::FREE_WORDINGS {
+                for statement in super::builds::statements("FREE_WORDINGS", schema::FREE_WORDINGS) {
                     sql::exec(connection, statement, &[])?;
                 }
             }

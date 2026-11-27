@@ -36,6 +36,7 @@ mod proxied;
 #[allow(dead_code)]
 mod util;
 mod wire;
+mod worlds;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
@@ -187,6 +188,9 @@ impl From<util::Failure> for Fault {
 // ------------------------------------------------------------------ the loop
 
 fn main() {
+    // No code made here reaches this PC's Codex: the usage family's default world refuses every seam, and the codes
+    // this proxy serves get worlds of their own that ask the test (worlds.rs).
+    car_adv::engine::usage::install_world(worlds::refusing());
     while let Some(line) = wire::read() {
         let reply = handle(&line);
         wire::write(&reply);
@@ -196,6 +200,7 @@ fn main() {
 /// One request, answered: its reply line. A panic is caught here (D15) and said as `RustPanic`.
 pub fn handle(line: &Value) -> Value {
     let id = field(line, "id").clone();
+    build_of(line);
     let reply = match car_machine::caught::catch(|| dispatch(line)) {
         Ok(Ok(value)) => object([("ok", value)]),
         Ok(Err(fault)) => object([
@@ -221,6 +226,28 @@ pub fn handle(line: &Value) -> Value {
         }
     };
     object([("id", id), ("reply", reply)])
+}
+
+/// "A build of version N" (car-adv `state::builds`): the reference's `session.SCHEMA_VERSION`, `session.TABLES` and the
+/// opening's statements as the test has them patched while this request runs - `"build": {"version", "tables" (the
+/// name of the schema's tables it is), "statements": {name: [statement, ...]}}`, absent when nothing is patched.
+fn build_of(line: &Value) {
+    let build = field(line, "build");
+    let found = match field(build, "version") {
+        Value::Null => None,
+        version => word(field(build, "tables"))
+            .and_then(car_adv::state::builds::tables_named)
+            .map(|tables| (integer(version), tables)),
+    };
+    car_adv::state::builds::set(found);
+    let statements = match field(build, "statements") {
+        Value::Object(map) => map
+            .iter()
+            .map(|(name, each)| (name.as_str().unwrap_or_default().to_owned(), words(each)))
+            .collect(),
+        _ => Vec::new(),
+    };
+    car_adv::state::builds::set_statements(statements);
 }
 
 fn dispatch(line: &Value) -> Result<Value, Fault> {
@@ -350,6 +377,8 @@ fn dispatch(line: &Value) -> Result<Value, Fault> {
             let session = session(line)?;
             object_call(&session, integer(field(line, "object")), &method, line)
         }
+        "gate" => worlds::gate_call(integer(field(line, "gate")), &method)
+            .map_err(|class| Fault::class(&class)),
         "told" => {
             let number = integer(field(line, "told"));
             let told = proxied::TOLD.with(|held| held.borrow_mut().1.remove(&number));
@@ -463,6 +492,7 @@ fn open(line: &Value) -> Result<Value, Fault> {
             let catalogs = word(field(line, "catalogs"))
                 .map(str::to_owned)
                 .unwrap_or_default();
+            let folder = catalogs.clone();
             let options = Options {
                 registry,
                 clock: Arc::new(clock_of(id)),
@@ -493,6 +523,9 @@ fn open(line: &Value) -> Result<Value, Fault> {
                 maker: Arc::new(
                     move |definition: &CapabilityDef, paths: &car_config::Paths| {
                         if shipped.contains(&definition.id) {
+                            if let Some(made) = worlds::make(definition, paths, id, &folder) {
+                                return made;
+                            }
                             return car_adv::capabilities::make(definition, paths);
                         }
                         let answer = wire::ask(
