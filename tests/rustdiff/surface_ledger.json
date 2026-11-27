@@ -1153,12 +1153,26 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 27 UI tests run on the host (none); 27 are still on the Python UI (27 window)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "10 of 27 UI tests are held by a twin; 17 are still on the Python UI: ParityTests 4, FallbackTests 4, PopupFocusTests 1 (the popup window's context menu and focus), WindowsTests 2 (window), and RightToLeftSubmenuTests.test_the_layout_is_mirrored_with_the_arrow_at_the_left, PlacementTests 5 (the drawing: seat S6.4f's plan route)",
+   "needs": "a popup probe over PopupWindow's context menu (ContextMenu with the test's drawn menu asked back and its user32 handed the host's calls, as icon_steps does for the icon) and its WM_ACTIVATE; WindowsTests: the MenuWindow opened in its own never-shown window; the mirrored plan and placement: the render mode's menu plan (S6.4f)",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "SubmenuTests.test_the_arrow_towards_it_opens_the_submenu_its_first_item_in_hand_and_enter_chooses_in_it": "test_host_row_menu.py::SubmenuOnHostTests.test_the_arrow_towards_it_opens_the_submenu_its_first_item_in_hand_and_enter_chooses_in_it",
+    "SubmenuTests.test_enter_opens_it_and_the_arrow_back_and_esc_close_it_one_level_at_a_time": "test_host_row_menu.py::SubmenuOnHostTests.test_enter_opens_it_and_the_arrow_back_and_esc_close_it_one_level_at_a_time",
+    "SubmenuTests.test_home_end_and_letters_reach_into_the_open_submenu": "test_host_row_menu.py::SubmenuOnHostTests.test_home_end_and_letters_reach_into_the_open_submenu",
+    "SubmenuTests.test_the_pointer_resting_on_it_opens_it_after_windows_delay_and_on_another_item_closes_it": "test_host_row_menu.py::SubmenuOnHostTests.test_the_pointer_resting_on_it_opens_it_after_windows_delay_and_on_another_item_closes_it",
+    "SubmenuTests.test_one_submenu_at_a_time_and_a_click_on_its_item_opens_it_at_once": "test_host_row_menu.py::SubmenuOnHostTests.test_one_submenu_at_a_time_and_a_click_on_its_item_opens_it_at_once",
+    "SubmenuTests.test_a_click_in_the_submenu_chooses_and_the_pointer_there_keeps_its_item_in_hand": "test_host_row_menu.py::SubmenuOnHostTests.test_a_click_in_the_submenu_chooses_and_the_pointer_there_keeps_its_item_in_hand",
+    "SubmenuTests.test_closing_the_menu_closes_its_submenu_and_a_click_away_tells_the_popup": "test_host_row_menu.py::SubmenuOnHostTests.test_closing_the_menu_closes_its_submenu_and_a_click_away_tells_the_popup",
+    "SubmenuTests.test_a_submenu_of_an_item_that_cannot_be_used_does_not_open": "test_host_row_menu.py::SubmenuOnHostTests.test_a_submenu_of_an_item_that_cannot_be_used_does_not_open",
+    "SubmenuTests.test_a_screen_reader_hears_an_item_that_opens_a_submenu": "test_host_row_menu.py::SubmenuOnHostTests.test_a_screen_reader_hears_an_item_that_opens_a_submenu",
+    "RightToLeftSubmenuTests.test_the_left_to_right_arrow_does_not_open_it": "test_host_row_menu.py::RightToLeftSubmenuOnHostTests.test_the_left_to_right_arrow_does_not_open_it"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_row_menu.py",
+    "tests/rustdiff/hosticon.py"
+   ]
   },
   "test_popup_row_menu_parity.py": {
    "holds": "The popup's waiting-task menu offers what the Dashboard's Pending menu offers (v0.6.23; the owner, 2026-11-11:",

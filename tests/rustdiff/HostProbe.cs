@@ -210,7 +210,7 @@ namespace CodexAutoResume
                     continue;
                 }
                 var copy = new Dictionary<string, object>(item);
-                copy["id"] = (int)(double)item["id"];
+                if (item.ContainsKey("id") && item["id"] is double) copy["id"] = (int)(double)item["id"];
                 items.Add(copy);
             }
             return items;
@@ -260,18 +260,18 @@ namespace CodexAutoResume
             SurfaceScreen.Probe = new List<string>();
             var logged = new List<object>();
             var menu = new MenuWindow(line => logged.Add(line));
+            bool create = Flag(call, "create");
             try
             {
                 var chosen = new List<object>();
                 var told = new List<object>();
+                int left = 0;
                 menu.Entries = MenuEntries((List<object>)call["entries"]);
                 menu.Strings = new Dictionary<string, object>((Dictionary<string, object>)call["strings"]);
+                if (SurfaceRender.Field(call, "locale") is string) menu.Locale = (string)call["locale"];
                 menu.OnChoose = id => chosen.Add(Plain(id));
-                SurfaceRenderer renderer = SurfaceRenderer.Open();
-                typeof(MenuWindow).GetField("renderer", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                                  .SetValue(menu, renderer);
-                menu.Plan = renderer.MenuLayout(menu.Entries, (double)call["scale"], menu.Locale, 1920);
-                menu.Visible = true;
+                if (Flag(call, "leave")) menu.OnLeave = () => left++;
+                if (SurfaceRender.Field(call, "owner") is double) menu.Owner = new IntPtr((long)(double)call["owner"]);
                 menu.Telling = (hwnd, winEvent) => told.Add(new List<object> { "tell", (double)winEvent });
                 menu.Speaking = window =>
                 {
@@ -284,15 +284,38 @@ namespace CodexAutoResume
                         changes.Add(new List<object> { (double)change[0], (double)change[1] });
                     told.Add(new List<object> { "announce", Items(before), Items(items), changes });
                 };
+                SurfaceRenderer renderer;
+                if (create)
+                {
+                    // its own window, made and never shown (a submenu's and the pointer's timer need one), as the render
+                    // mode's MenuWindowCase makes it: every call that would show it is recorded instead
+                    menu.Create();
+                    renderer = menu.Renderer;
+                }
+                else
+                {
+                    renderer = SurfaceRenderer.Open();
+                    typeof(MenuWindow).GetField("renderer", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                      .SetValue(menu, renderer);
+                }
+                menu.Plan = renderer.MenuLayout(menu.Entries, (double)call["scale"], menu.Locale, 1920);
+                menu.Work = new[] { 0, 0, 1920, 1040 };
+                if (SurfaceRender.Field(call, "origin") is List<object>)
+                {
+                    var origin = (List<object>)call["origin"];
+                    menu.Origin = new[] { (int)(double)origin[0], (int)(double)origin[1] };
+                }
+                menu.Visible = true;
                 var after = new List<object>();
                 foreach (object each in (List<object>)call["steps"])
                 {
                     var step = (List<object>)each;
                     string what = (string)step[0];
                     object returned = null;
-                    if (what == "send")
+                    if (what == "send" || what == "send_child")
                     {
-                        IntPtr answer = menu.Message((int)(double)step[1], (long)(double)step[2], (long)(double)step[3]);
+                        MenuWindow target = what == "send" ? menu : menu.Child;
+                        IntPtr answer = target.Message((int)(double)step[1], (long)(double)step[2], (long)(double)step[3]);
                         returned = (double)answer.ToInt64();
                     }
                     else if (what == "visible") menu.Visible = (bool)step[1];
@@ -300,36 +323,59 @@ namespace CodexAutoResume
                     else if (what == "spoken") menu.Spoken = menu.AccessibleItems();
                     else if (what == "accessible") returned = Items(menu.AccessibleItems());
                     else throw new ArgumentException("no menu step " + what);
+                    object childIndex = typeof(MenuWindow).GetField("childIndex", System.Reflection.BindingFlags.Instance
+                                                                    | System.Reflection.BindingFlags.NonPublic).GetValue(menu);
+                    MenuWindow child = menu.Child;
                     after.Add(new Dictionary<string, object>
                     {
                         { "returned", returned }, { "visible", menu.Visible },
                         { "selected", menu.Selected.HasValue ? (object)(double)menu.Selected.Value : null },
-                        { "chosen", new List<object>(chosen) }, { "told", new List<object>(told) },
+                        { "chosen", new List<object>(chosen) }, { "told", new List<object>(told) }, { "left", (double)left },
+                        { "child_index", childIndex != null ? (object)(double)(int)childIndex : null },
+                        { "child", child == null ? null : new Dictionary<string, object>
+                            {
+                                { "visible", child.Visible }, { "entries", Plain(child.Entries) }, { "entries_of", EntriesOf(menu, child) },
+                                { "selected", child.Selected.HasValue ? (object)(double)child.Selected.Value : null },
+                                { "plan", child.Plan != null ? PlanJson(child.Plan) : null },
+                            } },
+                        { "records", (double)SurfaceScreen.Probe.Count },
                     });
                 }
-                var planItems = new List<object>();
-                foreach (PlanItem item in menu.Plan.Items)
-                {
-                    int[] rect = item.Rect;
-                    planItems.Add(new Dictionary<string, object>
-                    {
-                        { "kind", item.Kind }, { "index", Plain(item.Get("index")) },
-                        { "rect", new List<object> { (double)rect[0], (double)rect[1], (double)rect[2], (double)rect[3] } },
-                    });
-                }
-                int[] card = menu.Plan.Card;
                 return new Dictionary<string, object>
                 {
-                    { "steps", after }, { "log", logged }, { "record", new List<object>(SurfaceScreen.Probe) }, { "plan", new Dictionary<string, object> { { "items", planItems },
-                      { "card", new List<object> { (double)card[0], (double)card[1], (double)card[2], (double)card[3] } } } },
+                    { "steps", after }, { "log", logged }, { "record", new List<object>(SurfaceScreen.Probe) }, { "plan", PlanJson(menu.Plan) },
                 };
             }
             finally
             {
-                SurfaceRenderer renderer = menu.Renderer;
-                if (renderer != null) renderer.Dispose();
+                if (create) menu.Destroy();
+                else if (menu.Renderer != null) menu.Renderer.Dispose();
                 SurfaceScreen.Probe = saved;
             }
+        }
+
+        /// The parent's item whose own items the submenu holds, the very objects in their order; null when it holds others.
+        private static object EntriesOf(MenuWindow parent, MenuWindow child)
+        {
+            for (int index = 0; index < parent.Entries.Count; index++)
+            {
+                var entry = parent.Entries[index] as Dictionary<string, object>;
+                var items = entry == null ? null : SurfaceRender.Field(entry, "items") as List<object>;
+                if (items == null || items.Count != child.Entries.Count) continue;
+                bool same = true;
+                for (int at = 0; at < items.Count && same; at++) same = ReferenceEquals(items[at], child.Entries[at]);
+                if (same) return (double)index;
+            }
+            return null;
+        }
+
+        /// A menu plan's items (kind, index, rect) and card as plain JSON.
+        private static object PlanJson(SurfacePlan plan)
+        {
+            var planItems = new List<object>();
+            foreach (PlanItem item in plan.Items)
+                planItems.Add(new Dictionary<string, object> { { "kind", item.Kind }, { "index", Plain(item.Get("index")) }, { "rect", Plain(item.Rect) } });
+            return new Dictionary<string, object> { { "items", planItems }, { "card", Plain(plan.Card) }, { "rtl", plan.Rtl == true } };
         }
 
         /// Accessible items as plain JSON.

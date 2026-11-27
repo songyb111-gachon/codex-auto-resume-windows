@@ -40,6 +40,8 @@ from codex_auto_resume.ui.tray import menu as reference_menu
 
 NIM_MODIFY = 1
 ORIGINAL_DLL = reference_menu._dll
+from codex_auto_resume.ui.popup import menuwindow as _menuwindow  # noqa: E402
+ORIGINAL_MENU_DLL = _menuwindow._dll
 
 
 def menu_ids() -> dict:
@@ -303,9 +305,18 @@ class HostMenu:
 
     hwnd = None
 
-    def __init__(self, entries=None, strings=None, on_choose=None, scale=1.0):
+    class _renderer:                 # the reference's renderer as the test lays a plan out with it: the host lays its own
+        @staticmethod
+        def menu_layout(*unused, **ignored):
+            return None
+
+    def __init__(self, entries=None, strings=None, on_choose=None, scale=1.0, create=False, owner=None, on_leave=None,
+                 locale="en", origin=None):
+        """`create`: the menu has its own window, made and never shown (a submenu's, and the pointer's rest timer, need
+        one; tests/test_popup_row_menu_drawn.py SubmenuTests' fake create gave it a handle)."""
         self.__dict__.update(entries=list(entries or []), strings=dict(strings or {}), on_choose=on_choose, scale=scale,
-                             history=[], delivered=0, chosen=0, last=None)
+                             create=create, owner=owner, on_leave=on_leave, locale=locale, origin=origin,
+                             history=[], delivered=0, chosen=0, left=0, records=0, last=None)
 
     # attributes the test assigns are steps of the history
     def __setattr__(self, name, value):
@@ -323,31 +334,41 @@ class HostMenu:
         self.__dict__["last"] = None
 
     def _run(self, extra=()):
-        found = surfacehost.SERVE.ask("menu_messages", entries=_entries(self.entries), strings=self.strings,
-                                      scale=self.scale, steps=self.history + list(extra))
-        return found
+        return surfacehost.SERVE.ask("menu_messages", entries=_entries(self.entries), strings=self.strings,
+                                     scale=self.scale, steps=self.history + list(extra), create=self.create,
+                                     owner=self.owner, locale=self.locale, origin=self.origin,
+                                     leave=self.on_leave is not None)
 
     def _state(self):
         if self.last is None:
             self.__dict__["last"] = self._run([["accessible"]])
         return self.last
 
+    def _now(self):
+        return self._state()["steps"][-1]
+
     @property
     def visible(self):
-        return self._state()["steps"][-1]["visible"]
+        return self._now()["visible"]
 
     @property
     def selected(self):
-        return _int(self._state()["steps"][-1]["selected"])
+        return _int(self._now()["selected"])
 
     @property
     def _plan(self):
-        plan = self._state()["plan"]
-        return {"items": [dict(item, index=_int(item["index"]), rect=tuple(int(n) for n in item["rect"]))
-                          for item in plan["items"]], "card": tuple(int(n) for n in plan["card"])}
+        return _plan(self._state()["plan"])
+
+    @property
+    def _child(self):
+        return HostSubmenu(self) if self._now()["child"] is not None else None
+
+    @property
+    def _child_index(self):
+        return _int(self._now()["child_index"])
 
     def accessible_items(self):
-        items = self._state()["steps"][-1]["returned"]
+        items = self._now()["returned"]
         return [dict(item, target=_int(item["target"]), rect=tuple(int(n) for n in item["rect"])) for item in items]
 
     def _push(self):
@@ -356,8 +377,8 @@ class HostMenu:
     def _tell(self, event):
         """The reference's own tell; the host's tellings are handed here."""
 
-    def _handle(self, message, wparam=0, lparam=0):
-        self.history.append(["send", message, wparam, lparam])
+    def _handle(self, message, wparam=0, lparam=0, step="send"):
+        self.history.append([step, message, wparam, lparam])
         self.__dict__["last"] = None
         found = self._state()
         step = found["steps"][-2]
@@ -373,8 +394,66 @@ class HostMenu:
                     raise AssertionError("the host's announcement %r is not the reference's %r" % (changes, expected))
                 access.announce(self, before, after)
         self.__dict__["delivered"] = len(told)
+        self._windows(found["record"][self.records:int(step["records"])])
+        self.__dict__["records"] = int(step["records"])
+        for unused in range(int(step["left"]) - self.left):
+            self.on_leave()
+        self.__dict__["left"] = int(step["left"])
         for identifier in step["chosen"][self.chosen:]:
-            self.on_choose(int(identifier))
+            self.on_choose(None if identifier is None else int(identifier))
         self.__dict__["chosen"] = len(step["chosen"])
         returned = step["returned"]
         return None if returned is None else int(returned)
+
+    @staticmethod
+    def _windows(record):
+        """The host's SetForegroundWindow and SetTimer calls, made again of the test's patched user32 (menuwindow._dll);
+        nothing where the test patched none."""
+        from codex_auto_resume.ui.popup import menuwindow
+        if menuwindow._dll is ORIGINAL_MENU_DLL:
+            return
+        user32 = menuwindow._dll("user32")
+        for line in record:
+            parts = line.split(" ")
+            if parts[0] == "SetForegroundWindow":
+                user32.SetForegroundWindow(int(parts[1], 16))
+            elif parts[0] == "SetTimer":
+                user32.SetTimer(int(parts[1], 16), int(parts[2]), int(parts[3]), None)
+
+
+def _plan(plan):
+    return {"items": [dict(item, index=_int(item["index"]), rect=tuple(int(n) for n in item["rect"])) for item in plan["items"]],
+            "card": tuple(int(n) for n in plan["card"]), "rtl": plan["rtl"]}
+
+
+class HostSubmenu:
+    """The open submenu of a HostMenu, read from the root's run; a message to it is a step of the root's history."""
+
+    def __init__(self, root):
+        self._root = root
+
+    def _now(self):
+        return self._root._now()["child"]
+
+    @property
+    def visible(self):
+        return self._now()["visible"]
+
+    @property
+    def selected(self):
+        return _int(self._now()["selected"])
+
+    @property
+    def entries(self):
+        """The parent's item's own entries where the host's submenu holds exactly those objects, else what it holds."""
+        found = self._now()
+        if found["entries_of"] is not None:
+            return self._root.entries[int(found["entries_of"])]["items"]
+        return found["entries"]
+
+    @property
+    def _plan(self):
+        return _plan(self._now()["plan"])
+
+    def _handle(self, message, wparam=0, lparam=0):
+        return self._root._handle(message, wparam, lparam, step="send_child")

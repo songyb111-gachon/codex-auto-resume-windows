@@ -4858,11 +4858,39 @@ the menu drawn with no window, the drawn choice told `!paused`, Pending always o
 MenuPlan.Step without its wrap, Letter's one match only moving (2), Home/End swapped, a press on the card closing it, WM_MOUSELEAVE keeping
 the item in hand, Close not telling MENUPOPUPEND, AccessibleItems without "hot"; on the twin's side - the pending page reaching on_open,
 separators not handed to user32, tellings not handed on: each fails its test. **Survivors**: Act offering pending with no on_pending
-survived the first run (the twin dropped a post with no callback), so such a post now fails the twin; Char's control-character guard
+survived the first run (the twin dropped a post with no callback), so such a post now fails the twin - rerun against the changed twin it
+FAILS (`TrayMenuOnHostTests.test_an_id_that_is_not_a_menu_item_does_nothing` [4]); Char's control-character guard
 removed is equivalent here (Letter strips "\r" to nothing and leaves the item in hand); `Armed()` returning null was not a valid mutant
 (unreachable code fails `-warnaserror`).
 
+### S6.4d, second part (the coordinator's go-on): the row menus' submenus
+
+* The pending-with-no-on_pending mutant, rerun against the changed twin, fails (above).
+* `menu_messages` takes `create` (the MenuWindow's own window made by Create and never shown, as `SurfaceRenderWindows.MenuWindowCase` makes it;
+  every call that would show it recorded; destroyed after each run), `owner`, `locale`, `origin`, `leave` (OnLeave only where the test gave one),
+  and a `send_child` step; each step reports the submenu (visible, selected, plan, and `entries_of`: the parent's item whose very item objects it
+  holds) and `childIndex`. `HostMenu` gains `_child` (a `HostSubmenu` view whose messages are steps of the root's history), `_child_index`,
+  `locale`, `on_leave`, and hands the host's SetForegroundWindow/SetTimer to the test's patched `menuwindow._dll` (never the real one).
+* Twins: `tests/test_host_row_menu.py` - SubmenuOnHostTests 9, RightToLeftSubmenuOnHostTests (Arabic: its own 1 and the 9 above again with the
+  arrows swapped, the reference's `Menu._key(menu, key)` answered by the host's WM_KEYDOWN); 19 tests, OK through `gui_lock.sh`.
+  `test_the_layout_is_mirrored_with_the_arrow_at_the_left` (the mirrored plan's arrow and text rectangles) is the drawing's, S6.4f's.
+* Ledger: `test_popup_row_menu_drawn` 10 of 27 twinned, still pending (Parity 4, Fallback 4, PopupFocus 1: the popup window's context
+  menu; Windows 2; the mirrored plan 1 and Placement 5: S6.4f's). Host 30, pending 53, ceiling 54.
+* Mutation checks (each alone, restored): the right-to-left arrows not swapped, no rest timer, the first item in hand when the pointer opens the
+  submenu, the popup told of a leave when the focus went back to it, a disabled item's submenu opening, the parent's item not held from the
+  child, SetForegroundWindow not handed to the test's user32: 7 fail. One survived: OpenChild without its `Select(index)` - in every path the
+  tests take the item is in hand already (the keyboard's Down, the pointer's move) or put back by the child's move; the Python tests cannot see it
+  either.
+
 ### What is left of the window rows (per row, the route), for the next seat
+
+(After the second part: `test_popup_row_menu_drawn` 17 - its Parity/Fallback/PopupFocus 9 need a `popup_steps` probe over PopupWindow's
+ContextMenu and WM_ACTIVATE with the test's drawn menu asked back and its user32 handed the host's calls, as `icon_steps` does for the icon;
+WindowsTests 2 a MenuWindow opened in its own never-shown window; 6 are S6.4f's. `test_tray_tipcard`'s 22 are DrawTests 10 and PlaceTests
+3, the drawing's (S6.4f), and AccessibleTests 1 + CardStateTests 4: a `tip_steps` probe over TipCard (Hide(atOnce), its fade, the backstop's
+WM_TIMER with TipPointer and Monotonic stood in, WM_POWERBROADCAST) and its MSAA object through SurfaceAccess. Not started in this part: the
+context ran low after the submenus.)
+
 
 Largest first (UI tests not yet held): `test_popup_row_menu_drawn` 27 (Parity/Fallback/Submenu*: the popup's row menus are MenuWindow too;
 `menu_messages` takes submenus once its steps can open a child - `OpenChild` needs a window: a Create'd never-shown one, as
