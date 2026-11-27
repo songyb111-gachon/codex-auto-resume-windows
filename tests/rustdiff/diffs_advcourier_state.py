@@ -157,7 +157,7 @@ pair("pair6", now, {"telegram_token": BOT}, "123456", [reply(), {"status": 200, 
 SERVE = r'''
 import json as _json
 from codex_auto_resume_advanced.courier.api import Server, Gate, Service, Running
-TOKEN = "made-up-token-0123456789"
+TOKEN = "example-token-0123456789"
 rows = [{"interruption_id": "a", "state": "waiting_retry"}, {"interruption_id": "b", "state": "pending_open"}]
 def serve(name, states, token, lan, requests):
     home = home_of(name)
