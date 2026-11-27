@@ -51,7 +51,7 @@ def imports_the_ui(path: Path) -> bool:
 # module to compare a constant or a rule with it): they are the twins the rows name, not rows.
 HOST_SIDE = ("test_host_shape.py", "test_host_tray_place.py", "test_surface_askback.py", "test_host_tipcard.py",
              "test_host_popup_access.py", "test_host_popup_card_still.py", "test_host_popup_press.py",
-             "test_host_tray_power.py")
+             "test_host_tray_power.py", "test_host_popup_motion_held.py")
 
 
 def test_files() -> set[str]:
