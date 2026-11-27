@@ -1148,12 +1148,21 @@
     }
    },
    "route": "probe",
-   "status": "pending",
-   "why": "1 of 10 UI tests is held by a twin (WindowTests, the host's real popup); 9 are still on the Python UI: GateTests 7 (the frame timer, the still light, the switches and the sweep held, on a popup made without a window) and IconReadingTests 2 (the icon's reading of battery saver and a locked session, and the popup made with it)",
-   "needs": "GateTests: a replay probe over PopupWindow's SyncFrames, Frame, FollowSwitches, TitlePress and AskStill with no window and every Windows call recorded, and the two source rules read from gui/PopupWindow.cs and gui/PopupMessages.cs; IconReadingTests: TrayIcon's PopupHeld with the session and battery saver stood in, and gui/TrayIcon.cs's popup made with it",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
    "twins": {
-    "WindowTests.test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again": "test_host_popup_motion_held.py::WindowOnHostTests.test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again"
+    "WindowTests.test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again": "test_host_popup_motion_held.py::WindowOnHostTests.test_the_real_popup_stops_its_frames_within_a_tick_and_starts_them_again",
+    "GateTests.test_the_breathing_light_runs_the_frame_timer_and_battery_saver_or_a_lock_stops_it": "test_host_popup_motion_held.py::GateOnHostTests.test_the_breathing_light_runs_the_frame_timer_and_battery_saver_or_a_lock_stops_it",
+    "GateTests.test_the_day_scene_holds_still": "test_host_popup_motion_held.py::GateOnHostTests.test_the_day_scene_holds_still",
+    "GateTests.test_a_running_timer_is_stopped_once_it_is_held": "test_host_popup_motion_held.py::GateOnHostTests.test_a_running_timer_is_stopped_once_it_is_held",
+    "GateTests.test_the_light_is_drawn_still_while_held": "test_host_popup_motion_held.py::GateOnHostTests.test_the_light_is_drawn_still_while_held",
+    "GateTests.test_a_switch_s_change_does_not_glide_while_held": "test_host_popup_motion_held.py::GateOnHostTests.test_a_switch_s_change_does_not_glide_while_held",
+    "GateTests.test_the_seventh_press_shows_no_sweep_while_held": "test_host_popup_motion_held.py::GateOnHostTests.test_the_seventh_press_shows_no_sweep_while_held",
+    "GateTests.test_it_asks_on_each_opening_and_a_question_that_fails_holds_nothing": "test_host_popup_motion_held.py::GateOnHostTests.test_it_asks_on_each_opening_and_a_question_that_fails_holds_nothing",
+    "IconReadingTests.test_the_icon_hands_the_popup_its_own_reading": "test_host_popup_motion_held.py::IconReadingOnHostTests.test_the_icon_hands_the_popup_its_own_reading",
+    "IconReadingTests.test_the_popup_is_made_with_it": "test_host_popup_motion_held.py::IconReadingOnHostTests.test_the_popup_is_made_with_it"
    },
    "no_twin": {},
    "port": [
@@ -2782,8 +2791,8 @@
   "on_host": 195,
   "retired": 6,
   "by_status": {
-   "host": 31,
-   "pending": 52,
+   "host": 32,
+   "pending": 51,
    "python-only": 1
   },
   "by_kind": {
