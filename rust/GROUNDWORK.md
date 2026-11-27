@@ -2801,3 +2801,27 @@ apart asks `Error::is_history_not_yet()` (or meets the class "HistoryNotYet" whe
 **For the next seats.** S6.2b: `Outside::history` (car-bin doctor, #19) maps `is_history_not_yet()` to `History::NotYet`; the watcher's
 `checkup::_conversations` (#17) skips a home on it before the generic "cannot be read"; `_served_elsewhere` (#18) is the EngineMaker's, with
 S7.2a's plug hook. S7.2a/S7.2: rows 24-30 (AdvancedPlug.served_elsewhere, the UsageMeter's SKIP_WAIT, `_skipped_at`, `_held`, `_backend`).
+
+**Mutation checks** (one rule broken at a time, a debug car-harness in a target of its own, its diff run, restored;
+`scratchpad/car-v0627-finalport-mutate.py`): (1) an unknown `threads` counted as none: ProbesDiff; (2) resolve without
+HistoryNotYet and (3) `history_not_made` yes where the state cannot be read: HomeDiff.test_schema_variants; (4) car-engine's
+catch dropped: EngineReview6; (5) get_status never rewriting the usage - it first SURVIVED (every meter's `reset_at` was the
+golden float clock, which core never keeps, so neither side rewrote anything); the diff's times are whole now and it fails
+unless more than 20 cases say the meter's reading (54 of 170), and then 51 cases failed; (6) PACKAGE_ENGINE_DEPTH 3, (7) a
+junction not followed, (8) the binding not asking the package: PackageEnginesDiff. All eight fail their diff.
+
+**Checks** (rustc 1.100.0; reference v0.6.26 on the bundled 3.14.10; run with `CODEX_AUTO_RESUME_CODEX_EXE` naming a path that
+does not exist, the main session's rule of 2026-11-27):
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0;
+                   cargo deny --locked check: advisories, bans, licenses, sources ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked --no-fail-fast rc=0; cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every binary the same with and without advanced/; profile-path scan none
+run.py --build --reference v0.6.26 --reference-python bundled -v
+                                                     Ran 372 tests in 8,642 s: OK - no FAIL, no expected failure (the two
+                                                     HistoryNotYet reds and diffs_review6's expected failure are gone)
+Python (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_python315_encoding
+  test_rustdiff_script_command test_rustdiff_reference_python test_rust_release test_stack test_srcscan   Ran 95, OK (1 skip)
+```
