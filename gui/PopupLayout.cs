@@ -57,13 +57,6 @@ namespace CodexAutoResume
             return values;
         }
 
-        internal static int[] Six(int a, int b, int c, int d, int e, int f)
-        {
-            var values = new int[6];
-            values[0] = a; values[1] = b; values[2] = c; values[3] = d; values[4] = e; values[5] = f;
-            return values;
-        }
-
         /// The layouts' px(): device pixels for a size in device-independent pixels at `scale`.
         internal static int Px(double value, double scale)
         {

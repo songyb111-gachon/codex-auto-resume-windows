@@ -344,7 +344,7 @@ def constant_arrays(text: str, constants: set) -> list:
 class HostSourceRuleTests(unittest.TestCase):
     """The host (gui/host.sources) compiles to an image build/normalize_pe.py accepts: no string switch of six or more
     labels, no constant primitive array of three or more elements. What replaces them is written in the repository's
-    way - an if chain, an array filled one element at a time (SurfaceMath.Three, Four, Six, or `new int[4]` where the
+    way - an if chain, an array filled one element at a time (SurfaceMath.Three, Four, or `new int[4]` where the
     elements are zero), a large table built at its first use from a compact string (gui/SurfaceBidi.cs)."""
 
     @classmethod
@@ -371,7 +371,7 @@ class HostSourceRuleTests(unittest.TestCase):
             for line, count in constant_arrays(text, self.constants):
                 with self.subTest(file=name, line=line):
                     self.fail("a constant array of %d elements makes the compiler name a class at random: fill it one element "
-                              "at a time (SurfaceMath.Three, Four, Six) or build it at its first use" % count)
+                              "at a time (SurfaceMath.Three, Four) or build it at its first use" % count)
 
     def test_the_window_has_no_constant_array_either(self):
         constants = set(self.constants)

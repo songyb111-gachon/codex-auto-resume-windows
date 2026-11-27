@@ -632,7 +632,7 @@ class WindowJob:
                     out = C.pointer(access.VARIANT())
                     code = method(None, where, out)
                     row.append([code, out.contents.vt, out.contents.value.lVal])
-                for direction in (1, 2, 7, 8):
+                for direction in (1, 2, 3, 4, 5, 6, 7, 8):
                     out = C.pointer(access.VARIANT())
                     code = target._navigate(None, direction, where, out)
                     row.append([code, out.contents.vt, out.contents.value.lVal])

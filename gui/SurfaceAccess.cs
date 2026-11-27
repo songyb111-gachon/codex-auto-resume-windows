@@ -697,7 +697,7 @@ namespace CodexAutoResume
             }
 
             /// The probe's walk of one child: name, value, description and default action as [hr, text]; role and state as
-            /// [hr, vt, value]; navigate up, down, first and last as [hr, vt, value] - each through the method the vtable
+            /// [hr, vt, value]; navigate in each of the eight directions as [hr, vt, value] - each through the method the vtable
             /// holds, with a VARIANT of VT_I4 `child`.
             internal List<object> Walk(int child)
             {
@@ -715,8 +715,11 @@ namespace CodexAutoResume
                         IntPtr text = Marshal.ReadIntPtr(found);
                         row.Add(new List<object> { code, text == IntPtr.Zero ? null : Marshal.PtrToStringBSTR(text) });
                     }
-                    foreach (int direction in SurfaceMath.Six(0, 0, 1, 2, 7, 8))
+                    // Two reads of the role and the state (the first two turns), then every direction the Python's walk asks
+                    // (1 to 8: up, down, left, right, next, previous, first, last).
+                    for (int turn = 0; turn < 10; turn++)
                     {
+                        int direction = turn < 2 ? 0 : turn - 1;
                         for (int at = 0; at < 24; at++) Marshal.WriteByte(found, at, 0);
                         int code;
                         if (row.Count == 5) code = ((OfChild)callbacks[13])(Pointer, variant, found);
