@@ -83,3 +83,103 @@ runs = _view("runs")
 FORWARDS = {name: "s73a." + name for name in (
     "answer", "bridge", "mcp", "rows", "badge", "status", "meter_view", "notice_view", "update_view", "account_view",
     "autoswitch_view", "diagnostics", "feed_view", "fleet_view", "runs")}
+
+
+# ------------------------------------------------------------------ the cards' own functions (seat S7.3a2)
+# Each card function a test calls by name answers what its bridge command answers (surfaces.bridge hands the command's
+# argument to exactly that function), so for a runtime of car-adv's it is asked as that command; a call that hands a
+# seam of the test's own (a store, a turn reader, a thread starter, a code ...) or an argument the command would not
+# take goes to the reference's own function.
+PACKAGE = "codex_auto_resume_advanced."
+# What each card reads through another module: a test that patches one of these reaches the reference's card.
+READS = {
+    "powertasks": ("codex.inuse", "codex.turns", "codex.threads", "engine.powertasks"),
+    "analytics": ("codex.tokens", "codex.turns", "engine.analytics"),
+    "autoswitch": ("profiles", "codex.authfile", "codex.swap", "codex.inuse", "engine.autoswitch"),
+    "conversations": ("codex.inuse", "codex.threads"),
+    "keepgoing": (), "resets": (), "prompts": (),
+}
+
+
+class _Card:
+    """A card function forwarded: asked as its bridge command for a runtime of car-adv's, unless the call hands a seam
+    of the test's own or the test patched a name of the card's module or of a module it reads (a stand-in car-adv
+    cannot see) - then the reference's own function answers. What each module held is taken as advproxy patches the
+    card's module (its `__advproxy_reference__` set), before any test runs."""
+
+    def __init__(self, module, name, command, build):
+        self.module, self.name, self.command, self.build = module, name, command, build
+        self.held = None
+        self.__name__ = self.__qualname__ = name
+        self.__doc__ = "car-adv's answer to `%s` for a runtime of car-adv's; the reference's otherwise." % command
+
+    def __setattr__(self, key, value):
+        object.__setattr__(self, key, value)
+        if key == "__advproxy_reference__":
+            object.__setattr__(self, "held", self._now())
+
+    def _now(self):
+        import importlib
+        held = {}
+        for dotted in ("control." + self.module,) + READS.get(self.module, ()):
+            try:
+                found = importlib.import_module(PACKAGE + dotted)
+            except Exception:
+                continue
+            held[dotted] = {key: value for key, value in vars(found).items() if not key.startswith("__")}
+        return held
+
+    def _patched(self):
+        if self.held is None:
+            return True
+        now = self._now()
+        for dotted, names in self.held.items():
+            for key, value in now.get(dotted, {}).items():
+                if key in names and names[key] is not value and not isinstance(value, _Card):
+                    return True
+        return False
+
+    def __call__(self, runtime, *args, **kwargs):
+        argument = self.build(*args, **kwargs) if _rust(runtime) and not self._patched() else None
+        if argument is None:
+            return self.__advproxy_reference__(runtime, *args, **kwargs)
+        return _surface(runtime, "bridge", self.command, argument)
+
+
+def _card(module, name, command, build):
+    return _Card(module, name, command, build)
+
+
+def _bare(**seams):
+    return all(value is None for value in seams.values())
+
+
+def _taken(argument, allowed):
+    if not isinstance(argument, dict):
+        return {}
+    return dict(argument) if set(argument) <= set(allowed) else None
+
+
+powertasks_view = _card("powertasks", "view", "advanced-power-tasks",
+                        lambda code=None: {} if code is None else None)
+powertasks_arm = _card("powertasks", "arm", "advanced-power-tasks-arm",
+                       lambda threads, action, grace_minutes, failed, interrupted, generation, turns=None:
+                       {"threads": threads, "action": action, "grace_minutes": grace_minutes, "failed": failed,
+                        "interrupted": interrupted, "generation": generation} if turns is None else None)
+analytics_view = _card("analytics", "view", "advanced-analytics",
+                       lambda days=None: {} if days is None else {"days": days})
+analytics_save_csv = _card("analytics", "save_csv", "advanced-analytics-csv",
+                           lambda argument: _taken(argument, ("days", "path", "replace")))
+accounts_view = _card("autoswitch", "view", "advanced-accounts",
+                      lambda store=None, codex_home=None, usage=None, now=None:
+                      {} if _bare(store=store, codex_home=codex_home, usage=usage, now=now) else None)
+accounts_save = _card("autoswitch", "save", "advanced-accounts-save",
+                      lambda store=None, codex_home=None, read_real=None:
+                      {} if _bare(store=store, codex_home=codex_home, read_real=read_real) else None)
+accounts_delete = _card("autoswitch", "delete", "advanced-accounts-delete",
+                        lambda argument, store=None, codex_home=None:
+                        _taken(argument, ("id", "all")) if _bare(store=store, codex_home=codex_home) else None)
+keepgoing_view = _card("keepgoing", "view", "advanced-keep-going", lambda: {})
+conversations_view = _card("conversations", "view", "advanced-conversations", lambda: {})
+resets_view = _card("resets", "view", "advanced-resets", lambda: {})
+prompts_view = _card("prompts", "view", "advanced-prompts", lambda: {})

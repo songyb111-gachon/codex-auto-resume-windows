@@ -5,7 +5,8 @@
 
 S7.3a was ported from the v0.6.26 final's own sources. This says, in order: which of the ported Python files differ between
 v0.6.26 (the tree the seat was written from) and the tag (`git diff --stat`) - surfaces.py and control/{resets, sendnow,
-keepgoing, steer, prompts, chat, conversations, follow, earlycheck, opencodex, fleet, account}.py - and then runs the
+keepgoing, steer, prompts, chat, conversations, follow, earlycheck, opencodex, fleet, account, powertasks, autoswitch,
+analytics, codexstart}.py (the last four S7.3a2's) - and then runs the
 seat's diff (`diffs_advsurface`, through the advanced proxy: run.py builds advserve) with the tag as the reference
 (`run.py --build --reference TAG`). Exit 0 only when every diff is equal.
 
@@ -24,7 +25,8 @@ ADVANCED = "advanced/src/codex_auto_resume_advanced/"
 PORTED = ([ADVANCED + "surfaces.py"]
           + [ADVANCED + "control/%s.py" % name for name in ("resets", "sendnow", "keepgoing", "steer", "prompts", "chat",
                                                             "conversations", "follow", "earlycheck", "opencodex", "fleet",
-                                                            "account")])
+                                                            "account", "powertasks", "autoswitch", "analytics",
+                                                            "codexstart")])
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 

@@ -67,6 +67,8 @@ GREEN = {
     "test_advanced_agent_thread_trigger.py": "Integration 10 (runtime, state, arming)",
     "test_advanced_package.py": "Integration 10 (runtime, state, arming)",
     "test_advanced_words_v019.py": "S7.3a (surfaces: advanced-words, the statement)",
+    "test_advanced_account_card_findings.py": "S7.3a2 (surfaces: the account cards; `control` is data)",
+    "test_advanced_autoswitch_control.py": "S7.3a2 (the saved accounts' commands through surfaces.bridge)",
 }
 
 # What a run found that the imports cannot say (`--run`): the seat or the reason a file still waits for, each with
@@ -107,6 +109,18 @@ RUN_WAITS = {
     "test_advanced_queue_held.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
     "test_advanced_go_on_window.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
     "test_advanced_prompt_clear.py": ("S4.2 proxy", "as test_advanced_prompt_queue"),
+    # S7.3a2's --run (debug advserve, bundled 3.14.10)
+    "test_advanced_conversations.py": ("S7.2c", "6 of 12 differ with the card's forwarder off too: they patch "
+                                       "codex.inuse.home and read codex.threads, which wait for their rows"),
+    "test_advanced_analytics.py": ("S7.2e2", "17 of 23 equal; the six AggregationTests patch the card's _homes, "
+                                   "_source and _recent (the reference's card answers them) over engine.analytics and "
+                                   "codex.tokens, which wait for their rows"),
+    "test_advanced_power_tasks.py": ("S7.2e2", "23 of 24 equal; AnswerTests.test_only_an_armed_capability_is_asked_and_"
+                                     "taken drives engine.powertasks' P21 answer, which waits for its row"),
+    "test_advanced_manual_switch.py": ("S7.3d", "16 of 17 equal; test_the_bridge_command hands Python stand-ins for the "
+                                       "switch the Rust bridge reaches through surfaces::World (the bare world here)"),
+    "test_advanced_autoswitch_delete_pending.py": ("S7.2b", "reaches no advserve call: codex.swap and profiles' own "
+                                                   "functions wait for their rows"),
 }
 
 # The names a HANDED or THROUGH module hands car-adv as data (a test may build them): any other function of the module
