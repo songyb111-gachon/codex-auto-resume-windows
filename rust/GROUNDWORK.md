@@ -3118,7 +3118,7 @@ bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0 (at 53879617f), every 
 Mutations, each alone, each failed its test: `brought` with `||` for `&&` (CheckupDiff: the golden home, paused, ...);
   an unknown home key judged by the default home's engine (RescanDiff: a record of a home Settings do not know);
   `history_not_yet` true for a SourceError (CheckupDiff: the history gone, damaged); every home `current`
-  (CheckupDiff: a second home - it passed until the case named a list Settings accept, `be06...` below);
+  (CheckupDiff: a second home - it passed until the case named a list Settings accept, `02773a39d`);
   the demo's card-setting gate dropped (car-watcher demo test).
 ```
 
