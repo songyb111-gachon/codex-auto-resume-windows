@@ -832,27 +832,35 @@ class SurfaceJob:
                                   "letters": fonts._letters(case["locale"]), "look": [theme, design, contrast],
                                   "pinned": pinned, "system": self.SYSTEM},
                                  {"plan": plan, "pixels": digests, "left": gdiplus.gdiplus_objects() - before})
-                for case in tips:
+
+                def draw_tip(case_id, case, light):
                     for theme, design, contrast in self.PIXEL_LOOKS:
                         before = gdiplus.gdiplus_objects()
                         renderer = tipcard.TipRenderer()
                         digests = []
                         day = tipcard.tip_day(case["day"], contrast, design)
-                        frames = [tray_popup.halo(case["light"], moment, moment, design=design) for moment in (0, 1700, 2900)]
+                        frames = [tray_popup.halo(light, moment, moment, design=design) for moment in (0, 1700, 2900)]
                         try:
                             renderer.theme, renderer.design, renderer.contrast = theme, design, contrast
-                            plan = renderer.tip_layout(case["parts"], case["light"], case["scale"], case["locale"], day)
+                            plan = renderer.tip_layout(case["parts"], light, case["scale"], case["locale"], day)
                             digests.append(hashlib.sha256(renderer.draw_tip(plan, frames[0]).pixels()).hexdigest())
                             for frame in frames[1:]:
                                 digests.append(hashlib.sha256(renderer.draw_tip_light(plan, frame).pixels()).hexdigest())
                         finally:
                             renderer.close()
-                        self.add("drawn/%s/%s-%s-%s" % (case["id"], theme, design, contrast),
-                                 {"surface": "drawn", "what": "tip", "parts": case["parts"], "light": case["light"],
+                        self.add("drawn/%s/%s-%s-%s" % (case_id, theme, design, contrast),
+                                 {"surface": "drawn", "what": "tip", "parts": case["parts"], "light": light,
                                   "scale": case["scale"], "locale": case["locale"], "day": case["day"], "frames": plain(frames),
                                   "letters": fonts._letters(case["locale"]), "look": [theme, design, contrast],
                                   "pinned": pinned, "system": self.SYSTEM},
                                  {"plan": plan, "pixels": digests, "left": gdiplus.gdiplus_objects() - before})
+                for case in tips:
+                    draw_tip(case["id"], case, case["light"])
+                # S6.3e: a light no tooltip state gives - idle, and words brand does not know - drawn by both, so the
+                # dot's fill for an unknown state (brand.status_fill's idle grey, status_system's GrayText in High
+                # Contrast) is compared too; no other case paints one.
+                for light in ("idle", "unknown", ""):
+                    draw_tip("%s/light-%s" % (tips[0]["id"], light or "empty"), tips[0], light)
         finally:
             renderer_module.system_rgb, light_module.system_rgb = saved
 
