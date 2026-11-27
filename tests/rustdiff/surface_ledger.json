@@ -92,31 +92,32 @@
   "test_compat_surfaces.py": {
    "holds": "Where the Compatibility Registry shows, and where it must not reach.",
    "tests": 40,
-   "ui_tests": 4,
-   "unaffected": 36,
+   "ui_tests": 2,
+   "unaffected": 38,
    "kind": "scan",
    "by_kind": {
-    "scan": 3,
-    "pure": 1
+    "pure": 1,
+    "scan": 1
    },
    "parts": {
     "scan": {
-     "McpTests": 1,
-     "PrivacyTests": 2
+     "McpTests": 1
     },
     "pure": {
      "ReportedTests": 1
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "1 of 4 UI tests run on the host (1 routed); 3 are still on the Python UI (3 scan)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [
     "ReportedTests.test_the_popup_and_the_tray_are_given_the_same_whatever_others_report"
    ],
    "twins": {},
-   "no_twin": {},
+   "no_twin": {
+    "McpTests.test_no_tool_can_refresh_or_import_registry_data": "the MCP server's tool names and srcscan.holders over every Python file for the registry's refresh words; the UI's modules are only part of the sample and nothing of the UI is called or computed"
+   },
    "port": [
     "tests/rustdiff/surfaceproxy.py"
    ]
@@ -138,13 +139,19 @@
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "0 of 3 UI tests run on the host (none); 3 are still on the Python UI (3 scan)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
    "twins": {},
-   "no_twin": {},
-   "port": []
+   "no_twin": {
+    "ErrorCodeTests.test_every_refusal_in_the_control_layer_carries_a_code_from_the_set": "walks every Python module's tree (srcscan.package_asts) for ControlError raises and their codes; the UI's modules are only part of the sample and nothing of the UI is called or computed (the port's refusal codes are car-control's, held by the wire goldens)",
+    "NotARecoveryEngineTests.test_the_module_never_imports_the_engine_or_the_source": "an import rule over every module of the Python package (srcscan.modules and imports): which Python files import the engine and the Codex adapter; the UI's modules are only part of the sample and nothing of the UI is called or computed",
+    "StopWatcherTests.test_the_layer_holds_no_way_to_end_a_process": "srcscan.holders over every Python file: which hold os.kill, taskkill, .terminate( or .kill(; the UI's modules are only part of the sample (the host's surfaces' own reach - no Process.Start, no other window driven - is test_host_shape.ReachTests)"
+   },
+   "port": [
+    "tests/test_surface_ledger.py"
+   ]
   },
   "test_corners_by_design.py": {
    "holds": "v0.6.24: a corner follows its design - the popup's, its menus' and the tray card's (brand/shape.py `design_smoothing`).",
@@ -250,24 +257,20 @@
   "test_diagnostics_tools.py": {
    "holds": "v0.6.11: Diagnostics' own tools, and the prompts to ask Codex in nine languages.",
    "tests": 19,
-   "ui_tests": 2,
-   "unaffected": 17,
+   "ui_tests": 1,
+   "unaffected": 18,
    "kind": "window",
    "by_kind": {
-    "window": 1,
-    "scan": 1
+    "window": 1
    },
    "parts": {
-    "scan": {
-     "DemoModuleTests": 1
-    },
     "window": {
      "DemoTrayTests": 1
     }
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 2 UI tests run on the host (none); 2 are still on the Python UI (1 window, 1 scan)",
+   "why": "0 of 1 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 window)",
    "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
@@ -311,35 +314,40 @@
   "test_edition_label.py": {
    "holds": "v0.6.11: the edition beside the version - since v0.6.14 an advanced edition's only.",
    "tests": 22,
-   "ui_tests": 7,
-   "unaffected": 15,
+   "ui_tests": 6,
+   "unaffected": 16,
    "kind": "scan",
    "by_kind": {
-    "drawn": 3,
-    "scan": 4
+    "drawn": 4,
+    "scan": 2
    },
    "parts": {
     "drawn": {
      "TooltipTests": 4
     },
     "scan": {
-     "PanelTests": 2,
+     "PanelTests": 1,
      "WindowTests": 1
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "3 of 7 UI tests run on the host (3 routed); 4 are still on the Python UI (1 drawn, 3 scan)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [
     "TooltipTests.test_every_language_keeps_its_whole_tooltip_with_the_longest_edition",
     "TooltipTests.test_the_standard_edition_is_named_nowhere_in_the_tooltip",
     "TooltipTests.test_the_title_names_the_edition_in_the_readers_word"
    ],
-   "twins": {},
+   "twins": {
+    "PanelTests.test_the_heading_names_the_edition_beside_the_version": "test_host_shape.py::EditionTwinTests.test_the_panels_heading_names_no_edition_where_the_hosts_icon_names_none",
+    "TooltipTests.test_the_watcher_hands_its_icon_the_edition_that_runs": "test_host_shape.py::EditionTwinTests.test_the_watcher_hands_the_hosts_icon_the_edition_that_runs",
+    "WindowTests.test_the_save_bar_and_diagnostics_show_the_version_line": "test_host_shape.py::EditionTwinTests.test_the_dashboards_version_line_names_no_edition_where_the_hosts_icon_names_none"
+   },
    "no_twin": {},
    "port": [
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/test_host_shape.py"
    ]
   },
   "test_failure_outcomes.py": {
@@ -386,24 +394,20 @@
   "test_failure_seen.py": {
    "holds": "A certain failure stays red on the icon until somebody has seen it (v0.6.8).",
    "tests": 38,
-   "ui_tests": 7,
-   "unaffected": 31,
+   "ui_tests": 6,
+   "unaffected": 32,
    "kind": "window",
    "by_kind": {
-    "window": 6,
-    "scan": 1
+    "window": 6
    },
    "parts": {
-    "scan": {
-     "WatcherTests": 1
-    },
     "window": {
      "IconTests": 6
     }
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 7 UI tests run on the host (none); 7 are still on the Python UI (6 window, 1 scan)",
+   "why": "0 of 6 UI tests run on the host or are held by a twin or a no_twin reason; 6 are still on the Python UI (6 window)",
    "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
@@ -413,24 +417,20 @@
   "test_focus_rings.py": {
    "holds": "v0.6.11: every focus ring stands 3:1 off what it is drawn on, in every design and theme (J12).",
    "tests": 4,
-   "ui_tests": 2,
-   "unaffected": 2,
+   "ui_tests": 1,
+   "unaffected": 3,
    "kind": "drawn",
    "by_kind": {
-    "drawn": 1,
-    "scan": 1
+    "drawn": 1
    },
    "parts": {
-    "scan": {
-     "FocusContrastTests": 1
-    },
     "drawn": {
      "PopupRingTests": 1
     }
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 2 UI tests run on the host (none); 2 are still on the Python UI (1 drawn, 1 scan)",
+   "why": "0 of 1 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 drawn)",
    "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py",
    "host_tests": [],
    "twins": {},
@@ -463,19 +463,14 @@
   "test_gui_v0623_days.py": {
    "holds": "v0.6.23: the days with a look of their own, and the egg on the version (both only by the owner's word).",
    "tests": 59,
-   "ui_tests": 34,
-   "unaffected": 25,
+   "ui_tests": 31,
+   "unaffected": 28,
    "kind": "drawn",
    "by_kind": {
-    "window": 5,
     "drawn": 26,
-    "scan": 3
+    "window": 5
    },
    "parts": {
-    "scan": {
-     "TableTests": 1,
-     "WiringTests": 2
-    },
     "drawn": {
      "IconTests": 7,
      "TrayGateTests": 4,
@@ -487,7 +482,7 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 34 UI tests run on the host (none); 34 are still on the Python UI (26 drawn, 5 window, 3 scan)",
+   "why": "0 of 31 UI tests run on the host or are held by a twin or a no_twin reason; 31 are still on the Python UI (26 drawn, 5 window)",
    "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
@@ -497,13 +492,12 @@
   "test_gui_v0623_surfaces.py": {
    "holds": "v0.6.23: the special days on the other surfaces (by the owner's word). Nothing here reads today's date.",
    "tests": 32,
-   "ui_tests": 15,
-   "unaffected": 17,
+   "ui_tests": 12,
+   "unaffected": 20,
    "kind": "window",
    "by_kind": {
-    "window": 6,
-    "drawn": 5,
-    "scan": 4
+    "drawn": 6,
+    "window": 6
    },
    "parts": {
     "window": {
@@ -512,14 +506,11 @@
     "drawn": {
      "PopupSweepDrawnTests": 4,
      "TaskbarTests": 2
-    },
-    "scan": {
-     "DashboardSceneTests": 3
     }
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 15 UI tests run on the host (none); 15 are still on the Python UI (6 drawn, 6 window, 3 scan)",
+   "why": "0 of 12 UI tests run on the host or are held by a twin or a no_twin reason; 12 are still on the Python UI (6 drawn, 6 window)",
    "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
@@ -626,11 +617,13 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 2 UI tests run on the host (none); 2 are still on the Python UI (1 drawn, 1 scan)",
+   "why": "1 of 2 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 drawn)",
    "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py",
    "host_tests": [],
    "twins": {},
-   "no_twin": {},
+   "no_twin": {
+    "MotionStyleTests.test_one_curve_brands_ease_out": "srcscan.holders over every Python file: only brand/css.py spells the curve's tokens; the UI's modules are only part of the sample and nothing of the UI is called or computed"
+   },
    "port": []
   },
   "test_menu_opening_motion.py": {
@@ -885,25 +878,20 @@
   "test_notice_stay.py": {
    "holds": "Notices that stay on screen until clicked, chosen per kind (v0.6.16, notice_kinds.py).",
    "tests": 18,
-   "ui_tests": 3,
-   "unaffected": 15,
+   "ui_tests": 2,
+   "unaffected": 16,
    "kind": "window",
    "by_kind": {
-    "window": 1,
-    "drawn": 1,
-    "scan": 1
+    "window": 2
    },
    "parts": {
     "window": {
      "CardTests": 2
-    },
-    "scan": {
-     "WindowTests": 1
     }
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 3 UI tests run on the host (none); 3 are still on the Python UI (2 window, 1 scan)",
+   "why": "0 of 2 UI tests run on the host or are held by a twin or a no_twin reason; 2 are still on the Python UI (2 window)",
    "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
@@ -963,25 +951,21 @@
   "test_plug_points.py": {
    "holds": "Where core asks the edition's plug, and what it does with each answer (v0.6.11, P2-P14).",
    "tests": 120,
-   "ui_tests": 3,
-   "unaffected": 117,
+   "ui_tests": 1,
+   "unaffected": 119,
    "kind": "scan",
    "by_kind": {
-    "scan": 2,
     "pure": 1
    },
    "parts": {
-    "scan": {
-     "MovedTests": 2
-    },
     "pure": {
      "SurfaceTests": 1
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "1 of 3 UI tests run on the host (1 routed); 2 are still on the Python UI (2 scan)",
-   "needs": "the same rules over gui/host.sources in tests/test_host_shape.py",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [
     "SurfaceTests.test_the_icon_draws_from_what_a_plug_adds_under_its_one_key"
    ],
@@ -1440,8 +1424,8 @@
    "unaffected": 24,
    "kind": "scan",
    "by_kind": {
-    "scan": 1,
-    "pure": 1
+    "pure": 1,
+    "scan": 1
    },
    "parts": {
     "pure": {
@@ -1453,11 +1437,13 @@
    },
    "route": "scan",
    "status": "pending",
-   "why": "0 of 2 UI tests run on the host (none); 2 are still on the Python UI (1 pure, 1 scan)",
+   "why": "1 of 2 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 pure)",
    "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py",
    "host_tests": [],
    "twins": {},
-   "no_twin": {},
+   "no_twin": {
+    "OneImplementationTests.test_each_rule_has_exactly_one_implementation": "walks every Python module for each rule's one implementation site (sites() over the package); the UI's modules are only part of the sample and nothing of the UI is called or computed"
+   },
    "port": []
   },
   "test_social_motion.py": {
@@ -1638,8 +1624,8 @@
    "unaffected": 18,
    "kind": "window",
    "by_kind": {
-    "window": 9,
-    "scan": 4
+    "scan": 4,
+    "window": 9
    },
    "parts": {
     "window": {
@@ -1653,11 +1639,16 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 13 UI tests run on the host (none); 13 are still on the Python UI (9 window, 4 scan)",
+   "why": "4 of 13 UI tests run on the host or are held by a twin or a no_twin reason; 9 are still on the Python UI (9 window)",
    "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
-   "no_twin": {},
+   "no_twin": {
+    "JournalIsWriteOnlyTests.test_only_the_timeline_and_the_export_read_it": "reads every shipped Python file for `.events(`: which Python modules read the journal; the UI's modules are only part of the sample and nothing of the UI is called or computed",
+    "JournalIsWriteOnlyTests.test_the_timeline_is_the_only_control_call_that_reads_it": "walks every Python module's tree (srcscan.package_asts) for the journal's readers; the UI's modules are only part of the sample and nothing of the UI is called or computed",
+    "NoBrowserTests.test_nothing_that_ships_hosts_or_embeds_a_browser": "reads every shipped file under gui/*, src/*, scripts/* and build/install/*: the C# host's sources (gui/host.sources) are already among them as written, and nothing of the Python UI is called or computed",
+    "NoGuiAutomationTests.test_nothing_that_ships_drives_a_keyboard_a_mouse_or_a_screen": "reads every shipped file under gui/*, src/*, scripts/*, build/install/* and skills/*: the C# host's sources (gui/host.sources) are already among them as written, and nothing of the Python UI is called or computed"
+   },
    "port": []
   },
   "test_surface_render_retarget.py": {
@@ -2187,13 +2178,13 @@
   "test_tray_reuses_window.py": {
    "holds": "The icon reuses the settings window that is open (v0.6.20, issue #55).",
    "tests": 15,
-   "ui_tests": 12,
-   "unaffected": 3,
+   "ui_tests": 11,
+   "unaffected": 4,
    "kind": "pure",
    "by_kind": {
-    "window": 2,
-    "scan": 3,
-    "pure": 7
+    "pure": 7,
+    "scan": 2,
+    "window": 2
    },
    "parts": {
     "pure": {
@@ -2204,32 +2195,36 @@
      "PauseResumeTests": 2
     },
     "scan": {
-     "WindowSideTests": 2,
+     "WindowSideTests": 1,
      "WindowDecisionTests": 1
     }
    },
    "route": "shim",
    "status": "pending",
-   "why": "0 of 12 UI tests run on the host (none); 12 are still on the Python UI (7 pure, 2 window, 3 scan)",
+   "why": "1 of 11 UI tests run on the host or are held by a twin or a no_twin reason; 10 are still on the Python UI (7 pure, 1 scan, 2 window)",
    "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON The Dashboard opener these tests drive (ui/tray/dashboard.py: open_dashboard, open_chat, and the hand-over to an open window) has no case in car-harness: its Rust is car-platform's handover.rs, reached from the host as the `open_dashboard`/`open_chat` actions. Routing them needs a harness case over handover::hand_over and the process start (a Rust change, not tests/), then a proxy for the two functions beside perform's.",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "WindowSideTests.test_the_mark_and_the_answer_are_the_same_on_both_sides": "test_host_shape.py::HandoverTwinTests.test_the_mark_and_the_answer_are_the_same_on_both_sides"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_shape.py"
+   ]
   },
   "test_tray_shape.py": {
    "holds": "The icon is one module and one class, however many files they are written in.",
    "tests": 10,
-   "ui_tests": 8,
-   "unaffected": 2,
+   "ui_tests": 9,
+   "unaffected": 1,
    "kind": "window",
    "by_kind": {
-    "window": 4,
-    "scan": 4
+    "scan": 5,
+    "window": 4
    },
    "parts": {
     "scan": {
-     "ShapeTests": 4
+     "ShapeTests": 5
     },
     "window": {
      "CompositionTests": 4
@@ -2237,11 +2232,17 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "0 of 8 UI tests run on the host (none); 8 are still on the Python UI (4 window, 4 scan)",
+   "why": "5 of 9 UI tests run on the host or are held by a twin or a no_twin reason; 4 are still on the Python UI (4 window)",
    "needs": "the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
    "host_tests": [],
    "twins": {},
-   "no_twin": {},
+   "no_twin": {
+    "ShapeTests.test_each_file_uses_only_what_is_above_it": "the import order of the Python tray package's own files: Python packaging with no C# counterpart (one assembly has no import order); the host's one-definition rule is test_host_shape.OneDefinitionTests",
+    "ShapeTests.test_only_the_four_call_windows": "which of the Python tray package's modules import ctypes/win: Python packaging; the host's layout half that asks Windows nothing is test_host_shape.AskWindowsNothingTests",
+    "ShapeTests.test_the_eleven_are_all_there_and_nothing_else_is": "the Python tray package's own file list (ui/tray's eleven modules): Python packaging; the host's icon is C# under gui/host.sources, whose list is held by test_host_shape.HostListTests",
+    "ShapeTests.test_the_order_in_the_file_is_the_order_here": "the order ui/tray/__init__.py loads its modules in: Python packaging with no C# counterpart",
+    "ShapeTests.test_the_process_is_started_in_one_file": "which Python tray module imports subprocess; the host starts no process at all (no Process.Start in any surface: test_host_shape.ReachTests), the opener being car-platform's"
+   },
    "port": []
   },
   "test_tray_tip_header_ink.py": {
@@ -2521,29 +2522,35 @@
   "test_vocabulary.py": {
    "holds": "The closed vocabularies: every word the product stores, sends, translates or branches on.",
    "tests": 13,
-   "ui_tests": 2,
-   "unaffected": 11,
+   "ui_tests": 3,
+   "unaffected": 10,
    "kind": "scan",
    "by_kind": {
-    "scan": 1,
-    "pure": 1
+    "pure": 2,
+    "scan": 1
    },
    "parts": {
     "scan": {
      "ListTests": 1
     },
     "pure": {
-     "HomeTests": 1
+     "HomeTests": 2
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "0 of 2 UI tests run on the host (none); 2 are still on the Python UI (1 pure, 1 scan)",
-   "needs": "tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py",
+   "status": "host",
+   "why": "",
+   "needs": "",
    "host_tests": [],
-   "twins": {},
+   "twins": {
+    "HomeTests.test_every_vocabulary_is_exactly_the_words_its_home_spells": "test_host_shape.py::VocabularyTwinTests.test_the_ports_lists_are_the_vocabularys",
+    "HomeTests.test_the_words_spelled_beside_a_vocabulary_are_its_members": "test_host_shape.py::VocabularyTwinTests.test_the_ports_lists_are_the_vocabularys",
+    "ListTests.test_every_list_has_the_members_it_had": "test_host_shape.py::VocabularyTwinTests.test_the_ports_lists_are_the_vocabularys"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/test_host_shape.py"
+   ]
   },
   "test_words_fit.py": {
    "holds": "The popup and the notification card hold their longest words in every language at every scale (v0.6.11).",
