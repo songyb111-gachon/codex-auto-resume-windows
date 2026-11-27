@@ -5022,6 +5022,37 @@ name the state text, a switch's role 0x2D, pressing a text done, a box a pixel r
 too, the announcement made without the keyboard's place: 21 fail their test. Invalid: `if (false)` for the focused state does not compile
 (`-warnaserror`), replaced by the pointer's version.
 
+#### S6.4d3, second row: the icon's hover words from the shell
+
+| What | Where | State |
+|---|---|---|
+| **`tip_icon`**: a TrayIcon whose window is the test's number, every Windows call recorded (Shell_NotifyIconW with flags and szTip, the timers), its drawn menu always shown, MakePopup/IconRectReader/Cursor/Monotonic the test's; the shell's NIM_SETVERSION answers (`versions`) and the cards it makes (`makes`: a RecordingTip, or the making throws) asked back in order; steps update, version4, tip (none / broken / a card of the test's, its fail mode), popup, menu_drawn, taskbar, session, message (TrayIcon.Message with the moment's clock and pointer), notify, set_version, show_tip, open_popup, tip_shows, shown. RecordingPopup and RecordingMenu gained a settable `Shown` (Visible), false as before unless set | `tests/rustdiff/HostProbe.cs` | - |
+| **`HostTipTray`**: the reference Tray as IconCase drives it, every assignment and call a step of one history replayed per question; the host's Shell_NotifyIconW (as NOTIFYICONDATAW holds szTip) and SetTimer/KillTimer handed to the test's patched `icon._dll`, the NIM_SETVERSION answer asked of it; each card's show (its box as a reader), hide, destroy handed to the test's card; a card the host makes asked of the test's patched `tipcard.TipCard` | `tests/rustdiff/hosttipicon.py` | - |
+| Twins: ShowOnHostTests 3, HideOnHostTests 2, FlagOnHostTests 3, FallbackOnHostTests 2, SilentShellOnHostTests 4 (the originals' bodies through `super()`, the reference Tray patched to HostTipTray for setUp only) | `tests/test_host_tray_tip_messages.py` | Ran 14, OK through `gui_lock.sh` (110 probe questions) |
+
+Ledger: `test_tray_tip_messages` 14 of 17 twinned, still pending: `ShowTests.test_the_first_rest_makes_the_card_with_what_the_tooltip_says`
+(what the card is made with is not seen: ShowTip makes `new TipCard(TipContent, PopupHeld, Log, Days)` itself and MakeTip replaces the making
+whole - a gui/ MakeTip that takes those three would), LiveCardTests 2 (the real card shown off the screen: TipCard's ShowWindow and timers are
+user32's directly). Host 30, pending 53, ceiling 54.
+
+**Mutation checks** (13, each alone through `gui_lock.sh`, restored; `scratchpad/car-v0627-s64d-mut9.json`, `-mut10.json`, `-mut11.json`): on
+gui/TrayIcon.cs - NIF_SHOWTIP inverted, the anchor read unsigned, the leave hiding at once, three silent visits, a resting pointer not counted,
+shown over the popup, SetVersion not dropping the flag after, TipGone not telling the shell, the word keeping the fallback, the icon's end not
+destroying the card; on the twin's side - hides not handed on, the shell's version answer taken as yes: 12 fail their test. Invalid: a first
+"TipGone not telling the shell" written as `Hwnd = Hwnd` does not compile (`-warnaserror`), rewritten as the Notify removed.
+
+### What is left of the window rows after S6.4d3 (per row, the route)
+
+`test_popup_card_still` 14 (AloneTests 6 and StillTests 5 hand the host's plan to drawing and stills: the drawing's, S6.4f's render serve;
+ShadowLayerTests 2, RecipeTests 1: the card's shadow layer and recipe, a probe over CardLayers), `test_gui_v0623_surfaces` 12 (PopupPressTests 6:
+popup_steps with presses and the seventh press; the rest drawn), `test_popup_card_window` 11 (CardWindow's messages: a probe as popup_steps is
+for PopupWindow), `test_popup_opening_motion` 11, `test_tray_open_popup` 11 (Item/Offered: icon_steps' menu and MenuPopup; OpensTests half is
+S6.4e's opener), `test_popup_motion_held` 10, `test_menu_opening_motion` 6 (MenuWindow's fade: menu_messages with its clock), `test_card_focus` 5,
+`test_tray` 5 (PowerMenuTests: icon_steps with power_armed and MenuPowerOff; LiveIconTests), `test_tray_menu_no_glow` 5,
+`test_corners_by_design` 4 (S6.4f), `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3 and `test_notice_stay` 2 (CardStack's
+clicks and holds on windows of its own: CardMotion is S6.4f's replay, the stack a probe with message-only windows), `test_tray_menu_drawn.LiveWindowTests` 3,
+`test_surface_properties`' opener test (S6.4e), and the first rest and live card of `test_tray_tip_messages` (gui/ seams above).
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
