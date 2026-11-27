@@ -95,9 +95,19 @@ def chained(*tunes):
 def second_home(workspace: Path):
     """A second Codex home in Settings: a copy of the first."""
     import shutil
+    import os
     shutil.copytree(workspace / "codex", workspace / "codex2", dirs_exist_ok=True)
+    # Written an hour before the first, so only the first is the one the app writes to now.
+    for path in (workspace / "codex2").iterdir():
+        if path.is_file():
+            os.utime(path, (now() - 3600, now() - 3600))
     settings_edit(codex_homes=[{"path": str(workspace / "codex2"), "alias": "Second"},
-                               {"path": 7}, "not a home", {"path": str(workspace / "missing")}])(workspace)
+                               {"path": str(workspace / "missing"), "alias": "Gone"}])(workspace)
+
+
+def refused_homes(workspace: Path):
+    """A list Settings refuse whole: its defaults (no other home) are what both sides read."""
+    settings_edit(codex_homes=[{"path": 7}, "not a home", {"path": str(workspace / "missing")}])(workspace)
 
 
 def history_gone(workspace: Path):
@@ -209,7 +219,8 @@ class CheckupDiff(ChecksBase):
             ("the Codex home missing", lambda ws: {"codex_home": str(ws / "nowhere")}, check_pinned),
             ("the history gone", {}, chained(check_pinned, history_gone)),
             ("the history damaged", {}, chained(check_pinned, history_damaged)),
-            ("a second home and refused entries", {}, chained(check_pinned, second_home)),
+            ("a second home and a missing one", {}, chained(check_pinned, second_home)),
+            ("a list of homes Settings refuse", {}, chained(check_pinned, refused_homes)),
             ("presence: a card", {"presence": {"route": "card", "do_not_disturb": None, "app_allowed": None}},
              check_pinned),
             ("presence raises", {"presence": {"raise": "OSError"}}, check_pinned),
