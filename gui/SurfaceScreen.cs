@@ -1,10 +1,12 @@
 // Codex Auto Resume - the Win32 calls by which a surface's window reaches the screen, one door for the probe mode
 // (v0.6.27, S6.3d).
 //
-// The popup, its card layers, the icon's menu and the notification cards make these calls only through here: showing,
-// placing, fading, uploading a layered picture, the focus, the timers, the messages a window posts itself, Windows' default
-// procedure. On a live host `Probe` is null and every one is Windows' own call, made as the Python makes it. In the probe
-// mode (P6-DESIGN 3.2) `Probe` is a list: each call is written to it in the reference's words and NOT made - the windows
+// The popup, its card layers, the icon's menu, the tip card and the notification cards make these calls only through here:
+// showing, placing, fading, uploading a layered picture, the focus, the timers, the messages a window posts itself, Windows'
+// default procedure; and since S6.3e the popup's Windows' own row menu (CreatePopupMenu, AppendMenuW, TrackPopupMenu,
+// DestroyMenu: MenuChoice answers what is chosen) and the tip card's word to a screen reader (Tell). On a live host
+// `Probe` is null and every one is Windows' own call, made as the Python makes it. In the probe mode (P6-DESIGN 3.2)
+// `Probe` is a list: each call is written to it in the reference's words and NOT made - the windows
 // are made but never shown, never placed and never given a picture, so nothing reaches the owner's screen - and what a
 // window posts itself is queued in `Posted` for the script to deliver. The reference is driven with the same calls stood
 // in (tests/test_surface_windows.py), so the two records are compared call for call.
@@ -263,6 +265,59 @@ namespace CodexAutoResume
             }
             IntPtr region = SurfaceNative.CreateRoundRectRgn(0, 0, width + 1, height + 1, radius, radius);
             if (region != IntPtr.Zero && SurfaceNative.SetWindowRgn(hwnd, region, true) == 0) SurfaceNative.DeleteObject(region);
+        }
+
+        // ------------------------------------------------------------ Windows' own menus, and what a reader is told (S6.3e)
+        /// The handle the next menu made while probed is given (none is made: a number in the record, never Windows').
+        internal static long NextMenu = 0x3E0;
+        /// What TrackPopupMenu answers while probed, asked with the menu tracked: the command chosen (null: 0, clicked away).
+        internal static Func<IntPtr, int> MenuChoice = null;
+
+        /// CreatePopupMenu: Windows' own menu, or while probed a handle of the record's ("CreatePopupMenu 0x3e0").
+        internal static IntPtr CreatePopupMenu()
+        {
+            if (!Probing) return SurfaceNative.CreatePopupMenu();
+            var menu = new IntPtr(NextMenu++);
+            Log("CreatePopupMenu", menu);
+            return menu;
+        }
+
+        /// AppendMenuW of a command (or a line: MF_SEPARATOR, id 0, no text) to `menu`.
+        internal static void AppendMenu(IntPtr menu, uint flags, ulong id, string text)
+        {
+            if (!Probing) SurfaceNative.AppendMenuW(menu, flags, new UIntPtr(id), text);
+            else Log("AppendMenuW", menu, flags, id, text == null ? "None" : text.Replace("\n", "\\n"));
+        }
+
+        /// AppendMenuW of a submenu (MF_POPUP in `flags`): its handle is the item's id.
+        internal static void AppendSubmenu(IntPtr menu, uint flags, IntPtr submenu, string text)
+        {
+            if (!Probing) SurfaceNative.AppendMenuW(menu, flags, new UIntPtr((ulong)submenu.ToInt64()), text);
+            else Log("AppendMenuW", menu, flags, submenu, text == null ? "None" : text.Replace("\n", "\\n"));
+        }
+
+        /// TrackPopupMenu (TPM_RETURNCMD in `flags`): the command chosen, 0 for none; while probed nothing is shown and
+        /// MenuChoice answers.
+        internal static int TrackPopupMenu(IntPtr menu, uint flags, int x, int y, IntPtr hwnd)
+        {
+            if (!Probing) return SurfaceNative.TrackPopupMenu(menu, flags, x, y, 0, hwnd, IntPtr.Zero);
+            Log("TrackPopupMenu", menu, flags, x, y, hwnd);
+            return MenuChoice != null ? MenuChoice(menu) : 0;
+        }
+
+        /// DestroyMenu: the menu and the submenus in it.
+        internal static void DestroyMenu(IntPtr menu)
+        {
+            if (!Probing) SurfaceNative.DestroyMenu(menu);
+            else Log("DestroyMenu", menu);
+        }
+
+        /// access.tell: `winEvent` happened to the window, told to whoever listens (SurfaceAccess.Tell); while probed a line
+        /// in the record, in the words the menu probe's Telling writes ("NotifyWinEvent tip 32770").
+        internal static void Tell(IntPtr hwnd, uint winEvent)
+        {
+            if (!Probing) SurfaceAccess.Tell(hwnd, winEvent);
+            else if (hwnd != IntPtr.Zero) Log("NotifyWinEvent", hwnd, winEvent);
         }
 
         /// The class's style with `bits` added (_class_shadow: CS_DROPSHADOW).
