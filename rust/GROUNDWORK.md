@@ -4988,7 +4988,12 @@ test_surface_ledger (wait_quiet.sh)                                Ran 7, OK (af
 test_popup_row_menu_drawn, test_tray_tipcard (gui_lock.sh, each alone, the Python originals)   Ran 36 OK; Ran 33 OK
 privacy_scan.py on the new and changed files                       clean
 ```
-RE-DIFF_HERE
+Re-diff (11-28, `gui_lock.sh`, detached), after taking S6.4e's 090b0b70b (the bundled runtime never imports tests/sitecustomize.py,
+so every earlier "ledger tests on the shim pass" of this script, S6.4d's two included, ran on the tag's Python and was hollow):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` with `CODEX_AR_HARNESS_EXE` = a copy of car-v0627-rust's
+release car-harness.exe (this worktree has no rust/target; without it the shim's first run had 1,309 FileNotFoundError failures) -
+the shim installed: 130 ledger tests + test_surface_askback (Ran 134, OK, no skip); the ledger and every twin home (Ran 114, OK);
+no row: test_status_newest_usage.py (not this seat's: it imports the UI from v0.6.26 on and has no ledger row yet); exit 0.
 No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's.
 
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
