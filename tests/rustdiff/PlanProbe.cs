@@ -110,6 +110,24 @@ namespace CodexAutoResume
                                                     { "extent", (double)mask.Extent }, { "coverage", coverage } };
         }
 
+        private static List<object> FloatList(List<FloatShadow> shadows)
+        {
+            var listed = new List<object>();
+            foreach (FloatShadow s in shadows) listed.Add(new List<object> { s.Dx, s.Dy, s.Blur, s.Colour, s.Alpha });
+            return listed;
+        }
+
+        private static List<FloatShadow> FloatsOf(object value)
+        {
+            var shadows = new List<FloatShadow>();
+            foreach (object entry in (List<object>)value)
+            {
+                var five = (List<object>)entry;
+                shadows.Add(new FloatShadow((double)five[0], (double)five[1], (double)five[2], (string)five[3], (double)five[4]));
+            }
+            return shadows;
+        }
+
         private static object Render(Dictionary<string, object> call)
         {
             string job = Path.Combine(folder, "job.json"), found = Path.Combine(folder, "out.json");
@@ -198,6 +216,36 @@ namespace CodexAutoResume
                 return Mask(SurfaceElevation.WellCoverage(I(call, "width"), I(call, "height"), D(call, "radius"), D(call, "blur"),
                                                           D(call, "dx"), D(call, "dy"), Maybe(F(call, "smoothing"))));
             if (op == "shadow_step") return (double)SurfaceElevation.ShadowStep(D(call, "value"));
+            if (op == "recipe_shadows")
+            {
+                var listed = new List<object>();
+                foreach (SurfaceShadow s in SurfaceElevation.RecipeShadows((string)call["recipe"], (string)call["theme"], (string)call["design"]))
+                    listed.Add(new List<object> { s.Dx, s.Dy, s.Blur, s.Token, s.Alpha, s.Inset });
+                return listed;
+            }
+            if (op == "tile_ground") return SurfaceTheme.Hex(SurfaceElevation.TileGround((string)call["theme"], (string)call["design"]));
+            if (op == "share_columns") return SurfaceRender.Dump(PopupLayout.ShareColumns(I(call, "available"), Ints(call["needs"])));
+            // ------------------------------------------------------------- the notification card (gui/CardPlan.cs)
+            if (op == "entrance") return SurfaceRender.Dump(CardPlan.Entrance(D(call, "elapsed"), B(call, "reduced")));
+            if (op == "leaving")
+                return CardPlan.Leaving(D(call, "elapsed"), D(call, "start_alpha"), B(call, "reduced"), D(call, "duration"));
+            if (op == "rise_vector") return SurfaceRender.Dump(CardPlan.RiseVector(F(call, "edge") as string));
+            if (op == "hold_ms") return CardPlan.HoldFor(F(call, "duration"));
+            if (op == "stack_direction")
+                return (double)CardPlan.StackDirection((string)call["edge"], I(call, "y"), I(call, "height"), Ints(call["work"]));
+            if (op == "stack_positions")
+            {
+                var sizes = new List<int[]>();
+                foreach (object size in (List<object>)call["sizes"]) sizes.Add(Ints(size));
+                string edge;
+                List<int[]> positions = CardPlan.StackPositions(sizes, Ints(call["work"]), Ints(call["monitor"]), Ints(F(call, "anchor")),
+                                                                I(call, "gap"), I(call, "spacing"), out edge);
+                return new List<object> { SurfaceRender.Dump(positions), edge };
+            }
+            if (op == "float_shadows") return FloatList(CardPlan.FloatShadows((string)call["theme"], (string)call["design"]));
+            if (op == "shadow_at") return FloatList(CardPlan.ShadowAt(FloatsOf(call["shadows"]), D(call, "depth")));
+            if (op == "depth_level") return (double)CardPlan.DepthLevel(D(call, "depth"));
+            if (op == "shadow_margin") return (double)CardPlan.ShadowMargin(FloatsOf(call["shadows"]), D(call, "scale"));
             throw new NotSupportedException("no op " + op);
         }
     }

@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import unittest
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 ROOT = Path(__file__).resolve().parents[2]
@@ -133,7 +134,7 @@ def _count(op: str, frame) -> None:
     CALLS[op] = CALLS.get(op, 0) + 1
     while frame is not None:
         owner = frame.f_locals.get("self")
-        if owner is not None and hasattr(owner, "id") and hasattr(owner, "_testMethodName"):
+        if isinstance(owner, unittest.TestCase):
             ident = owner.id()
             BY_TEST.setdefault(ident, {})
             BY_TEST[ident][op] = BY_TEST[ident].get(op, 0) + 1
@@ -402,7 +403,18 @@ def _elevation(module):
             return ask("shadow_step", value=float(value))
         return shadow_step
 
-    for name, make in (("lift_coverage", lift), ("well_coverage", well), ("shadow_step", step)):
+    def recipe(original):
+        def recipe_shadows(recipe, theme="light", design="soft"):
+            return tuple(module.brand.Shadow(*each) for each in ask("recipe_shadows", recipe=recipe, theme=theme, design=design))
+        return recipe_shadows
+
+    def ground(original):
+        def tile_ground(theme="light", design="soft"):
+            return ask("tile_ground", theme=theme, design=design)
+        return tile_ground
+
+    for name, make in (("lift_coverage", lift), ("well_coverage", well), ("shadow_step", step), ("recipe_shadows", recipe),
+                       ("tile_ground", ground)):
         _replace(module, name, make)
 
 
@@ -410,32 +422,213 @@ def _flags(wrap) -> int:
     return DT_CALCRECT | DT_NOPREFIX | ((DT_WORDBREAK | DT_EDITCONTROL) if wrap else DT_SINGLELINE)
 
 
+def _recorded(original, case_of, pick=None):
+    """A layout(vm, scale, measure, ...) asked of the render mode: the reference's call made once with `measure` wrapped,
+    every question and the test's answer recorded as the job's table (keyed as SurfaceText.Measure asks it), the case
+    `case_of(vm, scale)` laid out from that table alone, and the C#'s plan (`pick` of the case's answer) handed back in
+    the reference's container kinds."""
+    def layout(vm, scale, measure, *rest):
+        table = {}
+
+        def recorded(role, text, at, wrap):
+            found = measure(role, text, at, wrap)
+            table[(role, text if text else " ", max(1, int(at)), _flags(wrap))] = (int(found[0]), int(found[1]))
+            return found
+        reference = original(vm, scale, recorded, *rest)
+        rows = [[role, text, at, flags, w, h] for (role, text, at, flags), (w, h) in table.items()]
+        found = ask("render", tables={"t": {"measure": rows, "metrics": {}, "ink": []}}, case=case_of(vm, scale))
+        return shaped(found if pick is None else found[pick], reference)
+    return layout
+
+
 def _layout(module):
-    """The popup's layout (gui/PopupLayout.cs), through the render mode's `popup` case: the reference's measure questions
-    recorded from the test's own `measure`, the case laid out from that table, the dump rebuilt as the reference's plan."""
+    """The popup's layout (gui/PopupLayout.cs), through the render mode's `popup` case in a language written left to
+    right with no breaking of its own (so the case is layout.layout's, not Renderer.layout's mirror), and share_columns."""
     def layout(original):
+        inner = _recorded(original, lambda vm, scale: {"surface": "popup", "vm": wire(vm), "scale": float(scale),
+                                                        "locale": "en", "table": "t"})
+
         def layout(vm, scale, measure, width=module.WIDTH):
             if width != module.WIDTH:
                 raise TypeError("the render mode lays the popup out at its own width only (layout.WIDTH)")
-            table = {}
-
-            def recorded(role, text, at, wrap):
-                found = measure(role, text, at, wrap)
-                table[(role, text if text else " ", max(1, int(at)), _flags(wrap))] = (int(found[0]), int(found[1]))
-                return found
-            reference = original(vm, scale, recorded, width)
-            rows = [[role, text, at, flags, w, h] for (role, text, at, flags), (w, h) in table.items()]
-            found = ask("render", tables={"t": {"measure": rows, "metrics": {}, "ink": []}},
-                        case={"surface": "popup", "vm": wire(vm), "scale": float(scale), "locale": "en", "table": "t"})
-            return shaped(found, reference)
+            return inner(vm, scale, measure)
         return layout
 
+    def share(original):
+        def share_columns(available, needs):
+            return ask("share_columns", available=int(available), needs=[int(need) for need in needs])
+        return share_columns
+
     _replace(module, "layout", layout)
+    _replace(module, "share_columns", share)
+
+
+class _HostCardMotion:
+    """notice_card.CardMotion as the C#'s CardMotion (gui/CardPlan.cs), by replay: every step the test took is sent again
+    as the render mode's `card_life` case, and what a step returns and the state read after it (phase, since, hold_left,
+    from_alpha, exit_ms, paused, final, gone) are the last step's. The constructor's own inputs (reduced, hold_ms) read
+    back as given; anything else read or assigned is refused, never answered by Python."""
+
+    STATE = ("phase", "since", "hold_left", "from_alpha", "exit_ms", "paused", "final")
+    module = None
+
+    def __init__(self, now_ms, *, hold_ms=None, reduced=False, position=None):
+        hold = float(self.module.HOLD_MS if hold_ms is None else hold_ms)
+        object.__setattr__(self, "_steps", [["new", float(now_ms), "inf" if hold == float("inf") else hold, bool(reduced),
+                                             wire(position)]])
+        object.__setattr__(self, "_inputs", {"reduced": bool(reduced), "hold_ms": max(0.0, hold)})
+        object.__setattr__(self, "_last", self._run())
+
+    def _run(self):
+        return ask("render", case={"surface": "card_life", "steps": self._steps})[-1]
+
+    def _step(self, *step):
+        self._steps.append(list(step))
+        object.__setattr__(self, "_last", self._run())
+        return self._last[0]
+
+    def __getattr__(self, name):
+        if name in self.STATE:
+            return self._last[1 + self.STATE.index(name)]
+        if name in ("reduced", "hold_ms"):
+            return self._inputs[name]
+        raise TypeError("the host's CardMotion is asked by replay: %s is not read back" % name)
+
+    def __setattr__(self, name, value):
+        raise TypeError("the host's CardMotion is asked by replay: %s cannot be set" % name)
+
+    @property
+    def gone(self):
+        return self._last[1] == "gone"
+
+    def frame(self, now_ms):
+        return _frame(self.module, self._step("frame", float(now_ms)))
+
+    def restart(self, now_ms):
+        self._step("restart", float(now_ms))
+
+    def delay(self, ms):
+        self._step("delay", float(ms))
+
+    def pause(self, now_ms, paused):
+        self._step("pause", float(now_ms), bool(paused))
+
+    def retire(self, now_ms, *, quick=False):
+        self._step("retire", float(now_ms), bool(quick))
+
+    def move_to(self, now_ms, target, delay=0):
+        self._step("move", float(now_ms), wire(target), float(delay))
+
+    def place(self, now_ms):
+        found = self._step("place", float(now_ms))
+        return None if found is None else tuple(found)
+
+    def moving(self, now_ms):
+        return self._step("moving", float(now_ms))
+
+    def wait_ms(self, now_ms):
+        found = self._step("wait", float(now_ms))
+        return None if found is None else float(found)
+
+
+def _frame(module, found):
+    return module.Frame(**{key: float(found[key]) for key in ("alpha", "offset", "scale", "depth")})
+
+
+def _scalar(value):
+    """A value the C# can be handed as it is (a number, a bool, None, text); anything else as None, which neither side
+    takes for a duration."""
+    return value if value is None or isinstance(value, (bool, int, float, str)) else None
+
+
+def _notice_card(module):
+    """The notification card's plan, motion, stack and floating shadow (gui/CardPlan.cs)."""
+    def floats(found):
+        return tuple(module.FloatShadow(*each) for each in found)
+
+    def entrance(original):
+        def entrance(elapsed_ms, *, reduced=False):
+            return _frame(module, ask("entrance", elapsed=float(elapsed_ms), reduced=bool(reduced)))
+        return entrance
+
+    def leaving(original):
+        def leaving(elapsed_ms, start_alpha=1.0, *, reduced=False, duration=module.EXIT_MS):
+            return float(ask("leaving", elapsed=float(elapsed_ms), start_alpha=float(start_alpha), reduced=bool(reduced),
+                             duration=float(duration)))
+        return leaving
+
+    def rise(original):
+        def rise_vector(edge):
+            return tuple(ask("rise_vector", edge=edge if isinstance(edge, str) else None))
+        return rise_vector
+
+    def hold(original):
+        def hold_ms(message_duration_ms=None):
+            value = _scalar(message_duration_ms)
+            return float(ask("hold_ms", duration=float(value) if isinstance(value, int) and not isinstance(value, bool)
+                             else value))
+        return hold_ms
+
+    def direction(original):
+        def stack_direction(edge, y, height, work):
+            return ask("stack_direction", edge=edge, y=int(y), height=int(height), work=[int(part) for part in work])
+        return stack_direction
+
+    def positions(original):
+        def stack_positions(sizes, work, monitor, anchor=None, *, gap, spacing):
+            found, edge = ask("stack_positions", sizes=wire(sizes), work=wire(work), monitor=wire(monitor), anchor=wire(anchor),
+                              gap=int(gap), spacing=int(spacing))
+            return [tuple(each) for each in found], edge
+        return stack_positions
+
+    def float_shadows(original):
+        def float_shadows(theme, design="soft"):
+            return floats(ask("float_shadows", theme=theme, design=design))
+        return float_shadows
+
+    def shadow_at(original):
+        def shadow_at(shadows, depth):
+            return floats(ask("shadow_at", shadows=wire(shadows), depth=float(depth)))
+        return shadow_at
+
+    def depth_level(original):
+        def depth_level(depth):
+            return ask("depth_level", depth=float(depth))
+        return depth_level
+
+    def shadow_margin(original):
+        def shadow_margin(shadows, scale):
+            return ask("shadow_margin", shadows=wire(shadows), scale=float(scale))
+        return shadow_margin
+
+    def layout(original):
+        return _recorded(original, lambda vm, scale: {"surface": "card", "vm": wire(vm), "scale": float(scale), "locale": "en",
+                                                      "table": "t"}, "plan")
+
+    for name, make in (("entrance", entrance), ("leaving", leaving), ("rise_vector", rise), ("hold_ms", hold),
+                       ("stack_direction", direction), ("stack_positions", positions), ("float_shadows", float_shadows),
+                       ("shadow_at", shadow_at), ("depth_level", depth_level), ("shadow_margin", shadow_margin),
+                       ("layout", layout)):
+        _replace(module, name, make)
+
+    original = module.CardMotion
+    host = type("CardMotion", (_HostCardMotion,), {"module": module, "__doc__": original.__doc__})
+
+    class CardMotion:
+        """A test's CardMotion is the host's (by replay); the product's own callers keep Python's."""
+
+        def __new__(cls, *args, **kwargs):
+            if _test_frame(2) is None:
+                return original(*args, **kwargs)
+            return host(*args, **kwargs)
+
+    CardMotion.__wrapped__, CardMotion.rust_core = original, "host"
+    module.CardMotion = CardMotion
 
 
 MODULES = {"codex_auto_resume.ui.tray.motion": _tray_motion, "codex_auto_resume.ui.popup.motion": _popup_motion,
            "codex_auto_resume.ui.popup.placement": _placement, "codex_auto_resume.ui.popup.elevation": _elevation,
-           "codex_auto_resume.ui.popup.layout": _layout}
+           "codex_auto_resume.ui.popup.layout": _layout, "codex_auto_resume.notice_card": _notice_card}
 
 
 def install(module) -> None:

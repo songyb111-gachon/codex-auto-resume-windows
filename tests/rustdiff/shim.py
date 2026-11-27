@@ -47,7 +47,7 @@ SURFACE = ("codex_auto_resume.ui.popup.words", "codex_auto_resume.ui.popup.model
            "codex_auto_resume.ui.tray.model", "codex_auto_resume.ui.tray.words", "codex_auto_resume.ui.tray.menu", "codex_auto_resume.ui.tray.motion")
 # S6.4f: the drawing half's plans and motion, as the C# host's (planproxy.py, loaded by path); patched after SURFACE's.
 PLAN = ("codex_auto_resume.ui.tray.motion", "codex_auto_resume.ui.popup.motion", "codex_auto_resume.ui.popup.placement",
-        "codex_auto_resume.ui.popup.elevation", "codex_auto_resume.ui.popup.layout")
+        "codex_auto_resume.ui.popup.elevation", "codex_auto_resume.ui.popup.layout", "codex_auto_resume.notice_card")
 STDIN_ARGUMENT = "-"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CRATE = Path(__file__).resolve().parents[2] / "rust" / "crates" / "car-harness"
