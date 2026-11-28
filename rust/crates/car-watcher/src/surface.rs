@@ -389,12 +389,12 @@ pub fn activate(
     let open_dashboard = |page: &str| -> Result<Value, Raised> {
         crate::dashboard::open_dashboard(&home, Some(page), None)
             .map(Value::Bool)
-            .map_err(|_| Raised::new("ValueError"))
+            .map_err(|refused| Raised::new(refused.class()))
     };
     let open_chat = |thread: &str| -> Result<Value, Raised> {
         crate::dashboard::open_chat(&home, &Value::from(thread))
             .map(Value::Bool)
-            .map_err(|_| Raised::new("ValueError"))
+            .map_err(|refused| Raised::new(refused.class()))
     };
     let open_link = |link: &str| -> Result<Value, Raised> {
         let root = std::env::var("SystemRoot").ok();

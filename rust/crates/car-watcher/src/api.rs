@@ -488,7 +488,13 @@ impl Watcher {
                     Err(refused) => {
                         let mut map = Map::new();
                         map.insert("ok".into(), Value::Bool(false));
-                        map.insert("error".into(), Value::from(refused.0));
+                        // A value refused says what was wrong; a start Windows refused, the OSError's class (the
+                        // reference's perform answers ("failed", its class)).
+                        let said = match refused {
+                            crate::dashboard::OpenError::Value(value) => value.0,
+                            crate::dashboard::OpenError::Os(class) => class,
+                        };
+                        map.insert("error".into(), Value::from(said));
                         Value::Object(map)
                     }
                 }

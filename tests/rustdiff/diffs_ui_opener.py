@@ -232,10 +232,11 @@ def worlds(home):
                           "images": [[9001, exe], [9002, exe]]},
     }
 
-def slashed(home):
-    """An image written with forward slashes (QueryFullProcessImageNameW gives back-slashes)."""
+def slashed(home, spelling=None):
+    """An image written with forward slashes (QueryFullProcessImageNameW gives back-slashes), or as `spelling` makes it."""
     exe = os.path.join(home, EXE)
-    return {"windows": [window(0x70001, 9501)], "images": [[9501, exe.replace("\\", "/")]]}
+    return {"windows": [window(0x70001, 9501)],
+            "images": [[9501, spelling(exe) if spelling else exe.replace("\\", "/")]]}
 '''
 
 OPENER = WORLD + r'''
@@ -279,12 +280,22 @@ cases = []
 for home in (PLAIN, UNICODE):
     cases.append(["opener.dashboard", home, "pending", None, slashed(home)])
     cases.append(["opener.windows_of", os.path.join(home, EXE), slashed(home)])
+    # Integration 13's edges: only the last separator counts, either kind; a drive-relative name; a name that ends in one
+    # (no UNC name: the reference would resolve it over the network).
+    for spelling in (lambda exe: exe.replace("\\", "/", 1), lambda exe: exe[:-len(EXE)] + "x/" + EXE,
+                     lambda exe: exe[:2] + EXE, lambda exe: exe + "/"):
+        cases.append(["opener.windows_of", os.path.join(home, EXE), slashed(home, spelling)])
 finish(cases, OPS)
 '''
 
 KNOWN_UNPACKED = WORLD + r'''
 cases = []
-for row in ("abc", "xyz", {"a": 1, "b": 2, "c": 3}, {"message": 1, KEY: 2, THREAD: 3}):
+for row in ("abc", "xyz", {"a": 1, "b": 2, "c": 3}, {"message": 1, KEY: 2, THREAD: 3},
+            # Integration 13's edges: texts of two, four, none and three non-ASCII characters (no lone surrogate: the
+            # harness's pipe is strict UTF-8); a dict of two keys, one whose keys are a once_words row, one whose key is no
+            # interruption id.
+            "ab", "abcd", "", "\u00e9\u4e2d\U0001f600", {"message": 1, KEY: 2},
+            {"once_words": None, KEY: [], THREAD: {}}, {"message": 1, KEY.upper(): 2, THREAD: 3}):
     cases.append(["opener.row_argument", row])
     cases.append(["opener.dashboard", PLAIN, "pending", row, {"hand_over": True}])
 finish(cases, OPS)
@@ -331,29 +342,23 @@ class OpenerDiff(Surface):
                       "sent to stand-in windows, %d starts recorded, nothing started) equal the tag's" % (
                           counted(done, "opener.dashboard"), counted(done, "opener.chat"), asks, starts))
 
-    @unittest.expectedFailure
     def test_a_start_that_fails(self):
         """The reference's `subprocess.Popen` raising (a program Windows cannot start) leaves open_dashboard/open_chat with that
-        OSError; car-watcher's dashboard.rs drops the start's error (`let _ = ...start_guarded(...)`) and answers true. A
-        product difference this seat may not edit (no product crate in this wave): expected to fail until dashboard.rs
-        answers the start's error, and then this marker must go (an unexpected success fails the run)."""
+        OSError; so does car-watcher's dashboard.rs since Integration 13 (`OpenError::Os`, by its Python class; S6.4e found it
+        dropping the start's error and answering true)."""
         self.family(FAILED_START, label="opener-failed-start")
 
 
-    @unittest.expectedFailure
     def test_an_image_written_with_forward_slashes(self):
-        """The reference's `windows_of` takes the image's name with `os.path.basename`, which splits at `/` too; handover.rs
-        takes it with `rsplit('\\')`, so a process whose image is written with forward slashes is not this program on the
-        port. Windows writes an image with back-slashes (QueryFullProcessImageNameW), so no real process reaches it; a
-        difference in car-platform's handover.rs this seat may not edit: expected to fail until it splits as `ntpath` does."""
+        """The reference's `windows_of` takes the image's name with `os.path.basename`, which splits at `/` too, after the
+        drive; so does handover.rs since Integration 13 (`ntpath.split`'s tail;
+        S6.4e found it splitting at the back-slash only)."""
         self.family(KNOWN_SLASHED, label="opener-slashed")
 
-    @unittest.expectedFailure
     def test_a_row_python_unpacks(self):
         """The reference unpacks any three-item iterable as the row - a three-character text, a dict by its keys - and refuses
-        it as "not a dialog of the window" (or takes a dict whose keys are a row); car-watcher's `row_argument` takes only an
-        array and says "not a row of the window". The host only ever sends an array or nothing (api.rs), so nothing reaches
-        it; expected to fail until dashboard.rs reads such a value as the reference does."""
+        it as "not a dialog of the window" (or takes a dict whose keys are a row); so does car-watcher's `row_argument` since
+        Integration 13 (S6.4e found it taking only an array). The host only ever sends an array or nothing (api.rs)."""
         self.family(KNOWN_UNPACKED, label="opener-unpacked")
 
 

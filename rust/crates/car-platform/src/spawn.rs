@@ -194,6 +194,83 @@ impl SystemStarter {
         LAST_FLAGS.store(flags, Ordering::SeqCst);
         command.spawn().map_err(SpawnError::Os)
     }
+
+    /// `subprocess.Popen(argv, cwd=..., close_fds=True, creationflags=...)` with no standard stream given, as the
+    /// reference starts the Dashboard (`ui/tray/dashboard.py`): `CreateProcessW` with no application name, the whole
+    /// list as `list2cmdline` writes it for its command line, **no handle inherited** (`bInheritHandles` FALSE, where
+    /// std's `Command` always inherits every inheritable handle) and no `STARTF_USESTDHANDLES` (the request's streams
+    /// are not used), this process's environment (a request with its own is refused: no caller gives one), the
+    /// request's flags (with `CREATE_NO_WINDOW`) and working folder. Nothing is waited for: both handles are closed and
+    /// the child's pid answered. The real-engine guard is [`SystemStarter::start_guarded`]'s.
+    pub fn start_inheriting_nothing(&self, spawn: &Spawn, test: bool) -> Result<u32, SpawnError> {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{
+            CreateProcessW, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW,
+        };
+        use windows::core::{PCWSTR, PWSTR};
+        if spawn.argv.is_empty() {
+            return Err(SpawnError::Os(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "no program",
+            )));
+        }
+        if spawn.env.is_some() {
+            return Err(SpawnError::Os(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "an environment of its own is not passed this way",
+            )));
+        }
+        let on = test || cfg!(test) || crate::realengine::switched();
+        if crate::realengine::start_refused(on, &spawn.argv) {
+            return Err(SpawnError::Os(std::io::Error::from_raw_os_error(2)));
+        }
+        let mut line: Vec<u16> = list2cmdline(&spawn.argv).encode_utf16().collect();
+        line.push(0);
+        let folder: Option<Vec<u16>> = spawn.cwd.as_ref().map(|cwd| {
+            use std::os::windows::ffi::OsStrExt;
+            cwd.as_os_str().encode_wide().chain([0]).collect()
+        });
+        let flags = spawn.flags();
+        let startup = STARTUPINFOW {
+            cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+            ..Default::default()
+        };
+        let mut started = PROCESS_INFORMATION::default();
+        LAST_FLAGS.store(flags, Ordering::SeqCst);
+        // SAFETY: every buffer handed over lives across the call and is NUL-terminated; `line` is writable, as
+        // CreateProcessW asks of its command line; `started` is written by the call and its handles closed below.
+        let made = unsafe {
+            CreateProcessW(
+                PCWSTR::null(),
+                Some(PWSTR(line.as_mut_ptr())),
+                None,
+                None,
+                false,
+                PROCESS_CREATION_FLAGS(flags),
+                None,
+                folder
+                    .as_ref()
+                    .map_or(PCWSTR::null(), |folder| PCWSTR(folder.as_ptr())),
+                &startup,
+                &mut started,
+            )
+        };
+        if let Err(error) = made {
+            let code = error.code().0 as u32;
+            let refused = if code & 0xFFFF_0000 == 0x8007_0000 {
+                std::io::Error::from_raw_os_error((code & 0xFFFF) as i32)
+            } else {
+                std::io::Error::other(error.message())
+            };
+            return Err(SpawnError::Os(refused));
+        }
+        // SAFETY: the two handles CreateProcessW gave, closed once each; nothing waits on the child.
+        unsafe {
+            let _ = CloseHandle(started.hThread);
+            let _ = CloseHandle(started.hProcess);
+        }
+        Ok(started.dwProcessId)
+    }
 }
 
 impl Starter for SystemStarter {
@@ -213,5 +290,90 @@ impl Starter for SystemStarter {
             }
             std::thread::sleep(Duration::from_millis(10));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Security::SECURITY_ATTRIBUTES;
+    use windows::Win32::System::Pipes::{CreatePipe, PeekNamedPipe};
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
+
+    fn cmd() -> String {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        format!(r"{root}\System32\cmd.exe")
+    }
+
+    /// An inheritable pipe's write end is held by a child that inherits handles: with ours closed, the read end still
+    /// has a writer while that child lives (`cmd /c pause` waits on its hidden console).
+    fn writer_left_with(start: impl FnOnce(&Spawn) -> u32) -> bool {
+        let inherit = SECURITY_ATTRIBUTES {
+            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: std::ptr::null_mut(),
+            bInheritHandle: true.into(),
+        };
+        let (mut read, mut write) = (HANDLE::default(), HANDLE::default());
+        // SAFETY: two handles written by the call, closed below.
+        unsafe { CreatePipe(&mut read, &mut write, Some(&inherit), 0) }.unwrap();
+        let pid = start(&Spawn::new([
+            cmd(),
+            "/d".into(),
+            "/c".into(),
+            "pause".into(),
+        ]));
+        // SAFETY: our own handles; the child is the one this test started.
+        unsafe {
+            let _ = CloseHandle(write);
+            let left = PeekNamedPipe(read, None, 0, None, None, None).is_ok();
+            let _ = CloseHandle(read);
+            let child = OpenProcess(PROCESS_TERMINATE, false, pid).unwrap();
+            let _ = TerminateProcess(child, 1);
+            let _ = CloseHandle(child);
+            left
+        }
+    }
+
+    #[test]
+    fn the_dashboards_start_inherits_no_handle_as_popen_with_close_fds_does() {
+        // The control: std's Command hands the child every inheritable handle, so the writer is still there.
+        assert!(writer_left_with(|spawn| SystemStarter
+            .start(spawn)
+            .unwrap()
+            .id()));
+        assert!(!writer_left_with(|spawn| SystemStarter
+            .start_inheriting_nothing(spawn, true)
+            .unwrap()));
+    }
+
+    #[test]
+    fn what_windows_refuses_is_the_oserror_popen_raises() {
+        let missing = SystemStarter
+            .start_inheriting_nothing(&Spawn::new([r"C:\car-no-such-folder\a.exe"]), true)
+            .unwrap_err();
+        let SpawnError::Os(missing) = missing else {
+            panic!("a start error")
+        };
+        assert_eq!(missing.raw_os_error(), Some(2));
+        assert_eq!(
+            car_machine::pyfile::os_error_class(&missing),
+            "FileNotFoundError"
+        );
+        let nowhere = SystemStarter
+            .start_inheriting_nothing(
+                &Spawn::new([cmd(), "/c".into(), "exit".into()]).with_cwd(r"C:\car-no-such-folder"),
+                true,
+            )
+            .unwrap_err();
+        let SpawnError::Os(nowhere) = nowhere else {
+            panic!("a start error")
+        };
+        assert_eq!(nowhere.raw_os_error(), Some(267));
+        assert_eq!(
+            car_machine::pyfile::os_error_class(&nowhere),
+            "NotADirectoryError"
+        );
+        assert_eq!(last_started_flags() & CREATE_NO_WINDOW, CREATE_NO_WINDOW);
     }
 }

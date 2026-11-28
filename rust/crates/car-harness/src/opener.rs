@@ -103,15 +103,23 @@ pub mod world {
         }
     }
 
-    /// The process start dashboard.rs makes, recorded; nothing is started.
+    /// car-platform's start error, as dashboard.rs names it.
+    pub use car_platform::spawn::SpawnError;
+
+    /// What a failing start of the world says: the reference's stand-in raises `OSError("not started")`.
+    pub const NOT_STARTED: &str = "not started";
+
+    /// The process start dashboard.rs makes, recorded; nothing is started. It offers only the start that inherits
+    /// nothing (`SystemStarter::start_inheriting_nothing`, the reference's `Popen(..., close_fds=True)`), so a copy
+    /// that starts any other way does not compile.
     pub struct SystemStarter;
 
     impl SystemStarter {
-        pub fn start_guarded(
+        pub fn start_inheriting_nothing(
             &self,
             spawn: &Spawn,
             _test: bool,
-        ) -> Result<(), car_platform::spawn::SpawnError> {
+        ) -> Result<u32, SpawnError> {
             let fails = STATE.with(|state| {
                 let mut state = state.borrow_mut();
                 state.started.push(object([
@@ -131,11 +139,9 @@ pub mod world {
                 state.start_fails
             });
             if fails {
-                return Err(car_platform::spawn::SpawnError::Os(std::io::Error::other(
-                    "not started",
-                )));
+                return Err(SpawnError::Os(std::io::Error::other(NOT_STARTED)));
             }
-            Ok(())
+            Ok(0)
         }
     }
 
@@ -389,12 +395,17 @@ fn set_world(spec: &Value) {
 }
 
 /// What the case did: its result, and everything the world recorded.
-fn recorded(result: Result<bool, dashboard::ValueError>) -> Value {
+fn recorded(result: Result<bool, dashboard::OpenError>) -> Value {
     let result = match result {
         Ok(done) => object([("ok", Value::Bool(done))]),
-        Err(refused) => object([
+        Err(dashboard::OpenError::Value(refused)) => object([
             ("error", Value::from("ValueError")),
             ("message", Value::from(refused.0)),
+        ]),
+        // Only the world's failing start raises here: its message is the stand-in's.
+        Err(dashboard::OpenError::Os(class)) => object([
+            ("error", Value::from(class)),
+            ("message", Value::from(world::NOT_STARTED)),
         ]),
     };
     world::STATE.with(|state| {

@@ -106,8 +106,8 @@ fn main() {
     let text = without_inner_docs(&read(&dashboard));
     let text = replaced(
         &text,
-        "use car_platform::spawn::{Spawn, SystemStarter};",
-        "use super::world::{Spawn, SystemStarter};",
+        "use car_platform::spawn::{Spawn, SpawnError, SystemStarter};",
+        "use super::world::{Spawn, SpawnError, SystemStarter};",
         1,
         "dashboard.rs",
     );

@@ -124,17 +124,23 @@ class OpenerAskBackTests(unittest.TestCase):
         self.assertEqual(dashboard.ROW_DIALOGS, tuple(popup_model.ROW_DIALOGS))
         self.assertIsInstance(dashboard.PAGES, tuple)
 
-    def test_a_start_the_port_could_not_make_still_answers_true(self):
-        """dashboard.rs drops a failed start's error (`let _ = ...`), where the reference raises it: the proxy answers as
-        the port does (diffs_ui_opener's expected failure names the difference)."""
+    def test_a_start_windows_refuses_raises_its_oserror_as_the_reference_does(self):
+        """dashboard.rs answers a failed start's OSError (Integration 13; S6.4e found it dropped): the proxy raises the
+        test's own exception, as the reference lets it out of Popen."""
+        error = FileNotFoundError(2, "not started")
+
         def refused(*args, **kwargs):
-            raise OSError("not started")
+            raise error
         with patch.object(handover, "hand_over", lambda exe, page=None, row=None: False), \
                 patch.object(dashboard.subprocess, "Popen", refused):
-            self.assertTrue(dashboard.open_dashboard(self.installed, "pending"))
-            self.assertTrue(dashboard.open_chat(self.installed, THREAD))
-            with self.assertRaises(OSError):
-                dashboard.open_dashboard.__wrapped__(self.installed, "pending")
+            for open_it in (lambda: dashboard.open_dashboard(self.installed, "pending"),
+                            lambda: dashboard.open_dashboard(self.installed),
+                            lambda: dashboard.open_chat(self.installed, THREAD),
+                            lambda: dashboard.open_dashboard.__wrapped__(self.installed, "pending"),
+                            lambda: dashboard.open_chat.__wrapped__(self.installed, THREAD)):
+                with self.assertRaises(FileNotFoundError) as raised:
+                    open_it()
+                self.assertIs(raised.exception, error)
 
 
 if __name__ == "__main__":

@@ -83,8 +83,7 @@ fn judge(window: HWND, lparam: LPARAM) {
             Some(matches) => matches,
             None => {
                 let matches = crate::kernel::process_image(pid).is_some_and(|image| {
-                    let base = |text: &str| normcase(text.rsplit('\\').next().unwrap_or(text));
-                    base(&image) == search.name && spelled(&image) == search.target
+                    normcase(&basename(&image)) == search.name && spelled(&image) == search.target
                 });
                 search.images.insert(pid, matches);
                 matches
@@ -96,11 +95,17 @@ fn judge(window: HWND, lparam: LPARAM) {
     }
 }
 
+/// `os.path.basename(text)`: what follows the last `\` or `/` after the drive (`ntpath.split`), as the reference takes
+/// a program's name - a path written with forward slashes included.
+fn basename(text: &str) -> String {
+    car_machine::winpath::split(text).1
+}
+
 /// `[(window, pid)]` for the top-level, visible, unowned Windows Forms windows of processes running `exe`. Sends
 /// nothing to any of them.
 pub fn windows_of(exe: &str) -> Vec<(isize, u32)> {
     let target = spelled(exe);
-    let name = normcase(target.rsplit('\\').next().unwrap_or(&target));
+    let name = normcase(&basename(&target));
     let mut search = Search {
         name,
         target,
@@ -159,4 +164,27 @@ pub fn hand_over(exe: &str, page: Option<&str>, row: Option<&str>) -> bool {
     windows_of(exe)
         .into_iter()
         .any(|(window, pid)| ask(window, pid, &text))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_name_is_what_follows_the_last_separator_of_either_kind_after_the_drive() {
+        for (path, name) in [
+            (
+                r"C:\a\b\CodexAutoResumeSettings.exe",
+                "CodexAutoResumeSettings.exe",
+            ),
+            (
+                "C:/a/b/CodexAutoResumeSettings.exe",
+                "CodexAutoResumeSettings.exe",
+            ),
+            (r"C:\a/b\x.exe", "x.exe"),
+            ("C:x.exe", "x.exe"),
+            (r"C:\a\", ""),
+            ("x.exe", "x.exe"),
+        ] {
+            assert_eq!(super::basename(path), name, "{path}");
+        }
+    }
 }

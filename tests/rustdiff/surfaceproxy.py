@@ -644,9 +644,9 @@ def _opener(module):
       it - `hand_over(exe, page)`, or `hand_over(exe, page, row)` with a row - with the exe as a Path; its truthiness is the
       answer Rust is run again with (an exception it raises is the test's verdict and propagates);
     * the start Rust records (argv, working folder, creation flags) is handed to `subprocess.Popen` at call time, as the
-      reference calls it (`cwd=`, `close_fds=True`, `creationflags=`). An OSError from it is dropped and the open answers
-      True, because dashboard.rs drops the start's error (`let _ = ...`): a difference from the reference, which raises it,
-      that diffs_ui_opener's expected failure names.
+      reference calls it (`cwd=`, `close_fds=True`, `creationflags=`). Where it raises, Rust is run again with its world's
+      start failing, and what Rust answers then decides: dashboard.rs answers the start's OSError (Integration 13), so the
+      test's own exception is raised; were the error dropped, the open would answer as Rust does.
 
     A home is sent as `str(Path(home))` (the watcher's paths are resolved on both sides); a page that is not text, or a row
     or thread JSON cannot carry, is not sent (TypeError): car-watcher is never handed one (api.rs reads the host's action)."""
@@ -658,16 +658,23 @@ def _opener(module):
     def home_of(home):
         return str(_Path(home))
 
-    def started(found):
+    def refused(result):
+        raise BUILTINS.get(result["error"], RuntimeError)(result.get("message", result["error"]))
+
+    def started(found, again):
+        """`again(world)`: the same case asked with the world's start failing."""
         result = found["result"]
         if "error" in result:
-            raise BUILTINS.get(result["error"], RuntimeError)(result.get("message", result["error"]))
+            refused(result)
         for start in found["started"]:
             try:
                 module.subprocess.Popen(list(start["argv"]), cwd=start["cwd"], close_fds=True,
                                         creationflags=start["flags"])
             except OSError:
-                pass
+                failed = again()["result"]
+                if "error" in failed:
+                    raise
+                return failed["ok"]
         return result["ok"]
 
     def open_dashboard(home, page=None, row=None):
@@ -685,10 +692,11 @@ def _opener(module):
             world = {"hand_over": bool(answer)}
         else:
             raise RuntimeError("car-watcher asked more than one hand-over of an open")
-        return started(found)
+        return started(found, lambda: PIPE.case("opener.dashboard", *sent, dict(world, start="oserror")))
 
     def open_chat(home, thread_id):
-        return started(PIPE.case("opener.chat", home_of(home), _plain(thread_id), {}))
+        sent = (home_of(home), _plain(thread_id))
+        return started(PIPE.case("opener.chat", *sent, {}), lambda: PIPE.case("opener.chat", *sent, {"start": "oserror"}))
 
     for name, function in (("open_dashboard", open_dashboard), ("open_chat", open_chat)):
         function.rust_core = "surface"
