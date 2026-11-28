@@ -25,7 +25,7 @@ UI = tuple(PACKAGE + "." + name for name in SHORT)       # built, so this file's
 KINDS = ("pure", "drawn", "window", "scan")
 STATUSES = ("host", "pending", "python-only")
 # The ceiling for rows that are not yet on the host. Lower it when a row moves to `host`; never raise it.
-PENDING_CEILING = 54
+PENDING_CEILING = 36
 
 
 def imports_the_ui(path: Path) -> bool:
@@ -52,7 +52,8 @@ def imports_the_ui(path: Path) -> bool:
 HOST_SIDE = ("test_host_shape.py", "test_host_tray_place.py", "test_surface_askback.py", "test_host_tipcard.py",
              "test_host_popup_access.py", "test_host_popup_card_still.py", "test_host_popup_press.py",
              "test_host_tray_power.py", "test_host_popup_motion_held.py",
-             "test_host_card_focus.py", "test_host_notice_cards.py", "test_surface_opener.py", "test_host_seams.py")
+             "test_host_card_focus.py", "test_host_notice_cards.py", "test_surface_opener.py", "test_host_seams.py",
+             "test_host_tray_story.py")
 
 
 def test_files() -> set[str]:

@@ -206,12 +206,16 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 3 UI tests run on the host (none); 3 are still on the Python UI (3 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "why": "1 of 3 UI tests run on the host (1 routed, 0 twinned, 0 no_twin; S6.4f3 added 1); 2 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "PopupFrameTests.test_the_specks_in_sight_are_all_drawn"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_day_wide_cards.py": {
    "holds": "v0.6.24-beta.3: the day spread wide (W2, the owner's pick of 2026-11-17) on the surfaces the tray draws.",
@@ -234,12 +238,21 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 9 UI tests run on the host (none); 9 are still on the Python UI (6 drawn, 3 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "6 of 9 UI tests run on the host (6 on the shim through the plan proxy: PopupTests 4, NotificationCardTests 1, TipCardTests 1); 3 are still on the Python UI: NotificationCardTests 1 and TipCardTests 2 (none in High Contrast or Classic is routed and passing but fails no mutation rule yet)",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "NotificationCardTests.test_the_header_takes_the_day_past_the_name_and_the_chip_stands_over_it",
+    "PopupTests.test_mirrored_the_day_stands_at_the_other_side",
+    "PopupTests.test_the_header_is_in_the_day_past_the_words",
+    "PopupTests.test_the_band_is_the_header_s_whole_width_past_the_words",
+    "PopupTests.test_the_specks_are_across_the_band",
+    "TipCardTests.test_the_card_takes_the_day_at_its_outer_side"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_detection_blocked.py": {
    "holds": "v0.6.26 (update resilience, proposal 3): detection that cannot read Codex is said, not only logged.",
@@ -459,13 +472,17 @@
     }
    },
    "route": "plan",
-   "status": "pending",
-   "why": "0 of 1 UI tests run on the host or are held by a twin or a no_twin reason; 1 are still on the Python UI (1 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "PopupRingTests.test_each_ring_as_drawn_stands_off_its_ground_in_every_design_and_theme"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_glyph_coverage.py": {
    "holds": "Every character of every catalog has a glyph in the fonts each surface draws it with (v0.6.11).",
@@ -483,12 +500,16 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 8 UI tests run on the host (none); 8 are still on the Python UI (8 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "why": "1 of 8 UI tests run on the host (1 routed, 0 twinned, 0 no_twin; S6.4f2 added 1); 7 are still on the Python UI",
+   "needs": "S6.4f2's plan proxy (tests/rustdiff/planproxy.py) now also draws - a test's popup.Renderer() is the C#'s SurfaceRenderer in the plan probe (layout, use, measure, lines, fonts, draw, draw_halo, draw_scene, canvas.pixels, layers.card_still) - and answers the icon's raster frames (IconFrames, build_icon_frames), the fonts' faces (font_faces, font_candidates, message_face; a lacks asked back), the theme's choices and the card's corner. Left here: tests that read or patch the Python renderer's own internals (_text, _images, _image, _ground_key, its GDI+ object count) or the Python brand under it (brand.speck_frame patched), that hand draw a plan dict of their own, that pass a renderer into Python's window layers (CardLayers.shade), the icon's card renderer (TipRenderer: tip_layout, draw_tip - not yet a host renderer), the adopted theme settings (set_theme, theme_setting, reduced_motion: one state with the product's own callers, kept Python's), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "GlyphCoverageTests.test_the_popup_and_the_card_have_a_glyph_for_every_character_in_every_message_font"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_gui_v0623_days.py": {
    "holds": "v0.6.23: the days with a look of their own, and the egg on the version (both only by the owner's word).",
@@ -512,12 +533,32 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 31 UI tests run on the host or are held by a twin or a no_twin reason; 31 are still on the Python UI (26 drawn, 5 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "17 of 31 UI tests run on the host (17 routed, 0 twinned, 0 no_twin; S6.4f3 added 7); 14 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "PopupSceneTests.test_a_language_whose_words_leave_too_little_room_shows_no_scene",
+    "PopupSceneTests.test_an_ordinary_header_has_none",
+    "IconTests.test_the_head_stands_on_the_mark_as_it_goes_round",
+    "IconTests.test_the_mark_shows_from_24_px_and_never_below",
+    "IconTests.test_the_state_colour_stays_the_states",
+    "IconTests.test_the_stripes_lie_at_the_bottom_edge",
+    "PopupSceneTests.test_a_frame_draws_what_the_whole_draws",
+    "PopupSceneTests.test_the_lights_fall_off_softly",
+    "PopupSceneTests.test_the_scene_is_drawn_and_the_stripes_are_the_mocks",
+    "PopupSceneTests.test_what_stands_left_of_it_is_what_stands_there_on_any_day",
+    "IconTests.test_the_body_runs_from_one_colour_to_the_other_down_the_icon",
+    "IconTests.test_the_ring_is_the_ring_it_always_was",
+    "PopupSceneTests.test_a_frame_moves_the_scene_and_the_same_instant_draws_the_same",
+    "PopupSceneTests.test_every_scene_draws",
+    "PopupSceneTests.test_mirrored_the_scene_stands_at_the_other_side",
+    "PopupSceneTests.test_the_day_is_the_header_past_the_words_and_touches_nothing_below",
+    "PopupSceneTests.test_the_main_piece_is_whole_in_its_room"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_gui_v0623_surfaces.py": {
    "holds": "v0.6.23: the special days on the other surfaces (by the owner's word). Nothing here reads today's date.",
@@ -572,12 +613,20 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 27 UI tests run on the host (none); 27 are still on the Python UI (27 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "why": "5 of 27 UI tests run on the host (5 routed, 0 twinned, 0 no_twin; S6.4f2 added 1); 22 are still on the Python UI",
+   "needs": "S6.4f2's plan proxy (tests/rustdiff/planproxy.py) now also draws - a test's popup.Renderer() is the C#'s SurfaceRenderer in the plan probe (layout, use, measure, lines, fonts, draw, draw_halo, draw_scene, canvas.pixels, layers.card_still) - and answers the icon's raster frames (IconFrames, build_icon_frames), the fonts' faces (font_faces, font_candidates, message_face; a lacks asked back), the theme's choices and the card's corner. Left here: tests that read or patch the Python renderer's own internals (_text, _images, _image, _ground_key, its GDI+ object count) or the Python brand under it (brand.speck_frame patched), that hand draw a plan dict of their own, that pass a renderer into Python's window layers (CardLayers.shade), the icon's card renderer (TipRenderer: tip_layout, draw_tip - not yet a host renderer), the adopted theme settings (set_theme, theme_setting, reduced_motion: one state with the product's own callers, kept Python's), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "TaskbarMarkTests.test_any_one_reason_holds_it_still",
+    "TaskbarMarkTests.test_every_frame_and_interval_is_the_tray_icon_s",
+    "TaskbarMarkTests.test_the_head_s_colours_are_the_tray_icon_s",
+    "TaskbarMarkTests.test_watching_breathes_and_sweeps_on_the_big_icon_and_the_small_icon_never_changes",
+    "TaskbarMarkTests.test_the_frames_are_the_tray_icon_s_own_pixels_at_every_big_icon_size"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_language_faces.py": {
    "holds": "v0.6.17 (#48): each language in the face Windows sets it in - Korean in Malgun Gothic, Japanese in Yu Gothic UI,",
@@ -594,13 +643,17 @@
     }
    },
    "route": "plan",
-   "status": "pending",
-   "why": "0 of 1 UI tests run on the host (none); 1 are still on the Python UI (1 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "RuleTests.test_the_popup_and_the_card_take_the_same_table"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_light_parity.py": {
    "holds": "One rule for the word and the light a header shows, held against all three headers (v0.6.10).",
@@ -720,12 +773,17 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 4 UI tests run on the host (none); 4 are still on the Python UI (4 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard)",
-   "host_tests": [],
+   "why": "2 of 4 UI tests run on the host (2 routed, 0 twinned, 0 no_twin; S6.4f3 added 1); 2 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "PlanTests.test_the_loop_is_whole_breaths_for_the_card_s_light_and_the_icon",
+    "DrawnTests.test_the_card_rises_from_above_the_strip_as_the_product_moves_it_and_never_from_the_canvas_edge"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_motion_logo.py": {
    "holds": "The README's logo, moving (build/motion_logo.py): the icon's own watching motion on the logo's own drawing.",
@@ -742,13 +800,17 @@
     }
    },
    "route": "plan",
-   "status": "pending",
-   "why": "0 of 1 UI tests run on the host (none); 1 are still on the Python UI (1 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "LogoFrameTests.test_each_sample_is_the_icon_s_breath_and_sweep_at_that_moment"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_motion_popup.py": {
    "holds": "The notification-area popup in the README's motion picture (build/motion_popup.py): opened from the icon, used by a pointer.",
@@ -794,13 +856,22 @@
     }
    },
    "route": "scan",
-   "status": "pending",
-   "why": "0 of 4 UI tests run on the host (none); 4 are still on the Python UI (4 scan)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); the same rules over gui/host.sources in tests/test_host_shape.py",
-   "host_tests": [],
-   "twins": {},
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "StoryTests.test_the_icon_s_breath_is_where_it_began_at_the_loop"
+   ],
+   "twins": {
+    "StoryTests.test_the_card_fades_in_over_brands_transition_and_goes_at_once_where_the_popup_comes": "test_host_tray_story.py::StoryOnHostTests.test_the_card_fades_in_over_brands_transition_and_goes_at_once_where_the_popup_comes",
+    "StoryTests.test_the_popup_opens_with_the_products_fade_and_rise_in_frames_of_16_ms": "test_host_tray_story.py::StoryOnHostTests.test_the_popup_opens_with_the_products_fade_and_rise_in_frames_of_16_ms",
+    "DrawnTests.test_the_hover_card_stands_beside_the_icon_on_the_taskbar_s_side_as_the_product_places_it": "test_host_tray_story.py::DrawnOnHostTests.test_the_hover_card_stands_beside_the_icon_on_the_taskbar_s_side_as_the_product_places_it"
+   },
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py",
+    "tests/test_host_tray_story.py"
+   ]
   },
   "test_near_limit_window_name.py": {
    "holds": "The near-limit notification names a window as every surface does, a whole-day one in days (v0.6.26, the third",
@@ -866,19 +937,50 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "6 of 63 UI tests run on the host (6 routed); 57 are still on the Python UI (29 drawn, 27 window, 1 scan)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "35 of 63 UI tests run on the host (35 routed, 0 twinned, 0 no_twin; S6.4f3 added 1); 28 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
    "host_tests": [
     "NoticeTests.test_the_cards_buttons_are_the_toasts_buttons",
     "NoticeTests.test_only_a_detected_interruption_offers_anything",
     "PrivacyTests.test_the_card_draws_only_the_toasts_words_and_catalog_words",
     "PowerStopTests.test_the_countdowns_card_offers_exactly_its_toasts_two_buttons",
     "PowerStopTests.test_every_power_notice_fits_in_every_language_at_every_scale",
-    "PowerStopTests.test_power_notices_carry_no_conversation"
+    "PowerStopTests.test_power_notices_carry_no_conversation",
+    "DesignShadowTests.test_only_a_design_with_depth_floats_a_shadow",
+    "LayoutTests.test_every_notice_fits_in_every_language_at_every_scale",
+    "LayoutTests.test_its_light_and_product_keep_their_place_and_its_chip_and_buttons_are_every_surface_s_size",
+    "LayoutTests.test_the_card_is_the_popups_card",
+    "LayoutTests.test_with_the_real_fonts_nothing_leaves_the_card",
+    "MotionTests.test_a_card_glides_to_its_new_place_and_can_wait_before_it_does",
+    "MotionTests.test_a_card_lives_enter_hold_exit_gone",
+    "MotionTests.test_a_delayed_entrance_stays_invisible_until_its_time",
+    "MotionTests.test_a_pointer_brings_back_a_card_that_was_fading_on_its_own",
+    "MotionTests.test_a_retired_card_goes_for_good",
+    "MotionTests.test_pointing_at_the_stack_holds_it_and_leaving_gives_it_a_little_more",
+    "MotionTests.test_reduced_motion_appears_holds_and_disappears_without_a_frame_between",
+    "MotionTests.test_the_card_moves_on_the_brands_one_curve",
+    "MotionTests.test_the_entrance_rises_fades_grows_and_deepens_to_rest",
+    "MotionTests.test_the_rise_comes_out_of_the_taskbar",
+    "PolicyTests.test_the_hold_follows_windows_when_windows_keeps_notifications_longer",
+    "ShadowTests.test_dark_keeps_its_recipe",
+    "ShadowTests.test_light_keeps_its_drop_and_loses_its_highlight",
+    "ShadowTests.test_over_the_wallpaper_a_shadow_only_darkens",
+    "ShadowTests.test_the_margin_holds_the_whole_shadow",
+    "ShadowTests.test_the_shadow_deepens_as_the_card_settles",
+    "StackTests.test_a_short_work_area_holds_only_the_cards_that_fit",
+    "StackTests.test_a_single_card_and_no_card",
+    "StackTests.test_every_edge_and_scale_keeps_the_stack_inside_the_work_area_newest_in_the_corner",
+    "StackTests.test_no_work_area_and_no_edge_ever_gets_overlapping_cards",
+    "StackTests.test_the_newest_card_is_where_the_popup_would_open",
+    "StackTests.test_the_stack_grows_away_from_the_corner",
+    "ShadowTests.test_the_cards_corners_are_cut_and_its_pixels_premultiplied",
+    "ShadowTests.test_a_band_of_rows_is_cut_as_the_whole_card_is_there"
    ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_notice_click.py": {
    "holds": "A click on a notice itself (v0.6.16): the card's face and the toast's body go where the notice is about.",
@@ -1009,12 +1111,17 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 6 UI tests run on the host (none); 6 are still on the Python UI (6 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "why": "2 of 6 UI tests run on the host (2 routed, 0 twinned, 0 no_twin; S6.4f2 added 2); 4 are still on the Python UI",
+   "needs": "S6.4f2's plan proxy (tests/rustdiff/planproxy.py) now also draws - a test's popup.Renderer() is the C#'s SurfaceRenderer in the plan probe (layout, use, measure, lines, fonts, draw, draw_halo, draw_scene, canvas.pixels, layers.card_still) - and answers the icon's raster frames (IconFrames, build_icon_frames), the fonts' faces (font_faces, font_candidates, message_face; a lacks asked back), the theme's choices and the card's corner. Left here: tests that read or patch the Python renderer's own internals (_text, _images, _image, _ground_key, its GDI+ object count) or the Python brand under it (brand.speck_frame patched), that hand draw a plan dict of their own, that pass a renderer into Python's window layers (CardLayers.shade), the icon's card renderer (TipRenderer: tip_layout, draw_tip - not yet a host renderer), the adopted theme settings (set_theme, theme_setting, reduced_motion: one state with the product's own callers, kept Python's), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "PinnedPopupFaceTests.test_the_pin_stands_in_segoe_ui_and_each_language_takes_its_own_face",
+    "PinnedPopupFaceTests.test_the_product_still_takes_what_windows_answers"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_plug_points.py": {
    "holds": "Where core asks the edition's plug, and what it does with each answer (v0.6.11, P2-P14).",
@@ -1116,18 +1223,20 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "3 of 14 UI tests are held by a twin; 11 are still on the Python UI: AloneTests 6 and StillTests 5 (the card drawn alone and its still: the render serve's draw, pixels and card_still - the drawing, seat S6.4f's plan proxy)",
+   "why": "3 of 14 UI tests run on the host (ShadowLayerTests 2 on the shim through the plan proxy, RecipeTests 1 twinned); 11 are still on the Python UI: AloneTests 6 and StillTests 5 (the card drawn alone and its still: of S6.4f2's AloneTests that pass on the plan proxy, 3 fail a mutation rule and 2 fail none)",
    "needs": "AloneTests and StillTests: the render serve (gui/SurfaceRenderServe.cs open_renderer, layout, draw, draw_halo, pixels, card_still) behind a proxy for popup.Renderer and layers.card_still, seat S6.4f",
-   "host_tests": [],
+   "host_tests": [
+    "ShadowLayerTests.test_nothing_of_the_shadow_lies_under_the_card",
+    "ShadowLayerTests.test_one_image_a_shadow_whatever_sizes_the_card_has_had"
+   ],
    "twins": {
-    "ShadowLayerTests.test_nothing_of_the_shadow_lies_under_the_card": "test_host_popup_card_still.py::ShadowLayerOnHostTests.test_nothing_of_the_shadow_lies_under_the_card",
-    "ShadowLayerTests.test_one_image_a_shadow_whatever_sizes_the_card_has_had": "test_host_popup_card_still.py::ShadowLayerOnHostTests.test_one_image_a_shadow_whatever_sizes_the_card_has_had",
     "RecipeTests.test_the_popup_floats_the_notification_card_s_shadows": "test_host_popup_card_still.py::RecipeOnHostTests.test_the_popup_floats_the_notification_card_s_shadows"
    },
    "no_twin": {},
    "port": [
     "tests/test_host_popup_card_still.py"
-   ]
+   ],
+   "note": "ShadowLayerTests' two run on the shim through the plan proxy (S6.4f3: the host's CardLayers.Shade); test_host_popup_card_still.py's ShadowLayerOnHostTests hold the same two rules on the probe (S6.4d4)"
   },
   "test_popup_card_window.py": {
    "holds": "v0.6.24 (O14 amended by the owner, 2026-11-15): the popup's window IS its card.",
@@ -1489,12 +1598,22 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 8 UI tests run on the host (none); 8 are still on the Python UI (8 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "7 of 8 UI tests run on the host (7 routed, 0 twinned, 0 no_twin; S6.4f3 added 3); 1 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "CardMirrorTests.test_the_card_is_the_popup_s_card_mirrored",
+    "PopupMirrorTests.test_left_to_right_nothing_is_mirrored",
+    "PopupMirrorTests.test_right_to_left_every_rectangle_is_across_the_popup_from_where_it_is_left_to_right",
+    "PopupMirrorTests.test_right_to_left_the_light_the_switch_and_the_first_button_are_on_the_other_side",
+    "PopupMirrorTests.test_drawn_without_its_words_the_popup_is_its_left_to_right_picture_flipped",
+    "PopupMirrorTests.test_the_accent_bar_is_inside_the_right_hairline",
+    "PopupMirrorTests.test_the_flip_check_sees_a_knob_at_the_wrong_end"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_rtl_values_kept.py": {
    "holds": "A date or a time inside a right-to-left sentence keeps its order, in the popup and on the card (v0.6.23).",
@@ -1639,12 +1758,18 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 4 UI tests run on the host (none); 4 are still on the Python UI (4 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard)",
-   "host_tests": [],
+   "why": "3 of 4 UI tests run on the host (3 routed, 0 twinned, 0 no_twin; S6.4f's plan proxy added 3); 1 are still on the Python UI (1 drawn)",
+   "needs": "S6.4f's plan proxy (tests/rustdiff/planproxy.py) routes what is left by adding an op: the icon's raster frames (build_icon_frames/IconFrames: IconMark.Samples/Pixel), the fonts' faces and candidates (font_faces, font_candidates, message_face: a `lacks` ask-back and Windows' own face), the card's corner_coverage (no C# counterpart found), the popup's and card's pixels as the host draws them (SurfaceRenderServe draw/pixels/card_still) where a test hands a plan to Python's draw; window parts by the probe (S6.4d's route). the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard)",
+   "host_tests": [
+    "TheScheduleIsTheIcons.test_one_whole_cycle_of_watching",
+    "TheScheduleIsTheIcons.test_the_curve_is_sampled_every_25_ms_and_each_frame_is_its_sample",
+    "TheScheduleIsTheIcons.test_the_sweep_is_drawn_at_every_step"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_squircle_shadows.py": {
    "holds": "v0.6.24: every mask follows the squircle - shadows, wells, the card's cut - in the window and in Python.",
@@ -1668,12 +1793,26 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 13 UI tests run on the host (none); 13 are still on the Python UI (12 drawn, 1 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "11 of 13 UI tests run on the host (11 routed, 0 twinned, 0 no_twin; S6.4f2 added 3); 2 are still on the Python UI",
+   "needs": "S6.4f2's plan proxy (tests/rustdiff/planproxy.py) now also draws - a test's popup.Renderer() is the C#'s SurfaceRenderer in the plan probe (layout, use, measure, lines, fonts, draw, draw_halo, draw_scene, canvas.pixels, layers.card_still) - and answers the icon's raster frames (IconFrames, build_icon_frames), the fonts' faces (font_faces, font_candidates, message_face; a lacks asked back), the theme's choices and the card's corner. Left here: tests that read or patch the Python renderer's own internals (_text, _images, _image, _ground_key, its GDI+ object count) or the Python brand under it (brand.speck_frame patched), that hand draw a plan dict of their own, that pass a renderer into Python's window layers (CardLayers.shade), the icon's card renderer (TipRenderer: tip_layout, draw_tip - not yet a host renderer), the adopted theme settings (set_theme, theme_setting, reduced_motion: one state with the product's own callers, kept Python's), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "CardCutTests.test_premultiply_cuts_the_squircle",
+    "LiftTests.test_a_circles_lift_is_not_the_squircles",
+    "LiftTests.test_a_lift_is_the_squircle_blurred_within_two_and_a_half_levels",
+    "LiftTests.test_a_mask_is_kept_by_its_box_and_its_smoothing",
+    "LiftTests.test_without_smoothing_a_lift_is_v0623s_byte_for_byte",
+    "WellTests.test_a_circles_well_is_not_the_squircles",
+    "WellTests.test_a_wells_light_is_its_shade_turned_round",
+    "WellTests.test_the_cut_is_the_squircle_and_the_shadow_within_three_and_a_half_levels",
+    "CardCutTests.test_each_pixel_is_its_sixteen_samples_of_the_squircle",
+    "CardCutTests.test_inside_the_circle_but_outside_the_squircle_is_cut_away",
+    "CardCutTests.test_without_smoothing_the_cut_is_the_circle_byte_for_byte"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_srcscan.py": {
    "holds": "The scanner every structural test reads the product's source through (`tests/srcscan.py`).",
@@ -1979,12 +2118,16 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 15 UI tests run on the host (none); 15 are still on the Python UI (8 drawn, 7 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "1 of 15 UI tests run on the host (1 routed, 0 twinned, 0 no_twin; S6.4f's plan proxy added 1); 14 are still on the Python UI (8 drawn, 6 window)",
+   "needs": "S6.4f's plan proxy (tests/rustdiff/planproxy.py) routes what is left by adding an op: the icon's raster frames (build_icon_frames/IconFrames: IconMark.Samples/Pixel), the fonts' faces and candidates (font_faces, font_candidates, message_face: a `lacks` ask-back and Windows' own face), the card's corner_coverage (no C# counterpart found), the popup's and card's pixels as the host draws them (SurfaceRenderServe draw/pixels/card_still) where a test hands a plan to Python's draw; window parts by the probe (S6.4d's route). the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "host_tests": [
+    "EntranceTests.test_restarting_begins_the_life_at_the_moment_given"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_tray_icon_motion.py": {
    "holds": "The notification-area icon's motion (v0.6.5).",
@@ -2018,11 +2161,46 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "13 of 73 UI tests run on the host (2 routed, 10 twinned, 1 retired); 60 are still on the Python UI (40 drawn, 20 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "48 of 73 UI tests run on the host (37 routed, 10 twinned, 1 no_twin; S6.4f3 added 1); 25 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
    "host_tests": [
     "StateTests.test_every_snapshot_the_tick_can_produce",
-    "StateTests.test_the_rule_read_from_a_status_light_is_the_tick_s_rule"
+    "StateTests.test_the_rule_read_from_a_status_light_is_the_tick_s_rule",
+    "FrameTests.test_the_frame_table_is_pinned",
+    "GlideTests.test_at_home_after_the_sweep_the_timer_waits_for_the_next_breath_in_one_go",
+    "GlideTests.test_the_fine_steps_are_the_plain_ones_where_they_meet_and_reduce_motion_holds_them",
+    "GlideTests.test_the_fine_table_is_the_plain_one_with_steps_between",
+    "GlideTests.test_the_icon_builds_the_fine_table_and_steps_and_times_by_the_table_it_has",
+    "GlideTests.test_the_quick_sweeps_keep_their_rate_and_what_explorer_pays_for_them",
+    "GlideTests.test_watching_s_sweep_moves_in_small_even_steps",
+    "LiveMotionTests.test_a_paused_icon_is_its_grey_frame_and_everything_goes_when_it_stops",
+    "MotionRuleTests.test_any_one_reason_holds_it_still",
+    "PhaseTests.test_a_failure_sweeps_like_recovering_twice_as_quickly_for_as_long_as_it_lasts",
+    "PhaseTests.test_every_hand_over_is_at_full_brightness",
+    "PhaseTests.test_frames_come_at_the_breathing_rate_and_quicker_while_the_head_travels",
+    "PhaseTests.test_out_and_back_take_the_same_time_and_the_same_speed",
+    "PhaseTests.test_paused_is_still_and_attention_breathes_slowly_in_its_place",
+    "PhaseTests.test_recovering_sweeps_out_and_back_over_and_over_at_full_brightness",
+    "PhaseTests.test_reduced_motion_holds_every_state_at_its_rest",
+    "PhaseTests.test_the_breath_s_levels_run_from_the_colour_toward_the_badge",
+    "PhaseTests.test_the_far_end_pause_is_the_short_one_and_the_rest_of_the_slot_is_spent_at_home",
+    "PhaseTests.test_the_head_leaves_its_place_clockwise",
+    "PhaseTests.test_the_head_never_breathes_while_it_travels",
+    "PhaseTests.test_the_head_never_leaves_the_white_stroke",
+    "PhaseTests.test_the_sweep_comes_after_three_breaths_and_fills_the_last_two",
+    "PhaseTests.test_watching_breathes_on_the_monitoring_rhythm_from_full_colour",
+    "PhaseTests.test_watching_is_three_breaths_then_a_sweep_in_a_slot_of_two",
+    "StateTests.test_anything_unknown_is_idle_grey",
+    "StateTests.test_the_frame_rates_are_the_measured_ones_and_land_on_windows_timer_ticks",
+    "StateTests.test_the_head_is_the_mark_s_accent_while_running_and_the_state_s_colour_otherwise",
+    "StateTests.test_the_status_light_blinks_as_far_as_the_head_breathes",
+    "BudgetTests.test_a_nonsense_size_raises_where_the_building_thread_catches_it",
+    "BudgetTests.test_over_budget_is_no_motion_rather_than_an_exception",
+    "FrameTests.test_a_colour_touches_the_head_and_nothing_else",
+    "FrameTests.test_composed_frames_are_kept_and_the_store_is_bounded",
+    "FrameTests.test_every_position_moves_only_the_head_and_goes_once_round",
+    "FrameTests.test_nothing_is_drawn_on_top_of_the_mark",
+    "FrameTests.test_the_head_in_its_place_in_the_accent_is_the_ico_s_own_image"
    ],
    "twins": {
     "PlacementTests.test_a_registry_that_cannot_be_read_leaves_the_rule_as_it_was": "test_host_tray_place.py::PlacementTests.test_a_registry_that_cannot_be_read_leaves_the_rule_as_it_was",
@@ -2041,7 +2219,8 @@
    },
    "port": [
     "tests/test_host_tray_place.py",
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/rustdiff/planproxy.py"
    ]
   },
   "test_tray_menu_drawn.py": {
@@ -2275,8 +2454,8 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "37 of 117 UI tests run on the host (33 routed, 2 twinned, 2 retired); 80 are still on the Python UI (2 pure, 54 drawn, 22 window, 2 scan)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); the same rules over gui/host.sources in tests/test_host_shape.py; a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
+   "why": "90 of 117 UI tests run on the host (86 routed, 2 twinned, 2 no_twin; S6.4f3 added 2); 27 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
    "host_tests": [
     "ActivityTests.test_each_state_is_what_the_records_say",
     "ActivityTests.test_something_nobody_can_recover_from_needs_attention_even_while_paused",
@@ -2310,7 +2489,60 @@
     "ActionTests.test_nothing_can_be_toggled_before_the_status_is_known",
     "ActionTests.test_open_dashboard_makes_no_control_call",
     "ActionTests.test_the_read_asks_for_names_through_list_pending",
-    "ActionTests.test_a_failed_read_says_it_cannot_be_read"
+    "ActionTests.test_a_failed_read_says_it_cannot_be_read",
+    "ElevationTests.test_a_lift_is_symmetric_and_round_at_its_corners",
+    "ElevationTests.test_a_well_is_shaded_at_its_top_and_its_light_is_the_shade_turned_round",
+    "ElevationTests.test_along_an_edge_a_lift_is_brand_s_shadow_model",
+    "ElevationTests.test_along_its_top_a_well_is_brand_s_inset_model",
+    "ElevationTests.test_every_body_longer_than_its_corners_shares_one_mask",
+    "LayoutTests.test_a_switch_is_addressed_by_its_interruption_never_by_its_position",
+    "LayoutTests.test_a_switch_sits_at_the_end_of_its_label_s_last_line",
+    "LayoutTests.test_buttons_and_chips_are_the_window_s_size_and_stay_bold",
+    "LayoutTests.test_buttons_stack_when_either_label_would_not_fit_beside_the_other",
+    "LayoutTests.test_everything_sits_inside_the_card_at_every_scale_and_in_every_language",
+    "LayoutTests.test_hit_testing_finds_each_target_and_nothing_between_them",
+    "LayoutTests.test_tab_and_shift_tab_cycle",
+    "LayoutTests.test_targets_are_the_switches_then_pause_then_dashboard",
+    "LayoutTests.test_the_empty_state_and_the_notice_are_drawn",
+    "LayoutTests.test_the_header_keeps_its_place_and_the_glow_stays_on_the_card",
+    "LayoutTests.test_wrapped_text_gets_all_the_height_it_measured",
+    "MotionTests.test_attention_breathes_slowly_for_as_long_as_it_lasts",
+    "MotionTests.test_checking_turns_a_small_arc_round_a_lit_dot",
+    "MotionTests.test_every_frame_is_the_brand_status_light",
+    "MotionTests.test_monitoring_breathes_and_the_glow_rides_it",
+    "MotionTests.test_paused_has_no_glow_and_nothing_moves",
+    "MotionTests.test_recovering_runs_the_same_cycle_quicker",
+    "MotionTests.test_reduced_motion_never_loops_or_pulses",
+    "MotionTests.test_waiting_breathes_as_monitoring_does",
+    "PlacementTests.test_a_bottom_taskbar_puts_it_above_the_icon",
+    "PlacementTests.test_a_left_taskbar_puts_it_to_the_right",
+    "PlacementTests.test_a_monitor_left_of_and_above_the_primary_one",
+    "PlacementTests.test_a_right_taskbar_puts_it_to_the_left",
+    "PlacementTests.test_a_top_taskbar_puts_it_below",
+    "PlacementTests.test_an_auto_hidden_taskbar_is_found_from_the_icon",
+    "PlacementTests.test_an_icon_near_the_corner_is_clamped_inside_the_work_area",
+    "PlacementTests.test_it_is_always_inside_the_work_area",
+    "PlacementTests.test_taller_than_the_screen_starts_at_the_top_of_the_work_area",
+    "PlacementTests.test_without_an_icon_rectangle_the_cursor_stands_in",
+    "SwitchGlideTests.test_a_glide_keeps_going_turns_back_from_where_it_is_and_ends_with_its_row",
+    "SwitchGlideTests.test_a_glide_runs_its_ends_in_the_transition_time_on_the_brand_curve",
+    "SwitchGlideTests.test_only_a_switch_drawn_the_other_way_starts_one",
+    "SwitchGlideTests.test_reduced_motion_high_contrast_and_a_hidden_window_move_nothing",
+    "WindowsTests.test_a_click_is_aimed_at_the_layout_on_screen_not_one_still_to_be_painted",
+    "WindowsTests.test_a_switch_glides_only_once_its_change_is_confirmed_and_then_the_timer_stops",
+    "WindowsTests.test_single_line_text_is_never_shortened_except_names_and_chips",
+    "WindowsTests.test_tab_moves_the_focus_space_uses_it_and_escape_closes_the_window",
+    "FontTests.test_dense_scripts_get_a_pixel_more",
+    "FontTests.test_each_script_has_its_own_face",
+    "FontTests.test_emphasis_follows_the_windows_own_rule",
+    "FontTests.test_english_is_drawn_in_that_font",
+    "FontTests.test_every_other_language_is_set_in_windows_own_ui_font_first",
+    "FontTests.test_semibold_is_asked_for_by_name_where_gdi_would_otherwise_embolden",
+    "FontTests.test_the_popup_asks_windows_for_the_font_the_window_is_drawn_in",
+    "FontTests.test_the_three_surfaces_start_from_the_same_face",
+    "HighContrastTests.test_every_token_has_the_settings_window_s_system_colour",
+    "WindowsTests.test_rows_notices_and_a_pause_add_no_shadow_image",
+    "WindowsTests.test_the_renderer_lets_go_of_every_gdiplus_object"
    ],
    "twins": {
     "SafetyTests.test_it_drives_nobody_else_s_window_and_opens_no_connection": "test_host_shape.py::ReachTests.test_they_drive_nobody_else_s_window_and_open_no_connection",
@@ -2322,7 +2554,8 @@
    },
    "port": [
     "tests/test_host_shape.py",
-    "tests/rustdiff/surfaceproxy.py"
+    "tests/rustdiff/surfaceproxy.py",
+    "tests/rustdiff/planproxy.py"
    ]
   },
   "test_tray_popup_depth.py": {
@@ -2348,12 +2581,29 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 22 UI tests run on the host (none); 22 are still on the Python UI (21 drawn, 1 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "14 of 22 UI tests run on the host (14 routed, 0 twinned, 0 no_twin; S6.4f2 added 4); 8 are still on the Python UI",
+   "needs": "S6.4f2's plan proxy (tests/rustdiff/planproxy.py) now also draws - a test's popup.Renderer() is the C#'s SurfaceRenderer in the plan probe (layout, use, measure, lines, fonts, draw, draw_halo, draw_scene, canvas.pixels, layers.card_still) - and answers the icon's raster frames (IconFrames, build_icon_frames), the fonts' faces (font_faces, font_candidates, message_face; a lacks asked back), the theme's choices and the card's corner. Left here: tests that read or patch the Python renderer's own internals (_text, _images, _image, _ground_key, its GDI+ object count) or the Python brand under it (brand.speck_frame patched), that hand draw a plan dict of their own, that pass a renderer into Python's window layers (CardLayers.shade), the icon's card renderer (TipRenderer: tip_layout, draw_tip - not yet a host renderer), the adopted theme settings (set_theme, theme_setting, reduced_motion: one state with the product's own callers, kept Python's), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "CountsFitTests.test_no_count_label_is_cut_inside_a_word_in_any_language_or_scale",
+    "LayoutTests.test_a_count_label_is_never_cut_inside_a_word",
+    "LayoutTests.test_columns_are_shared_equally_until_one_needs_more",
+    "LayoutTests.test_labels_that_fit_keep_three_equal_columns",
+    "LayoutTests.test_nothing_to_list_is_said_from_a_well_and_so_is_a_failed_read",
+    "LayoutTests.test_the_counts_sit_in_one_well_with_a_hairline_between_them",
+    "LayoutTests.test_the_tasks_are_still_tiles",
+    "RecipeTests.test_a_tile_s_shadow_stays_small_enough_for_the_gap_between_tiles",
+    "RecipeTests.test_brand_s_recipes_are_still_brand_s",
+    "RecipeTests.test_the_tile_recipe_is_brand_shaped_and_made_of_brand_tokens",
+    "PixelTests.test_a_pressed_button_sinks_and_a_resting_one_stands",
+    "PixelTests.test_a_switch_that_is_off_sits_in_a_well_on_its_raised_tile",
+    "PixelTests.test_high_contrast_draws_no_depth_at_all",
+    "PixelTests.test_the_counts_and_an_empty_list_are_sunken"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_tray_popup_designs.py": {
    "holds": "v0.6.10 in the notification-area popup: the Design setting.",
@@ -2377,12 +2627,21 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 16 UI tests run on the host (none); 16 are still on the Python UI (11 drawn, 5 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "6 of 16 UI tests run on the host (6 routed, 0 twinned, 0 no_twin; S6.4f3 added 4); 10 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "AdoptedDesignTests.test_the_stored_design_is_adopted_and_anything_else_is_soft",
+    "DesignRendererTests.test_the_flat_designs_round_the_card_by_their_own_radius",
+    "DesignRendererTests.test_a_design_switched_under_a_drawn_frame_leaves_no_shadow_behind",
+    "DesignRendererTests.test_high_contrast_is_one_look_whatever_the_design",
+    "DesignRendererTests.test_soft_is_what_it_was",
+    "DesignRendererTests.test_soft_lifts_the_card_off_the_canvas"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_tray_popup_v064.py": {
    "holds": "v0.6.4 in the notification-area popup.",
@@ -2410,12 +2669,33 @@
    },
    "route": "plan",
    "status": "pending",
-   "why": "0 of 42 UI tests run on the host (none); 42 are still on the Python UI (25 drawn, 17 window)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects); tests/rustdiff/surfaceproxy.py answering the names these tests call (ask-back for the objects they hand in: a control layer, a store, a Dashboard); a probe call per window behaviour in tests/rustdiff/HostProbe.cs (as `placement` and `overflow` are) and the same assertions over its JSON",
-   "host_tests": [],
+   "why": "18 of 42 UI tests run on the host (18 routed, 0 twinned, 0 no_twin; S6.4f3 added 3); 24 are still on the Python UI",
+   "needs": "S6.4f3's plan proxy (tests/rustdiff/planproxy.py + PlanProbe.cs) answers from the host what S6.4f2 left: a renderer's kept shadow images, ground key and the GDI+ count (gdiplus_objects), a plan dict of the test's own or a host plan it changed, a draw without its words (a no-op _text), brand.speck_frame stood in by none or every speck, the shadow window's layers (CardLayers.shade with a host renderer), and the icon's card (draw_offscreen, tip_place; HostTipRenderer). Left here: tests whose subject only the Python has a hook for (host gaps: DrawTextW's flags, the pieces a scene frame fills), tests that make a TipRenderer() themselves or patch the Python renderer's own methods (_lift, _inner, _corner, canvas.smoothing), tests that compare one host answer with itself, the adopted theme settings (one state with the product's own callers), and the window parts (S6.4d's probe).",
+   "host_tests": [
+    "DarkElevationTests.test_along_its_right_and_bottom_a_dark_lift_is_brand_s_model",
+    "DarkRendererTests.test_every_label_fits_its_column_as_gdi_measures_it",
+    "SwitchPlacementTests.test_a_busy_switch_is_still_drawn_in_its_place",
+    "SwitchPlacementTests.test_a_label_far_longer_than_any_translation_wraps_and_the_row_grows",
+    "SwitchPlacementTests.test_the_card_keeps_its_width_and_the_label_keeps_most_of_the_line",
+    "SwitchPlacementTests.test_the_keyboard_order_is_unchanged",
+    "SwitchPlacementTests.test_the_label_is_never_under_the_switch_in_any_language_at_any_scale",
+    "SwitchPlacementTests.test_the_switch_is_at_the_row_s_inner_right_edge_under_the_chip",
+    "SwitchPlacementTests.test_the_switch_is_pinned_to_the_bottom_of_its_row_beside_the_label_s_last_line",
+    "SwitchPlacementTests.test_the_whole_line_is_still_one_target_with_room_for_its_focus_ring",
+    "DarkRendererTests.test_high_contrast_wins_over_dark",
+    "ThemeResolutionTests.test_a_choice_of_light_or_dark_wins_over_windows",
+    "ThemeResolutionTests.test_high_contrast_wins_over_every_choice",
+    "ThemeResolutionTests.test_system_follows_windows_app_mode_and_only_an_explicit_dark_is_dark",
+    "ThemeResolutionTests.test_the_choices_are_the_setting_s_choices",
+    "DarkRendererTests.test_flipping_the_theme_all_day_holds_no_more_images",
+    "DarkRendererTests.test_the_ground_and_every_shadow_image_are_kept_by_theme",
+    "DarkRendererTests.test_one_mask_in_two_themes_is_two_images"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_tray_reuses_window.py": {
    "holds": "The icon reuses the settings window that is open (v0.6.20, issue #55).",
@@ -2662,7 +2942,7 @@
    },
    "route": "probe",
    "status": "pending",
-   "why": "14 of 33 UI tests run on the host (11 routed, 3 twins); 19 are still on the Python UI: PlanTests 9, DrawTests 5 and PlaceTests 3 (the drawing: seat S6.4f's plan route), and CardStateTests' hide at once and the backstop's hide (they count the card's ShowWindow(SW_HIDE), which gui/TipCard.cs makes of user32 directly, unrecorded)",
+   "why": "19 of 33 UI tests run on the host (16 on the shim: PartsTests 5, PlanTests 1, DrawTests 8 and PlaceTests 2 through the plan proxy; 3 twins); 14 are still on the Python UI: PlanTests 9, DrawTests 2 (routed and passing but failing no mutation rule yet: a frame of the light redraws only its band, plan and draw in 30 ms), PlaceTests 1 and CardStateTests' hide at once and the backstop's hide count (S6.3e's TipCard seams: SurfaceScreen while probed)",
    "needs": "the drawing's: the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects), seat S6.4f; CardStateTests' two: gui/TipCard.cs's ShowWindow, SetTimer, KillTimer and NotifyWinEvent through SurfaceScreen while probed (seat S6.3d's gui/), then tip_steps reports the hides and HostTip hands them to the test's user32",
    "host_tests": [
     "DrawTests.test_a_bar_is_the_accent_as_far_as_left_and_the_well_beyond",
@@ -2675,7 +2955,12 @@
     "PartsTests.test_the_meter_rows_say_what_the_meter_line_says",
     "PartsTests.test_the_parts_joined_are_the_tooltip_in_every_language_and_edition",
     "PartsTests.test_the_standard_edition_has_no_meter_rows",
-    "PlanTests.test_the_warning_starts_where_little_is_left_the_used_90_mirrored"
+    "PlanTests.test_the_warning_starts_where_little_is_left_the_used_90_mirrored",
+    "DrawTests.test_in_high_contrast_it_is_the_systems_colours",
+    "DrawTests.test_little_left_is_the_warning_and_an_empty_bar_still_says_so",
+    "DrawTests.test_the_popups_renderer_draws_a_meter_in_its_ground_and_a_new_fraction_is_a_new_ground",
+    "PlaceTests.test_on_a_monitor_left_of_the_primary_one_and_at_one_and_a_half",
+    "PlaceTests.test_on_every_edge_the_card_is_eight_pixels_off_the_taskbar"
    ],
    "twins": {
     "AccessibleTests.test_it_is_a_read_only_tooltip_named_with_the_whole_text_and_no_children": "test_host_tipcard.py::AccessibleOnHostTests.test_it_is_a_read_only_tooltip_named_with_the_whole_text_and_no_children",
@@ -2706,13 +2991,22 @@
     }
    },
    "route": "plan",
-   "status": "pending",
-   "why": "0 of 6 UI tests run on the host (none); 6 are still on the Python UI (6 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "PersianFaceTests.test_persian_takes_the_face_arabic_takes_on_every_surface",
+    "RuleTests.test_the_popup_follows_the_rule_and_without_an_answer_keeps_v0610s_faces",
+    "WindowsFacesTests.test_a_language_the_ui_font_has_whole_keeps_it_as_v0610_did",
+    "WindowsFacesTests.test_the_panel_names_the_languages_the_popup_sets_in_segoe_ui",
+    "WindowsFacesTests.test_the_ui_font_is_the_one_the_popup_and_the_window_start_from",
+    "WindowsFacesTests.test_every_language_is_set_whole_in_the_face_the_popup_and_the_card_choose"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_usage_left.py": {
    "holds": "v0.6.24 final: the at-a-glance surfaces say what is LEFT of a usage window; a diagnosis says what is used.",
@@ -2855,13 +3149,19 @@
     }
    },
    "route": "plan",
-   "status": "pending",
-   "why": "0 of 3 UI tests run on the host (none); 3 are still on the Python UI (3 drawn)",
-   "needs": "the same assertions over the render mode's plan (tests/rustdiff/surfacehost.py run(); its plan dump rebuilt as the reference's plan objects)",
-   "host_tests": [],
+   "status": "host",
+   "why": "",
+   "needs": "",
+   "host_tests": [
+    "CardWordsFitTests.test_every_notice_fits_in_every_language_at_every_scale",
+    "PopupWordsFitTests.test_every_string_of_every_slot_fits_in_every_language_at_every_scale",
+    "PopupWordsFitTests.test_the_check_finds_a_line_too_wide_a_word_cut_and_a_short_room"
+   ],
    "twins": {},
    "no_twin": {},
-   "port": []
+   "port": [
+    "tests/rustdiff/planproxy.py"
+   ]
   },
   "test_status_newest_usage.py": {
    "holds": "The v0.6.26 final: the status carries the meter's usage reading where it is newer, and every surface says that one reading (the popup asks the one rule, domain/usage.newest).",
@@ -2897,11 +3197,11 @@
   "files": 85,
   "tests": 1983,
   "ui_tests": 975,
-  "on_host": 410,
+  "on_host": 642,
   "retired": 6,
   "by_status": {
-   "host": 42,
-   "pending": 42,
+   "host": 48,
+   "pending": 36,
    "python-only": 1
   },
   "by_kind": {

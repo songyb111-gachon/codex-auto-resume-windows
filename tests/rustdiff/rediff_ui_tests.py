@@ -41,6 +41,10 @@ UNITTEST = "import sys, unittest; unittest.main(module=None, argv=['python -m un
 SHIM_UNITTEST = ("import sys, sitecustomize, unittest\n"
                  "assert 'rustdiff_shim' in sys.modules, 'the CODEX_AR_CORE=rust shim is not installed'\n"
                  "unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])")
+# S6.4f2: the ids are more than Windows' 32,767 characters of one command line (WinError 206 at 326 ids), so the shim's run
+# reads them from the file CAR_UI_REDIFF_IDS names, one a line.
+SHIM_UNITTEST_FROM_FILE = SHIM_UNITTEST.replace(
+    "*sys.argv[1:]", "*open(__import__('os').environ['CAR_UI_REDIFF_IDS'], encoding='utf-8').read().split()")
 
 
 def main(argv=None) -> int:
@@ -78,8 +82,12 @@ def main(argv=None) -> int:
     ids.append("test_surface_askback")        # perform and PopupModel held to the tag's own, call for call
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]), CODEX_AR_CORE="rust")
     environment.pop("CODEX_AR_EDITION", None)
-    shim = subprocess.run(refpython.command(SHIM_UNITTEST, *ids, paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
-                          stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
+    with tempfile.TemporaryDirectory(prefix="car-ui-rediff-ids-") as folder:
+        listed = Path(folder, "ids.txt")
+        listed.write_text("".join(ident + "\n" for ident in ids), encoding="utf-8")
+        environment["CAR_UI_REDIFF_IDS"] = str(listed)
+        shim = subprocess.run(refpython.command(SHIM_UNITTEST_FROM_FILE, paths=[source, ROOT / "tests"]), cwd=ROOT,
+                              env=environment, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("%d ledger tests on the host through the shim against %s: %s" % (len(ids), tag, "pass" if shim == 0 else "FAIL"))
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)

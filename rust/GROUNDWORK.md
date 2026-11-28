@@ -5319,6 +5319,228 @@ Seams and what later seats need:
   failure as it is fixed.
 * `test_status_newest_usage.py` still waits for Integration 12's merge of the final (S6.4c).
 
+### S6.4f (2026-11-27/28): the drawn rows on the plan proxy
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/`, `rust/` or HostProbe.cs/surfaceproxy.py changed; no window
+shown, nothing captured, nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`; the shim
+runs used `CODEX_AR_HARNESS_EXE` = S6.4b's copy of the finalport `car-harness.exe` (no `rust/target` here; the plan proxy needs none).
+
+| What | Where | State |
+|---|---|---|
+| **The plan proxy**: under `CODEX_AR_CORE=rust` a test's own call (the caller's module is a `test_*` one; the product's callers keep Python's) of the icon's motion (`icon_frame`, `icon_frame_ms`, `icon_turn`, `icon_brand_state`, `icon_head_colour`, `icon_level_colour`, `icon_motion_allowed`), the popup's motion (`halo`, `animates`, `opening`, `closing`, `face_amount`, `face_length`, `mixed`, `glide_amount`, `next_glides`), placement (`place`, `taskbar_edge`, `hit_test`, `focus_order`, `next_focus`), elevation (`lift_coverage`, `well_coverage`, `shadow_step`, `recipe_shadows`, `tile_ground`), `share_columns`, `role_size`, `contrast_colour`, and the card's `entrance`, `leaving`, `rise_vector`, `hold_ms`, `stack_direction`, `stack_positions`, `float_shadows`, `shadow_at`, `depth_level`, `shadow_margin`, `premultiply` is answered by the host's own C# | `tests/rustdiff/planproxy.py`, `tests/rustdiff/PlanProbe.cs` (its own entry, compiled with `[contract]`, `[surface]`, `[generated]` into `%TEMP%\car-plan-host\<digest>`; one process per run, one JSON line a question) | routed |
+| **Layouts through the render mode**: `layout.layout(vm, scale, measure)`, `Renderer.layout(vm, scale, locale)` and `notice_card.layout` run the reference once with the measure recorded (the test's `measure`, or this machine's DrawTextW through a recording `_dll`), keyed as `SurfaceText.Measure` asks (role, text or " ", width at least 1, flags); the render mode (`SurfaceRender.RunJob`, case `popup` in "en" or the locale given, case `card`) lays the case out from that table alone; the dump is rebuilt in the reference's container kinds (`shaped`: tuples and floats where the reference has them; every value, item, key and order the C#'s) | `planproxy._recorded`, `_renderer` | routed |
+| **`CardMotion` by replay**: a test's `notice_card.CardMotion(...)` is the host's: every step resent as the render mode's `card_life` case, the answer and `phase`/`since`/`hold_left`/`from_alpha`/`exit_ms`/`paused`/`final`/`gone` read from the last step; anything else read or set is refused | `planproxy._HostCardMotion` | routed |
+| Masks keep the C#'s sharing: a key's mask is one Python object in the module's own `_MASKS` under ("host", key), so `_MASKS.clear()` and `is` behave as the C#'s cache says | `planproxy._elevation` | routed |
+| Registration: `shim.PLAN` (eight modules: `ui.tray.motion`, `ui.popup.motion/placement/elevation/layout/renderer/fonts/theme`, `notice_card`), patched before SURFACE's proxy of the same module | `tests/rustdiff/shim.py` | - |
+| `CAR_PLAN_PROXY_REPORT=<file>` appends each process's routed calls per test id; `CAR_PLAN_MUTATE=<rule>` breaks one answer on purpose (drop, shift, colour, text, frame, turn, halo, place, edge, glide, mask, life, stack, shadow, entrance) | `planproxy.ask` | for the checks only |
+
+**Rows** (a test is taken when it passed on the shim, the proxy routed at least one of its calls, it is in a UI class of its row, and its
+body hands no plan to Python's own drawing - draw/pixels/card_still/_Painter/frame() - plus four read by hand and left out: two of
+`test_day_frame_cost` (the Python painter's brushes), `test_tray_popup_designs.WindowGateTests`' still, `test_tray_popup_v064`'s
+two-theme images). 148 tests found, 145 kept in `host_tests` (three of `test_picture_popup_face_pinned` and `test_motion_card_strip` route a call but assert Python's fonts or picture); `test_words_fit` and `test_motion_logo` are host whole; **host 31, pending 52**
+(ceiling 54 left for the integration), python-only 1.
+
+| Row | UI tests | added | on host |
+|---|---|---|---|
+| `test_tray_popup` | 117 | 42 | 79 |
+| `test_tray_icon_motion` | 73 | 28 | 41 |
+| `test_notice_card` | 63 | 27 | 33 |
+| `test_tray_popup_v064` | 42 | 10 | 10 |
+| `test_tray_popup_depth` | 22 | 10 | 10 |
+| `test_squircle_shadows` | 13 | 8 | 8 |
+| `test_gui_v065_taskbar` | 27 | 4 | 4 |
+| `test_right_to_left` | 8 | 4 | 4 |
+| `test_social_motion` | 4 | 3 | 3 |
+| `test_words_fit` (host) | 3 | 3 | 3 |
+| `test_gui_v0623_days` | 31 | 2 | 2 |
+| `test_motion_card_strip` | 4 | 1 | 1 |
+| `test_tray_cards`, `test_motion_tray_story`, `test_motion_logo` (host) | 15, 4, 1 | 1 each | 1 each |
+
+**Mutation checks** (`CAR_PLAN_MUTATE`, each rule alone over the taken tests of a row; `scratchpad/s64f/mutate.sh`): 23 rule-row runs; every row the proxy routes fails at least one: `test_tray_popup` shift 26, colour 15, text 15, place 7, edge 1, halo 11, glide 3, mask 2; `test_tray_icon_motion` frame 6,920, turn 195; `test_notice_card` life 5, entrance 36, stack 8, shadow 4, drop (card layout) 990; `test_tray_popup_v064` shift 4,158, step 8; `test_squircle_shadows` mask 4; `test_gui_v065_taskbar` frame 2,241; `test_social_motion` frame_at 1, turn 2; `test_motion_logo` frame 1; `test_motion_tray_story` frame_at 1; `test_motion_card_strip` frame_at 2; `test_right_to_left` shift 156; `test_words_fit` shift 2; `test_tray_cards` life 1; `test_gui_v0623_days` scene 2; `test_tray_popup_depth` shadow 1, shift 10. Survivors, each caught by another rule of the same row: `drop` on the popup's LayoutTests (the last item is the focus ring the tests skip), `mask` on v064's dark lift (one middle byte the model's samples do not reach; `step` fails it), `frame` on the social and tray-story schedules (a level off everywhere keeps their equalities; `frame_at` fails them).
+
+### What is left (per row, the route), for the next seat
+
+* **Not routed, drawn** - each needs one more op in PlanProbe.cs (no gui/ change): the icon's raster frames (`build_icon_frames`,
+  `IconFrames`, the frame table and budget: TrayMotion/IconMark `Samples`/`Pixel`; `test_tray_icon_motion` FrameTests/BudgetTests,
+  `test_gui_v065_taskbar` 23, `test_social_motion` 1, `test_motion_card_strip`, `test_motion_tray_story` 3); the fonts (`font_faces`,
+  `font_candidates`, `message_face`: a `lacks` callable asked back and Windows' own face; `test_tray_popup.FontTests`, `test_typeface`,
+  `test_glyph_coverage`, `test_language_faces`, `test_picture_popup_face_pinned` 4); `notice_card.corner_coverage` (**host gap**: no C#
+  counterpart found by name - `test_notice_card.ShadowTests` 2, `test_squircle_shadows.CardCutTests`); the theme readers
+  (`effective_theme`, `theme_setting`, `set_reduce_motion`, `reduced_motion`: registry reads under a stand-in; `test_tray_popup_v064`
+  ThemeResolutionTests, `test_settings_unreadable`, `test_tray_cards.AppWiringTests`, ReduceMotionSettingTests); `notice_presence`'s policy
+  (`test_notice_card.PolicyTests`, not a drawing: its row part may be re-kinded).
+* **Drawn by Python** (~60): tests that hand the host's plan to Python's `Renderer.draw`/`card_still`/`pixels` and read pixels. Route: the
+  render mode's serve (gui/SurfaceRenderServe.cs `open_renderer`, `layout`, `draw`, `pixels`, `card_still`) behind a proxy of `Renderer`
+  whose `draw` and `canvas.pixels()` are the host's; `test_tray_popup_depth.PixelTests`, `_designs.DesignRendererTests`, `_v064.DarkRendererTests`,
+  `test_gui_v0623_days.PopupSceneTests` 12, `test_day_wide_cards`, `test_right_to_left` 4, `test_focus_rings`, `test_day_frame_cost`.
+* **Window parts of drawn rows** (WindowsTests, TimerTests, NextOpenTests, ...): the probe route (S6.4d's HostProbe.cs).
+* `test_screenshots` (34): the pictures' pass (main session).
+
+### Checks
+
+```
+sweep (gui_lock.sh, one module at a time, CODEX_AR_CORE=rust, the plan proxy's report): the 26 pending drawn rows' files and
+  test_gui_v0623_surfaces, test_popup_card_still, test_popup_opening_motion, test_tray, test_motion_popup, test_tray_tipcard   all rc 0
+test_surface_ledger                                                                                         Ran 7, OK
+rediff_ui_tests.py --reference v0.6.26 (gui_lock.sh, detached): 274 ledger tests on the shim pass (129 before), the ledger and
+  every twin home pass; no row: test_status_newest_usage.py (waits for Integration 12)                      exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates are Integration 11's; `python -X utf8 rust/tools/check_groundwork.py`: OK.
+The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` (runs every row's host_tests on the shim, the plan
+proxy with them): 274 pass, exit 0.
+
+### S6.4f2 (continuation, 2026-11-28): the host draws, and the icon's frames, the fonts and the theme's choices
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/`, `rust/`, HostProbe.cs or surfaceproxy.py changed; no
+window shown, nothing captured, nothing pushed; every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`.
+
+**The re-diff was hollow before this seat** (S6.4e's finding): the bundled runtime never imports tests/sitecustomize.py, so
+`rediff_ui_tests.py`'s "on the shim" run ran on the tag's Python. S6.4e's SHIM_UNITTEST (090b0b70b) is taken over in `0faf9fc2d`; with
+the shim really loaded the 274 ledger tests of S6.4f still passed (278 ran with test_surface_askback; exit 0). The module sweeps of
+S6.4f and of this seat ran on the system Python with `PYTHONPATH=src;tests`, which does import sitecustomize: they were real.
+
+| What | Where | State |
+|---|---|---|
+| **A test's `popup.Renderer()` is the host's**: `Renderer.__new__` answers a test's call (not a subclass's, not the product's) with a `HostRenderer` over the C#'s `SurfaceRenderer` kept in the plan probe; its look (theme, design, contrast, lone, sweep_ms) is sent with every call; `use`, `measure`, `lines`, `fonts` (faces, key), `layout` (the C#'s own, in the reference's container kinds), `draw`, `draw_halo`, `draw_scene`, `halo_rows`, `face_colours`, `canvas.pixels()`/`width`/`height` and `layers.card_still` are the C#'s; a picture comes back as raw BGRA in the probe's folder, read by path | `planproxy.HostRenderer`, `PlanProbe.cs` `renderer_*` | routed |
+| **Kept plans**: `layout.layout`, `notice_card.layout` and a Python renderer's `Renderer.layout` now ask `layout_kept` (the same `PopupLayout.Plan`/`CardPlan.Layout` the render mode's case calls, from the recorded measure table) and get a `HostPlan` (a dict, plus the probe's handle), so the host renderer draws the plan the test holds; a plan the test changed after, or a dict of its own, is refused (`handle_of`) | `planproxy._recorded`, `HostPlan` | routed |
+| The face a test stands in for Windows' UI font (`fonts.windows_ui_face`, or a `message_face` it patched) is the C#'s `SurfaceFonts.Pinned`, as a render job stands one in | `HostRenderer._stand_in`, `Look` | routed |
+| **The icon's raster frames**: a test's `IconFrames(...)` and `build_icon_frames(...)` are the C#'s `IconFrames` (ground, compose, `heads` and `_mark` read from its private tables by reflection, `is` held where the C# answers from its store, ArgumentException -> ValueError, KeyNotFoundException -> KeyError; the budget is `TrayMotion.BuildBudgetMs` over the test's clock, as TrayIcon checks it) | `planproxy._HostIconFrames`, `icon_frames_*` | routed |
+| **The fonts**: `font_faces`, `font_candidates`, `message_face` are `SurfaceFonts.FontFaces`/`FontCandidates`/`UiFace`; a `lacks` the test hands in is **asked back** over the same pipe (`{"ask": "lacks"}` out, its answer or what it raised back; `Probe.ask(_callbacks=...)`) | `planproxy._fonts_faces`, `PlanProbe.AskBack` | routed |
+| **The theme's choices**: `theme_choice`, `effective_theme`, `appearance`, `design_choice` are `SurfaceTheme`'s. The adopted settings (`set_theme`, `theme_setting`, `set_reduce_motion`, `reduced_motion`, `adopt_settings`, ...) stay Python's: the product's own callers set that one state and a test reads it (the sweep showed a second, C# state reading 'system' where the watcher had adopted 'dark'); their ops are in PlanProbe.cs for a twin | `planproxy._theme_readers` | routed (choices) |
+| **`notice_card.corner_coverage` is the host's**: S6.4f's host gap was a name only - it is `CardCorner.Coverage` (gui/CardWindow.cs) | `planproxy._corners`, `corner_coverage` | routed |
+| The tray story's two glide-frame tests: a **twin** on the host's `PopupMotion.GlideFrameMs` (PlanProbe `constant`); test_host_tray_story.py is in test_surface_ledger's HOST_SIDE | `tests/test_host_tray_story.py` | twins |
+| Registration: `shim.PLAN` gains `ui.popup.layers` (one line) | `tests/rustdiff/shim.py` | - |
+
+**Rows** (the take, `scratchpad/s64f/ledger2.py`: passed on the shim, routed, in a drawn class of its row, draws only on the host
+renderer where it draws, touches no Python-only drawing; window-kind classes are S6.4d's and were not taken): 83 found, **52 added**
+to my rows' `host_tests` plus 2 twins after the mutation checks (20 routed tests no rule failed are left out, 11 belong to window rows);
+`test_focus_rings` and `test_language_faces` are host whole; **host 33, pending 50** (ceiling 54 left for the integration).
+Added: test_tray_popup 9 (FontTests 8, HighContrast 1), test_gui_v0623_days 8, test_tray_icon_motion 6 (FrameTests 4, BudgetTests 2),
+test_typeface 5, test_tray_popup_v064 5, test_tray_popup_depth 4, test_day_wide_cards 3, test_squircle_shadows 3 (CardCutTests),
+test_tray_popup_designs 2, test_picture_popup_face_pinned 2, test_motion_tray_story 2 twins, test_focus_rings 1, test_language_faces 1,
+test_notice_card 1, test_glyph_coverage 1, test_gui_v065_taskbar 1.
+
+**For S6.4d / the integration (window rows, not written by this seat)**: drawn tests of window rows that pass on the plan proxy and
+fail a mutation rule - test_popup_card_still AloneTests 3 (corners cut, premultiplied, nothing round the card), test_popup_opening_motion
+ArithmeticTests 3 + FaceDrawnTests 2, test_gui_v0623_surfaces PopupSweepDrawnTests 1 + TaskbarTests 1, test_motion_popup PopupDrawnTests 1.
+
+**Mutation checks** (`CAR_PLAN_MUTATE`, each rule alone over every newly taken test, `scratchpad/s64f/mutate2.sh` + `killed.py`;
+per test, not per row): ink 11, pixels 11, face 11, theme 5, shift 4, raster 2+3, corner 2, glide 1; then over the survivors alpha 3,
+turnpos 5, open 3, facefirst 5, cornerall 1, premultiply 1, size 1, contrast 1, refuse 1, budget 1, kept 1, scene_ms 1; the twins fail
+`constant`. 20 survivors left out of host_tests: test_gui_v0623_days IconTests 3 + PopupSceneTests 5, test_tray_popup_designs
+DesignRendererTests 3, test_popup_card_still AloneTests 2, test_gui_v0623_surfaces PopupSweepDrawnTests 2, test_day_wide_cards 1,
+test_glyph_coverage 1, test_motion_card_strip 1, test_notice_card ShadowTests 1, test_typeface 1 (each needs a rule that reaches what
+it holds - most compare two host pictures with each other, so a rule must break one and not the other).
+
+### What is left (per route), for the next seat
+
+* **Fails on the shim now, honestly** (passed before only because the test's renderer was Python's): tests that read or patch the
+  Python renderer's internals - `_text` patched (test_right_to_left 4), `_images`/`_image`/`_ground_key` (test_tray_popup 1,
+  test_tray_popup_designs 1, test_tray_popup_v064 2), its GDI+ object count (test_tray_popup 1), `brand.speck_frame` patched under it
+  (test_day_wide_cards 1, test_day_frame_cost 1), a plan dict of its own handed to draw (test_tray_tipcard 2), the host renderer passed
+  into Python's `CardLayers.shade` (test_popup_card_still ShadowLayerTests). None is in a row's host_tests. A host answer needs the
+  C#'s private caches read (SurfaceRenderer `images`, `groundKey`, `Image()`, `SurfaceGdip.GdipObjects`: their keys are strings, the
+  Python's tuples) or a twin; the `_text` patch needs a draw-without-words switch the C# does not have (**host gap**: SurfaceRenderer).
+* **Not routed**: the icon's card renderer (`TipRenderer`: tip_layout, draw_tip, draw_tip_light - a HostTipRenderer over
+  `SurfaceRenderer.TipLayout`/`DrawTip`, same pattern); `tipcard.tip_place` (TipCard.TipPlace needs the kept plan); the tray story's
+  DrawnTests TIP_GAP test (needs both); `typeface.language_face`/`lacks` themselves (win/typeface.py is not a UI module);
+  `notice_presence`'s policy; the window parts (S6.4d's probe).
+* `test_screenshots` (34): the pictures' pass (main session).
+
+### Checks
+
+```
+sweep 3 (gui_lock.sh, one module at a time, CODEX_AR_CORE=rust, report): the 26 drawn rows' files and the 6 others; rc 1 only where
+  listed above as "fails on the shim now, honestly" (test_day_frame_cost, test_day_wide_cards, test_popup_card_still, test_right_to_left,
+  test_tray_popup, test_tray_popup_designs, test_tray_popup_v064, test_tray_tipcard)
+test_surface_ledger + test_host_tray_story                                        Ran 10, OK; CAR_PLAN_MUTATE=constant: the twins fail
+rediff_ui_tests.py --reference v0.6.26 (shim really loaded, ids read from a file): 326 ledger tests + test_surface_askback,
+  Ran 330 OK; the ledger and the host twins (test_host_tray_story among them), Ran 55 OK      exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates are Integration 11's; `python -X utf8 rust/tools/check_groundwork.py`: OK.
+The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26`. Its shim run now reads the ids from the
+file `CAR_UI_REDIFF_IDS` names (`SHIM_UNITTEST_FROM_FILE`): at 326 ids one command line passed Windows' 32,767 characters
+(WinError 206). A harness note: the probe has one stand-in for Windows' UI font (`SurfaceFonts.Pinned`), so a test that
+patches `message_face` to answer None (Windows could not be asked) gets the C# asking Windows instead; no taken test does.
+
+### S6.4f3 (continuation, 2026-11-28): the renderer's own state, plans of a test's own, the shadow window and the icon's card
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/`, `rust/`, HostProbe.cs or surfaceproxy.py changed (shim.py:
+the PLAN registration line only); no window shown, nothing captured, nothing pushed; every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a
+missing path and `CAR_NO_REAL_ENGINE=1`. The eight tests S6.4f2 left failing on the shim (they had passed only while their renderer was
+Python's) are answered by the host where the C# can be asked, and named as host gaps where it cannot:
+
+| What | Where | State |
+|---|---|---|
+| **The renderer's kept state**: a host renderer's `_images` (SurfaceRenderer `images`, read by reflection; each C# string key rebuilt as the reference's tuple by parsing `KeyOf`'s form; the same C# image is the same Python object), `_ground_key` (`groundKey`, its parts string parsed again into a tuple of parts), `_image(mask, shadow)` (the private `Image` on a ShadowMask made from the mask the test holds) and an image's `_pixels`; `gdiplus_objects()` of a test's own call is the Python's count plus the probe's `SurfaceGdip.GdipObjects` | `planproxy.HostRenderer`, `_key_of`, `_HostImage`, `_gdiplus`; PlanProbe `renderer_images`, `renderer_image`, `image_pixels`, `renderer_ground_key`, `gdiplus_objects` | routed |
+| **A plan of the test's own** (a dict it built, or a host plan it changed after) is drawn by the host as the C#'s SurfacePlan of the same fields (`plan_from_dict`: targets as SurfaceTarget, a whole-number rect as int[]); before, it was refused | `planproxy.plan_handle`, PlanProbe `PlanOf` | routed |
+| **Drawn without its words**: a test that stands a no-op in for the renderer's `_text` gets the C#'s Draw of the plan less its text items (only the words and the card-alone seal read them; a lone renderer is refused) | `HostRenderer._text`, `_words`; PlanProbe `Wordless` | routed |
+| **Stood-in specks**: `brand.speck_frame` patched to answer no speck, or every speck whatever band is asked, is drawn by the C# with SurfaceDays' own tables changed for the call (`Specks`/`Reaches` emptied, or every reach made infinite) and put back; any other stand-in is refused. The C# keeps its culling by height (out of the band, where its clip shows nothing either) | `planproxy._specks`, PlanProbe `WithSpecks` | routed |
+| **The shadow window's layers**: `CardLayers.shade(renderer, plan)` with a host renderer is the C#'s `CardLayers.Shade` on a CardLayers of no window kept in the probe; the layers' `picture` (pixels, size, close), `margin`, `shadows`, `images` and `_drop_images` are then the C#'s | `planproxy._card_layers`, `_HostLayers`; PlanProbe `layers_*` | routed |
+| **The icon's card**: a test's own `tipcard.draw_offscreen` and `tip_place` are the host's (`HostTipRenderer`: `TipLayout`, `DrawTip`, `DrawTipLight`, the GDI metrics and ink of `Text.Calc`; `TipCard.TipPlace`; `SurfaceRenderer.TipDay`). A `TipRenderer()` the test makes itself stays Python's (those tests patch its `_lift`/`_inner`) | `planproxy.HostTipRenderer`, `host_tip_renderer`, `host_tip_place`, `_tipcard` | routed |
+| A host renderer starts from the C#'s own first look (`renderer_open` answers SurfaceRenderer's Theme, Design, Contrast, Lone, SweepMs), as the Python's starts from its own | `HostRenderer.__init__` | - |
+| The tray story's hover-card placement (DrawnTests, TIP_GAP): a **twin** whose body runs with the Python's TipRenderer, tip_place and TIP_GAP standing in as the host's (HostTipRenderer, TipCard.TipPlace, PlanProbe `constant` tip_gap) | `tests/test_host_tray_story.py` DrawnOnHostTests | twin |
+| Registration: `shim.PLAN` gains `ui.popup.gdiplus` and `ui.tray.tipcard` (one line) | `tests/rustdiff/shim.py` | - |
+
+**Rows** (`scratchpad/s64f/ledger4.py` over sweep 4, then `ledger5.py` less the mutation survivors): 26 tests added to my rows'
+`host_tests` and one twin; `test_typeface` and `test_motion_tray_story` are host whole; **host 35, pending 48** (ceiling 54 left for
+the integration), python-only 1, on_host 457. Added: test_gui_v0623_days 7 (IconTests 2, PopupSceneTests 5), test_tray_popup_designs 4,
+test_tray_popup_v064 3, test_right_to_left 3, test_tray_popup 2 (WindowsTests' two renderer-only leak tests, drawn by intent, taken at
+the main session's word), test_day_wide_cards 2, test_day_frame_cost 1 (`test_the_specks_in_sight_are_all_drawn`, hollow before: the
+host ignored the patched speck_frame), test_motion_card_strip 1, test_notice_card 1, test_tray_icon_motion 1, test_typeface 1, and the
+tray story's third twin. `test_tray_popup_v064 test_flipping_the_theme_all_day_holds_no_more_images` was hollow before too (it counted
+the Python's GDI+ objects only).
+
+**Mutation checks** (`CAR_PLAN_MUTATE`, each rule alone over the 26, `scratchpad/s64f/mutate4.sh` + `killed4.py`; per test): every one
+fails at least one rule - scenegone 8, defaultdesign 3, sceneedge 3, leak 3, pixels 3, ink 3, groundkey 2, lookbody 2, lookring 2,
+sceneshown 1, hcdrop 1, imagesame 1, frozen 1, flat 1, images 1, rise 1, words 1, specks 1, symbolface 1, imagekey 1, bandtop 1, and
+raster/turnpos for the icon's head test; the new twin fails `constant` and `tipplace`. The 20 survivors S6.4f2 left: 17 now fail a rule
+of their own (above); the other three are not the drawing and stay off the host:
+* `test_gui_v0623_days IconTests.test_an_ordinary_icon_is_the_icon_it_always_was`: both sides ask the C# the same question (`look=None`
+  is the Python signature's default), so a host answer only compares with itself; its subject is the Python's default argument.
+* `test_glyph_coverage GlyphCoverageTests.test_the_panel_has_a_glyph_for_every_character_in_its_type_stack`: its subject is the panel's
+  CSS type stack (a browser's fallback); the one host answer it reads is Windows' UI face name.
+* `test_popup_card_still AloneTests` 2 and `test_gui_v0623_surfaces PopupSweepDrawnTests` 2: window rows (S6.4d's), not written here.
+
+**Host gaps for the C# seat (S6.3e; never edited here)**:
+* gui/SurfaceRenderer.cs `DrawText`: the DrawTextW flags (DT_RIGHT, DT_RTLREADING, ...) are worked out inline and handed straight to
+  P/Invoke, so nothing can read the (text, flags) a frame draws - `test_right_to_left PopupMirrorTests.test_every_line_is_aligned_right_
+  and_read_right_to_left_but_a_name_in_its_own_direction` patches the Python's user32.DrawTextW. Needs e.g. an internal
+  `TextFlags(PlanItem, SurfacePlan)` the loop calls, or a draw log a probe can switch on.
+* gui/SurfaceRenderer.cs `Scene`/`SceneShape` and gui/SurfaceGdip.cs `SurfacePainter`: no count of the pieces a frame fills nor of the
+  brushes it makes - `test_day_frame_cost PopupFrameTests.test_a_frame_fills_no_speck_out_of_sight` (patches `Renderer._scene_shape`)
+  and `test_a_frame_makes_each_colour_s_brush_once` (`_Painter._brush`). Needs a piece and brush counter (or a hook) a probe can read.
+
+**Item 4, `win/typeface.py`'s `language_face` and `lacks`**: not routed, on purpose. `test_language_faces` (host whole since S6.4f2)
+holds the host's `font_faces` to `typeface.language_face` as the expectation - routing it would hold the C# to itself; `test_typeface`
+hands `typeface.lacks` in as the `lacks` the C# asks back (its subject is `font_candidates`, routed). `language_face`'s C# counterpart
+is the window's (gui/SoftTheme.cs), S6.4d's.
+
+**For S6.4d / the integration (window rows, not written by this seat)**: now passing on the shim through the routes above and failing a
+mutation rule - test_tray_tipcard DrawTests 3 (the meter drawn in the ground and the warning bar, plans of their own: dictplan; High Contrast: pixels, ink) and PlaceTests 2 (tipplace); test_popup_card_still ShadowLayerTests 2 (nothing of the shadow under the card: alpha; one image a shadow: layerimages, leak); test_day_wide_cards TipCardTests.test_the_card_takes_the_day_at_its_outer_side (pixels, ink; a window-kind class of a drawn row, left to the integration as S6.4f2 left window-kind classes). Routed and passing but failing no rule of scratchpad/s64f/mutatew.sh yet: test_tray_tipcard DrawTests.test_a_frame_of_the_light_redraws_only_its_band and test_plan_and_draw_take_at_most_30_ms_at_150_percent, test_day_wide_cards TipCardTests.test_none_in_high_contrast_or_classic. And `test_corners_by_design` (window row) fails on the shim since S6.4f2's host renderer: the test reads
+`renderer._corner` and `renderer.canvas.smoothing`, which HostRenderer does not answer (a C# `Corner`/`Canvas.Smoothing` op would).
+
+### What is left (per route), for the next seat
+
+* The two host gaps above (S6.3e), then their two tests by the same plan proxy.
+* `TipRenderer()` made by a test itself (test_tray_tipcard 3, test_corners_by_design): a HostTipRenderer would answer them, but they patch
+  the Python renderer's `_lift`/`_inner`, which the C# has no hook for (the "no lift, no inset light" half of the card test).
+* The adopted theme settings (set_theme, theme_setting, reduced_motion), kept Python's (S6.4f2's reason); `notice_presence`'s policy;
+  the window parts (S6.4d's probe); `test_screenshots` (34, the pictures' pass).
+
+### Checks
+
+```
+sweep 4 (gui_lock.sh, one module at a time, CODEX_AR_CORE=rust, report): the 26 drawn rows' files, the 6 others, test_corners_by_design,
+  test_tray_tip_header_ink: rc 1 only for test_day_frame_cost and test_right_to_left (the two host gaps) and test_corners_by_design
+  (window row, above)
+test_surface_ledger + test_host_tray_story                                        Ran 12, OK
+rediff_ui_tests.py --reference v0.6.26 (shim really loaded, ids from a file): 352 ledger tests + test_surface_askback,
+  Ran 356 OK; the ledger and the host twins (DrawnOnHostTests among them), Ran 57 OK                    exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates are Integration 11's; `python -X utf8 rust/tools/check_groundwork.py`: OK.
+The re-diff: `python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26`.
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.
