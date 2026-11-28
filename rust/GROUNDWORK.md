@@ -6404,3 +6404,154 @@ files the new probes read).
   S7.3a's modules. The tests patch the module constants by name: `Timing`'s fields are the ones they patch.
 * S7.3a: `Raised::class()` of what these probes let out includes AttributeError, TypeError, RecursionError,
   TurnsUnavailable (MGAVE/MTOK only where not caught), as the reference's.
+
+## Integration 13 (branch `car-v0627-rust`, 2026-11-28)
+
+The host's C# seats, the UI tests on the host, S7.4b, and the named parity fixes. From `bb82ba73d` (Integration 12);
+`car-v0627-s73d` and `car-v0627-proxy3` were writing beside it and are not here. Merged with `git merge --no-ff`, both
+sides kept, each branch's own checks run before the next merge; then one commit per fix.
+
+| Commit | Step | What came in or changed |
+|---|---|---|
+| `035a10e24` | a: car-v0627-s63e `5151dbabd` (with S6.3d `cec10a859`) | the host builds reproducibly (no 6+ label string switch, no 3+ constant array; SurfaceBidi's table from a packed string), the menu/TipCard/Tell/MakeTipCard/TextFlags/TextDrawn/ScenePieces/SceneBrushes seams, test_host_seams |
+| `6f662650e` | b: car-v0627-s64d `75d930e6b` | the window rows' twins on the host (HostProbe.cs and 20 test_host_* files) |
+| `8acb75194` | b: car-v0627-s64e `090b0b70b` | the Dashboard opener's Rust over a scratch world (car-harness build.rs/opener.rs), diffs_ui_opener, its proxy |
+| `a6799ea12` | b: car-v0627-s64f `827f259ee` | the drawn rows on the plan proxy (planproxy.py, PlanProbe.cs), S6.4f..f3 |
+| `2bd20b893` | b: FN_TYPES review | narrowed (below) |
+| `be1ccb649` | c: car-v0627-s74b `fa6425996` | the 31 measurement probes: measure answers 53 of 53 |
+| `622e5c816` | d | the opener's four differences |
+| `ac85d9d0d` | e | CardCorner.Coverage at radii no card has |
+| `8bc8ec4e2` | f | MAUTO with a non-text codex_version (found: the record's `str()`) |
+| `e1cef8fca` | g | #70 item 5: the adopted advanced registry through the install round trip |
+| `17886fa4b` | i | test_advanced_python_retire's in-use probe |
+
+Conflicts and how each was kept: `rust/GROUNDWORK.md` every time (every seat's section whole; the S6.4 chapter holds
+S6.4b..d6, S6.4e, S6.4f..f3 in order, then S7.4; S6.3d, S6.3e and S7.4b after Integration 12). The three build tests
+(test_reproducible, test_tooling_round2, test_edition_build) took S6.3e's comments and its extra host-list count.
+`tests/rustdiff/rediff_ui_tests.py`: S6.4e's SHIM_UNITTEST (asserts `rustdiff_shim`) and S6.4f2's ids from the file
+CAR_UI_REDIFF_IDS names. `tests/rustdiff/shim.py`: SURFACE with `ui.tray.dashboard` (S6.4e) and S6.4f's PLAN.
+`tests/test_surface_ledger.py` HOST_SIDE: every side's files plus S6.3e's `test_host_seams.py`.
+
+**The ledger** (`tests/rustdiff/surface_ledger.json`) was merged row by row, not by lines (scratchpad
+`car-v0627-rust-i13/ledger_merge.py`): the three UI branches over their common `912ad2b4b`, then with Integration 12 over
+`8cbcd6ac3`; every row's host_tests and port the union of the sides, twins and no_twin the union of the dicts, a row host
+where one side moved it there; two rows decided by hand - `test_surface_properties` is host (S6.4d's 12 twins/no_twin and
+S6.4e's opener test on the shim account for all 13), `test_tray_open_popup` keeps S6.4d's progress and says its OpensTests
+wait on the window route (S6.4e: they never reach the opener). S6.4f3's window-row tests that pass through the plan proxy
+and fail a mutation were added: test_tray_tipcard DrawTests 3 + PlaceTests 2, test_popup_card_still ShadowLayerTests 2
+(their S6.4d4 probe twins dropped from the row's twins, named in its `note`, so no test is counted twice),
+test_day_wide_cards TipCardTests 1; the three rows' `why` say the new counts. The summary is recounted from the rows:
+**host 48, pending 36, python-only 1**, on_host 642, ui_tests 975. The pending ceiling is set once: **36**.
+
+**FN_TYPES** (S6.4e's allowance in check_groundwork.py): held to `rust/crates/car-harness/src/opener.rs` alone (a
+test-only crate, never shipped) - kept, but narrowed: a line passes only when nothing extern is left once its unnamed
+`extern "system" fn(` types are taken out, so an extern block or declaration written beside one on the same line fails.
+
+### Each merge's own checks (before the next merge)
+
+* a (S6.3e): make_gui.ps1 standard and advanced, each twice into fresh folders: byte-identical (host `f27b0dd914ab...`,
+  standard window `b01ffeb481e4...`, advanced window `8fe63b74ae07...`), normalize_pe leaves the host unchanged (the CI
+  package job's red is gone); test_host_seams 10, test_reproducible 28, test_edition_build 20, test_tooling_round2 35,
+  test_host_shape 14, test_surface_parity 21, test_surface_windows 8, test_edition_window 11, test_consumer_fields 9,
+  test_window_core 14: OK (gui_lock.sh, one at a time).
+* b (S6.4d): its 22 host-twin modules OK; test_surface_ledger then failed on test_host_seams.py (S6.3e's, a host-side file)
+  until HOST_SIDE named it (in the S6.4e merge).
+* b (S6.4e): `rediff_ui_opener.py --reference v0.6.26`: OpenerDiff/PiecesDiff equal (3 expected failures then), 29 tests
+  on the shim OK.
+* b (S6.4f): test_surface_ledger test_host_tray_story test_host_opener test_surface_opener OK; `rediff_ui_tests.py
+  --reference v0.6.26` (shim asserted, ids from a file): **381 ledger tests on the host through the shim pass**, the ledger
+  and every twin home pass.
+* c (S7.4b): `rediff_s74.py --reference v0.6.26`: 29 of 30 equal; MeasureAccountDiff's new MAUTO cases (item f) found the
+  record's codex_version (fixed in `8bc8ec4e2`; then MeasureAccountDiff 2 OK).
+
+### The named fixes
+
+* **d** (`622e5c816`): the opener's four differences (S6.4e). car-watcher dashboard.rs answers `OpenError` (ValueError, or
+  the start's OSError by its Python class through car-machine's winerror map); api.rs answers that class (perform's
+  ("failed", class)); the card's opener raises it. `row_argument` unpacks a 3-character text (never a dialog) and an object
+  by its keys. handover.rs takes an image's name by `ntpath.split`'s tail. car-platform spawn.rs
+  **`SystemStarter::start_inheriting_nothing`**: Popen(close_fds=True) with no stream - CreateProcessW, bInheritHandles
+  FALSE, no STARTF_USESTDHANDLES, list2cmdline of the whole argv, both handles closed, the real-engine guard; its test
+  shows std's Command handing an inheritable pipe end to `cmd /c pause` and this start not, and FileNotFoundError /
+  NotADirectoryError as Popen raises them. The harness world offers only that start (build.rs counts the new use line);
+  diffs_ui_opener's 3 expected-failure markers are gone and its families grew edges; surfaceproxy raises the test's own
+  OSError where the port does. Mutations 6 of 6 caught (scratchpad `car-v0627-rust-i13/mutate_d.py`).
+* **e** (`ac85d9d0d`): gui/CardWindow.cs `Size()` = `int(math.ceil())` + `range`: below zero no rows, NaN
+  ArgumentException (ValueError), infinity OverflowException. Comparison A `cards/corner_edges` (12 radii x 3
+  smoothings, digest or class; NaN/inf sent as repr's words). Failed before (`plan[6]`, -1.0), passes after; 3 of 3
+  mutations caught (`mutate_e.py`).
+* **f** (`8bc8ec4e2`): MAUTO under the table's version and 8 non-text ones. Grades were equal (the reference only compares
+  the version with the table's texts; car-adv reads non-text as None); the record was not - `evidence::build` wrote
+  car-machine's py_str (nothing for a list or dict) where the reference writes `str(codex_version)`; build and complete's
+  same-Codex check now use car-surface's `str_of`. A mutation grading a non-text version as the table's is caught.
+* **g** (`e1cef8fca`): #70 item 5 - test_rust_install's advanced state has config/compat-advanced.json (v0.6.26's
+  advanced/compat document, as compatdata.adopt leaves it); the round trip holds it byte for byte and v0.6.26's own
+  compatdata (tag core + tag advanced package, refguard) reads sequence 2 in force, refuses a same/older download, adopts
+  a newer one. Both lanes Ran 11 OK; the Rust installer dropping the file or lowering its sequence fails it (2 of 2).
+* **h**: test_installer_window ran green on CI on ebd0414d9 (53 tests, ~100 s, standard part 3) and is in neither wip
+  run's failure list. Locally, alone through gui_lock.sh: **standard Ran 53 OK in 532 s, advanced Ran 53 OK in 540 s**.
+  It does not stall: LayoutAuditTests' one PowerShell (`InstallerAudit.LayoutAudit`, every language x 7 scale/text
+  pairs, CPU-bound, ~8 min here against ~98 s on the runner) runs after the 41 Catalog/Flow tests - that is the "stall
+  after 41". Not ours (no window source of the installer changed in these seats); nothing fixed.
+* **i** (`17886fa4b`, the coordinator's addition): test_advanced_python_retire InUseProbeTests' copy ran with `-I`, whose
+  -E ignores the PYTHONHOME the test sets: with no stdlib beside it the copy died at once (exit 1, "Failed to import
+  encodings") and the test passed only while its sweep came inside that ~0.1 s; a slow part lost the race (1 of 7 lanes on
+  both wip runs). Not a Rust-branch cause: the race is in the test (dev too); the branch's parts only move the timing.
+  Now the copy gets the environment without PYTHON*, PYTHONHOME and -s, and the test asserts it still runs before and after
+  the sweep. Old body + that assertion: FAIL (exit 1); new: 5 of 5 under an 8.3 TEMP, and `scripts/test_parts.py --lane
+  advanced --part 5/5` on 3.13.15 under the 8.3 TEMP: advanced/tests 531 OK; tests/ 1856 with 7 failures, none ours -
+  test_motion_fidelity 6 (stale pictures) and test_cli DiscoveryTests 1 (this run's CODEX_AUTO_RESUME_CODEX_EXE pointing
+  nowhere; without it Ran 2 OK).
+* `54987c2b7`: the no-inheritance proof moved to `rust/crates/car-platform/tests/inherit.rs` (a binary of its own): in the
+  lib's parallel tests another test's std Command child inherited the proof's pipe end once (the final gates' one red).
+
+AUDIT-v0628.md: three lines appended ("Integration 13 opener", "CardCorner.Coverage", "MAUTO").
+
+### Checks (`CARGO_BUILD_JOBS=4`, `CARGO_INCREMENTAL=0`, `CAR_NO_REAL_ENGINE=1`, CODEX_AUTO_RESUME_CODEX_EXE missing; v0.6.26 on the bundled 3.14.10; code at `e1cef8fca`, then `54987c2b7`)
+
+```
+disk free before                                     72 GB
+## rust            fmt --check, clippy --locked --all-targets -D warnings: rc=0; test --locked --no-fail-fast: 248 ok,
+                   1 FAIL (the inherit proof's race, moved in 54987c2b7: car-platform 3 of 3 OK); cargo deny: ok
+## advanced/rust   fmt --check, clippy, test --locked --no-fail-fast, cargo deny: rc=0
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every standard binary the same; profile-path scan: none
+make_gui.ps1 standard x2, advanced x2 (fresh folders) byte-identical: host fb183a4e0778... (item e's CardWindow.cs),
+                                                     window b01ffeb481e4..., advanced window 8fe63b74ae07...
+run.py --build --reference v0.6.26 --reference-python bundled -v
+                                                     Ran 492 in 4,949 s: OK (no expected failure left)
+the 15 frozen modules (test_parts --worker; CODEX_AR_CORE=rust)    456 pass on both, 0 differ
+advproxy/ledger.py --run                             GREEN 33 of 33
+test_rust_release standard / advanced (detached)     Ran 25 OK / Ran 25 OK
+test_rust_install standard / advanced (detached)     Ran 11 OK / Ran 11 OK
+rediff_ui_tests.py --reference v0.6.26 (shim asserted)   381 ledger tests on the shim pass; the ledger and the twins pass
+rediff_host_surface.py --reference v0.6.26           exact (39), the host builds reproducibly (28)
+rediff_ui_opener.py --reference v0.6.26 --no-build   diffs equal; 29 on the shim pass
+every `grep -l guiscan tests/test_*.py` module and every tests/test_host_*.py (190; test_gui_v066_dialog refused by the
+  lock), both lanes, one at a time through gui_lock.sh: 380 runs, 374 OK. Red: test_screenshots and test_install_motion,
+  both lanes (stale pictures, expected); test_gui_v0624_dialog_card standard (alone under quiet.sh: Ran 13 OK);
+  test_gui_first_frame advanced (alone under quiet.sh: once FAIL - the first frame's budget and the font wait - then
+  Ran 11 OK; the standard lane OK; no window source changed in these seats: a timing test under this PC's load).
+  screen_witness: test_gui_pick_hidden, test_gui_v0623_motion and test_gui_v0624_setup_corner (advanced) put a window up
+  running without the lock and take it from now on; nothing ran beside them.
+test_installer_window, alone, both lanes                 Ran 53 OK (532 s / 540 s)
+scripts/test_parts.py --lane advanced --part 5/5 (3.13.15, 8.3 TEMP)   advanced/tests 531 OK; tests/ 1856: 7 red, none
+                                                     ours (test_motion_fidelity 6 stale; test_cli 1 from the missing exe)
+the Python guard modules                             run after this section's commit (the last one); the return reports them
+```
+
+The re-diffs: `rediff_ui_opener.py --reference v0.6.26` (item d), `rediff_ui_tests.py`, `rediff_host_surface.py`,
+`rediff_s74.py --reference v0.6.26` (item f's MAUTO cases are in MeasureAccountDiff).
+
+### For the next seats
+
+* **The main session**: the pictures (test_screenshots, test_motion_fidelity, test_install_motion: stale since S6.3e/e's
+  host and the dev merge); CI on this tip; test_gui_first_frame's budget on the advanced lane if CI shows it.
+* **S7.3d** (not merged here): S7.4b's seams (`SessionFactory::shared`, `Live::restart`, the backend's `loaded` and
+  `codex_exe`) and Integration 12's list.
+* **The UI-test seats**: pending 36 rows (the ceiling). test_tray_tipcard's DrawTests 2 and test_day_wide_cards'
+  TipCardTests 2 route and pass but fail no mutation rule yet; test_corners_by_design needs Corner/Smoothing ops in
+  PlanProbe (the C# names are there, S6.3e); test_right_to_left and test_day_frame_cost can take S6.3e's TextFlags /
+  TextDrawn and ScenePieces / SceneBrushes seams.
+* **Product seats**: api.rs still answers a refused page or row with the ValueError's message, where the reference's
+  perform answers ("failed", "ValueError"); the host sends neither (left as it was, noted here).
