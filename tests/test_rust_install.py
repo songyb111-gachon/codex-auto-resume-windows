@@ -23,6 +23,8 @@ Nothing here shows a window, touches the real install, its registry values or it
 """
 from __future__ import annotations
 
+import calendar
+import io
 import json
 import os
 from pathlib import Path
@@ -31,6 +33,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import unittest
@@ -338,6 +341,74 @@ def add_state(scratch: Scratch, edition: str) -> None:
         chosen.mkdir(parents=True)
         (chosen / "python.exe").write_bytes(b"chosen")
         (scratch.home / "runtimes" / "chosen.json").write_text('{"version": "3.13.1"}', encoding="utf-8")
+        (scratch.home / ADOPTED).write_bytes(adopted_document())
+
+
+# Issue #70 item 5: the advanced compatibility registry a person's advanced edition has adopted - advanced/compat's document,
+# as compatdata.adopt leaves it in core's state folder (config/compat-advanced.json) - is theirs, and its sequence is the
+# floor a later download must pass.
+ADOPTED = "config/compat-advanced.json"
+_ADVANCED_PACKAGE: list = []
+
+
+def adopted_document() -> bytes:
+    return subprocess.run(["git", "-C", str(ROOT), "show", REFERENCE + ":advanced/compat/codex_compat_advanced.json"],
+                          capture_output=True, check=True, creationflags=NO_WINDOW).stdout
+
+
+def advanced_package() -> Path:
+    """v0.6.26's codex_auto_resume_advanced, taken out of git once (released.package takes core's only)."""
+    if not _ADVANCED_PACKAGE:
+        archive = subprocess.run(["git", "-C", str(ROOT), "archive", "--format=tar", REFERENCE,
+                                  "advanced/src/codex_auto_resume_advanced"], capture_output=True, check=True,
+                                 creationflags=NO_WINDOW).stdout
+        folder = Path(tempfile.mkdtemp(prefix="car-rust-install-advanced-"))
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            tar.extractall(folder, filter="data")
+        _ADVANCED_PACKAGE.append(folder / "advanced" / "src")
+    return _ADVANCED_PACKAGE[0]
+
+
+ADOPTED_FLOOR = r"""
+import json, shutil, sys, tempfile
+from pathlib import Path
+from codex_auto_resume_advanced import compatdata
+config, now = Path(sys.argv[1]), float(sys.argv[2])
+adopted = (config / compatdata.ADOPTED).read_bytes()
+document = json.loads(adopted)
+out = {}
+for name, sequence in (("same", document["sequence"]), ("older", document["sequence"] - 1),
+                       ("newer", document["sequence"] + 1)):
+    with tempfile.TemporaryDirectory() as folder:
+        copy = Path(folder) / "config"
+        shutil.copytree(config, copy)
+        if name == "same":
+            out["in_force"] = (compatdata.in_force(copy, now=now) or {}).get("sequence")
+        # Bytes of their own (indented anew), so whether it was adopted shows in the adopted file's bytes.
+        (copy / compatdata.DOWNLOAD).write_text(json.dumps(dict(document, sequence=sequence), indent=1), encoding="utf-8")
+        compatdata.adopt(copy, now=now)
+        out[name] = {"adopted": (copy / compatdata.ADOPTED).read_bytes() != adopted,
+                     "download_left": (copy / compatdata.DOWNLOAD).exists()}
+print(json.dumps(out))
+"""
+
+
+def adopted_floor(home: Path) -> dict:
+    """v0.6.26's own compatdata over a copy of `home`'s config folder: the sequence in force, and whether a download of the
+    same, an older and a newer sequence is adopted (only the newer passes the floor)."""
+    document = json.loads(adopted_document())
+    now = calendar.timegm(time.strptime(document["published_at"], "%Y-%m-%dT%H:%M:%SZ")) + 86400
+    paths = [released.package(REFERENCE), advanced_package()]
+    with tempfile.TemporaryDirectory(prefix="car-rust-install-floor-") as scratch:
+        environment = released.refguard.environment(dict(os.environ, PYTHONPATH=os.pathsep.join(map(str, paths)), **{
+            name: scratch for name in ("USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME",
+                                       "CODEX_AUTO_RESUME_HOME")}))
+        done = subprocess.run([sys.executable, "-c", released.refguard.boot(paths), ADOPTED_FLOOR, str(home / "config"),
+                               repr(now)], capture_output=True, text=True, encoding="utf-8", env=environment, cwd=scratch,
+                              creationflags=NO_WINDOW, timeout=300)
+    if done.returncode != 0:
+        raise AssertionError("v0.6.26's compatdata failed:\n" + done.stderr[-3000:])
+    return json.loads(done.stdout)
 
 
 def belongs(value: str, home: Path) -> bool:
@@ -418,6 +489,7 @@ class InstallerProofs(unittest.TestCase):
         self.assertTrue(self.scratch.watches()[-1]["executable"].lower().endswith(r"app\bin\codexautoresume.exe"))
         self.assert_rust_installed(edition, rust)
         self.assertEqual(self.scratch.snapshot(), kept, "D13: state and settings carried unchanged")
+        self.assert_adopted_kept(edition)
         self.assertTrue(belongs(self.scratch.registered()["run"], self.scratch.home),
                         "v0.6.26 knows the Rust Run value as this installation's")
 
@@ -453,6 +525,21 @@ class InstallerProofs(unittest.TestCase):
         self.assertIn("watcher-launcher.py", registry["protocol"])
         self.assertIn(ENTRY[edition], registry["entries"])
         self.assertEqual(self.scratch.snapshot(), kept, "nothing of the person's is lost on the way back")
+        self.assert_adopted_kept(edition)
+
+    def assert_adopted_kept(self, edition: str) -> None:
+        """#70 item 5: the adopted advanced registry is there byte for byte, and v0.6.26 reads it as in force with its
+        sequence the floor: a download of the same or an older sequence is refused (and removed), a newer one adopted."""
+        if edition != "advanced":
+            self.assertFalse((self.scratch.home / ADOPTED).exists())
+            return
+        self.assertEqual((self.scratch.home / ADOPTED).read_bytes(), adopted_document())
+        sequence = json.loads(adopted_document())["sequence"]
+        self.assertEqual(adopted_floor(self.scratch.home), {
+            "in_force": sequence,
+            "same": {"adopted": False, "download_left": False},
+            "older": {"adopted": False, "download_left": False},
+            "newer": {"adopted": True, "download_left": False}})
 
     def test_both_watchers_name_their_objects_by_their_own_rules_and_the_names_agree(self):
         """PLAN 6.2's handover (review 9, S5): the Python watcher's mutex and stop event by the tag's win/sync.py, the
