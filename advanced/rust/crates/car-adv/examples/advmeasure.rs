@@ -7,11 +7,11 @@
 //! random ids, the hands, the CLI, the IPC look and the launcher). Nothing real is ever asked: the session, the
 //! launcher, the hands and the clock are the case's script.
 
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use car_adv::evidence::{self, Envelope};
 use car_adv::measure::{
@@ -20,14 +20,17 @@ use car_adv::measure::{
 use car_adv::vocabulary::{Measurement, NoteCode, Verdict, parse};
 use car_machine::json::{Map, Options, Str, Value, from_slice, to_string};
 
-type Log = Rc<RefCell<Vec<Value>>>;
+/// Shared with MQP's adds, which run on threads of their own.
+type Log = Arc<Mutex<Vec<Value>>>;
 
 fn s(text: &str) -> Value {
     Value::Str(Str::new(text))
 }
 
 fn note(log: &Log, entry: Vec<Value>) {
-    log.borrow_mut().push(Value::Array(entry));
+    log.lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(Value::Array(entry));
 }
 
 fn get<'a>(value: &'a Value, name: &str) -> Option<&'a Value> {
@@ -81,9 +84,83 @@ impl Queue {
     }
 }
 
+/// The case's script and its log, shared by every session it opens (MQP's on threads of their own).
+#[derive(Clone)]
+struct Script {
+    script: Value,
+    log: Log,
+    /// `"shared": true`: one set of answers for every session the case opens.
+    shared: Option<Arc<Mutex<BTreeMap<String, Queue>>>>,
+}
+
+fn replies_of(script: &Value) -> BTreeMap<String, Queue> {
+    let mut replies = BTreeMap::new();
+    if let Some(Value::Object(found)) = get(script, "replies") {
+        for (method, answers) in found {
+            replies.insert(found_key(method), Queue::of(Some(answers)));
+        }
+    }
+    replies
+}
+
+impl Script {
+    fn open(
+        &self,
+        measurement: Measurement,
+        home: Option<&Path>,
+        config: Option<Vec<(String, String)>>,
+    ) -> Res<FakeSession> {
+        note(
+            &self.log,
+            vec![
+                s("open"),
+                s(measurement.as_str()),
+                home.map_or(Value::Null, |found| s(&found.to_string_lossy())),
+                config.map_or(Value::Null, |found| {
+                    Value::Array(
+                        found
+                            .iter()
+                            .map(|(name, value)| Value::Array(vec![s(name), s(value)]))
+                            .collect(),
+                    )
+                }),
+            ],
+        );
+        if let Some(spec) = get(&self.script, "open_raises") {
+            answer(spec)?;
+        }
+        if let (Some(home), Some(Value::Bool(true))) = (home, get(&self.script, "writes_config")) {
+            let _ = std::fs::write(home.join("config.toml"), b"x");
+        }
+        let replies = match &self.shared {
+            Some(shared) => Replies::Shared(Arc::clone(shared)),
+            None => Replies::Own(replies_of(&self.script)),
+        };
+        let events = match get(&self.script, "events") {
+            Some(Value::Array(found)) => found.clone(),
+            _ => vec![],
+        };
+        Ok(FakeSession {
+            allowed: car_adv::codex::protocol::methods_for(measurement),
+            replies,
+            events,
+            declined: get(&self.script, "declined")
+                .cloned()
+                .unwrap_or(Value::from(0i64)),
+            enter: get(&self.script, "enter_raises").cloned(),
+            log: self.log.clone(),
+        })
+    }
+}
+
+enum Replies {
+    Own(BTreeMap<String, Queue>),
+    Shared(Arc<Mutex<BTreeMap<String, Queue>>>),
+}
+
 struct FakeSession {
     allowed: std::collections::BTreeSet<&'static str>,
-    replies: BTreeMap<String, Queue>,
+    replies: Replies,
     events: Vec<Value>,
     declined: Value,
     enter: Option<Value>,
@@ -107,7 +184,17 @@ impl MeasureSession for FakeSession {
         if !self.allowed.contains(method) {
             return Err(Raised::Refused);
         }
-        match self.replies.get_mut(method) {
+        let mut held;
+        let replies = match &mut self.replies {
+            Replies::Own(own) => own,
+            Replies::Shared(shared) => {
+                held = shared
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                &mut *held
+            }
+        };
+        match replies.get_mut(method) {
             Some(queue) => queue.next(Value::Object(Map::new())),
             None => Ok(Value::Object(Map::new())),
         }
@@ -134,60 +221,33 @@ impl MeasureSession for FakeSession {
     }
 }
 
-struct Factory {
-    script: Value,
-    log: Log,
-}
+struct Factory(Script);
 
 impl SessionFactory for Factory {
     fn open(
         &mut self,
         measurement: Measurement,
         home: Option<&Path>,
-        config: Option<Vec<String>>,
+        config: Option<Vec<(String, String)>>,
     ) -> Res<Box<dyn MeasureSession>> {
-        note(
-            &self.log,
-            vec![
-                s("open"),
-                s(measurement.as_str()),
-                home.map_or(Value::Null, |found| s(&found.to_string_lossy())),
-                config.map_or(Value::Null, |found| {
-                    Value::Array(found.iter().map(|each| s(each)).collect())
-                }),
-            ],
-        );
-        if let Some(spec) = get(&self.script, "open_raises") {
-            answer(spec)?;
-        }
-        let mut replies = BTreeMap::new();
-        if let Some(Value::Object(found)) = get(&self.script, "replies") {
-            for (method, answers) in found {
-                replies.insert(found_key(method), Queue::of(Some(answers)));
-            }
-        }
-        let events = match get(&self.script, "events") {
-            Some(Value::Array(found)) => found.clone(),
-            _ => vec![],
-        };
-        Ok(Box::new(FakeSession {
-            allowed: car_adv::codex::protocol::methods_for(measurement),
-            replies,
-            events,
-            declined: get(&self.script, "declined")
-                .cloned()
-                .unwrap_or(Value::from(0i64)),
-            enter: get(&self.script, "enter_raises").cloned(),
-            log: self.log.clone(),
-        }))
+        Ok(Box::new(self.0.open(measurement, home, config)?))
     }
 
     fn takes_home(&self) -> bool {
-        matches!(get(&self.script, "takes_home"), Some(Value::Bool(true)))
+        matches!(get(&self.0.script, "takes_home"), Some(Value::Bool(true)))
     }
 
     fn takes_config(&self) -> bool {
-        matches!(get(&self.script, "takes_config"), Some(Value::Bool(true)))
+        matches!(get(&self.0.script, "takes_config"), Some(Value::Bool(true)))
+    }
+
+    fn shared(&mut self) -> Option<measure::SharedOpen> {
+        let script = self.0.clone();
+        Some(Arc::new(move |measurement| {
+            let opened: Box<dyn MeasureSession + Send> =
+                Box::new(script.open(measurement, None, None)?);
+            Ok(opened)
+        }))
     }
 }
 
@@ -201,6 +261,79 @@ struct Clock {
     monotonic: f64,
     ids: u64,
     log: Log,
+    /// The Codex home changing while a probe watches it (`grow`: at its sleep, history rows and rollout lines).
+    grows: Value,
+    home: Option<PathBuf>,
+    slept: i64,
+}
+
+fn param(value: &Value) -> rusqlite::types::Value {
+    match value {
+        Value::Str(found) => {
+            rusqlite::types::Value::Text(found.as_str().unwrap_or_default().to_owned())
+        }
+        Value::Int(found) => rusqlite::types::Value::Integer(found.as_i64().unwrap_or_default()),
+        Value::Float(found) => rusqlite::types::Value::Real(*found),
+        Value::Bool(found) => rusqlite::types::Value::Integer(i64::from(*found)),
+        _ => rusqlite::types::Value::Null,
+    }
+}
+
+impl Clock {
+    fn grow(&mut self) {
+        let (Value::Array(steps), Some(home)) = (&self.grows, &self.home) else {
+            return;
+        };
+        for step in steps {
+            if !matches!(get(step, "at"), Some(Value::Int(at)) if at.as_i64() == Some(self.slept)) {
+                continue;
+            }
+            if let Some(Value::Array(statements)) = get(step, "history_sql") {
+                for statement in statements {
+                    let Value::Array(parts) = statement else {
+                        continue;
+                    };
+                    let Some(sql) = parts.first().and_then(|first| text_of(Some(first))) else {
+                        continue;
+                    };
+                    if let Ok(connection) =
+                        rusqlite::Connection::open(home.join("thread_history_1.sqlite"))
+                    {
+                        let params: Vec<rusqlite::types::Value> =
+                            parts[1..].iter().map(param).collect();
+                        let _ = connection.execute(&sql, rusqlite::params_from_iter(params));
+                    }
+                }
+            }
+            if let Some(Value::Object(appended)) = get(step, "append") {
+                for (thread, lines) in appended {
+                    let path = home
+                        .join("sessions")
+                        .join(format!("rollout-{}.jsonl", found_key(thread)));
+                    let mut bytes = Vec::new();
+                    if let Value::Array(lines) = lines {
+                        for line in lines {
+                            bytes.extend(python_json(line).into_bytes());
+                            bytes.push(b'\n');
+                        }
+                    }
+                    use std::io::Write;
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open(&path)
+                    {
+                        let _ = file.write_all(&bytes);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// `json.dumps(value)` (its default separators, ASCII only) for the lines a step appends.
+fn python_json(value: &Value) -> String {
+    car_machine::json::to_string(value, &Options::new()).unwrap_or_default()
 }
 
 impl World for Clock {
@@ -216,6 +349,8 @@ impl World for Clock {
         note(&self.log, vec![s("sleep"), Value::from(seconds)]);
         self.time += seconds;
         self.monotonic += seconds;
+        self.slept += 1;
+        self.grow();
     }
     fn uuid4(&mut self) -> String {
         note(&self.log, vec![s("uuid")]);
@@ -242,6 +377,23 @@ fn timing(case: &Value) -> Timing {
     found.m6_interrupt = pick("m6_interrupt", found.m6_interrupt);
     found.m6_poll = pick("m6_poll", found.m6_poll);
     found.mu_spacing = pick("mu_spacing", found.mu_spacing);
+    found.m4_turn = pick("m4_turn", found.m4_turn);
+    found.m4_note = pick("m4_note", found.m4_note);
+    found.mc1_queue = pick("mc1_queue", found.mc1_queue);
+    found.mc1_start = pick("mc1_start", found.mc1_start);
+    found.mc2 = pick("mc2", found.mc2);
+    found.mc2_poll = pick("mc2_poll", found.mc2_poll);
+    found.mqp_add = pick("mqp_add", found.mqp_add);
+    found.mqg_settle = pick("mqg_settle", found.mqg_settle);
+    found.mqo_open = pick("mqo_open", found.mqo_open);
+    found.mqo_find = pick("mqo_find", found.mqo_find);
+    found.mopen = pick("mopen", found.mopen);
+    found.mopen_poll = pick("mopen_poll", found.mopen_poll);
+    found.mal = pick("mal", found.mal);
+    found.mal_poll = pick("mal_poll", found.mal_poll);
+    found.msteer_look = pick("msteer_look", found.msteer_look);
+    found.msteer_poll = pick("msteer_poll", found.msteer_poll);
+    found.manchor_gap = pick("manchor_gap", found.manchor_gap);
     found
 }
 
@@ -259,10 +411,21 @@ fn backend(case: &Value, log: &Log) -> Option<BackendView> {
         });
         held
     });
+    let loaded: Option<measure::Loaded> = get(found, "loaded").map(|spec| {
+        let queue = Rc::new(std::cell::RefCell::new(Queue::of(Some(spec))));
+        let log = log.clone();
+        let held: measure::Loaded = Rc::new(move |thread: &str, identity: &Value| {
+            note(&log, vec![s("loaded"), s(thread), identity.clone()]);
+            queue.borrow_mut().next(Value::Null)
+        });
+        held
+    });
     Some(BackendView {
         engine_version: get(found, "engine_version").cloned().unwrap_or(Value::Null),
         codex_home: text_of(get(found, "codex_home")).map(PathBuf::from),
         app_identity,
+        loaded,
+        codex_exe: get(found, "codex_exe").cloned(),
     })
 }
 
@@ -272,10 +435,13 @@ fn seams(case: &Value, log: &Log) -> measure::Seams {
         ..measure::Seams::default()
     };
     if let Some(script) = get(case, "session").filter(|found| !matches!(found, Value::Null)) {
-        seams.session_factory = Some(Box::new(Factory {
+        let shared = matches!(get(script, "shared"), Some(Value::Bool(true)))
+            .then(|| Arc::new(Mutex::new(replies_of(script))));
+        seams.session_factory = Some(Box::new(Factory(Script {
             script: script.clone(),
             log: log.clone(),
-        }));
+            shared,
+        })));
     }
     if let Some(spec) = get(case, "launcher").filter(|found| !matches!(found, Value::Null)) {
         let mut queue = Queue::of(Some(spec));
@@ -316,12 +482,97 @@ fn seams(case: &Value, log: &Log) -> measure::Seams {
                     &log,
                     vec![s("hand"), s(&label), Value::Array(arguments.to_vec())],
                 );
-                queue.next(Value::Null)
+                files_then(queue.next(Value::Null)?, arguments)
             });
             seams.hands.insert(name, hand);
         }
     }
+    // `windows.resource_users` (the reference refuses it where the case names none: a RuntimeError, nothing logged).
+    let users = get(case, "users")
+        .filter(|found| !matches!(found, Value::Null))
+        .cloned();
+    let mut users_queue = Queue::of(users.as_ref());
+    let users_log = log.clone();
+    seams.resource_users = Some(Box::new(move |path: &Path| {
+        if users.is_none() {
+            return Err(Raised::Other("RuntimeError".into()));
+        }
+        note(&users_log, vec![s("users"), s(&path.to_string_lossy())]);
+        match users_queue.next(Value::Array(vec![]))? {
+            Value::Array(found) => Ok(found),
+            _ => Err(Raised::Other("TypeError".into())),
+        }
+    }));
+    // `pairing.session_kind(pairing.inventory(), user, ctx.backend.codex_exe)`.
+    let mut holder_queue = Queue::of(get(case, "holder"));
+    let holder_log = log.clone();
+    seams.holder_kind = Some(Box::new(move |user: &Value, exe: Option<&Value>| {
+        note(&holder_log, vec![s("inventory")]);
+        let Some(exe) = exe else {
+            return Err(Raised::Other("AttributeError".into()));
+        };
+        note(
+            &holder_log,
+            vec![s("session_kind"), user.clone(), exe.clone()],
+        );
+        Ok(car_machine::pyval::truthy(
+            &holder_queue.next(Value::Bool(false))?,
+        ))
+    }));
+    // The `codex_restart(home, read)` hand: `read()` called `reads` times, each answer logged.
+    if let Some(spec) = get(case, "restart").filter(|found| !matches!(found, Value::Null)) {
+        let spec = spec.clone();
+        let restart_log = log.clone();
+        seams.restart = Some(Box::new(
+            move |home: Option<&Path>, read: &mut dyn FnMut() -> Res<Value>| {
+                note(
+                    &restart_log,
+                    vec![
+                        s("restart"),
+                        home.map_or(Value::Null, |found| s(&found.to_string_lossy())),
+                    ],
+                );
+                let reads = match get(&spec, "reads") {
+                    Some(Value::Int(count)) => count.as_i64().unwrap_or(0),
+                    _ => 0,
+                };
+                for _ in 0..reads {
+                    let found = read()?;
+                    note(&restart_log, vec![s("read"), found]);
+                }
+                answer(get(&spec, "answer").unwrap_or(&Value::Null))
+            },
+        ));
+    }
     seams
+}
+
+fn last_text(value: &Value, last: &mut Option<String>) {
+    match value {
+        Value::Str(found) => *last = found.as_str().map(str::to_owned),
+        Value::Array(items) => items.iter().for_each(|item| last_text(item, last)),
+        _ => {}
+    }
+}
+
+/// A hand's answer `{"$files": {name: text}, "$answer": value}`: the files written into the last folder its arguments
+/// name (the schema's `--out`), then the answer.
+fn files_then(found: Value, arguments: &[Value]) -> Res<Value> {
+    let Some(Value::Object(files)) = get(&found, "$files") else {
+        return Ok(found);
+    };
+    let mut last: Option<String> = None;
+    arguments.iter().for_each(|each| last_text(each, &mut last));
+    if let Some(folder) = last {
+        for (name, body) in files {
+            let path = Path::new(&folder).join(found_key(name));
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&path, text_of(Some(body)).unwrap_or_default());
+        }
+    }
+    answer(get(&found, "$answer").unwrap_or(&Value::Null))
 }
 
 fn raised(error: &Raised) -> Value {
@@ -354,6 +605,11 @@ fn one(case: &Value, log: &Log) -> Value {
         monotonic: number(get(&clock_spec, "monotonic"), 1000.0),
         ids: 0,
         log: log.clone(),
+        grows: get(case, "grow").cloned().unwrap_or(Value::Null),
+        home: get(case, "backend")
+            .and_then(|found| text_of(get(found, "codex_home")))
+            .map(PathBuf::from),
+        slept: 0,
     };
     let folder = directory(case);
     let versions = match get(case, "versions") {
@@ -529,11 +785,15 @@ fn main() {
     };
     let mut results = Vec::new();
     for case in &cases {
-        let log: Log = Rc::new(RefCell::new(Vec::new()));
+        let log: Log = Arc::new(Mutex::new(Vec::new()));
         let answer = one(case, &log);
         let mut entry = Map::new();
         entry.insert(Str::new("answer"), answer);
-        entry.insert(Str::new("log"), Value::Array(log.borrow().clone()));
+        let logged = log
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        entry.insert(Str::new("log"), Value::Array(logged));
         results.push(Value::Object(entry));
     }
     let mut out = Map::new();

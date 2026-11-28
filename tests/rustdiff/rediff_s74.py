@@ -3,9 +3,9 @@
     python -X utf8 tests/rustdiff/rediff_s74.py --reference v0.6.26
 
 S7.4 was ported from the v0.6.26 final. This says which of the ported Python files differ between the final and the
-tag (`git diff --stat v0.6.26 TAG`), then runs every diff of `diffs_advmeasure.py` with the tag as the reference
-(`run.py --build --reference TAG -k MeasureEvidenceDiff -k MeasureProbeDiff -k MeasureUsageDiff -k MeasureLookDiff`; the diffs build
-the `advmeasure` example themselves). Exit 0 only when the diffs are equal. Never runs a real Codex.
+tag (`git diff --stat v0.6.26 TAG`), then runs every diff of `diffs_advmeasure.py` and `diffs_advmeasure_s74b.py` (S7.4b)
+with the tag as the reference (`run.py --build --reference TAG -k MeasureEvidenceDiff ... -k MeasureAccountDiff`; the diffs
+build the `advmeasure` example themselves). Exit 0 only when the diffs are equal. Never runs a real Codex.
 """
 from __future__ import annotations
 
@@ -19,10 +19,19 @@ ROOT = HERE.parents[1]
 PORTED = ["advanced/src/codex_auto_resume_advanced/%s.py" % name for name in ("measure", "evidence", "runtime")] + [
     "advanced/src/codex_auto_resume_advanced/codex/credits.py", "advanced/src/codex_auto_resume_advanced/codex/protocol.py",
     "advanced/src/codex_auto_resume_advanced/vocabulary.py", "src/codex_auto_resume/diagnostics.py",
-    "src/codex_auto_resume/mcp/tools.py", "src/codex_auto_resume/domain/ids.py"]
+    "src/codex_auto_resume/mcp/tools.py", "src/codex_auto_resume/domain/ids.py"] + [
+    # S7.4b: what the 31 probes it ported read.
+    "advanced/src/codex_auto_resume_advanced/%s.py" % name for name in (
+        "autocheck", "images", "measured", "registry", "codex/turns", "codex/sessions", "codex/lineage",
+        "codex/account", "codex/headless", "codex/restart", "engine/anchor", "engine/emptyreply",
+        "engine/subagent", "engine/retries")] + [
+    "src/codex_auto_resume/codex/history.py", "src/codex_auto_resume/codex/pairing.py",
+    "src/codex_auto_resume/win/inventory.py", "src/codex_auto_resume/codex/appserver.py"]
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-FAMILIES = ("MeasureEvidenceDiff", "MeasureProbeDiff", "MeasureUsageDiff", "MeasureLookDiff")
+FAMILIES = ("MeasureEvidenceDiff", "MeasureProbeDiff", "MeasureUsageDiff", "MeasureLookDiff",
+            # S7.4b (diffs_advmeasure_s74b.py)
+            "MeasureHeldDiff", "MeasureHistoryDiff", "MeasureScratchDiff", "MeasureAccountDiff")
 
 
 def main(argv=None) -> int:

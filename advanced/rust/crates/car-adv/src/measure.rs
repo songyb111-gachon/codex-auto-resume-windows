@@ -24,8 +24,16 @@ use crate::codex::session::SessionError;
 use crate::evidence::{self, Envelope, Fault};
 use crate::vocabulary::{Measurement, Verdict};
 
+#[path = "measure_accounts.rs"]
+mod accounts;
+#[path = "measure_held.rs"]
+mod held;
+#[path = "measure_history.rs"]
+mod history;
 #[path = "measure_looks.rs"]
 mod looks;
+#[path = "measure_scratch.rs"]
+mod scratch;
 #[path = "measure_stage4.rs"]
 mod stage4;
 #[path = "measure_usage.rs"]
@@ -68,6 +76,31 @@ impl Raised {
 
     fn is_adapter(&self) -> bool {
         matches!(self, Raised::Adapter { .. })
+    }
+
+    /// `except (AdapterError, SessionRefused, OSError)` (MAL's read).
+    fn is_read_failure(&self) -> bool {
+        match self {
+            Raised::Adapter { .. } | Raised::Refused => true,
+            Raised::Other(class) => matches!(
+                class.as_str(),
+                "OSError" | "FileNotFoundError" | "PermissionError" | "TimeoutError"
+            ),
+            _ => false,
+        }
+    }
+}
+
+/// A read of Codex's databases that did not answer, as the reference raises it: `TurnsUnavailable` (what
+/// `except TurnsUnavailable` catches) or the class it lets out.
+impl From<crate::codex::turns::Failure> for Raised {
+    fn from(failure: crate::codex::turns::Failure) -> Raised {
+        match failure {
+            crate::codex::turns::Failure::Unavailable(_) => {
+                Raised::Other("TurnsUnavailable".into())
+            }
+            crate::codex::turns::Failure::Raised(class) => Raised::Other(class.into()),
+        }
     }
 }
 
@@ -129,11 +162,22 @@ pub trait SessionFactory {
         &mut self,
         measurement: Measurement,
         home: Option<&Path>,
-        config: Option<Vec<String>>,
+        config: Option<Vec<(String, String)>>,
     ) -> Res<Box<dyn MeasureSession>>;
     fn takes_home(&self) -> bool;
     fn takes_config(&self) -> bool;
+    /// The same factory as one other threads may call at once (MQP's adds, each on a thread of its own, as the
+    /// reference's `threading.Thread`s call `ctx.open()`). None: this factory cannot be shared, and MQP opens each
+    /// add's session in turn on the caller's thread (only for a caller that hands in such a factory; the diff's is
+    /// shared, and S7.3d's live one must be).
+    fn shared(&mut self) -> Option<SharedOpen> {
+        None
+    }
 }
+
+/// `ctx.open()` callable from any thread (see [`SessionFactory::shared`]).
+pub type SharedOpen =
+    std::sync::Arc<dyn Fn(Measurement) -> Res<Box<dyn MeasureSession + Send>> + Send + Sync>;
 
 /// The run's clock and random ids: `time.time`, `time.monotonic`, `time.sleep`, `uuid.uuid4`.
 pub trait World {
@@ -193,6 +237,17 @@ pub type Look = Box<dyn FnMut() -> Res<Value>>;
 
 /// `backend.app_identity()`: what core's pairing says of the running Codex app (None where it is not running).
 pub type AppIdentity = std::rc::Rc<dyn Fn() -> Res<Value>>;
+/// `backend.loaded(thread, identity)`: core's loaded check, a word (`loaded`, ...).
+pub type Loaded = std::rc::Rc<dyn Fn(&str, &Value) -> Res<Value>>;
+/// `windows.resource_users(path)`: the Restart Manager's holders of a file, `[{"pid", "created"}, ...]`.
+pub type ResourceUsers = Box<dyn FnMut(&Path) -> Res<Vec<Value>>>;
+/// `pairing.session_kind(pairing.inventory(), user, codex_exe)`: whether the one holder is another Codex session.
+/// `user` is the one holder, `codex_exe` the backend's (None: the attribute is not there, the reference's
+/// AttributeError once `pairing.inventory()` has been read).
+pub type HolderKind = Box<dyn FnMut(&Value, Option<&Value>) -> Res<bool>>;
+/// The `codex_restart(home, read)` hand (MALR): `read()` is the probe's fresh account read, `{"present": ...}`, and
+/// what it raises reaches the hand as the reference's would.
+pub type RestartHand = Box<dyn FnMut(Option<&Path>, &mut dyn FnMut() -> Res<Value>) -> Res<Value>>;
 
 /// The backend as a measurement reads it: `engine_version`, `codex_home` (`getattr(..., None)`) and
 /// `app_identity()` (None: the backend has no such method, an AttributeError where the reference calls it).
@@ -201,6 +256,10 @@ pub struct BackendView {
     pub engine_version: Value,
     pub codex_home: Option<PathBuf>,
     pub app_identity: Option<AppIdentity>,
+    /// `backend.loaded`; None where the backend has none (an AttributeError the reference catches).
+    pub loaded: Option<Loaded>,
+    /// `backend.codex_exe` (None: the attribute is not there).
+    pub codex_exe: Option<Value>,
 }
 
 impl std::fmt::Debug for BackendView {
@@ -210,6 +269,8 @@ impl std::fmt::Debug for BackendView {
             .field("engine_version", &self.engine_version)
             .field("codex_home", &self.codex_home)
             .field("app_identity", &self.app_identity.is_some())
+            .field("loaded", &self.loaded.is_some())
+            .field("codex_exe", &self.codex_exe)
             .finish()
     }
 }
@@ -220,6 +281,8 @@ impl Default for BackendView {
             engine_version: Value::Null,
             codex_home: None,
             app_identity: None,
+            loaded: None,
+            codex_exe: None,
         }
     }
 }
@@ -233,6 +296,23 @@ pub struct Timing {
     pub m6_interrupt: f64,
     pub m6_poll: f64,
     pub mu_spacing: f64,
+    pub m4_turn: f64,
+    pub m4_note: f64,
+    pub mc1_queue: f64,
+    pub mc1_start: f64,
+    pub mc2: f64,
+    pub mc2_poll: f64,
+    pub mqp_add: f64,
+    pub mqg_settle: f64,
+    pub mqo_open: f64,
+    pub mqo_find: f64,
+    pub mopen: f64,
+    pub mopen_poll: f64,
+    pub mal: f64,
+    pub mal_poll: f64,
+    pub msteer_look: f64,
+    pub msteer_poll: f64,
+    pub manchor_gap: f64,
 }
 
 impl Default for Timing {
@@ -244,6 +324,23 @@ impl Default for Timing {
             m6_interrupt: 15.0,
             m6_poll: 0.25,
             mu_spacing: 60.0,
+            m4_turn: 120.0,
+            m4_note: 15.0,
+            mc1_queue: 60.0,
+            mc1_start: 10.0,
+            mc2: 300.0,
+            mc2_poll: 0.25,
+            mqp_add: 60.0,
+            mqg_settle: 120.0,
+            mqo_open: 300.0,
+            mqo_find: 30.0,
+            mopen: 30.0,
+            mopen_poll: 0.3,
+            mal: 600.0,
+            mal_poll: 2.0,
+            msteer_look: 10.0,
+            msteer_poll: 0.5,
+            manchor_gap: 20.0,
         }
     }
 }
@@ -257,6 +354,14 @@ pub struct Seams {
     pub cli: Option<Cli>,
     pub ipc: Option<Look>,
     pub hands: BTreeMap<String, Hand>,
+    /// `codex_restart` (MALR), the one hand handed a callable.
+    pub restart: Option<RestartHand>,
+    /// What reads Codex's files (car-codex's `PolicyOs` where none is given).
+    pub os: Option<crate::codex::turns::SharedOs>,
+    /// `windows.resource_users` (car-platform's Restart Manager where none is given).
+    pub resource_users: Option<ResourceUsers>,
+    /// `pairing.session_kind(pairing.inventory(), ...)` (car-codex's over car-platform where none is given).
+    pub holder_kind: Option<HolderKind>,
 }
 
 // ------------------------------------------------------------------------------------------------ the context
@@ -415,6 +520,16 @@ fn core_status(status: &str) -> &'static str {
 
 /// `_completed_status(events, thread, turn_id)`.
 pub fn completed_status(events: &[Value], thread: &str, turn_id: Option<&str>) -> Option<String> {
+    completed_status_value(events, thread, turn_id.map(text).as_ref())
+}
+
+/// `_completed_status` with a turn id of any kind (MB2 follows whatever `turn.id` it was answered), compared as
+/// Python's `!=` compares.
+fn completed_status_value(
+    events: &[Value],
+    thread: &str,
+    turn_id: Option<&Value>,
+) -> Option<String> {
     for event in events {
         if !is_dict(event) || !is_str_eq(get(event, "method"), "turn/completed") {
             continue;
@@ -429,7 +544,8 @@ pub fn completed_status(events: &[Value], thread: &str, turn_id: Option<&str>) -
             continue;
         };
         if let Some(wanted) = turn_id
-            && !is_str_eq(get(turn, "id"), wanted)
+            && !get(turn, "id").is_some_and(|found| car_machine::pyval::eq(found, wanted))
+            && !(get(turn, "id").is_none() && matches!(wanted, Value::Null))
         {
             continue;
         }
@@ -447,10 +563,22 @@ pub fn goal_status(result: &Value) -> Option<String> {
     as_text(get(goal, "status"))
 }
 
-/// `_await_taken(session, thread, client_id, seconds)`.
+/// `_await_taken(session, thread, client_id, seconds)` on the probe's conversation.
 fn await_taken(
     ctx: &mut Context<'_>,
     session: &mut dyn MeasureSession,
+    client_id: &str,
+    seconds: f64,
+) -> Res<bool> {
+    let thread = ctx.probe_thread.clone();
+    await_taken_on(ctx, session, &thread, client_id, seconds)
+}
+
+/// `_await_taken(session, thread, client_id, seconds)`.
+fn await_taken_on(
+    ctx: &mut Context<'_>,
+    session: &mut dyn MeasureSession,
+    thread: &str,
     client_id: &str,
     seconds: f64,
 ) -> Res<bool> {
@@ -458,7 +586,7 @@ fn await_taken(
     loop {
         let listed = match session.call(
             "thread/queue/list",
-            Some(object(vec![("threadId", ctx.thread_value())])),
+            Some(object(vec![("threadId", text(thread))])),
         ) {
             Ok(listed) => listed,
             Err(raised) if raised.is_adapter() => return Ok(false),
@@ -486,6 +614,17 @@ fn await_turn(
     session: &mut dyn MeasureSession,
     turn_id: Option<&str>,
     seconds: f64,
+    seen: Option<&mut Vec<Value>>,
+) -> Option<String> {
+    await_turn_value(ctx, session, turn_id.map(text).as_ref(), seconds, seen)
+}
+
+/// `_await_turn` with a turn id of any kind.
+fn await_turn_value(
+    ctx: &mut Context<'_>,
+    session: &mut dyn MeasureSession,
+    turn_id: Option<&Value>,
+    seconds: f64,
     mut seen: Option<&mut Vec<Value>>,
 ) -> Option<String> {
     let deadline = ctx.world.monotonic() + seconds;
@@ -494,7 +633,7 @@ fn await_turn(
         if let Some(seen) = seen.as_deref_mut() {
             seen.extend(events.iter().cloned());
         }
-        if let Some(status) = completed_status(&events, &ctx.probe_thread, turn_id) {
+        if let Some(status) = completed_status_value(&events, &ctx.probe_thread, turn_id) {
             return Some(status);
         }
         if ctx.world.monotonic() >= deadline {
@@ -856,6 +995,12 @@ pub fn ported() -> Vec<Measurement> {
         M::Mcloud,
         M::M6b,
     ]
+    .into_iter()
+    .chain(held::PORTED)
+    .chain(history::PORTED)
+    .chain(scratch::PORTED)
+    .chain(accounts::PORTED)
+    .collect()
 }
 
 /// `PROBES[measurement](ctx)`.
@@ -884,7 +1029,37 @@ fn dispatch(ctx: &mut Context<'_>) -> Res<Found> {
         M::Maws => looks::maws(ctx),
         M::Mcloud => looks::mcloud(ctx),
         M::M6b => stage4::m6b(ctx),
-        other => Err(Raised::Unported(other)),
+        M::M4 => held::m4(ctx),
+        M::Mqo => held::mqo(ctx),
+        M::Mqp => held::mqp(ctx),
+        M::Mqg => held::mqg(ctx),
+        M::Mc1 => held::mc1(ctx),
+        M::Mopen => held::mopen(ctx),
+        M::Msteer => held::msteer(ctx),
+        M::Msteer2 => held::msteer2(ctx),
+        M::Me => history::me(ctx),
+        M::Ms => history::ms(ctx),
+        M::Mk => history::mk(ctx),
+        M::Mo => history::mo(ctx),
+        M::Mx => history::mx(ctx),
+        M::Mxa => history::mxa(ctx),
+        M::Mc2 => history::mc2(ctx),
+        M::M3b => history::m3b(ctx),
+        M::Mtok => history::mtok(ctx),
+        M::Mgave => history::mgave(ctx),
+        M::Mb => scratch::mb(ctx),
+        M::Mb2 => scratch::mb2(ctx),
+        M::Mf => scratch::mf(ctx),
+        M::Mhk => scratch::mhk(ctx),
+        M::M4b => scratch::m4b(ctx),
+        M::Manchor => scratch::manchor(ctx),
+        M::Mwake => scratch::mwake(ctx),
+        M::Mimg => scratch::mimg(ctx),
+        M::Mal => accounts::mal(ctx),
+        M::Malr => accounts::malr(ctx),
+        M::Mprofile => accounts::mprofile(ctx),
+        M::Mswap => accounts::mswap(ctx),
+        M::Mauto => accounts::mauto(ctx),
     }
 }
 

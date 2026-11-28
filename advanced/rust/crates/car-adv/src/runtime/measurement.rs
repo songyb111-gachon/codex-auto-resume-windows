@@ -16,7 +16,8 @@ use car_machine::json::{Map, Value};
 
 use super::Runtime;
 use crate::measure::{
-    self, BackendView, Cli, Hand, Look, Raised, Request, Res, Seams, SessionFactory, Timing, World,
+    self, BackendView, Cli, Hand, Look, Raised, Request, Res, RestartHand, Seams, SessionFactory,
+    Timing, World,
 };
 use crate::vocabulary::{Measurement, Verdict};
 
@@ -32,6 +33,10 @@ pub trait Live {
     fn cli(&mut self, backend: Option<&BackendView>, paths: &Paths) -> Cli;
     fn ipc(&mut self) -> Look;
     fn hands(&mut self, backend: Option<&BackendView>, paths: &Paths) -> BTreeMap<String, Hand>;
+    /// `live_hands`' `codex_restart` (MALR), the one hand handed a callable; None: MALR finds no hand.
+    fn restart(&mut self, _backend: Option<&BackendView>, _paths: &Paths) -> Option<RestartHand> {
+        None
+    }
     /// `config.version()`.
     fn product_version(&self) -> String;
     /// `sys.getwindowsversion()` as `major.minor.build`, or None.
@@ -47,6 +52,8 @@ pub struct Measuring {
     pub cli: Option<Cli>,
     pub ipc: Option<Look>,
     pub hands: Option<BTreeMap<String, Hand>>,
+    /// The `codex_restart` hand (given with the hands: a runtime given hands is given this one or none).
+    pub restart: Option<RestartHand>,
     pub evidence_dir: Option<PathBuf>,
     pub live: Option<Box<dyn Live>>,
     /// The module's timing constants (the tests patch them in the reference).
@@ -111,6 +118,8 @@ impl Runtime {
             cli: measuring.cli.take(),
             ipc: measuring.ipc.take(),
             hands: measuring.hands.take().unwrap_or_default(),
+            restart: measuring.restart.take(),
+            ..Seams::default()
         };
         if let Some(live) = measuring.live.as_mut() {
             if seams.session_factory.is_none() {
@@ -130,6 +139,7 @@ impl Runtime {
             }
             if !given.4 {
                 seams.hands = live.hands(backend.as_ref(), paths);
+                seams.restart = live.restart(backend.as_ref(), paths);
             }
         }
         seams.backend = backend;
@@ -163,6 +173,7 @@ impl Runtime {
         }
         if given.4 {
             measuring.hands = Some(std::mem::take(&mut seams.hands));
+            measuring.restart = seams.restart.take();
         }
         answer
     }

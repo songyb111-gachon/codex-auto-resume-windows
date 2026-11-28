@@ -6308,3 +6308,99 @@ privacy_scan.py on every added or changed file                     clean
 * tests/test_host_seams.py is the model for a probe that compares the host's record with the reference over a recording
   user32; its driver compiles with [contract]+[surface]+[generated].
 * The notice card's corner at radii no card has (above) is not this seat's; AUDIT-v0628.md has the line.
+## Seat S7.4b: the 31 measurement probes S7.4 left (branch `car-v0627-s74b`, 2026-11-27)
+
+The owner's Q2 (a), as S7.4: ported to car-adv's `measure` and proved equal to the **v0.6.26 final** over the tests' kind of
+fakes only. Nothing was run for real: no codex.exe, no Codex app, no turn, no Codex home of the person's, no wake timer,
+no restart, no signal. Every measurement now has its probe: `measure::ported()` is all 53, `run` answers
+`Raised::Unported` for none (S7.4's brief counted 28; the list it named is 31).
+
+### Ported (probe -> file, each a `#[path]` child of `measure`, so no `lib.rs` edit)
+
+| probes | file | helpers ported with them |
+|---|---|---|
+| M4, MQO, MQP, MQG, MC1, MOPEN, MSTEER, MSTEER2 | `measure_held.rs` | `_lock_users`, `_look`, `_holds`, `_held`, `_queued_ids`, `_recorded_in`, `_client_recorded`, `_fresh_client_ids`, `_seconds`, `_loaded_bucket`, `_plugin_stop_hooks`, `_stop_runs`, `_letters`, `_running_turn`, `steer_over_ipc`, `m4_hook_note` |
+| ME, MS, MK, MO, MX, MXA, MC2, M3B, MTOK, MGAVE | `measure_history.rs` | `_latest_kinds`, `_item_kind`, `_turn_in_history`, `_turns_after`, `_holder`, `_Watch`, `_token_events`, `_tokens_used`, `_code_word`, `_turn_retries`, `_scan_turn` |
+| MB, MB2, MF, MHK, M4B, MANCHOR, MWAKE, MIMG | `measure_scratch.rs` | `open_scratch`, `open_with`, `_config_value`, `_version_of`, `_listed`, `_model_of`, `_default_model`, `_one_turn`, `_resumed_model`, `_schema_documents`, `_definitions`, `_enum_words`, `_strings`, `_generated_schema`, `_feature`, `_hook_words`, `_manchor_read`, `_kept`, `_power_source`, `_queued_images`, `_mimg_pictures` (zlib's CRC-32 written out) |
+| MAL, MALR, MPROFILE, MSWAP, MAUTO | `measure_accounts.rs` | `_account`, `_mal_read`, `_closed` |
+
+The Codex home is read through what the edition and core already have: `codex::turns::Turns` (latest, between,
+plan_statuses, `connect`), `codex::sessions::Origins` (origin, rollout, events_since, names, find), `codex::lineage`,
+`engine::subagent::kind_of`, `engine::emptyreply::EMPTY_KINDS`, car-codex's `LocalSource::marker_rows`; the rest is
+`codex::account::parse`, `codex::credits`, `codex::headless::HEADLESS_CONFIG`, `engine::retries`, `engine::anchor`,
+`codex::restart`'s words, `images`, `autocheck::{feature_words, grade, mkdtemp}`, `registry`, `measured::table`.
+
+### The seams this seat added (all in `measure.rs`; `runtime::measurement` carries the new hand)
+
+* `BackendView::loaded` (core's `backend.loaded(thread, identity)`) and `BackendView::codex_exe` (None: the attribute is
+  not there - the reference's AttributeError, caught where it is caught).
+* `Seams::resource_users` (`windows.resource_users(path)`) and `Seams::holder_kind` (`pairing.session_kind(pairing.inventory(),
+  user, codex_exe)`, handed the exe as an Option so the inventory is read before the missing attribute, as the reference
+  reads it). None: car-codex's `system::Platform` (car-platform's Restart Manager and process list) - the real readers, which
+  only read; the diff always hands fakes.
+* `Seams::restart` (`RestartHand`): the `codex_restart(home, read)` hand, the one hand handed a callable; `read()` returns
+  `Res<Value>` so what the probe's read raises reaches the hand as in the reference. `runtime::measurement::Live::restart`
+  (default None) and `Measuring::restart` carry it.
+* `Seams::os`: what reads Codex's files (car-codex's `PolicyOs` where none is given).
+* `SessionFactory::shared()` (default None) -> `SharedOpen`, an `Arc<dyn Fn(Measurement) -> Res<Box<dyn MeasureSession +
+  Send>> + Send + Sync>`: MQP's adds each on a thread of its own, joined in turn with `recv_timeout(mqp_add)`, a late
+  answer still counted (the reference's `threading.Thread`s and `join(60)`). A factory that cannot be shared makes MQP open
+  each add in turn on the caller's thread - **S7.3d's live factory must implement `shared()`**.
+* `SessionFactory::open`'s `config` is now `Option<Vec<(String, String)>>`, the `(key, value)` pairs Session's `config`
+  takes (MB2: `HEADLESS_CONFIG + retries.overrides(8)`; `open_with(())` passes an empty list, not None).
+* `Timing` gained every constant these probes wait by and the tests patch (`m4_turn`, `m4_note`, `mc1_queue`,
+  `mc1_start`, `mc2`, `mc2_poll`, `mqp_add`, `mqg_settle`, `mqo_open`, `mqo_find`, `mopen`, `mopen_poll`, `mal`,
+  `mal_poll`, `msteer_look`, `msteer_poll`, `manchor_gap`), the reference's values by default.
+* `Raised::from(turns::Failure)`: `TurnsUnavailable` for a read that did not answer (what MGAVE's and MTOK's
+  `except TurnsUnavailable` catch), the class otherwise.
+* `await_taken_on` / `await_turn_value` / `completed_status_value`: S7.4's helpers on any conversation and with a turn id
+  of any kind (MQP's threads; MB2 follows whatever `turn.id` it was answered, compared as Python's `!=`).
+
+### The proof (`tests/rustdiff/diffs_advmeasure_s74b.py`; harness `advmeasure.py`, example `advmeasure`)
+
+Four families, 18 tests, about 2,275 cases: `MeasureHeldDiff`, `MeasureHistoryDiff`, `MeasureScratchDiff`,
+`MeasureAccountDiff`. Each probe through S7.4's common ways in and out (no session, `{}`, 12 odd answers, 6 raises,
+failed opens and enters, a thread given or not, versions read or unreadable, a missing folder, a pre-1970 clock) and
+then its own scripts. The harness gained, on both sides: a Codex home per case (`build_home`, codexdiff.Home's tables
+and rollouts, `$root` in its statements; the home is input and left out of the files compared), the lock's holders
+(`users`, the reference's `windows.resource_users` and `inventory.resource_users` replaced), `pairing.inventory` and
+`session_kind` (`holder`), the backend's `loaded` and `codex_exe`, the `codex_restart` hand (`restart`: `read()` called
+`reads` times, each answer logged), a hand answer that writes files into the folder its arguments name (`$files`: the
+schema's `--out`), answers shared across a case's sessions (`shared`: MAL's reads, MF's resumes, MANCHOR's four reads),
+a home that grows at a scripted sleep (`grow`: MC2, MQG, MQO, MSTEER watch it change), a scratch folder's random name
+scrubbed (`car-mb-`, `car-mb2-`, `car-mtok-`, `car-mhk-`, `car-mimg-`), a string past 20,000 characters compared by its
+SHA-256 (MIMG's data addresses of a 20 MB picture), and MQP's add sessions compared as a set (`_settle`; their order is
+the threads'). The answers were read for reach, not only for equality (scratchpad `car-v0627-s74b-cover.py`): every
+probe reaches its pass/fail/blocked branches - M4 passes and fails, MAL/MALR see the sign-out and the sign-in, MALR's
+restart outcomes and busy words, MC2's db/rollout/same/neither and its lag buckets, MGAVE's archived and by-name
+rollouts, MQP's own and misplaced queues, MS classifies a child, MOPEN loads under 2 s and never.
+`Ran 18 tests ... OK` (about 330 s).
+
+Mutation checks (scratchpad `car-v0627-s74b-mutate.py`, each alone, `advmeasure` rebuilt, its one diff test run, the file
+restored): MQP counting its own add as misplaced, M4 settling on a completed turn, `_code_word` losing its camelCase,
+MOPEN waiting for two holders, MB taking any refusal as a version conflict, MALR reading `queued` as `unknown`, MC2 saying
+rollout-first where only the history said it, MTOK keyed with no counts: **8 of 8 caught**.
+
+Safety: as S7.4 - the reference refuses `inuse.backend`, `pairing.processes_named`, `pairing.resource_users`,
+`process_identity`, every `measure.live_*`, and now runs `windows.resource_users`, `inventory.resource_users`,
+`pairing.inventory` and `pairing.session_kind` as the case's fakes; both sides run with CAR_NO_REAL_ENGINE=1 and
+`CODEX_AUTO_RESUME_CODEX_EXE` at a missing path. The probe's `holder_kind`/`resource_users` are always the case's.
+
+Audit lines added (AUDIT-v0628.md, "S7.4b measure"): 11 - M4's note keys and empty turn id, MB2's turn, the `or ()`
+iterations of MHK/M4B/MALR, MAUTO's results, MGAVE's clock, `_schema_documents`' matching, MQP's joins, MOPEN's
+holders_read, MANCHOR's code, MO's inventory before codex_exe.
+
+The re-diff: `python -X utf8 tests/rustdiff/rediff_s74.py --reference v0.6.26` (now with the four S7.4b families and the
+files the new probes read).
+
+### For later seats
+
+* S7.3d (`runtime::measurement::Live`): the live factory's `shared()` (MQP); `Live::restart` (MALR's `codex_restart`,
+  over S7.2b's `codex::restart`); the named hands these probes call: `open_link`, `steer_ipc`, `power`, `wake_after`,
+  `scratch_cli`, `anchor_request`, `stop_hook`, `m4_hook_note`, `profile_read`, `account_swap`, `auto_check`; the
+  backend's `loaded` and `codex_exe`. `resource_users`/`holder_kind` may stay None (the real readers).
+* The proxy seat (S7.2a3): `tests/rustdiff/advledger_s74.py` - no file waits for a probe now; 17 of the 21 wait for the
+  proxy alone, 4 (`test_advanced_account_restart`, `_autoswitch_security`, `_measure`, `_window_anchor`) also for
+  S7.3a's modules. The tests patch the module constants by name: `Timing`'s fields are the ones they patch.
+* S7.3a: `Raised::class()` of what these probes let out includes AttributeError, TypeError, RecursionError,
+  TurnsUnavailable (MGAVE/MTOK only where not caught), as the reference's.
