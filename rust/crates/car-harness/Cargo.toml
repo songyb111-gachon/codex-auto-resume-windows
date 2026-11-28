@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+# S6.4e: the Dashboard opener's own Rust (car-watcher dashboard.rs, car-platform handover.rs) copied over a scratch world (build.rs).
+build = "build.rs"
 description = "Dev-only differential harness: runs the Rust core's calls for tests/rustdiff"
 
 [lints]

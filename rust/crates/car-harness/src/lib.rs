@@ -15,6 +15,7 @@ pub mod judge;
 pub mod leaves;
 pub mod links;
 pub mod mcp;
+pub mod opener;
 pub mod plugscript;
 pub mod policy;
 pub mod proxy;

@@ -52,7 +52,7 @@ def imports_the_ui(path: Path) -> bool:
 HOST_SIDE = ("test_host_shape.py", "test_host_tray_place.py", "test_surface_askback.py", "test_host_tipcard.py",
              "test_host_popup_access.py", "test_host_popup_card_still.py", "test_host_popup_press.py",
              "test_host_tray_power.py", "test_host_popup_motion_held.py",
-             "test_host_card_focus.py", "test_host_notice_cards.py")
+             "test_host_card_focus.py", "test_host_notice_cards.py", "test_surface_opener.py", "test_host_seams.py")
 
 
 def test_files() -> set[str]:
