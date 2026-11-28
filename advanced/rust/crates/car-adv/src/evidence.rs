@@ -272,7 +272,8 @@ pub fn build(
         ("codex_version", envelope.codex_version),
         ("windows_build", envelope.windows_build),
     ] {
-        record.insert(Str::new(field), text(&py_str(value)));
+        // `str(codex_version)`: a list or a dict as Python writes it (car-machine's py_str gives those nothing).
+        record.insert(Str::new(field), text(&car_surface::py::str_of(value)));
     }
     record.insert(Str::new("observed"), Value::Object(observed.clone()));
     let note_text = match note {
@@ -408,7 +409,7 @@ pub fn complete(
         .get(&Str::new("codex_version"))
         .cloned()
         .unwrap_or(Value::Null);
-    if py_str(&recorded) != py_str(codex_version) {
+    if car_surface::py::str_of(&recorded) != car_surface::py::str_of(codex_version) {
         return Err(Fault::Evidence(
             "the blocked record was measured on another Codex; re-measure first",
         ));

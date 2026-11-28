@@ -566,6 +566,16 @@ class MeasureAccountDiff(Base):
             cases.append(given("MAUTO", None, hands={"auto_check": [answered]}))
         cases.append(given("MAUTO", None, hands={"auto_check": [{"engine_accepted": True}]},
                            versions=dict(VERSIONS, codex_version="0.160.0")))
+        # Integration 13 (S7.4b's note): a codex_version that is no text. The reference hands it to autocheck.grade, where
+        # it is only ever compared (`measured_on == version`) with the table's texts, so it grades as no version would;
+        # car-adv reads anything but a text as None. Beside them the version the table names (a person's PASS stands
+        # HERE), so a port that matched a non-text version to it would differ.
+        passed = {"engine_accepted": True, "experimental_taken": True, "schema_whole": True, "features_answered": True,
+                  "results": {"m1": "pass", "m2b": "pass", "m5": "fail", "m6": "unknown"}}
+        for version in ("codex-cli 0.167.0-alpha.3.2", 167, 0.167, True, None, ["codex-cli 0.167.0-alpha.3.2"],
+                        {"codex-cli 0.167.0-alpha.3.2": 1}, "", "CODEX-CLI 0.167.0-ALPHA.3.2"):
+            cases.append(given("MAUTO", None, hands={"auto_check": [passed]},
+                               versions=dict(VERSIONS, codex_version=version)))
         self.held(cases)
 
 
