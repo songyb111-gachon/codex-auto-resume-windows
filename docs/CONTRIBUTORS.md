@@ -70,7 +70,10 @@ Everyone below is a person outside the project who helped it, in the order they 
   sends a continuation to Codex's managed daemon where one runs and says in fixed words what a queue answer without a receipt was
   ([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)). They also reported a goal left paused after a
   usage-limit reset once goal continuation reached its ceiling for one conversation, and suggested the fix: a reset the
-  watcher verified no longer counts toward that ceiling ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)).
+  watcher verified no longer counts toward that ceiling ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)). They then sent the fix that lets the installer find the Microsoft Store Codex engine when its bin folder
+  is absent ([#69](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/69)), and proposed keeping native goal continuation working across Codex engine updates, with a
+  review of the measurement and compatibility code that led to measuring M2b again on the newer engine
+  ([#70](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/70)).
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
   pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
   usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation, and
