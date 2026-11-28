@@ -76,11 +76,16 @@ def main(argv=None) -> int:
     # three elements the in-box compiler turns into a randomly named class (tests/test_reproducible.py), and two builds of
     # the host are the same bytes once normalised. A rewrite of a switch or an array is shown to be the reference's
     # exactly by the run above; this shows the host still compiles to an image build/normalize_pe.py accepts.
-    environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT / "tests")]))
+    # This checkout's own tests, on this interpreter, but booted as every harness process is (refguard's boot: no lookup
+    # of this PC's processes, no engine) - test_rustdiff_refguard.TheSource holds every harness file to that.
+    from rustdiff import refguard
+    this = [str(ROOT / "src"), str(ROOT / "tests")]
+    environment = refguard.environment(dict(os.environ, PYTHONPATH=os.pathsep.join(this)))
     environment.pop("CODEX_AR_EDITION", None)
-    built = subprocess.run([sys.executable, "-m", "unittest", "test_reproducible.HostSourceRuleTests",
-                            "test_reproducible.HostBuildTests", "test_host_shape"], cwd=ROOT, env=environment,
-                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
+    proof = [sys.executable, "-X", "utf8", "-c", refguard.boot(this), UNITTEST, "test_reproducible.HostSourceRuleTests",
+             "test_reproducible.HostBuildTests", "test_host_shape"]
+    built = subprocess.run(proof, cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
+                           creationflags=NO_WINDOW).returncode
     print("the host builds reproducibly: %s" % ("yes" if built == 0 else "NO"))
     return 0 if status == 0 and built == 0 else 1
 

@@ -6537,7 +6537,11 @@ every `grep -l guiscan tests/test_*.py` module and every tests/test_host_*.py (1
 test_installer_window, alone, both lanes                 Ran 53 OK (532 s / 540 s)
 scripts/test_parts.py --lane advanced --part 5/5 (3.13.15, 8.3 TEMP)   advanced/tests 531 OK; tests/ 1856: 7 red, none
                                                      ours (test_motion_fidelity 6 stale; test_cli 1 from the missing exe)
-the Python guard modules                             run after this section's commit (the last one); the return reports them
+Python guards after d04385a6c: standard (33 modules) Ran 479, 1 FAIL - test_rustdiff_refguard.TheSource: S6.3d's build
+  proof in rediff_host_surface.py started this checkout's tests on sys.executable without the guard's boot; it boots
+  them through refguard now (the next commit: test_rustdiff_refguard 15 OK, rediff_host_surface exact + reproducible);
+  advanced lane (9) Ran 214 OK; CODEX_AR_TREE=main (4) Ran 92 OK; check_groundwork OK; the standard set again after
+  that commit: the return reports it
 ```
 
 The re-diffs: `rediff_ui_opener.py --reference v0.6.26` (item d), `rediff_ui_tests.py`, `rediff_host_surface.py`,
