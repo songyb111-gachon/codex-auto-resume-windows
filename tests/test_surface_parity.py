@@ -21,6 +21,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -885,6 +886,21 @@ class SurfaceJob:
             for smoothing in (0.6, 0.0, 0.3):
                 corners.append([radius, smoothing, digest(b"".join(notice_card.corner_coverage(radius, smoothing)))])
         self.add("cards/corners", {"surface": "cards", "corners": [[r, s] for r, s, _ in corners]}, [c[2] for c in corners])
+        # Integration 13 (S6.3e's AUDIT line): radii no card has - at and below -1 the reference gives no rows (range of a
+        # negative size), NaN its ValueError and an infinity its OverflowError, at every smoothing; the C# had thrown
+        # OverflowException for the first two. JSON carries no NaN or infinity: they go as repr's words.
+        edges = []
+        for radius in (-0.5, -0.999, -1.0, -1.5, -3.0, -1e9, 0.0, 0.4, 1.0, float("nan"), float("inf"), float("-inf")):
+            for smoothing in (0.6, 0.0, 0.3):
+                notice_card._CORNERS.clear()
+                try:
+                    said = digest(b"".join(notice_card.corner_coverage(radius, smoothing)))
+                except (ValueError, OverflowError) as error:
+                    said = "raises " + type(error).__name__
+                edges.append([radius if math.isfinite(radius) else repr(radius), smoothing, said])
+        notice_card._CORNERS.clear()
+        self.add("cards/corner_edges", {"surface": "cards", "corners": [[r, s] for r, s, _ in edges]},
+                 [said for _, _, said in edges])
         try:
             with make_screenshots.pinned_face():
                 pinned = fonts._ui_face()

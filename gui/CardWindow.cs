@@ -38,9 +38,21 @@ namespace CodexAutoResume
             }
         }
 
+        /// `int(math.ceil(value))` as the reference sizes a corner square, and `range` over it: NaN is the ValueError
+        /// (ArgumentException), an infinity the OverflowError (OverflowException), a size below zero no rows. A size past
+        /// int.MaxValue, which the Python would try to fill, is an OverflowException.
+        private static int Size(double value)
+        {
+            if (double.IsNaN(value)) throw new ArgumentException("cannot convert float NaN to integer");
+            if (double.IsInfinity(value)) throw new OverflowException("cannot convert float infinity to integer");
+            double size = Math.Ceiling(value);
+            if (size > int.MaxValue) throw new OverflowException("a corner no array holds");
+            return size < 0 ? 0 : (int)size;
+        }
+
         private static byte[][] Round(double radius)
         {
-            int size = (int)Math.Ceiling(radius);
+            int size = Size(radius);
             var rows = new byte[size][];
             for (int j = 0; j < size; j++)
             {
@@ -60,7 +72,7 @@ namespace CodexAutoResume
 
         private static byte[][] Squircle(ShapeProfile made)
         {
-            int size = (int)Math.Ceiling(made.P);
+            int size = Size(made.P);
             double middle = made.Middle;
             var half = new byte[size][];
             for (int i = 0; i < size; i++)

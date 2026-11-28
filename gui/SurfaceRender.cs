@@ -449,6 +449,16 @@ namespace CodexAutoResume
             return answers;
         }
 
+        /// A number of a case, or one JSON cannot carry spelled as Python's repr spells it ("nan", "inf", "-inf").
+        private static double Number(object value)
+        {
+            string word = value as string;
+            if (word == "nan") return double.NaN;
+            if (word == "inf") return double.PositiveInfinity;
+            if (word == "-inf") return double.NegativeInfinity;
+            return (double)value;
+        }
+
         private static string Digest(byte[] bytes)
         {
             using (var sha = System.Security.Cryptography.SHA256.Create())
@@ -900,7 +910,21 @@ namespace CodexAutoResume
                 foreach (object entry in (List<object>)corners)
                 {
                     var pair = (List<object>)entry;
-                    byte[][] rows = CardCorner.Coverage((double)pair[0], (double)pair[1]);
+                    byte[][] rows;
+                    try
+                    {
+                        rows = CardCorner.Coverage(Number(pair[0]), Number(pair[1]));
+                    }
+                    catch (ArgumentException)
+                    {
+                        found.Add("raises ValueError");
+                        continue;
+                    }
+                    catch (OverflowException)
+                    {
+                        found.Add("raises OverflowError");
+                        continue;
+                    }
                     var whole = new List<byte>();
                     foreach (byte[] row in rows) whole.AddRange(row);
                     found.Add(Digest(whole.ToArray()));
