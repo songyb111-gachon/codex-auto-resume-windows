@@ -4740,6 +4740,537 @@ model, `busy` returned as strings, a raised control error answered as a value: *
   whose reference side must stay Python's (under `CODEX_AR_CORE=rust` its words are Rust's, and the run did not end in 25 minutes); `rediff_host_surface.py`
   re-runs them against the tag. Result at the end of S6.4b (through `gui_lock.sh`): 129 ledger tests + `test_surface_askback` on the shim against the tag
   pass, the ledger and the host twins pass (`test_status_newest_usage.py` listed as above).
+
+### S6.4c (continuation, 2026-11-27): the scan group re-counted, and the first window rows on the probe
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown, nothing captured, nothing
+pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`; the shim runs used
+`CODEX_AR_HARNESS_EXE` = S6.4b's copy of the finalport `car-harness.exe` (this worktree has no `rust/target`).
+
+| What | Where | State |
+|---|---|---|
+| **Step 1 not possible here**: `tests/test_status_newest_usage.py` is a v0.6.26 file (commits 2d0ee345e, 755b6294c on dev/main) that this base does not have: `car-v0627-rust` at 8cbcd6ac3 does not contain the v0.6.26 tag, and `domain/usage.newest` is not in `src/`. A row for a file that is not there fails `test_surface_ledger` ("a row names a file that no longer imports the UI"), so the row waits for the rebase onto the final; `rediff_ui_tests.py --reference v0.6.26` prints it as "with no row" until then. | - | left |
+| **Scan, re-counted per test** (step 2): in every scan class of a pending row, a test that names no UI module and reads no UI source is `unaffected` (the Dashboard window's own C# - `test_gui_v0623_*`, `test_focus_rings`, `test_notice_stay`, `WindowSideTests`' first test -, the compat registry's closure, which reaches no UI module, the engine's and the store's sources, the demo module); a scan of the whole Python package (srcscan's `modules`, `package_asts`, `holders`, `closure`, `sites()`, every shipped `src/*`) is `no_twin` with its reason (the UI's modules are only its sample; nothing of the UI is called or computed); the Python tray package's own packaging (`test_tray_shape.ShapeTests`, five) is `no_twin`, naming the host's counterpart rule; a rule that holds a UI value or reads the Python icon's source has a twin. | `tests/rustdiff/surface_ledger.json` (applied by a scratch script; the decisions are the rows' `no_twin`/`twins`) | ledger |
+| Twins read from the port's sources: `EditionTwinTests` (the panel's heading and the Dashboard's version line name no edition where the host's `TrayWords.UnnamedEdition` names none; the watcher's surfaces event carries `edition::shown(plug)`, `HostPump`/`HostSurfaces` hand it to the icon, every tooltip `TrayIcon` makes is given it), `VocabularyTwinTests` (car-surface's `STATES`, `ATTENTION_OVERLAYS` and the host's `IconStates` by test_vocabulary's own digests and vocabularies), `HandoverTwinTests` (the Dashboard's WM_COPYDATA mark and answer against car-platform's `handover.rs`) | `tests/test_host_shape.py` | 20 tests, OK |
+| **Window, first rows** (step 3): `card_layers` (a NoticeCard with no window, both layers through PaintLayers at the settled frame, pixels dumped; the uncut shadow is a second card's whose image says nothing is wholly opaque, so CutUnderBody clears nothing), `icon_tick` (a TrayIcon with no window, Observe + SyncMotion under SurfaceScreen's probe record, the timers left), `icon_overflowed`, `icon_demo` (LookForDemo over a stand-in event; OpenDemo of an icon named for no demo). The probe's `Answer` is an if-chain now, no string switch (S6.3d's reproducible-build rule). | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| The twins over them: each subclasses the Python test class and keeps its assertions - inherited helpers, or the original bodies through `super()` - with only the hook that made the Python window (`settled`/`each_look`, `tick`) answered by the host | `tests/test_host_card_layers.py` (3), `tests/test_host_icon_tick.py` (5), `tests/test_host_icon_demo.py` (1) | OK through `gui_lock.sh`, one module at a time |
+| The re-diff runs every file a row names as a twin's home | `tests/rustdiff/rediff_ui_tests.py` | see Checks |
+
+Ledger: **host 28** (was 20: `test_control`, `test_compat_surfaces`, `test_plug_points`, `test_vocabulary`, `test_edition_label`,
+`test_card_shadow_under_body`, `test_tray_overflow_open`, `test_diagnostics_tools`), **pending 55** (ceiling 63 to 55), python-only 1.
+
+**Mutation checks** (each alone, restored with the file's own bytes): `TrayWords.UnnamedEdition` misspelt (3 fail), `IconStates` without "failed"
+(2), car-surface's `codex_changed` renamed (2), `OPEN_REQUEST_TAKEN` off by one (1), one `TrayWords.Tooltip` call given `null` for the edition
+(1), `HostSurfaces` dropping the edition (1); CutUnderBody's opaque test at 0xFE (6), the cut one pixel wider (2), the probe's uncut pass
+cutting (2); `Overflowed` ignoring the flyout (4), asking the flyout first (1), Observe not asking `Overflowed` (1); LookForDemo acting on an
+unsignalled look (1) and OpenDemo making an event with no name (1). One mutant survived and is equivalent here: SyncMotion's
+KillTimer made a SetTimer - a fresh icon's `MotionMs` is already null, so neither runs (the Python test cannot see it either).
+
+### What is left (per row, the route), for the next seat
+
+* **Pure** (24 tests, 4 rows): `test_notice_click_chat` 2, `test_popup_row_menu_parity` 11 (OpenerTests, RemoveTests, OpensTheDashboardTests),
+  `test_postpone_and_tiers` 1, `test_tray_reuses_window` 10, `test_single_rules.PageTests` 1 (and `test_tray_open_popup`'s opener tests among its
+  window count): the Dashboard opener. Route unchanged (step 5): a car-harness case over car-platform's `handover.rs` and the process start
+  through a scratch stand-in, then a proxy for `open_dashboard`/`open_chat` beside perform's. Not started: the seat's time went to steps 2-3.
+* **Window** (248 tests, 23 rows): `test_tray_menu_drawn` 36, `test_popup_row_menu_drawn` 27, `test_tray_tipcard` 22, `test_popup_access` 21,
+  `test_tray_tip_messages` 17, `test_popup_card_still` 14, `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11, `test_popup_opening_motion` 11,
+  `test_tray_open_popup` 11, `test_popup_motion_held` 10, `test_surface_properties.TrayMenuTests` 9, `test_failure_seen.IconTests` 6,
+  `test_menu_opening_motion` 6, `test_card_focus` 5, `test_tray` 5, `test_tray_menu_no_glow` 5, `test_corners_by_design` 4, `test_tray_shape.CompositionTests` 4,
+  `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3, `test_notice_stay.CardTests` 2. Route: the pattern of
+  `test_host_icon_tick.py` - subclass the Python class, keep its bodies through `super()`, answer only its window-making hook with a HostProbe
+  call that makes the C# window unshown under `SurfaceScreen.Probe` (which records every window call instead of making it), sets the same
+  stand-ins the test patches (TrayIcon's `Ask*`, `IconRectReader`, `DemoTaken`; the menu's and popup's own seams), runs the private steps by
+  reflection and reports state. `test_corners_by_design` is drawn-like (Renderer pixels of the popup, the menu and the tip): the render
+  mode's `pixels` surface gives them.
+* **Drawn** (424 tests, 25 rows): not started; the plan proxy of S6.4's notes (record the measures under test_surface_parity's StandIn, run
+  the render mode, rebuild the reference's plan objects) is the route. The largest: `test_tray_popup` 80, `test_tray_icon_motion` 60,
+  `test_notice_card` 57, `test_tray_popup_v064` 42, `test_gui_v0623_days` 31, `test_gui_v065_taskbar` 27, `test_tray_popup_depth` 22.
+* **Scan** (39 tests, 3 rows): `test_screenshots` 34 (the pictures' manifest, digests and run tool: the main session's, B and C - it moves
+  with the pictures), `test_motion_tray_story` 4 (the tray story's frames are drawn by the UI's motion: a drawn route, not a scan),
+  `test_single_rules.PageTests` 1 (the opener, above).
+* `test_status_newest_usage.py`: a row once this branch has the v0.6.26 tests (above).
+
+### Checks
+
+```
+test_host_shape test_surface_ledger test_vocabulary test_edition_label test_tray_shape          Ran 72, OK
+test_host_card_layers / test_host_icon_tick / test_host_icon_demo (gui_lock.sh, one each)      OK 3 / 5 / 1
+test_surface_ledger test_tray_overflow_open test_host_tray_place test_host_card_layers          Ran 36, OK
+test_card_shadow_under_body, test_diagnostics_tools (the Python originals)                     OK
+CODEX_AR_CORE=rust: test_tray_tip_whole test_edition_label.TooltipTests test_app_server_surfaces.IconTests
+  test_tray_menu_fallbacks (the probe's tray_words, menu_items, icon_state through the if-chain)  Ran 13, OK
+python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26 (gui_lock.sh, detached)
+  129 ledger tests on the shim pass, the ledger and every twin home pass; no row: test_status_newest_usage.py   exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are S6.3's and Integration 11's;
+`python -X utf8 rust/tools/check_groundwork.py`: OK.
+
+### S6.4c, second part (the coordinator's go-on, 2026-11-27): where it stopped
+
+The context ran low after one more row; this is where the next seat starts. `test_tray_shape` is host: `CompositionTests`' five are the Python
+Tray's mixin composition (which class defines what, the MRO, the file of `class Tray`), `no_twin` with their reasons, naming test_host_shape's
+OneDefinitionTests and HostListTests. `test_screenshots` stays pending with the reason "moves with the pictures (main session's pass)".
+Ledger: **host 29, pending 54** (ceiling 54), python-only 1. `test_status_newest_usage.py` waits for Integration 12's merge of the final.
+
+Left, in the coordinator's order (every count is UI tests not yet held):
+1. **Window, 244 tests, 22 rows** - the `test_host_icon_tick.py` pattern. Found while reading them:
+   * `test_surface_properties.TrayMenuTests` (9): the Python `_act(MENU_*)` calls the icon's callbacks; the host's `TrayMenu.Act` (private,
+     gui/TrayMenu.cs) posts `HostActions.Toggle/OpenDashboard/Stop` through `IHostActions` instead. A probe `icon_act` (a TrayIcon with a
+     recording IHostActions, Act by reflection) and a twin that maps each posted action to the callback the test wired (OpenDashboard page
+     None = on_open, page "pending" = on_pending, Toggle(paused) = on_toggle, Stop = on_stop); `test_the_window_is_only_ever_opened_on_a_page_it_has`
+     is the opener's (step 2).
+   * `test_failure_seen.IconTests` (6): `test_a_failure_turns_the_icon_red_and_says_so_when_hovered` is already routed by the shim (icon_state,
+     tooltip: add it to host_tests), `test_every_language_says_it` is l10n only (unaffected); the other four drive the Python icon's control
+     layer, which on the port is the core's (`failure_unseen` rides the snapshot, `TrayIcon.FailureUnseen`; the seen mark is a posted action,
+     gui/TrayIcon.cs near `Actions == null || !...failures`): a probe over those two and a twin per test.
+   * the rest as listed in "What is left" above, largest first: `test_tray_menu_drawn` 36, `test_popup_row_menu_drawn` 27, `test_tray_tipcard` 22,
+     `test_popup_access` 21, `test_tray_tip_messages` 17, `test_popup_card_still` 14, `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11,
+     `test_popup_opening_motion` 11, `test_tray_open_popup` 11, `test_popup_motion_held` 10, `test_menu_opening_motion` 6, `test_card_focus` 5,
+     `test_tray` 5, `test_tray_menu_no_glow` 5, `test_corners_by_design` 4 (Renderer pixels: the render mode's `pixels` surface),
+     `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3, `test_notice_stay` 2.
+2. **Pure, 24 tests** - the Dashboard opener: a car-harness case over car-platform's `handover.rs` with a scratch stand-in for the process
+   start, then its proxy beside perform's; `test_single_rules.PageTests` with it. Not started.
+3. **Drawn, 424 tests** - the plan proxy; `test_motion_tray_story` (4) by the drawn route. Not started.
+4. `test_screenshots` (34): pending, "moves with the pictures (main session's pass)" - done.
+### S6.4d (2026-11-27): the window rows - the icon's commands, its failure, its menu
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown, nothing captured,
+nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`; the shim runs used
+`CODEX_AR_HARNESS_EXE` = a copy of `car-v0627-rust`'s `rust/target/release/car-harness.exe` (this worktree has no `rust/target`).
+
+| What | Where | State |
+|---|---|---|
+| **`icon_steps`**: a TrayIcon with no window and no shell icon (Hwnd a number, or none where the test's `_hwnd` is none), every Windows call recorded (SurfaceScreen.Probe), given the state the test set, runs a list of steps (update, refresh, select, failure_seen, unseen, act, menu, choose, native, drop_menu, popup_can_open) and reports what it posted (RecordingActions, on the calling thread), logged, recorded, and its state. What the port's icon asks the core or the test is asked back: FailureUnseen's answers in order ("raise" throws), each drawn-menu opening's answer (RecordingMenu: shown / refused / "raise"), the command Windows' menu returns (NativeChoice); a question past the answers is reported unanswered and the step run again | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`menu_keys`**, **`menu_messages`**: MenuPlan's Step/End/Letter; a MenuWindow with no window, its plan its own renderer's MenuLayout (as Open lays it out), open, its Telling recorded and its Speaking as SurfaceAccess.Attach's with the announcement recorded as the Changes it would make, driven by steps (send, visible, select, spoken, accessible) | `tests/rustdiff/HostProbe.cs` | - |
+| **`HostTray`** / **`HostMenu`**: the reference `Tray` and `Menu` as the tests drive them, over those probes. Posts go to the callback the reference would have called (toggle -> on_toggle(paused), stop -> on_stop, open_dashboard page None -> on_open, "pending" -> on_pending, failure_seen -> control.acknowledge_failure, disarm_power -> control.disarm_power_action("tray")); a post where the reference had no callback FAILS (the reference took no action there); a raising callback is the post that raised (run again with that post throwing; the host's own log lines go to the test's `log`). The test's FakeDrawn / patched `popup.Menu` answers each opening; its patched user32 is handed exactly the host's calls (CreatePopupMenu, AppendMenuW, TrackPopupMenu, DestroyMenu) and never the real one (refused if unpatched); a later `on_choose` replays the host's own opening (that moment's snapshot and answers), then the snapshot of now, then the choice. `HostMenu` replays the test's history of assignments and messages on a fresh MenuWindow per question | `tests/rustdiff/hosticon.py` | - |
+| Twins (each the Python class subclassed, bodies through `super()`, only the object made changed; MENU_* numbers the host's, held equal to the reference's) | `tests/test_host_icon_act.py` (13: TrayMenuOnHostTests 9 with the numbers check, IconOnHostTests 4), `tests/test_host_icon_menu.py` (20: Parity 3, Fallback 5, Key 2, Behaviour 10) | OK through `gui_lock.sh`, one module at a time |
+
+Ledger: **host 30** (was 29: `test_failure_seen` - 4 twins, `test_a_failure_turns...` in `host_tests` (the shim's icon_state and
+tooltip), `test_every_language_says_it` moved to `unaffected` (it reads only `l10n.catalog`)), **pending 53** (the ceiling is left at 54
+for the integration to set), python-only 1. Partly moved, still pending: `test_surface_properties` (8 of 9 TrayMenuTests twinned; the
+opener's page refusal is S6.4e's), `test_tray_menu_drawn` (20 twins + 1 routed of 37; LiveWindowTests 3 left, and PlacementTests 6,
+RightToLeftTests 1, LookTests 6 marked as the drawing's, S6.4f's). `summary.by_status` re-counted (it still said host 20 / pending 63).
+
+**Mutation checks** (each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mutate.py`): on gui/ - Act's toggle
+told `!paused`, Stop posting open_dashboard, Post's catch not logging, FailureSeen without Refresh (2 fail), Unseen's failing read red, Refresh
+telling the shell every second, Unseen with no control layer still asking, NativeMenu's grayed flag inverted, a broken drawn menu tried again,
+the menu drawn with no window, the drawn choice told `!paused`, Pending always offered in the drawn menu, DropMenu not destroying,
+MenuPlan.Step without its wrap, Letter's one match only moving (2), Home/End swapped, a press on the card closing it, WM_MOUSELEAVE keeping
+the item in hand, Close not telling MENUPOPUPEND, AccessibleItems without "hot"; on the twin's side - the pending page reaching on_open,
+separators not handed to user32, tellings not handed on: each fails its test. **Survivors**: Act offering pending with no on_pending
+survived the first run (the twin dropped a post with no callback), so such a post now fails the twin - rerun against the changed twin it
+FAILS (`TrayMenuOnHostTests.test_an_id_that_is_not_a_menu_item_does_nothing` [4]); Char's control-character guard
+removed is equivalent here (Letter strips "\r" to nothing and leaves the item in hand); `Armed()` returning null was not a valid mutant
+(unreachable code fails `-warnaserror`).
+
+### S6.4d, second part (the coordinator's go-on): the row menus' submenus
+
+* The pending-with-no-on_pending mutant, rerun against the changed twin, fails (above).
+* `menu_messages` takes `create` (the MenuWindow's own window made by Create and never shown, as `SurfaceRenderWindows.MenuWindowCase` makes it;
+  every call that would show it recorded; destroyed after each run), `owner`, `locale`, `origin`, `leave` (OnLeave only where the test gave one),
+  and a `send_child` step; each step reports the submenu (visible, selected, plan, and `entries_of`: the parent's item whose very item objects it
+  holds) and `childIndex`. `HostMenu` gains `_child` (a `HostSubmenu` view whose messages are steps of the root's history), `_child_index`,
+  `locale`, `on_leave`, and hands the host's SetForegroundWindow/SetTimer to the test's patched `menuwindow._dll` (never the real one).
+* Twins: `tests/test_host_row_menu.py` - SubmenuOnHostTests 9, RightToLeftSubmenuOnHostTests (Arabic: its own 1 and the 9 above again with the
+  arrows swapped, the reference's `Menu._key(menu, key)` answered by the host's WM_KEYDOWN); 19 tests, OK through `gui_lock.sh`.
+  `test_the_layout_is_mirrored_with_the_arrow_at_the_left` (the mirrored plan's arrow and text rectangles) is the drawing's, S6.4f's.
+* Ledger: `test_popup_row_menu_drawn` 10 of 27 twinned, still pending (Parity 4, Fallback 4, PopupFocus 1: the popup window's context
+  menu; Windows 2; the mirrored plan 1 and Placement 5: S6.4f's). Host 30, pending 53, ceiling 54.
+* Mutation checks (each alone, restored): the right-to-left arrows not swapped, no rest timer, the first item in hand when the pointer opens the
+  submenu, the popup told of a leave when the focus went back to it, a disabled item's submenu opening, the parent's item not held from the
+  child, SetForegroundWindow not handed to the test's user32: 7 fail. One survived: OpenChild without its `Select(index)` - in every path the
+  tests take the item is in hand already (the keyboard's Down, the pointer's move) or put back by the child's move; the Python tests cannot see it
+  either.
+* Re-diff after this part (11-28, `gui_lock.sh`, detached): 130 ledger tests on the shim and the ledger + every twin home (104 tests, with
+  test_host_row_menu) pass against v0.6.26; no row: test_status_newest_usage.py; exit 0. Nothing of this seat was cut off by the main
+  session's end on 11-27 (every detached log ends `exit 0`).
+
+### What is left of the window rows (per row, the route), for the next seat
+
+(After the second part: `test_popup_row_menu_drawn` 17 - its Parity/Fallback/PopupFocus 9 need a `popup_steps` probe over PopupWindow's
+ContextMenu and WM_ACTIVATE with the test's drawn menu asked back and its user32 handed the host's calls, as `icon_steps` does for the icon;
+WindowsTests 2 a MenuWindow opened in its own never-shown window; 6 are S6.4f's. `test_tray_tipcard`'s 22 are DrawTests 10 and PlaceTests
+3, the drawing's (S6.4f), and AccessibleTests 1 + CardStateTests 4: a `tip_steps` probe over TipCard (Hide(atOnce), its fade, the backstop's
+WM_TIMER with TipPointer and Monotonic stood in, WM_POWERBROADCAST) and its MSAA object through SurfaceAccess. Not started in this part: the
+context ran low after the submenus.)
+
+
+Largest first (UI tests not yet held): `test_popup_row_menu_drawn` 27 (Parity/Fallback/Submenu*: the popup's row menus are MenuWindow too;
+`menu_messages` takes submenus once its steps can open a child - `OpenChild` needs a window: a Create'd never-shown one, as
+`SurfaceRenderWindows.MenuWindowCase` makes; its PlacementTests 5 are the drawing's), `test_tray_tipcard` 22 (Place/Draw/Accessible/CardState:
+a `tip_steps` probe over TipCard as `icon_steps` is over TrayIcon), `test_popup_access` 21 (PopupWindow's accessible items and text size: a
+`popup_messages` probe), `test_tray_tip_messages` 17 (extend `icon_steps` with a recording ITrayTip and the shell's hover messages through
+TrayIcon's window procedure), `test_popup_card_still` 14, `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11, `test_popup_opening_motion` 11,
+`test_tray_open_popup` 11 (Item/Offered: `icon_steps` already has the menu and MenuPopup -> RecordingPopup.Show; the opener half of OpensTests
+is S6.4e's), `test_popup_motion_held` 10, `test_menu_opening_motion` 6 (MenuWindow's fade: `menu_messages` plus its clock and FadeStep),
+`test_card_focus` 5, `test_tray` 5 (PowerMenuTests: `icon_steps` with `power_armed` and MenuPowerOff; LiveIconTests), `test_tray_menu_no_glow` 5,
+`test_corners_by_design` 4 (Renderer pixels: S6.4f's), `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3,
+`test_notice_stay` 2, `test_tray_menu_drawn.LiveWindowTests` 3, and `test_surface_properties`' opener test (S6.4e).
+
+### Seams and notes
+
+* `hosticon.HostTray` covers the members the tests above call; another test's member is one more step name in `IconSteps` and one method
+  there. Members a test replaces on the object are honoured where the host has the seam (`_notify`, `_refresh`, `_popup_for_click`, the
+  drawn menu, user32); the rest (`_sync_motion`, `_adopt_settings`, `_theme_menu`, `_adopt_reduce_motion`) are kept and not asked (the
+  host's are off or no-ops in the probe: MenuTheming false, AdoptSettings a no-op).
+* The icon has an IHostActions where the reference had a control layer or any callback, so PopupCanOpen (Actions != null) is true for an
+  icon with callbacks and no control, where the reference's `_popup_can_open` (control is not None) is false: no twin above meets the case;
+  the live host always has both.
+* `HostMenu` reads the host's plan back through `_plan`, so where a test points is an item of the host's plan; that the host's plan is the
+  reference's is the drawing's question (S6.4f).
+
+### Checks
+
+```
+test_host_icon_act (gui_lock.sh)                                                     Ran 13, OK
+test_host_icon_menu (gui_lock.sh)                                                    Ran 20, OK
+test_surface_ledger test_tray_menu_drawn test_host_shape test_host_tray_place        Ran 80, OK
+test_surface_ledger test_failure_seen test_surface_properties (the Python originals) Ran 76, OK
+CODEX_AR_CORE=rust: test_failure_seen.IconTests.test_a_failure_turns_the_icon_red_and_says_so_when_hovered   Ran 1, OK (rustdiff_surfaceproxy)
+python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26 (gui_lock.sh, detached)   130 ledger tests on the shim and the ledger + every twin home (85) pass against the tag; no row: test_status_newest_usage.py   exit 0
+```
+No Rust, advanced or `gui/` file changed, so the Rust gates (fmt, clippy, test, deny, `check_rebuild.sh`) are S6.3's and Integration 11's;
+`python -X utf8 rust/tools/check_groundwork.py`: OK.
+### S6.4d2 (continuation, 2026-11-28): the popup's row menu and focus, the tip card's screen reader and backstop
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown (every probe
+window here is a message-only window of the probe's own, `CreateWindowExW("STATIC", ..., HWND_MESSAGE)`, destroyed after the
+run), nothing captured, nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`.
+
+| What | Where | State |
+|---|---|---|
+| **`popup_steps`**: a PopupWindow whose Hwnd is the probe's message-only window (named "popup" in the record), its actions posted to RecordingActions on the calling thread (Worker runs the work at once), given the core's popup (`core`: view, menus, read), what the test painted (`painted` rows, rtl) and its row menu (RecordingRowMenu: each opening's entries, point, owner ("popup" where it is the popup's window), click-away ("hide" where it is the popup's own `Hide`), answered in order or reported unanswered; Close/Destroy counted; its Hwnd the test's object's). Steps: visible, focus, row_menu, context (the private ContextMenu), message (the window procedure), hide, destroy, choose (an opening's chooser), leave. Per step: posted, closed, destroyed, hid (KillTimer popup 1 lines), visible, opens, made, logs, the row menu's state. **Windows' own row menu never runs**: ThemeMenu (the first thing that half does) and then Log throw WindowsMenuReached, and the run reports `windows` | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`row_menu_class`**, **`menu_arrow`**, **`menu_numbered`**: a popup whose MakeMenu makes a MenuWindow opened as WindowsTests' opening is (Create, never shown; GetClassNameW, IsWindowVisible); the host renderer's MenuLayout + DrawMenu of the row's numbered entries (light, soft, no High Contrast) and the distinct inks in the first item's arrow rectangle; MenuPlan.Numbered | `tests/rustdiff/HostProbe.cs` | - |
+| **`tip_steps`**, **`tip_access`**: a TipCard over a message-only window (OnScreen false, AskReduced from the step's `moves`, Pointer and Monotonic the test's patched tip_pointer and time.monotonic at that step), steps visible/fade/plan/screen/origin/hide/message, Visible and Fade after each; the TipSource SurfaceAccess.Attach(TipCard) answers with, in an AccessObject, asked through its own table at slots 10/13/14/8 (the table's entries are its own managed delegates, called with DynamicInvoke) | `tests/rustdiff/HostProbe.cs` | - |
+| **`HostPopup`**: the reference Popup as test_popup_row_menu_drawn drives it. The core's popup is the test's model (`model.view(now)` at the test's last `now`, `model.menu_for` per task: the same two calls car-watcher's surface field makes); each assignment and call is a step of one history replayed from the start per question; posts go to the test's `_run` as the reference's tuple (`popup {call, args}` -> (kind, *args); `open_dashboard` -> ("dashboard",) / ("dashboard_row", ...)); each opening asked back of the test's object (what make_menu made, as often as the host made one, or the `_row_menu` it set) with the host's entries, point, owner (-> the test's `hwnd`) and click-away (-> this object's `hide`); a hide the host made while handling a message goes to the test's replaced `hide`, with the closes that hide made dropped (the reference's replaced hide made none). Where the host reaches Windows' menu the twin fails | `tests/rustdiff/hostpopup.py` | - |
+| **`HostTip`**: the reference TipCard as CardStateTests drives it, every assignment and call a step replayed per question | `tests/rustdiff/hosttip.py` | - |
+| Twins | `tests/test_host_row_menu.py` (+7: ParityOnHostTests 3, FallbackOnHostTests 1 - the host icon's popup is made with `MakeMenu = () => Accessible(new MenuWindow(Log))`, a scan of gui/TrayIcon.cs -, PopupFocusOnHostTests 1, WindowsOnHostTests 2; 26 in the module), `tests/test_host_tipcard.py` (3: AccessibleOnHostTests 1, CardStateOnHostTests 2; on test_surface_ledger's HOST_SIDE: it reads the reference's MSAA constants) | OK through `gui_lock.sh`, one module at a time |
+
+Ledger: `test_popup_row_menu_drawn` 17 of 27 twinned; `test_tray_tipcard` 14 of 33 held (11 routed, 3 twins); both still pending.
+Host 30, pending 53, ceiling left at 54. `summary.on_host` (195) was not recounted by this seat.
+
+**Waiting for gui/ (the C# seat's; written in the rows' why/needs):**
+* `PopupWindow.ContextMenu` makes Windows' own row menu with `SurfaceNative.CreatePopupMenu/AppendMenuW/TrackPopupMenu/DestroyMenu`
+  directly, not through SurfaceScreen (TrayMenu.NativeMenu records them while probed). Until it does, ParityTests'
+  `test_a_choice_in_the_drawn_menu_runs_the_action_windows_menu_runs` and FallbackTests' three cannot run unrecorded; then
+  popup_steps lets that half run and HostPopup hands the recorded calls to the test's patched user32 (hosticon's `_windows_menu`).
+* `TipCard` calls `ShowWindow`, `SetTimer`, `KillTimer` and `NotifyWinEvent` directly. CardStateTests' hide at once and the
+  backstop's hide count the card's ShowWindow(SW_HIDE); once recorded, tip_steps reports them and HostTip hands them on.
+* The mirrored plan and PlacementTests 5 (row menu), PlanTests 9, DrawTests 5, PlaceTests 3 (tip card) are the drawing's (S6.4f).
+
+**Mutation checks** (21, each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut6.json`): on gui/ -
+ContextMenu's point swapped, no click-away handed over, the keyboard's point at the row's bottom, Numbered from zero, WM_ACTIVATE
+hiding with its own menu in front, Hide not closing the row menu, Dispose not destroying it, the icon's popup made with no drawn
+menu, MenuWindow's class renamed, no submenu arrow drawn, TipAway always away, the icon's margin not scaled in, a suspend kept,
+Hide leaving it visible, TipSource's role, its fixed state, its name, a child, the tooltip role's number; on the twin's side - a
+replaced hide's closes delivered too: 20 fail their test. **Survivor**: hosttip not handing the clock on - equivalent for the two
+CardState twins (the pointer never leaves in the one, the other is the power message); the clock decides only the backstop's
+hide, which waits for gui/'s ShowWindow seam.
+
+### What is left of the window rows after S6.4d2 (per row, the route)
+
+`test_popup_access` 21 (AccessibleItems 8 and ScreenReader 6: popup_steps plus the popup's AccessibleItems and SurfaceAccess's
+PopupSource, as tip_access does for the card; TextSize 4 / PopupTextSize 3: PopupWindow's Fit with AskTextScale stood in),
+`test_tray_tip_messages` 17 (icon_steps with a recording ITrayTip and the shell's hover messages through TrayIcon's window
+procedure), `test_popup_card_still` 14 (6 drawn: S6.4f), `test_gui_v0623_surfaces` 12, `test_popup_card_window` 11,
+`test_popup_opening_motion` 11, `test_tray_open_popup` 11, `test_popup_motion_held` 10, `test_menu_opening_motion` 6, `test_card_focus` 5,
+`test_tray` 5, `test_tray_menu_no_glow` 5, `test_corners_by_design` 4 (S6.4f), `test_tray_tip_header_ink` 4, `test_motion_popup` 3,
+`test_notice_click` 3, `test_notice_stay` 2, `test_tray_menu_drawn.LiveWindowTests` 3, `test_surface_properties`' opener test (S6.4e).
+Before any probe drives a window class whose Win32 calls bypass SurfaceScreen, give it a message-only window of the probe's own
+(a made-up handle number is not known to belong to no one: it may name another process's window).
+
+### Checks (S6.4d2)
+
+```
+test_host_row_menu (gui_lock.sh)                                   Ran 26, OK
+test_host_tipcard (gui_lock.sh)                                    Ran 3, OK (first run: tip_access's cast, fixed in d2209a41a)
+test_surface_ledger (wait_quiet.sh)                                Ran 7, OK (after test_host_tipcard joined HOST_SIDE)
+test_popup_row_menu_drawn, test_tray_tipcard (gui_lock.sh, each alone, the Python originals)   Ran 36 OK; Ran 33 OK
+privacy_scan.py on the new and changed files                       clean
+```
+Re-diff (11-28, `gui_lock.sh`, detached), after taking S6.4e's 090b0b70b (the bundled runtime never imports tests/sitecustomize.py,
+so every earlier "ledger tests on the shim pass" of this script, S6.4d's two included, ran on the tag's Python and was hollow):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` with `CODEX_AR_HARNESS_EXE` = a copy of car-v0627-rust's
+release car-harness.exe (this worktree has no rust/target; without it the shim's first run had 1,309 FileNotFoundError failures) -
+the shim installed: 130 ledger tests + test_surface_askback (Ran 134, OK, no skip); the ledger and every twin home (Ran 114, OK);
+no row: test_status_newest_usage.py (not this seat's: it imports the UI from v0.6.26 on and has no ledger row yet); exit 0.
+No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's.
+
+### S6.4d3 (continuation, 2026-11-28): the popup for a screen reader and at Windows' text size
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown (every probe window
+here is message-only), nothing captured, nothing pushed. Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and
+`CAR_NO_REAL_ENGINE=1`.
+
+| What | Where | State |
+|---|---|---|
+| **`popup_access`**: SurfaceAccess's pure half over JSON - `items` (AccessibleItems of a vm, a plan rebuilt from the reference's plan dict: items, targets as SurfaceTarget, rows; focus, hover, strings), `pick`, `changes`, `switch_name`, PopupPlace's `focus_order`, the event numbers | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`card_fitting`**: CardPlan.Fitting as CardWindow asks it (dpi, work or none, the snapshot's `text` of any JSON type) and CardPlan.Room | `HostProbe.cs` | - |
+| **`popup_fit`**: a PopupWindow on a message-only window with the host's own renderer (SurfaceRenderer.Open), the core's popup, a text size and a screen; steps usual / rebuild / hide / read_look / asks; after each Fit, the text size held, and whether the renderer made its fonts again (the reference counts its renderer's layouts; the host's makes its fonts again for every layout at another scale than the last, which is where a usual size measured again shows) | `HostProbe.cs` | - |
+| **`popup_reader`**: on a thread of its own in a single-threaded apartment (the probe's main thread is the runtime's multithreaded one, where SurfaceAccess.Answer leaves WM_GETOBJECT to Windows), a PopupWindow whose window is a message-only window of the probe's own class, made Per-Monitor-v2 aware as PopupWindow.Create makes its window (without it ClientToScreen scales and a box is a pixel off), every message the popup's Message; SurfaceAccess attached as the host attaches it, its Speaking wrapped to record the events it tells; shown for the keyboard, unactivated, every other Windows call recorded. The client object is fetched by the real AccessibleObjectFromWindow and asked through its table (count, name, role, state, default action, box, a hit two pixels inside, focus, one past the last), OBJID_WINDOW's object is Windows' own; steps tab, press (accDoDefaultAction) and reader (the original's PowerShell reader, no window, run while the thread pumps its questions) | `HostProbe.cs` | - |
+| Twins: AccessibleItemsOnHostTests 8 (+1: the event numbers), TextSizeOnHostTests 2, ScreenReaderOnHostTests 6, PopupTextSizeOnHostTests 3 | `tests/test_host_popup_access.py` (in test_surface_ledger's HOST_SIDE: it reads the reference's view model and patches its functions with the host's) | Ran 20, OK through `gui_lock.sh` |
+
+Ledger: `test_popup_access` 19 of 21 twinned; still pending for the two layouts (`test_everything_sits_inside_the_card_at_every_text_size_in_every_language`,
+`test_the_notification_card_is_whole_at_every_text_size`: popup.layout and notice_card.layout, the drawing - S6.4f's plan proxy routes both; on
+the integration they join `host_tests`). Host 30, pending 53, ceiling left at 54.
+
+**Mutation checks** (22, each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut7.json`, `-mut8.json`): items
+focused where the pointer is, a busy task's switch available, switch_name joined by a dash, pick taking the row before its switch, changes counting
+the pointer's hot state, changes not telling a focus move; the card's room 0.6 across, its text size not fitted, no work area not 1; Fit worked
+out at every rebuild, Fit kept across a hide, one gap instead of two, ReadLook not taking the text size, the screen not asked; the object's own
+name the state text, a switch's role 0x2D, pressing a text done, a box a pixel right, the focused child one early, the window object answered
+too, the announcement made without the keyboard's place: 21 fail their test. Invalid: `if (false)` for the focused state does not compile
+(`-warnaserror`), replaced by the pointer's version.
+
+#### S6.4d3, second row: the icon's hover words from the shell
+
+| What | Where | State |
+|---|---|---|
+| **`tip_icon`**: a TrayIcon whose window is the test's number, every Windows call recorded (Shell_NotifyIconW with flags and szTip, the timers), its drawn menu always shown, MakePopup/IconRectReader/Cursor/Monotonic the test's; the shell's NIM_SETVERSION answers (`versions`) and the cards it makes (`makes`: a RecordingTip, or the making throws) asked back in order; steps update, version4, tip (none / broken / a card of the test's, its fail mode), popup, menu_drawn, taskbar, session, message (TrayIcon.Message with the moment's clock and pointer), notify, set_version, show_tip, open_popup, tip_shows, shown. RecordingPopup and RecordingMenu gained a settable `Shown` (Visible), false as before unless set | `tests/rustdiff/HostProbe.cs` | - |
+| **`HostTipTray`**: the reference Tray as IconCase drives it, every assignment and call a step of one history replayed per question; the host's Shell_NotifyIconW (as NOTIFYICONDATAW holds szTip) and SetTimer/KillTimer handed to the test's patched `icon._dll`, the NIM_SETVERSION answer asked of it; each card's show (its box as a reader), hide, destroy handed to the test's card; a card the host makes asked of the test's patched `tipcard.TipCard` | `tests/rustdiff/hosttipicon.py` | - |
+| Twins: ShowOnHostTests 3, HideOnHostTests 2, FlagOnHostTests 3, FallbackOnHostTests 2, SilentShellOnHostTests 4 (the originals' bodies through `super()`, the reference Tray patched to HostTipTray for setUp only) | `tests/test_host_tray_tip_messages.py` | Ran 14, OK through `gui_lock.sh` (110 probe questions) |
+
+Ledger: `test_tray_tip_messages` 14 of 17 twinned, still pending: `ShowTests.test_the_first_rest_makes_the_card_with_what_the_tooltip_says`
+(what the card is made with is not seen: ShowTip makes `new TipCard(TipContent, PopupHeld, Log, Days)` itself and MakeTip replaces the making
+whole - a gui/ MakeTip that takes those three would), LiveCardTests 2 (the real card shown off the screen: TipCard's ShowWindow and timers are
+user32's directly). Host 30, pending 53, ceiling 54.
+
+**Mutation checks** (13, each alone through `gui_lock.sh`, restored; `scratchpad/car-v0627-s64d-mut9.json`, `-mut10.json`, `-mut11.json`): on
+gui/TrayIcon.cs - NIF_SHOWTIP inverted, the anchor read unsigned, the leave hiding at once, three silent visits, a resting pointer not counted,
+shown over the popup, SetVersion not dropping the flag after, TipGone not telling the shell, the word keeping the fallback, the icon's end not
+destroying the card; on the twin's side - hides not handed on, the shell's version answer taken as yes: 12 fail their test. Invalid: a first
+"TipGone not telling the shell" written as `Hwnd = Hwnd` does not compile (`-warnaserror`), rewritten as the Notify removed.
+
+### What is left of the window rows after S6.4d3 (per row, the route)
+
+`test_popup_card_still` 14 (AloneTests 6 and StillTests 5 hand the host's plan to drawing and stills: the drawing's, S6.4f's render serve;
+ShadowLayerTests 2, RecipeTests 1: the card's shadow layer and recipe, a probe over CardLayers), `test_gui_v0623_surfaces` 12 (PopupPressTests 6:
+popup_steps with presses and the seventh press; the rest drawn), `test_popup_card_window` 11 (CardWindow's messages: a probe as popup_steps is
+for PopupWindow), `test_popup_opening_motion` 11, `test_tray_open_popup` 11 (Item/Offered: icon_steps' menu and MenuPopup; OpensTests half is
+S6.4e's opener), `test_popup_motion_held` 10, `test_menu_opening_motion` 6 (MenuWindow's fade: menu_messages with its clock), `test_card_focus` 5,
+`test_tray` 5 (PowerMenuTests: icon_steps with power_armed and MenuPowerOff; LiveIconTests), `test_tray_menu_no_glow` 5,
+`test_corners_by_design` 4 (S6.4f), `test_tray_tip_header_ink` 4, `test_motion_popup` 3, `test_notice_click` 3 and `test_notice_stay` 2 (CardStack's
+clicks and holds on windows of its own: CardMotion is S6.4f's replay, the stack a probe with message-only windows), `test_tray_menu_drawn.LiveWindowTests` 3,
+`test_surface_properties`' opener test (S6.4e), and the first rest and live card of `test_tray_tip_messages` (gui/ seams above).
+
+### Checks (S6.4d3)
+
+```
+test_host_popup_access (gui_lock.sh)                               Ran 20, OK
+test_host_tray_tip_messages (gui_lock.sh)                          Ran 14, OK
+test_surface_ledger (wait_quiet.sh)                                Ran 7, OK (after test_host_popup_access joined HOST_SIDE and its
+                                                                   inherited twins were named in its own file)
+privacy_scan.py on the new and changed files                       clean
+```
+Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad copy of car-v0627-rust's release car-harness.exe):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` - the shim installed: 130 ledger tests + test_surface_askback
+(Ran 134, OK); the ledger and every twin home (Ran 148, OK: 114 before, + 20 + 14); no row: test_status_newest_usage.py; exit 0.
+No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
+
+### S6.4d4 (continuation, 2026-11-28): the popup's shadow window and seventh press, the icon's popup item and power item
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; no window shown (no probe here makes
+a window at all: CardLayers is given none, the popup's Hwnd is none), nothing captured, nothing pushed. Every run kept
+`CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`.
+
+| What | Where | State |
+|---|---|---|
+| **`card_shade`**: one host renderer (SurfaceRenderer.Open) and one CardLayers with no shadow window over a history of steps - `draw` (the look set, the vm laid out and drawn with PopupMotion.Halo's first frame), `shade` (the same, then CardLayers.Shade), `drop` (CardLayers.Dispose: the host's one release of its shadow images, where the reference has `_drop_images`) - answering the canvas, the card, the picture and its margin, the images kept and the GDI+ objects alive past the run's start | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`float_recipe`**: SurfaceLayers.FloatShadows(theme, design) and FloatReach(shadows, scale) | `HostProbe.cs` | - |
+| **`popup_press`**: a PopupWindow with no window (Update and SyncFrames reach nothing, every Windows call recorded besides) given reduced, contrast, visible, the painted plan's items and the strings; steps press (the private TitlePressed), set_aside (AsideFrom), aside_words (the private AsideWords with the step's clock as Monotonic); ops `layout` (the host renderer's items and targets) and `hit` (PopupPlace.HitTest) | `HostProbe.cs` | - |
+| `icon_steps` gains the `popup_failed` state (TrayIcon.PopupFailed) and a `power_armed` step (TrayMenu.Armed); `HostTray` hands `_popup_failed` on, gains `_power_armed`, and hands the disarm post to `disarm_power_action(actor="tray")` as the reference calls it | `HostProbe.cs`, `tests/rustdiff/hosticon.py` | the icon twins rerun: icon_act 13, icon_menu 20, tray_tip_messages 14 OK |
+| Twins: ShadowLayerOnHostTests 2 + RecipeOnHostTests 1 (the popup's float shadows the host's, held equal to the reference card's) | `tests/test_host_popup_card_still.py` (HOST_SIDE) | Ran 3, OK through `gui_lock.sh` |
+| PopupPressOnHostTests 6 (the hidden.py rule over PopupWindow's "seventh press" members, read from gui/host.sources' [surface] files) | `tests/test_host_popup_press.py` (HOST_SIDE) | Ran 6, OK |
+| ItemOnHostTests 3 + OfferedOnHostTests 2 (the reference's icon with no control layer is the host's with no IHostActions: on the host every callback is a post through it) | `tests/test_host_tray_open_popup.py` | Ran 5, OK |
+| PowerMenuOnHostTests 4 (the strings the core would send - its "surfaces"/"strings" events - stand in from the test's stored language) | `tests/test_host_tray_power.py` (HOST_SIDE) | Ran 4, OK |
+
+Ledger: `test_popup_card_still` 3 of 14 twinned (AloneTests 6, StillTests 5: the render serve's draw/pixels/card_still, S6.4f),
+`test_gui_v0623_surfaces` 6 of 12 (PopupSweepDrawnTests 4, TaskbarTests 2: S6.4f), `test_tray_open_popup` 7 of 13 (OpensTests 6:
+S6.4e's opener), `test_tray` 9 of 10 (LiveIconTests 1: the live-window route). All four still pending; host 30, pending 53, ceiling
+left at 54; `summary.on_host` not recounted (the integration's).
+
+**Mutation checks** (29, each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut12.json`, `-mut13.json`,
+`-mut13b.json`, `-mut14.json`): on gui/ - Shade not cutting the card out, FloatReach a pixel further, the layers' end keeping its images,
+the popup floating one shadow fewer, six presses starting it, a 0.8 s gap, reduced motion still sweeping, the sentence a second longer,
+a press right of the title counted, the seventh press logging, the title a target in the layout, a broken popup still offered, the popup's
+command 7, the letter staying on the item in hand, Windows' menu leaving the popup out, the power item before Pause, the power item
+always saying sleep, choosing it posting nothing, the power command 8; on the twin's side - the broken popup not handed on, the strings
+not the stored language's: 26 fail their test. **Survivors** (equivalent here): StampShadows keeping images it no longer uses (one theme
+and scale in the test: the mask key never changes, so nothing goes unused - the reference test cannot see it either); the popup item
+inserted before Open Dashboard in MenuItems (the twins hand the reference's items to NativeMenu; MenuItems' order is held by the routed
+ItemTests over the host's `menu_items`); PowerWord believing an unknown action (MenuItems checks PowerOffWords again).
+
+A note for the main session: the first run of test_host_popup_card_still asked the probe once a pixel (the test reads
+`layer.picture.width` inside its comprehension) and held the GUI lock for about 8 minutes before it was stopped (its python, started
+by this seat, was ended; two queued agents then ran). HostLayer now keeps one answer per history.
+
+### What is left of the window rows after S6.4d4 (per row, the route)
+
+`test_popup_card_window` 11 (CardWindowTests: real top-level layered windows - the card owned by its shadow, styles, owner, rects,
+regions, IsWindowVisible, the opening's alphas, the refusal's plain window. The originals make real popups far off every screen; a
+twin needs PopupWindow.Create's two windows, i.e. windows made, which this seat's no-window rule does not allow - the recorded half
+(the dirty rows of a light frame, a whole frame's source and size, the opening's alphas only rising, the refusal falling back to the
+plain window) can run on `popup_steps`-style message-only windows with CardLayers given one more message-only window and every
+SurfaceScreen.Update recorded; the window-geometry half needs the owner's word or the live-window route), `test_popup_opening_motion` 11,
+`test_popup_motion_held` 10, `test_menu_opening_motion` 6 (MenuWindow's fade: `menu_messages` with its clock), `test_card_focus` 5,
+`test_notice_click` 3 and `test_notice_stay` 2 (CardStack on message-only windows), `test_tray_menu_drawn.LiveWindowTests` 3 and
+`test_tray.LiveIconTests` 1 (the live icon), `test_tray_open_popup.OpensTests` 6 and `test_surface_properties`' opener test (S6.4e),
+the first rest and live card of `test_tray_tip_messages` and the tip card's two hides (gui/ seams, S6.3e). Read as the drawing's, for
+S6.4f: `test_tray_menu_no_glow` 5 (the menu's pixels round and inside its card, and a source rule of the renderer),
+`test_tray_tip_header_ink` 4 (where the tip card's light, pill and name stand: its plan), `test_motion_popup` 3 (the motion
+generator's plan), `test_corners_by_design` 4.
+
+### Checks (S6.4d4)
+
+```
+test_host_popup_card_still (gui_lock.sh)                            Ran 3, OK
+test_host_popup_press (gui_lock.sh)                                 Ran 6, OK
+test_host_tray_open_popup (gui_lock.sh)                             Ran 5, OK
+test_host_tray_power (gui_lock.sh)                                  Ran 4, OK
+test_host_icon_act, test_host_icon_menu, test_host_tray_tip_messages (gui_lock.sh, one at a time, after hosticon changed)   13, 20, 14 OK
+test_surface_ledger (wait_quiet.sh)                                 Ran 7, OK
+privacy_scan.py on the new and changed files                        clean
+```
+Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad copy of car-v0627-rust's release car-harness.exe):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` - the shim installed: 130 ledger tests + test_surface_askback
+(Ran 134, OK); the ledger and every twin home (Ran 166, OK: 148 before, + 3 + 6 + 5 + 4); no row: test_status_newest_usage.py; exit 0.
+No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
+
+### S6.4d5 (continuation, 2026-11-28): the popup's own real windows, its opening and gates, the drawn menu's fade
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; nothing captured, nothing pushed.
+Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`. **Windows shown:** by the main
+session's answer to S6.4d4 (2026-11-28), the card window and opening twins make the host's PopupWindow with its own real windows
+(PopupWindow.Create: the card and its shadow, top-level layered windows) exactly as the Python originals make theirs - shown at
+(-32000, -32000) with SW_SHOWNOACTIVATE, never activated, destroyed in the test's teardown (and with the probe process at the
+latest), every run inside `gui_lock.sh`, never a dialog. Nothing else shown: the gates and the menu's fade run in SurfaceScreen's
+probe mode with no window or the reference test's number.
+
+| What | Where | State |
+|---|---|---|
+| **`popup_live`**: one PopupWindow made by its own Create, KEPT between questions (ops new / do / end) on a thread of its own in a single-threaded apartment that peeks (PM_NOREMOVE) between questions and runs Windows' messages only inside a step, as the reference's test thread does only when it pumps. A window's handle is the same in every process, so the originals' own user32 calls (styles, owner, class style, rectangles, region, IsWindow, IsWindowVisible, SendMessageW) read and reach the host's windows unchanged. Each question carries the look the test's patched questions answer (high_contrast, reduced_motion, text_scale, effective_theme, design_setting, held) and the test's clock (the popup's Monotonic is the test's time.monotonic, frozen at a frame's or a render's own instant). Steps: show, hide, destroy, read_look, invalidate, push, update, static_dirty, hover/pressed by target index, message, snapshot, record (SurfaceScreen's probe mode from then on: the calls recorded and not made, what it posts and its frame and tick timers delivered when the test pumps), pump, screen (a fixed PopupScreen), refuse (the shadow window made non-layered, so UpdateLayeredWindowIndirect fails), hit, client_offset, render (first pixel; where the test wraps the renderer's draw, FaceGlides at the render's instant, as Render reads it first, and whether Render drew whole), access (SurfaceAccess's items and accLocation through AccessibleObjectFromWindow on the host's window), openings (each opening frame as motion.opening answered it, read around the host's own frame), kept (the window's procedure is the delegate the popup holds) | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`HostCardPopup`**, `HostAccessible`: the reference Popup as the window tests drive it over `popup_live`; the layers' update records as (hwnd, keywords); a recorded SetLayeredWindowAttributes handed to the test's patched `messages._dll` only | `tests/rustdiff/hostcardwindow.py` | - |
+| **`popup_gate`**: a replay over a PopupWindow with no window (set visible / reduced / still / contrast / light+scene (the host keeps the light it drew, `state`) / frame_running / state_age / switches / held / presses; steps sync (the frame timer's SetTimer and KillTimer counted), frame, follow, title_press, ask_still); **`icon_held`**: TrayIcon.PopupHeld with the session and battery saver stood in | `HostProbe.cs` | - |
+| **`menu_fade`**: a replay over a MenuWindow whose window is the number 900 in probe mode, its clock the test's ms, its picture drawn once and marked so a step that draws again is seen (appear, close quietly or not, the fade's WM_TIMER, visible) | `HostProbe.cs` | - |
+| Twins: CardWindowOnHostTests 11 | `tests/test_host_popup_card_window.py` | Ran 11, OK through `gui_lock.sh` |
+| WindowOnHostTests 6 (the kept-alive test in the host's terms: the procedure Windows calls is the popup's own delegate while its window exists, and the window goes with it) | `tests/test_host_popup_opening_motion.py` | Ran 6, OK |
+| WindowOnHostTests 1 (a SendMessageW from the test reaches the host's window for real, the look handed over first), GateOnHostTests 7 (the ask-still test also holds the host's own source rule: ReadLook's `Still = AskStill();`, the tick's `Still = AskStillNow();`), IconReadingOnHostTests 2 (plus gui/TrayIcon.cs's popup made with PopupHeld and PopupHeld's reading) | `tests/test_host_popup_motion_held.py` (HOST_SIDE) | Ran 10, OK |
+| FadeOnHostTests 4, ReducedFadeOnHostTests 4, ContrastFadeOnHostTests 4 | `tests/test_host_menu_opening_motion.py` | Ran 12, OK |
+| **`card_focus`**: CardStack.FocusLine, its private Plain, FocusSnapshot (this machine's front window, read only, as the original reads it), and a replay whose Focus answers the test's answers in order (asked back of the test one at a time; "raise" throws): after (FocusAfterNow), and with `create` a CardStack made by its own Create (its window message-only) in probe mode - card windows made, never shown - show and message. **`card_stack`**: the same stack with its actions posted to RecordingActions and its worker inline: show (the core's `notice` event: notice_card.view, title, stays, letters), message to a card's body window, tick, hold; per card: on the stack, the view's click and actions, size, targets, phase. **`card_motion`**: CardMotion's frame, gone, wait, pause, retire (an endless hold sent as "inf") | `HostProbe.cs` | - |
+| FocusLineOnHostTests 4, SecondLookOnHostTests 1 (the test module's `stack` and `win32` the host's) | `tests/test_host_card_focus.py` (HOST_SIDE) | Ran 5, OK |
+| CardClickOnHostTests 3 (test_notice_click), CardStayOnHostTests 2 (test_notice_stay; notice_window.CardStack and notice_card.CardMotion the host's) | `tests/test_host_notice_cards.py` (HOST_SIDE) | Ran 5, OK |
+
+Ledger: `test_popup_card_window` **host** (11 of 11), `test_popup_motion_held` **host** (10 of 10); `test_popup_opening_motion` 6 of
+11 (ArithmeticTests 3, FaceDrawnTests 2: the drawing, S6.4f), `test_menu_opening_motion` 7 of 8 (ReducedFadeTests' three tests counted
+as the UI tests they are: ui_tests 8, unaffected 0; WindowTests 1 left); `test_card_focus` **host** (5 of 5), `test_notice_click`
+**host** (3 of 3), `test_notice_stay` **host** (2 of 2). **Host 35, pending 48** (the ceiling stays 54 for the integration to set).
+
+**Mutation checks** (each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut15.json` .. `-mut18.json`):
+on gui/ - the shadow window without WS_EX_TRANSPARENT, a light frame's dirty rows a row too far, the opening's first picture not
+see-through, Plain keeping WS_EX_LAYERED, the layers' end keeping the shadow window, the shadow a pixel right, the taskbar gap SPACING
+xs, Hide leaving the shadow shown, the opening's rise a pixel lower, the opening on the light's frames, Hide not ending the opening, a
+face taking twice its time, the tick not asking held again, the light breathing while held, the day scene moving while held, the light
+drawn moving while held, a switch gliding while held, the sweep while held, a failing held question holding, the icon's reading
+forgetting a disconnected session, a held popup keeping its frame timer, the menu opening a little opaque, the fade's timer never
+stopped, a fading-out menu taking clicks, a fade frame drawing again, a refused opening fading out, High Contrast fading in, the
+faded-out menu never hidden, no change still a line, a failing focus look thrown on (an ERROR: the probe's ask-back relies on
+FocusNow's catch), a class name of 7 letters other, a title with spaces reaching the log, the look before taken from the last card, a
+click on the face opening nothing, a button opening the next button's page, a right click opening the face's page, a clicked card
+staying, a notice that stays running out, an endless hold asking for a timer (`-mut19.json`, `-mut20.json`); on the twin's side - the
+reader asked for the next child, the record's dirty dropped, a refused upload not handed on: **42 fail their test.** Survivors
+(equivalent): a face started while held (FaceGlides' `Holds() ? null`, twice) - SyncFrames clears every face while held right after
+(`if (Holds() && (Opening != null || Faces.Count > 0))`), the reference the same; a second focus timer finding the look again
+(`focusBefore` kept) - its second look asks Focus, the test's answers are spent, the question fails and FocusNow says nothing, exactly
+as the reference's `_focus_now` does with the same mutation; the Python tests cannot see either. Invalid: `Still = Still;` does not
+compile (`-warnaserror`), rewritten as `Still = false;` (caught).
+
+### What is left of the window rows after S6.4d5 (per row, the route)
+
+`test_menu_opening_motion.WindowTests` 1 (a MenuWindow made by its own Create and kept on a pumping thread as `popup_live` keeps the
+popup, shown unactivated at (-32000, -32000) - needs the main session's word for a real menu window, the same rule as the card's;
+its fade's steps read around its own frames as `openings` are), `test_tray_menu_drawn.LiveWindowTests` 3 (a real MenuWindow shown
+off every screen and read by the test's own AccessibleObjectFromWindow across processes: the kept thread must then RUN messages between
+questions, not only peek, for COM's cross-apartment calls - a `menu_live` beside `popup_live` with a pumping idle loop) and
+`test_tray.LiveIconTests` 1 (the host's TrayIcon started for real - its window, NIM_ADD with the scratch .ico, its tooltip after an update
+read as LastTip, stopped and its thread ended; the main session allowed both live-icon routes under the card window's rule), `test_tray_open_popup.OpensTests` 6 and `test_surface_properties`' opener test
+(S6.4e), the first rest and live card of `test_tray_tip_messages` and the tip card's two hides (gui/ seams, S6.3e). The drawing's
+(S6.4f): `test_popup_opening_motion` ArithmeticTests 3 + FaceDrawnTests 2, `test_tray_menu_no_glow` 5, `test_tray_tip_header_ink` 4,
+`test_motion_popup` 3, `test_corners_by_design` 4.
+
+### Checks (S6.4d5)
+
+```
+test_host_popup_card_window (gui_lock.sh)                         Ran 11, OK
+test_host_popup_opening_motion (gui_lock.sh)                      Ran 6, OK
+test_host_popup_motion_held (gui_lock.sh)                         Ran 10, OK
+test_host_menu_opening_motion (gui_lock.sh)                       Ran 12, OK
+test_host_card_focus (gui_lock.sh)                                Ran 5, OK
+test_host_notice_cards (gui_lock.sh)                              Ran 5, OK
+test_surface_ledger (wait_quiet.sh)                               Ran 7, OK (after test_host_popup_motion_held, test_host_card_focus and
+                                                                  test_host_notice_cards joined HOST_SIDE)
+privacy_scan.py on the new and changed files                      clean
+```
+Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad copy of car-v0627-rust's release car-harness.exe):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` - the shim installed: 130 ledger tests + test_surface_askback
+(Ran 134, OK); the ledger and every twin home (Ran 215, OK: 166 before, + 11 + 6 + 10 + 12 + 5 + 5); no row: test_status_newest_usage.py;
+exit 0. No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
+
+### S6.4d6 (continuation, 2026-11-28): the drawn menu's real window, a screen reader across processes, the icon started for real
+
+Writes only `tests/` and this section; nothing in `gui/`, `src/`, `build/` or `rust/` changed; nothing captured, nothing pushed.
+Every run kept `CODEX_AUTO_RESUME_CODEX_EXE` at a missing path and `CAR_NO_REAL_ENGINE=1`. **Shown:** by the main session's rule for
+these three (2026-11-28), each twin shows what its Python original shows, exactly as the original does: the host's real menu
+window, put at (-32000, -32000) by the test's own UpdateLayeredWindow and ShowWindow(SW_SHOWNOACTIVATE), never activated, destroyed
+in the test's own cleanup; the host's real notification-area icon (NIM_ADD with the repository's .ico, NIM_DELETE as its window
+goes in the test's own `finally: icon.stop()`, and the twin's teardown stops any icon still up). Every run inside `gui_lock.sh`,
+never a dialog, no focus or foreground change.
+
+| What | Where | State |
+|---|---|---|
+| **`menu_live`**: ONE MenuWindow made by its own Create (a real top-level layered window), SurfaceAccess.Attach'd as the icon's menu is, KEPT between questions (ops new / do / end) on a thread of its own in a single-threaded apartment. With `running` (the screen reader's tests) that thread RUNS Windows' messages between questions (PM_REMOVE + dispatch, every 2 ms), so the test's own AccessibleObjectFromWindow and every call on the object it gets reach the host's window across processes (COM's calls into an STA come as messages); otherwise it only peeks between questions and runs messages inside a `pump` step, as `popup_live` does. Steps: entries, strings, plan (the host renderer's MenuLayout of the same entries, scale and locale, no width cap as the reference's None), origin, theme, contrast, visible, appear, push, close, pump. Each question carries the test's `menuwindow.look.reduced_motion()` (AskReduced). Each fade frame (WM_TIMER FadeTimer) is read around its dispatch at the frame's own instant (the menu's Monotonic held there): [way, elapsed from FadeStep's own fadeStarted, alpha, below, arrived]; a fade out that arrived is hidden, which puts Alpha back to 255 (Hide), so that one step's alpha is PopupMotion.Closing's own answer at the same elapsed and value. The state: hwnd, alpha, below, fade, visible, every choice (OnChoose), logs, frames | `tests/rustdiff/HostProbe.cs` | compiled by `surfacehost.py` |
+| **`icon_live`**: the host's TrayIcon started for real on a thread of its own (STA), as the reference's Tray.start runs its window and loop on one: Create (its hidden window, NIM_ADD from the test's .ico, the version, the tick, the session watch, the frames built off the thread), then GetMessage until the window's WM_DESTROY calls `Ended` (PostQuitMessage, where the reference's loop ended); `start` waits 5 s as Tray.start does and answers whether the window was made; `update` is TrayIcon.Update; `stop` is TrayIcon.Stop (WM_CLOSE) and a 5 s join as Tray.stop does; `read` gives LastTip and whether the thread is alive | `HostProbe.cs` | - |
+| `HostLiveMenu` (the reference `popup.Menu` over `menu_live`: its frames handed to the test's `recorded("opening")`/`("closing")` lists in the reference's words, a choice to its `on_choose`), `HostLiveTray` (the reference `tray.Tray` over `icon_live`) | `tests/rustdiff/hostlive.py` | - |
+| WindowOnHostTests 1 (`popup.Menu` the host's; the test's `pump` runs the host's menu thread for the same time; its `recorded` lists the host's frames) | `tests/test_host_menu_opening_motion.py` | Ran 13, OK through `gui_lock.sh` |
+| LiveWindowOnHostTests 3 (`popup.Menu` the host's with `running`; the test's `call` asks the host's menu how it is after each call on the reader's object, so a choice made in the call reaches `on_choose` before the test looks) | `tests/test_host_menu_live.py` | Ran 3, OK |
+| LiveIconOnHostTests 1 (`tray.Tray` the host's live icon) | `tests/test_host_tray_live.py` | Ran 1, OK |
+
+Ledger: `test_menu_opening_motion` **host** (8 of 8), `test_tray` **host** (10 of 10); `test_tray_menu_drawn` 24 of 37 (23 twins + 1
+routed; LiveWindowTests 3 twinned; PlacementTests 6, RightToLeftTests 1, LookTests 6 are the drawing's, S6.4f). **Host 37, pending 46**
+(the ceiling stays 54 for the integration to set; `summary.on_host` is left as the earlier seats left it).
+
+**Mutation checks** (each alone through `gui_lock.sh`, restored byte for byte; `scratchpad/car-v0627-s64d-mut21.json`, `-mut22.json`):
+`menu_live`, the fade - the opening's clock 40 ms ahead, the opening setting no frame timer, the faded-out window never hidden by
+Windows, the fade out at twice the speed, every close hiding at once, the probe's frame never saying arrived; `menu_live`, the screen
+reader - the menu's object a dialog, its default action on the next item, the object unnamed, no items, a choice leaving the menu
+open; `icon_live` - the icon's end not told (`Ended`), Update dropping the snapshot, the probe's loop never ending, the shell's text
+kept on one line, the start failing after the window is made, Paused said by another key: **17 fail their test.** Survivors
+(equivalent for the test): the tick not handing the shell a changed text, and no tick timer at all - the frame table built off the
+thread comes back within a few hundred ms of Create and FramesBuilt's Refresh hands the shell the new text (its first frame key is a
+change), before the first tick; the reference does the same (animation.py `_frames_built` -> `_refresh`), so the original cannot see
+either.
+
+### What is left of the window rows after S6.4d6 (per row, the route)
+
+None of the window rows' live tests is left to this seat. Still pending and not this seat's: `test_tray_open_popup.OpensTests` 6 and
+`test_surface_properties`' opener test (S6.4e, the Dashboard opener); the first rest and live card of `test_tray_tip_messages` and the
+tip card's two hides (gui/ seams, S6.3e); the drawing's (S6.4f): `test_tray_menu_drawn` PlacementTests 6, RightToLeftTests 1,
+LookTests 6, `test_popup_opening_motion` ArithmeticTests 3 + FaceDrawnTests 2, `test_tray_menu_no_glow` 5, `test_tray_tip_header_ink` 4,
+`test_motion_popup` 3, `test_corners_by_design` 4.
+
+### Checks (S6.4d6)
+
+```
+test_host_menu_opening_motion (gui_lock.sh)                       Ran 13, OK
+test_host_menu_live (gui_lock.sh)                                 Ran 3, OK
+test_host_tray_live (gui_lock.sh)                                 Ran 1, OK
+test_surface_ledger (wait_quiet.sh)                               Ran 7, OK (after each row)
+privacy_scan.py on the new and changed files                      clean
+```
+Re-diff (11-28, `gui_lock.sh`, detached, `CODEX_AR_HARNESS_EXE` = the scratchpad copy of car-v0627-rust's release car-harness.exe):
+`python -X utf8 tests/rustdiff/rediff_ui_tests.py --reference v0.6.26` - the shim installed: 130 ledger tests + test_surface_askback
+(Ran 134, OK); the ledger and every twin home (Ran 220, OK: 215 before, + 1 + 3 + 1); no row: test_status_newest_usage.py; exit 0.
+No Rust, advanced or `gui/` file changed, so the Rust gates are S6.3's and the integration's; `check_groundwork.py`: OK.
+
 ## Seat S7.4: the measurement harness, `measure.py` + `evidence.py` (branch `car-v0627-s74`, 2026-11-27)
 
 The owner's Q2 (a): ported to car-adv and proved equal to the **v0.6.26 final** over the tests' kind of fakes only.

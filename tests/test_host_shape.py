@@ -222,5 +222,125 @@ class ReachTests(unittest.TestCase):
         self.assertEqual(sorted(set(used) - allowed), [])
 
 
+def rust(name: str) -> str:
+    """A Rust source of the port, without its comments."""
+    text = (ROOT / "rust" / name).read_text(encoding="utf-8")
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def rust_words(text: str, constant: str) -> tuple[str, ...]:
+    """The words of `pub const <constant>: [&str; N] = [...]`, in order."""
+    found = re.search(r"pub const %s: \[&str; (\d+)\] = \[(.*?)\];" % constant, text, re.S)
+    if found is None:
+        raise AssertionError("no %s in the source" % constant)
+    words = tuple(re.findall(r'"([^"\\]*)"', found.group(2)))
+    if len(words) != int(found.group(1)):
+        raise AssertionError("%s says %s words and has %d" % (constant, found.group(1), len(words)))
+    return words
+
+
+class EditionTwinTests(unittest.TestCase):
+    """Twins of tests/test_edition_label.py's rules that name the icon's unnamed edition (`tray.UNNAMED_EDITION`) or read
+    the Python icon's source: the panel's heading and the Dashboard's version line name no edition where the host's icon
+    names none (gui/TrayWords.cs `UnnamedEdition`), and the watcher hands the host's icon the edition that runs, which every
+    tooltip it makes is given."""
+
+    @staticmethod
+    def unnamed() -> str:
+        found = re.search(r'internal const string UnnamedEdition = "([^"]*)";', code(source("gui/TrayWords.cs")))
+        if found is None:
+            raise AssertionError("gui/TrayWords.cs has no UnnamedEdition")
+        return found.group(1)
+
+    def test_the_hosts_unnamed_edition_is_the_standard_edition_the_core_shows(self):
+        from codex_auto_resume import edition
+        from codex_auto_resume.domain.plug import NULL, Edition
+        self.assertEqual(self.unnamed(), str(Edition.STANDARD))
+        self.assertEqual(edition.shown(NULL), self.unnamed())
+
+    def test_the_panels_heading_names_no_edition_where_the_hosts_icon_names_none(self):
+        script = source("src/codex_auto_resume/mcp/assets/panel.js")
+        heading = script[script.index("function renderHero("):]
+        heading = heading[:heading.index("var line = ")]
+        self.assertIn("var named = status.edition && status.edition !== '%s';" % self.unnamed(), heading)
+        self.assertIn("if (named) eyebrow.appendChild(element('span', 'edition', "
+                      "t('edition.' + status.edition, status.edition)));", heading)
+
+    def test_the_dashboards_version_line_names_no_edition_where_the_hosts_icon_names_none(self):
+        window = guiscan.whole()
+        method = guiscan.member_body("SettingsForm", "ShowVersion")
+        self.assertIn('private const string UnnamedEdition = "%s";' % self.unnamed(), window)
+        self.assertIn("bool named = !string.IsNullOrEmpty(edition) && edition != UnnamedEdition;", method)
+        self.assertIn('named ? S("edition." + edition, edition) : null', method)
+
+    def test_the_watcher_hands_the_hosts_icon_the_edition_that_runs(self):
+        """Twin of TooltipTests.test_the_watcher_hands_its_icon_the_edition_that_runs: the core's surfaces event carries
+        `edition.shown(plug)`, the host's pump hands it to the icon, and every tooltip the icon makes is given it."""
+        app = rust("crates/car-watcher/src/app.rs")
+        self.assertIn("let edition = car_policy::plug::edition::shown(&self.plug);", app)
+        events = rust("crates/car-watcher/src/events.rs")
+        self.assertIn('("edition", Value::from(edition)),', events)
+        self.assertIn('Edition = Text(found, "edition"),', code(source("gui/HostPump.cs")))
+        self.assertIn("tray.Edition = surfaces.Edition;", code(source("gui/HostSurfaces.cs")))
+        icon = code(source("gui/TrayIcon.cs"))
+        calls = icon.count("TrayWords.Tooltip(") + icon.count("TrayWords.TooltipParts(")
+        self.assertGreaterEqual(calls, 2)
+        self.assertEqual(calls, icon.count("Now(), Edition)"))
+        self.assertEqual(icon.count("TrayWords.TooltipParts("), 1)
+
+
+class VocabularyTwinTests(unittest.TestCase):
+    """Twin of tests/test_vocabulary.py's three UI lists (ListTests' frozen members, HomeTests' homes and the attention
+    overlays beside `Overlay`): the port's own lists - car-surface's popup model (STATES, ATTENTION_OVERLAYS) and the
+    host's icon (gui/TrayMotion.cs IconStates) - have the members the Python UI's had, by the same digest."""
+
+    def test_the_ports_lists_are_the_vocabularys(self):
+        import test_vocabulary as vocabulary
+        v = vocabulary.v
+        model = rust("crates/car-surface/src/popup/model.rs")
+        icon = re.search(r"internal static readonly string\[\] IconStates = \{(.*?)\};", code(source("gui/TrayMotion.cs")),
+                         re.S)
+        self.assertIsNotNone(icon)
+        port = {"ui.tray.ICON_STATES": tuple(re.findall(r'"([^"\\]*)"', icon.group(1))),
+                "ui.popup.STATES": rust_words(model, "STATES"),
+                "ui.popup.ATTENTION_OVERLAYS": frozenset(rust_words(model, "ATTENTION_OVERLAYS"))}
+        for name, value in port.items():
+            with self.subTest(name):
+                kind, members = vocabulary.shape(value)
+                self.assertEqual((kind, len(value), vocabulary.digest(members)), vocabulary.LISTS[name],
+                                 "its members are now %s" % sorted(members))
+        self.assertEqual(port["ui.popup.STATES"], tuple(v.ActivityState))
+        self.assertEqual(port["ui.tray.ICON_STATES"], tuple(v.IconState))
+        self.assertLessEqual(port["ui.popup.ATTENTION_OVERLAYS"], set(v.Overlay))
+
+
+class HandoverTwinTests(unittest.TestCase):
+    """Twin of tests/test_tray_reuses_window.py WindowSideTests' "the mark and the answer are the same on both sides": the
+    Dashboard's WM_COPYDATA mark and answer are the ones the port's hand-over (car-platform/src/handover.rs) sends and
+    takes, as they were win/handover.py's."""
+
+    def test_the_mark_and_the_answer_are_the_same_on_both_sides(self):
+        window = guiscan.type_body("SettingsForm", "gui/WindowReopen.cs")
+        handover = rust("crates/car-platform/src/handover.rs")
+
+        def constant(name):
+            found = re.search(r"internal const (?:int|long) %s = (0x[0-9A-Fa-f]+);" % name, window)
+            self.assertIsNotNone(found, name)
+            return int(found.group(1), 16)
+
+        def port(name):
+            found = re.search(r"pub const %s: usize = (0x[0-9A-Fa-f_]+);" % name, handover)
+            self.assertIsNotNone(found, name)
+            return int(found.group(1).replace("_", ""), 16)
+
+        self.assertEqual(constant("OpenRequestMark"), port("OPEN_REQUEST_MARK"))
+        self.assertEqual(constant("OpenRequestTaken"), port("OPEN_REQUEST_TAKEN"))
+        # WM_COPYDATA is Windows' own number; the port takes it from the Windows bindings by name and sends under it.
+        self.assertEqual(constant("WM_COPYDATA"), 0x004A)
+        self.assertRegex(handover, r"\bWM_COPYDATA\b,")
+        self.assertIn("dwData: OPEN_REQUEST_MARK,", handover)
+        self.assertIn("answer == OPEN_REQUEST_TAKEN", handover)
+
+
 if __name__ == "__main__":
     unittest.main()

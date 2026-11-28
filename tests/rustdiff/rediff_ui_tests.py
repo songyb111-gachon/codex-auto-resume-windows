@@ -8,7 +8,7 @@ files import the UI at the tag and have no row in the ledger (a test file the ta
 tag's own package first on the path and this checkout's tests, (1) every ledger test that runs on the host through the shim
 (`CODEX_AR_CORE=rust`: car-surface, car-words and the host's render and probe modes behind the popup's, the shared and the icon's
 words and its menu) - the same tests the Python product runs - and (2) the host twins (tests/test_host_shape.py,
-tests/test_host_tray_place.py, which read this checkout's C#). Exit 0 only when all pass; a file that changed is printed, not
+tests/test_host_tray_place.py and every file a row names as a twin's home, which read or run this checkout's C#). Exit 0 only when all pass; a file that changed is printed, not
 failed on - the tests decide. It shows no window and captures nothing.
 """
 from __future__ import annotations
@@ -35,6 +35,12 @@ def git(*arguments, **more):
 # The tag's tests run on the reference's Python with the guard's boot (refguard: no lookup of this PC's processes, no
 # engine), as unittest's command line would run them.
 UNITTEST = "import sys, unittest; unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])"
+# S6.4e: the bundled embeddable runtime is isolated (its ._pth) and never imports tests/sitecustomize.py, which installs the
+# CODEX_AR_CORE=rust shim, so the shim's run imports it itself and stops where it did not install (until then test_surface_askback
+# was skipped there and the ledger tests ran on the tag's Python).
+SHIM_UNITTEST = ("import sys, sitecustomize, unittest\n"
+                 "assert 'rustdiff_shim' in sys.modules, 'the CODEX_AR_CORE=rust shim is not installed'\n"
+                 "unittest.main(module=None, argv=['python -m unittest', *sys.argv[1:]])")
 
 
 def main(argv=None) -> int:
@@ -72,14 +78,16 @@ def main(argv=None) -> int:
     ids.append("test_surface_askback")        # perform and PopupModel held to the tag's own, call for call
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]), CODEX_AR_CORE="rust")
     environment.pop("CODEX_AR_EDITION", None)
-    shim = subprocess.run(refpython.command(UNITTEST, *ids, paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
+    shim = subprocess.run(refpython.command(SHIM_UNITTEST, *ids, paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("%d ledger tests on the host through the shim against %s: %s" % (len(ids), tag, "pass" if shim == 0 else "FAIL"))
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join([str(source), str(ROOT / "tests")]))
     environment.pop("CODEX_AR_EDITION", None)
-    twins = subprocess.run(refpython.command(UNITTEST, "test_surface_ledger", "test_host_shape", "test_host_tray_place",
-                                             paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment, stdin=subprocess.DEVNULL,
-                           creationflags=NO_WINDOW).returncode
+    # Every file a row names as a twin's home (test_host_card_layers.py since S6.4c, ...), beside the ledger's own rule.
+    homes = {twin.split("::")[0][:-3] for row in ledger.values() for twin in row.get("twins", {}).values()}
+    homes |= {"test_surface_ledger", "test_host_shape", "test_host_tray_place"}
+    twins = subprocess.run(refpython.command(UNITTEST, *sorted(homes), paths=[source, ROOT / "tests"]), cwd=ROOT, env=environment,
+                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     print("the ledger and the host twins against %s: %s" % (tag, "pass" if twins == 0 else "FAIL"))
     return 0 if shim == 0 and twins == 0 else 1
 
