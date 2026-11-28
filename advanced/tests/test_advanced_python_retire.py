@@ -135,8 +135,14 @@ class InUseProbeTests(Case):
         for name in names:
             shutil.copy2(base / name, where / name)
         self.assertFalse(pythons._in_use(where))
-        process = subprocess.Popen([str(where / "pythonw.exe"), "-I", "-c", "import time; time.sleep(30)"],
-                                   env=dict(os.environ, PYTHONHOME=str(base)), stdin=subprocess.DEVNULL,
+        # Integration 13: not `-I`, whose -E ignores PYTHONHOME - the copy, with no standard library beside it, then died at
+        # once ("Failed to import encodings"), and the test passed only while its sweep came within the ~0.1 s that dying
+        # took (a slow CI runner's part lost the race: the folder swept away under it). The environment is the test's
+        # without its PYTHON* variables, PYTHONHOME this interpreter's, and no user site (-s), so the copy really sleeps.
+        environment = {name: value for name, value in os.environ.items() if not name.upper().startswith("PYTHON")}
+        environment["PYTHONHOME"] = str(base)
+        process = subprocess.Popen([str(where / "pythonw.exe"), "-s", "-c", "import time; time.sleep(30)"],
+                                   env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
@@ -144,7 +150,10 @@ class InUseProbeTests(Case):
             while not pythons._in_use(where) and time.monotonic() < deadline and process.poll() is None:
                 time.sleep(0.1)
             self.assertTrue(pythons._in_use(where))
+            time.sleep(1)
+            self.assertIsNone(process.poll(), "the copied interpreter runs, so the sweep meets a folder in use")
             pythons._sweep(self.home, None)
+            self.assertIsNone(process.poll(), "it still runs after the sweep")
             self.assertEqual(sorted(entry.name for entry in where.iterdir()), sorted(names), "left whole while it runs")
         finally:
             process.kill()
