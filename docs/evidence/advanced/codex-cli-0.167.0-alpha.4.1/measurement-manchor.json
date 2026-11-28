@@ -1,0 +1,28 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "manchor",
+  "verdict": "pass",
+  "recorded_at": "2026-11-15T10:59Z",
+  "product_version": "0.6.23",
+  "codex_version": "codex-cli 0.167.0-alpha.4.1",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "windows_read": true,
+    "idle_before": true,
+    "request_exit_zero": true,
+    "window_started": true,
+    "reset_near_five_hours": true,
+    "folder_empty_after": true,
+    "input_tokens": 22022,
+    "cached_tokens": 12288,
+    "output_tokens": 5,
+    "second_request_kept_reset": true,
+    "config_mcp_started": false,
+    "plugin_mcp_started": false,
+    "apps_mcp_started": false,
+    "hooks_ran": false,
+    "notify_ran": false,
+    "config_kept": true,
+    "thread_given": false
+  }
+}
